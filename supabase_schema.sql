@@ -21,6 +21,9 @@ create table if not exists public.companies (
   updated_at              timestamptz not null default now()
 );
 
+-- Unique constraint so upsert on user_id works (one company per user)
+alter table public.companies add constraint if not exists companies_user_id_unique unique (user_id);
+
 -- RLS
 alter table public.companies enable row level security;
 create policy "Users can manage their own company"

@@ -36,7 +36,12 @@ export default function CompanySettings() {
       autoSaveTimer.current = setTimeout(async () => {
         setSaving(true);
         try {
-          await saveCompany(companyRef.current);
+          const result = await saveCompany(companyRef.current);
+          // If a new record was created, store the returned id so future saves use UPDATE
+          if (result?.id && !companyRef.current.id) {
+            companyRef.current = { ...companyRef.current, id: result.id };
+            setCompany(prev => ({ ...prev, id: result.id }));
+          }
           setAutoSaved(true);
           setTimeout(() => setAutoSaved(false), 2000);
         } catch (err) {

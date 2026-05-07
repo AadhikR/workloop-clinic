@@ -65,13 +65,16 @@ export async function saveCompany(company) {
       .from('companies')
       .update(row)
       .eq('id', company.id);
-    if (error) throw error;
+    if (error) { console.error('saveCompany update:', error); throw error; }
   } else {
-    // Insert new
-    const { error } = await supabase
+    // Insert new — upsert on user_id so duplicate inserts don't fail
+    const { data, error } = await supabase
       .from('companies')
-      .insert(row);
-    if (error) throw error;
+      .upsert({ ...row }, { onConflict: 'user_id' })
+      .select()
+      .single();
+    if (error) { console.error('saveCompany insert:', error); throw error; }
+    return data ? { ...company, id: data.id } : company;
   }
 }
 
