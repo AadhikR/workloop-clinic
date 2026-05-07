@@ -155,17 +155,6 @@ export default function CompanySettings() {
               </div>
             </div>
 
-            <div style={{ marginTop: 20, display: 'flex', justifyContent: 'flex-end' }}>
-              <button
-                className="btn btn-primary"
-                onClick={handleSave}
-                disabled={saving}
-                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-              >
-                {saving ? <Loader size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={15} />}
-                {saving ? 'Saving…' : 'Save Settings'}
-              </button>
-            </div>
           </div>
         </div>
 
