@@ -89,7 +89,7 @@ export default function CompanySettings() {
                   className="form-control"
                   value={company.name}
                   onChange={e => handleChange('name', e.target.value)}
-                  placeholder="e.g. Aadhik Trading LLC"
+                  placeholder="e.g. Example Trading LLC"
                 />
               </div>
               <div className="form-group">
@@ -98,7 +98,7 @@ export default function CompanySettings() {
                   className="form-control font-mono"
                   value={company.molEmployerId}
                   onChange={e => handleChange('molEmployerId', e.target.value.trim())}
-                  placeholder="e.g. 0000000816726"
+                  placeholder="e.g. 0000000123456"
                 />
                 <span className="hint">13-digit Ministry of Labour employer number</span>
               </div>
@@ -108,7 +108,7 @@ export default function CompanySettings() {
                   className="form-control font-mono"
                   value={company.defaultBankRoutingCode}
                   onChange={e => handleChange('defaultBankRoutingCode', e.target.value.trim())}
-                  placeholder="e.g. 302620122"
+                  placeholder="e.g. 300000001"
                 />
                 <span className="hint">Used in the SCR line if not overridden per payroll run</span>
               </div>

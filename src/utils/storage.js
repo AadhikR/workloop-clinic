@@ -101,7 +101,7 @@ export async function saveEmployee(employee) {
 
   const row = employeeToDb(employee, user.id);
 
-  if (employee.id && !employee.id.includes('-') === false) {
+  if (employee.id && employee.id.includes('-')) {
     // UUID — update existing
     const { data, error } = await supabase
       .from('employees')
