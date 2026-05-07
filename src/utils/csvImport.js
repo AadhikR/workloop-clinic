@@ -11,6 +11,12 @@ import Papa from 'papaparse';
  * 16: WPS BASIC, 17: WPS ALLOW, 18: TOTAL
  */
 
+// Strip thousand-separator commas and parse as float
+function parseNum(val) {
+  if (val === undefined || val === null) return 0;
+  return parseFloat(String(val).replace(/,/g, '').trim()) || 0;
+}
+
 export function parseCSV(fileContent) {
   const result = Papa.parse(fileContent, {
     skipEmptyLines: false,
@@ -35,10 +41,10 @@ export function parseCSV(fileContent) {
     const bankName = row[4]?.toString().trim() || '';
     const bankRouting = row[5]?.toString().trim() || '';
     const iban = row[6]?.toString().trim() || '';
-    const basic = parseFloat(row[7]) || 0;
-    const rawAllow = parseFloat(row[8]) || 0;  // Allowance column
-    const wpsBasic = parseFloat(row[16]) || 0;
-    const wpsAllow = parseFloat(row[17]) || 0;
+    const basic    = parseNum(row[7]);   // Basic
+    const rawAllow = parseNum(row[8]);   // Allowance
+    const wpsBasic = parseNum(row[16]);  // WPS BASIC
+    const wpsAllow = parseNum(row[17]);  // WPS ALLOW
 
     // Employee master data
     employees.push({
