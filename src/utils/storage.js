@@ -48,7 +48,7 @@ export async function getCompany() {
  */
 export async function saveCompany(company) {
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
+  if (!user) throw new Error('Not authenticated — please sign out and sign in again');
 
   const row = {
     user_id:                    user.id,
@@ -134,14 +134,28 @@ export async function saveEmployees(employees) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
-  // Upsert all rows — Supabase upsert on id
-  const rows = employees.map(e => employeeToDb(e, user.id));
+  // Split into existing (have UUID) and new (no id)
+  const existing = employees.filter(e => e.id && e.id.includes('-'));
+  const newEmps  = employees.filter(e => !e.id || !e.id.includes('-'));
 
-  const { error } = await supabase
-    .from('employees')
-    .upsert(rows, { onConflict: 'id' });
+  if (existing.length) {
+    const rows = existing.map(e => employeeToDb(e, user.id));
+    const { error } = await supabase
+      .from('employees')
+      .upsert(rows, { onConflict: 'id' });
+    if (error) throw error;
+  }
 
-  if (error) throw error;
+  if (newEmps.length) {
+    const rows = newEmps.map(e => {
+      const { id: _drop, ...row } = employeeToDb(e, user.id);
+      return row;
+    });
+    const { error } = await supabase
+      .from('employees')
+      .insert(rows);
+    if (error) throw error;
+  }
 }
 
 /**
