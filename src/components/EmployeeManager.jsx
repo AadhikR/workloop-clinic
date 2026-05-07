@@ -1,7 +1,113 @@
 import { useState, useEffect, useRef } from 'react';
-import { Users, Plus, Pencil, Trash2, X, Check, Upload, AlertCircle, Search } from 'lucide-react';
+import { Users, Plus, Pencil, Trash2, X, Check, Upload, AlertCircle, Search, FileDown, Info } from 'lucide-react';
 import { getEmployees, saveEmployee, saveEmployees, deleteEmployee } from '../utils/storage';
 import { parseCSV, readFileAsText } from '../utils/csvImport';
+
+// ── CSV column spec ──────────────────────────────────────────────────────────
+const CSV_COLUMNS = [
+  { col: 'A (0)',  header: 'No',                  required: false, example: '1',                    note: 'Employee sequence number' },
+  { col: 'B (1)',  header: 'Month',                required: false, example: 'May 2026',             note: 'Payroll month label (ignored on import)' },
+  { col: 'C (2)',  header: 'Name',                 required: true,  example: 'John Smith',           note: 'Full employee name' },
+  { col: 'D (3)',  header: 'Labor Card No',        required: true,  example: '10003048635715',       note: 'MOL ID — must be 10+ digits' },
+  { col: 'E (4)',  header: 'Bank',                 required: false, example: 'ENBD',                 note: 'Bank short name' },
+  { col: 'F (5)',  header: 'Bank / Routing Code',  required: true,  example: '302620122',            note: 'WPS routing / agent code' },
+  { col: 'G (6)',  header: 'Bank Account No',      required: true,  example: 'AE080260001014950445301', note: 'IBAN or account number' },
+  { col: 'H (7)',  header: 'Basic',                required: true,  example: '5000.00',              note: 'Basic salary (AED)' },
+  { col: 'I (8)',  header: 'Allowance',            required: false, example: '3000.00',              note: 'Fixed monthly allowance (AED)' },
+  { col: 'J (9)',  header: 'Increment',            required: false, example: '0',                    note: 'Increment amount (AED)' },
+  { col: 'K (10)', header: 'Bonus / Incentive',    required: false, example: '0',                    note: 'Bonus (AED)' },
+  { col: 'L (11)', header: 'Other Pay',            required: false, example: '0',                    note: 'Other additions (AED)' },
+  { col: 'M (12)', header: 'DU Deduction',         required: false, example: '0',                    note: 'DU phone deduction (AED)' },
+  { col: 'N (13)', header: 'Salary Deduction',     required: false, example: '0',                    note: 'Salary deduction (AED)' },
+  { col: 'O (14)', header: 'Loan Deduction',       required: false, example: '0',                    note: 'Loan repayment (AED)' },
+  { col: 'P (15)', header: 'Other Deduction',      required: false, example: '0',                    note: 'Other deductions (AED)' },
+  { col: 'Q (16)', header: 'WPS BASIC',            required: false, example: '5000.00',              note: 'WPS basic (overrides col H if present)' },
+  { col: 'R (17)', header: 'WPS ALLOW',            required: false, example: '3000.00',              note: 'WPS allowance (overrides col I if present)' },
+  { col: 'S (18)', header: 'TOTAL',                required: false, example: '8000.00',              note: 'Total salary (informational)' },
+];
+
+function downloadTemplate() {
+  const header = CSV_COLUMNS.map(c => c.header).join(',');
+  const example = CSV_COLUMNS.map(c => `"${c.example}"`).join(',');
+  const blob = new Blob([header + '\n' + example + '\n'], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'employee_import_template.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── CSV Format Guide Modal ───────────────────────────────────────────────────
+function CSVFormatModal({ onClose, onProceed }) {
+  return (
+    <div className="modal-overlay" style={{ zIndex: 1100 }}>
+      <div className="modal" style={{ maxWidth: 780, width: '95vw' }}>
+        <div className="modal-header">
+          <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Info size={18} /> CSV Import Format
+          </h3>
+          <button className="btn btn-ghost btn-icon" onClick={onClose}><X size={18} /></button>
+        </div>
+
+        <div className="modal-body" style={{ padding: '0 0 4px' }}>
+          <p style={{ padding: '12px 24px 4px', color: 'var(--gray-600)', fontSize: 13 }}>
+            Your CSV file must have the following columns <strong>in this exact order</strong> (row 1 = header, row 2+ = data).
+            Columns marked <span style={{ color: 'var(--danger)', fontWeight: 600 }}>required</span> must have values for a row to be imported.
+          </p>
+
+          <div style={{ overflowX: 'auto', padding: '8px 24px 16px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: 'var(--gray-50)', borderBottom: '2px solid var(--gray-200)' }}>
+                  <th style={thStyle}>Column</th>
+                  <th style={thStyle}>Header Name</th>
+                  <th style={thStyle}>Required</th>
+                  <th style={thStyle}>Example Value</th>
+                  <th style={{ ...thStyle, minWidth: 200 }}>Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {CSV_COLUMNS.map((c, i) => (
+                  <tr key={i} style={{ borderBottom: '1px solid var(--gray-100)', background: c.required ? 'rgba(239,68,68,0.03)' : 'white' }}>
+                    <td style={{ ...tdStyle, fontFamily: 'monospace', color: 'var(--gray-500)' }}>{c.col}</td>
+                    <td style={{ ...tdStyle, fontWeight: c.required ? 600 : 400 }}>{c.header}</td>
+                    <td style={{ ...tdStyle, textAlign: 'center' }}>
+                      {c.required
+                        ? <span style={{ color: 'var(--danger)', fontWeight: 700 }}>✓ Yes</span>
+                        : <span style={{ color: 'var(--gray-400)' }}>No</span>}
+                    </td>
+                    <td style={{ ...tdStyle, fontFamily: 'monospace', color: 'var(--primary)' }}>{c.example}</td>
+                    <td style={{ ...tdStyle, color: 'var(--gray-500)' }}>{c.note}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{ margin: '0 24px 16px', padding: '10px 14px', background: 'var(--gray-50)', borderRadius: 8, fontSize: 12, color: 'var(--gray-600)', borderLeft: '3px solid var(--primary)' }}>
+            <strong>Tips:</strong> Export your salary spreadsheet as CSV (File → Save As → CSV). Rows without a valid 10+ digit Labor Card No are skipped automatically.
+            Existing employees are matched by Labor Card No and updated; new ones are added.
+          </div>
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: 6 }} onClick={downloadTemplate}>
+            <FileDown size={15} /> Download Template
+          </button>
+          <div style={{ flex: 1 }} />
+          <button className="btn btn-outline" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={onProceed}>
+            <Upload size={15} /> Choose CSV File
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const thStyle = { padding: '8px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--gray-700)', whiteSpace: 'nowrap' };
+const tdStyle = { padding: '6px 10px', verticalAlign: 'top' };
 
 const EMPTY_EMP = {
   empNo: '',
@@ -131,6 +237,7 @@ export default function EmployeeManager() {
   const [search, setSearch]         = useState('');
   const [importMsg, setImportMsg]   = useState(null);
   const [dragOver, setDragOver]     = useState(false);
+  const [showFormatGuide, setShowFormatGuide] = useState(false);
   const fileRef = useRef();
 
   useEffect(() => {
@@ -213,7 +320,10 @@ export default function EmployeeManager() {
     e.preventDefault();
     setDragOver(false);
     const file = e.dataTransfer.files[0];
-    if (file) handleCSVImport(file);
+    if (file) {
+      // If a file is dropped directly, import it (user already knows the format)
+      handleCSVImport(file);
+    }
   };
 
   const filtered = employees.filter(e =>
@@ -230,7 +340,7 @@ export default function EmployeeManager() {
       <div className="page-header">
         <h2>Employee Master Data</h2>
         <div className="page-header-actions">
-          <button className="btn btn-outline" onClick={() => fileRef.current.click()}>
+          <button className="btn btn-outline" onClick={() => setShowFormatGuide(true)}>
             <Upload size={15} /> Import CSV
           </button>
           <input ref={fileRef} type="file" accept=".csv" style={{display:'none'}} onChange={onFileChange} />
@@ -269,11 +379,11 @@ export default function EmployeeManager() {
           onDragOver={e => { e.preventDefault(); setDragOver(true); }}
           onDragLeave={() => setDragOver(false)}
           onDrop={onDrop}
-          onClick={() => fileRef.current.click()}
+          onClick={() => setShowFormatGuide(true)}
         >
           <Upload size={24} style={{margin:'0 auto 8px', display:'block'}} />
           <p style={{fontWeight:500}}>Drop your salary CSV here or click to browse</p>
-          <p className="text-sm mt-1">Imports employee master data from your monthly salary spreadsheet</p>
+          <p className="text-sm mt-1">Click to see the required format, then choose your file</p>
         </div>
 
         <div className="card">
@@ -352,6 +462,14 @@ export default function EmployeeManager() {
           )}
         </div>
       </div>
+
+      {/* CSV Format Guide Modal */}
+      {showFormatGuide && (
+        <CSVFormatModal
+          onClose={() => setShowFormatGuide(false)}
+          onProceed={() => { setShowFormatGuide(false); fileRef.current.click(); }}
+        />
+      )}
 
       {/* Add/Edit Modal */}
       {modal && (
