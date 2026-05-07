@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { Building2, Info, CheckCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Building2, Info, CheckCircle, Save, AlertCircle, Loader } from 'lucide-react';
 import { getCompany, saveCompany } from '../utils/storage';
 
 const DEFAULT_COMPANY = {
@@ -11,69 +11,86 @@ const DEFAULT_COMPANY = {
 };
 
 export default function CompanySettings() {
-  const [company, setCompany]     = useState(DEFAULT_COMPANY);
-  const [autoSaved, setAutoSaved] = useState(false);
-  const [saving, setSaving]       = useState(false);
-  const autoSaveTimer             = useRef(null);
-  const companyRef                = useRef(DEFAULT_COMPANY);
+  const [company, setCompany] = useState(DEFAULT_COMPANY);
+  const [saved, setSaved]     = useState(false);
+  const [saving, setSaving]   = useState(false);
+  const [error, setError]     = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     getCompany().then(stored => {
-      if (stored) {
-        setCompany(stored);
-        companyRef.current = stored;
-      }
+      if (stored) setCompany(stored);
+      setLoading(false);
+    }).catch(err => {
+      console.error('getCompany:', err);
+      setLoading(false);
     });
   }, []);
 
   const handleChange = (field, value) => {
-    setCompany(prev => {
-      const next = { ...prev, [field]: value };
-      companyRef.current = next;
-
-      // Auto-save with debounce
-      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
-      autoSaveTimer.current = setTimeout(async () => {
-        setSaving(true);
-        try {
-          const result = await saveCompany(companyRef.current);
-          // If a new record was created, store the returned id so future saves use UPDATE
-          if (result?.id && !companyRef.current.id) {
-            companyRef.current = { ...companyRef.current, id: result.id };
-            setCompany(prev => ({ ...prev, id: result.id }));
-          }
-          setAutoSaved(true);
-          setTimeout(() => setAutoSaved(false), 2000);
-        } catch (err) {
-          console.error('Failed to save company:', err);
-        } finally {
-          setSaving(false);
-        }
-      }, 600);
-
-      return next;
-    });
+    setCompany(prev => ({ ...prev, [field]: value }));
+    setSaved(false);
+    setError('');
   };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError('');
+    setSaved(false);
+    try {
+      const result = await saveCompany(company);
+      // Store returned id so future saves use UPDATE
+      if (result?.id && !company.id) {
+        setCompany(prev => ({ ...prev, id: result.id }));
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err) {
+      console.error('Failed to save company:', err);
+      setError(err.message || 'Failed to save. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="page-body" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200 }}>
+        <Loader size={24} style={{ animation: 'spin 1s linear infinite' }} />
+      </div>
+    );
+  }
 
   return (
     <div>
       <div className="page-header">
         <h2>Company / Employer Settings</h2>
         <div className="page-header-actions">
-          {saving && (
-            <span className="auto-save-indicator" style={{ color: 'var(--gray-400)' }}>
-              Saving…
-            </span>
-          )}
-          {autoSaved && !saving && (
+          {saved && !saving && (
             <span className="auto-save-indicator">
-              <CheckCircle size={14} /> Auto-saved
+              <CheckCircle size={14} /> Saved
             </span>
           )}
+          <button
+            className="btn btn-primary"
+            onClick={handleSave}
+            disabled={saving}
+            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            {saving ? <Loader size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={15} />}
+            {saving ? 'Saving…' : 'Save Settings'}
+          </button>
         </div>
       </div>
 
       <div className="page-body">
+
+        {error && (
+          <div className="alert alert-danger mb-4">
+            <AlertCircle size={16} />
+            <div><strong>Save failed:</strong> {error}</div>
+          </div>
+        )}
 
         <div className="alert alert-info mb-4">
           <Info size={16} />
@@ -136,6 +153,18 @@ export default function CompanySettings() {
                   placeholder="Dubai, UAE"
                 />
               </div>
+            </div>
+
+            <div style={{ marginTop: 20, display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                className="btn btn-primary"
+                onClick={handleSave}
+                disabled={saving}
+                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                {saving ? <Loader size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={15} />}
+                {saving ? 'Saving…' : 'Save Settings'}
+              </button>
             </div>
           </div>
         </div>
