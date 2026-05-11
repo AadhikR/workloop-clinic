@@ -73,6 +73,7 @@ export default function LeaveManager() {
   const [allBalances, setAllBalances] = useState([]);
   const [holidays, setHolidays]     = useState([]);
   const [settings, setSettings]     = useState(null);
+  const [showEmpSelector, setShowEmpSelector]   = useState(false);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [calendarMonth, setCalendarMonth] = useState(new Date());
@@ -245,7 +246,7 @@ export default function LeaveManager() {
       <div className="page-header">
         <h2>Leave Management</h2>
         <div className="page-header-actions">
-          <button className="btn btn-primary" onClick={() => { setSelectedEmployee(employees[0]); setShowRequestModal(true); }}>
+          <button className="btn btn-primary" onClick={() => { setSelectedEmployee(employees[0]); setShowEmpSelector(true); }}>
             <Plus size={15}/> New Leave Request
           </button>
         </div>
@@ -730,13 +731,13 @@ export default function LeaveManager() {
         )}
       </div>
 
-      {/* ── Leave Request Modal ── */}
-      {showRequestModal && selectedEmployee && (
+      {/* ── Employee Selector (step 1) ── */}
+      {showEmpSelector && (
         <div className="modal-overlay" style={{ zIndex:300 }}>
           <div className="modal" style={{ maxWidth:500 }}>
             <div className="modal-header">
               <h3>Select Employee</h3>
-              <button className="btn btn-ghost btn-icon" onClick={() => setShowRequestModal(false)}><X size={18}/></button>
+              <button className="btn btn-ghost btn-icon" onClick={() => setShowEmpSelector(false)}><X size={18}/></button>
             </div>
             <div className="modal-body">
               <div className="form-group">
@@ -750,9 +751,9 @@ export default function LeaveManager() {
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn btn-outline" onClick={() => setShowRequestModal(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={() => setShowRequestModal(false)}>
-                Continue
+              <button className="btn btn-outline" onClick={() => setShowEmpSelector(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={() => { setShowEmpSelector(false); setShowRequestModal(true); }}>
+                Continue →
               </button>
             </div>
           </div>
