@@ -306,6 +306,7 @@ function EmployeeManagerInner() {
   const [dragOver, setDragOver]           = useState(false);
   const [showFormatGuide, setShowFormatGuide] = useState(false);
   const [historyEmp, setHistoryEmp]       = useState(null);
+  const [eosEmp, setEosEmp]               = useState(null); // end-of-service screen
   const [activeTab, setActiveTab]         = useState('list'); // 'list' | 'expiry'
   const fileRef = useRef();
 
