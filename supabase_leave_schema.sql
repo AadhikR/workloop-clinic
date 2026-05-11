@@ -181,13 +181,29 @@ create policy if not exists "Users manage their own leave balances"
 
 -- ─────────────────────────────────────────────
 -- 7. AUTO-UPDATE updated_at triggers
+-- Uses DO blocks to avoid errors if triggers already exist.
+-- No DROP statements — purely additive.
 -- ─────────────────────────────────────────────
-drop trigger if exists leave_settings_updated_at  on public.leave_settings;
-drop trigger if exists leave_types_updated_at     on public.leave_types;
-drop trigger if exists leave_requests_updated_at  on public.leave_requests;
-drop trigger if exists leave_balances_updated_at  on public.leave_balances;
+do $$ begin
+  if not exists (select 1 from pg_trigger where tgname = 'leave_settings_updated_at') then
+    create trigger leave_settings_updated_at before update on public.leave_settings for each row execute procedure public.handle_updated_at();
+  end if;
+end $$;
 
-create trigger leave_settings_updated_at  before update on public.leave_settings  for each row execute procedure public.handle_updated_at();
-create trigger leave_types_updated_at     before update on public.leave_types     for each row execute procedure public.handle_updated_at();
-create trigger leave_requests_updated_at  before update on public.leave_requests  for each row execute procedure public.handle_updated_at();
-create trigger leave_balances_updated_at  before update on public.leave_balances  for each row execute procedure public.handle_updated_at();
+do $$ begin
+  if not exists (select 1 from pg_trigger where tgname = 'leave_types_updated_at') then
+    create trigger leave_types_updated_at before update on public.leave_types for each row execute procedure public.handle_updated_at();
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_trigger where tgname = 'leave_requests_updated_at') then
+    create trigger leave_requests_updated_at before update on public.leave_requests for each row execute procedure public.handle_updated_at();
+  end if;
+end $$;
+
+do $$ begin
+  if not exists (select 1 from pg_trigger where tgname = 'leave_balances_updated_at') then
+    create trigger leave_balances_updated_at before update on public.leave_balances for each row execute procedure public.handle_updated_at();
+  end if;
+end $$;
