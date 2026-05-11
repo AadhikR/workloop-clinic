@@ -1,14 +1,14 @@
 /**
  * EndOfServiceScreen.jsx — UAE End-of-Service Settlement Calculator
  *
- * Calculates:
- *   1. Gratuity / EOSB (UAE Labour Law Art. 51)
- *   2. Pro-rata final salary for the last partial month
- *   3. Outstanding advance deductions
- *   4. Total net settlement payable
- *
- * Service period displayed as "X Years, Y Months, Z Days" (calendar-accurate).
- * Gratuity: 1–5yr = 21 days/yr, >5yr = 30 days/yr beyond 5, capped at 2yr basic.
+ * Implements full MOHRE gratuity rules:
+ *   - Daily rate = Basic ÷ 30
+ *   - 1–5 years: 21 days/year
+ *   - > 5 years: 30 days/year (ALL years)
+ *   - Resignation partial: 1–3yr = 1/3, 3–5yr = 2/3, >5yr = full
+ *   - Termination: always full
+ *   - Cap: 24 months basic salary
+ *   - Last working day is included in service period
  */
 import { useState } from 'react';
 import { X, Calculator, Download } from 'lucide-react';
@@ -18,10 +18,11 @@ import { formatAED, formatDateUAE } from '../utils/uaeValidators';
 export default function EndOfServiceScreen({ employee, onClose }) {
   const today = new Date().toISOString().split('T')[0];
 
-  const [terminationDate, setTerminationDate] = useState(
-    employee.terminationDate || today
-  );
+  const [terminationDate, setTerminationDate]   = useState(employee.terminationDate || today);
   const [outstandingAdvances, setOutstandingAdvances] = useState('0');
+  const [reason, setReason]                     = useState(
+    employee.terminationReason?.toLowerCase().includes('resign') ? 'Resignation' : 'Termination'
+  );
   const [result, setResult] = useState(null);
 
   const calculate = () => {
@@ -33,14 +34,15 @@ export default function EndOfServiceScreen({ employee, onClose }) {
     const settlement = calculateEndOfService(
       employee,
       terminationDate,
-      parseFloat(outstandingAdvances) || 0
+      parseFloat(outstandingAdvances) || 0,
+      reason
     );
     setResult(settlement);
   };
 
   const printSettlement = () => {
     if (!result) return;
-    const serviceLabel = result.gratuity?.serviceLabel || `${result.yearsOfService.toFixed(2)} years`;
+    const serviceLabel = result.gratuity?.serviceLabel || '';
     const win = window.open('', '_blank');
     win.document.write(`
       <html><head><title>End of Service Settlement — ${employee.name}</title>
@@ -57,7 +59,8 @@ export default function EndOfServiceScreen({ employee, onClose }) {
       </style></head><body>
       <h1>End-of-Service Settlement</h1>
       <p><strong>Employee:</strong> ${result.employee}</p>
-      <p><strong>Start Date:</strong> ${formatDateUAE(result.startDate)} &nbsp;|&nbsp; <strong>Termination Date:</strong> ${formatDateUAE(result.terminationDate)}</p>
+      <p><strong>Contract Type:</strong> ${result.contractType} &nbsp;|&nbsp; <strong>Reason:</strong> ${result.reason}</p>
+      <p><strong>Start Date:</strong> ${formatDateUAE(result.startDate)} &nbsp;|&nbsp; <strong>Last Working Day:</strong> ${formatDateUAE(result.terminationDate)}</p>
       <p><strong>Service Period:</strong> ${serviceLabel}</p>
 
       <h2>Final Month Salary (Pro-rata)</h2>
@@ -67,14 +70,16 @@ export default function EndOfServiceScreen({ employee, onClose }) {
         <tr><td>Pro-rata Final Salary</td><td>${formatAED(result.proRataFinalSalary)}</td></tr>
       </table>
 
-      <h2>Gratuity / EOSB (UAE Labour Law Art. 51)</h2>
+      <h2>Gratuity / EOSB (UAE Labour Law)</h2>
       <table>
         <tr><td>Service Period</td><td>${serviceLabel}</td></tr>
         <tr><td>Eligible</td><td>${result.gratuity.eligible ? 'Yes' : 'No (< 1 year service)'}</td></tr>
         ${result.gratuity.eligible ? `
         <tr><td>Daily Rate (Basic ÷ 30)</td><td>${formatAED(result.gratuity.dailyRate)}</td></tr>
         <tr><td>Calculation</td><td>${result.gratuity.breakdown}</td></tr>
-        <tr><td>Gratuity (before cap)</td><td>${formatAED(result.gratuity.gratuityRaw)}</td></tr>
+        <tr><td>Full Gratuity Entitlement</td><td>${formatAED(result.gratuity.gratuityFull)}</td></tr>
+        <tr><td>Entitlement Factor</td><td>${result.gratuity.reductionLabel}</td></tr>
+        <tr><td>Gratuity After Reduction</td><td>${formatAED(result.gratuity.gratuityRaw)}</td></tr>
         <tr><td>2-Year Cap</td><td>${formatAED(result.gratuity.cap)}</td></tr>
         <tr><td>Gratuity Payable</td><td>${formatAED(result.gratuity.gratuityCapped)}</td></tr>
         ` : ''}
@@ -125,18 +130,37 @@ export default function EndOfServiceScreen({ employee, onClose }) {
                   <span className="hint">From employee profile</span>
                 </div>
                 <div className="form-group">
-                  <label>Termination / Last Working Date *</label>
+                  <label>Last Working Day *</label>
                   <input
                     className="form-control"
                     type="date"
                     value={terminationDate}
                     onChange={e => { setTerminationDate(e.target.value); setResult(null); }}
                   />
+                  <span className="hint">This day is included in the service period</span>
+                </div>
+                <div className="form-group">
+                  <label>Contract Type</label>
+                  <input className="form-control" value={employee.contractType || 'Unlimited'} disabled/>
+                </div>
+                <div className="form-group">
+                  <label>Reason for Leaving *</label>
+                  <select
+                    className="form-control"
+                    value={reason}
+                    onChange={e => { setReason(e.target.value); setResult(null); }}
+                  >
+                    <option value="Termination">Termination (without misconduct)</option>
+                    <option value="Resignation">Resignation</option>
+                  </select>
+                  <span className="hint">
+                    Resignation may reduce entitlement: 1–3yr = 1/3, 3–5yr = 2/3, &gt;5yr = full
+                  </span>
                 </div>
                 <div className="form-group">
                   <label>Basic Salary (AED)</label>
                   <input className="form-control" value={formatAED(employee.basicSalary)} disabled/>
-                  <span className="hint">Gratuity is calculated on basic salary only (UAE Labour Law)</span>
+                  <span className="hint">Gratuity is calculated on basic salary only</span>
                 </div>
                 <div className="form-group">
                   <label>Outstanding Salary Advances (AED)</label>
@@ -167,8 +191,9 @@ export default function EndOfServiceScreen({ employee, onClose }) {
               <div className="alert alert-info mb-4">
                 <div>
                   <strong>{result.employee}</strong> &nbsp;|&nbsp;
-                  Start: {formatDateUAE(result.startDate)} &nbsp;|&nbsp;
-                  End: {formatDateUAE(result.terminationDate)} &nbsp;|&nbsp;
+                  {result.contractType} Contract &nbsp;|&nbsp;
+                  {result.reason} &nbsp;|&nbsp;
+                  Start: {formatDateUAE(result.startDate)} → Last Day: {formatDateUAE(result.terminationDate)} &nbsp;|&nbsp;
                   Service: <strong>{serviceLabel}</strong>
                 </div>
               </div>
@@ -208,7 +233,7 @@ export default function EndOfServiceScreen({ employee, onClose }) {
 
                 {/* Gratuity */}
                 <div className="card">
-                  <div className="card-header"><h3>Gratuity / EOSB (Art. 51)</h3></div>
+                  <div className="card-header"><h3>Gratuity / EOSB</h3></div>
                   <div className="card-body" style={{ padding:0 }}>
                     {!result.gratuity.eligible ? (
                       <div style={{ padding:'16px 20px', color:'var(--gray-500)', fontSize:13 }}>
@@ -231,9 +256,21 @@ export default function EndOfServiceScreen({ employee, onClose }) {
                             <td className="text-right text-sm" style={{ color:'var(--gray-500)' }}>{result.gratuity.breakdown}</td>
                           </tr>
                           <tr>
-                            <td>Gratuity (before cap)</td>
-                            <td className="text-right">{formatAED(result.gratuity.gratuityRaw)}</td>
+                            <td>Full Gratuity Entitlement</td>
+                            <td className="text-right">{formatAED(result.gratuity.gratuityFull)}</td>
                           </tr>
+                          {result.gratuity.reductionFactor < 1 && (
+                            <tr style={{ color:'var(--warning)' }}>
+                              <td>Entitlement Factor</td>
+                              <td className="text-right text-sm">{result.gratuity.reductionLabel}</td>
+                            </tr>
+                          )}
+                          {result.gratuity.reductionFactor < 1 && (
+                            <tr>
+                              <td>Gratuity After Reduction</td>
+                              <td className="text-right">{formatAED(result.gratuity.gratuityRaw)}</td>
+                            </tr>
+                          )}
                           <tr>
                             <td>2-Year Cap</td>
                             <td className="text-right text-sm" style={{ color:'var(--gray-500)' }}>{formatAED(result.gratuity.cap)}</td>

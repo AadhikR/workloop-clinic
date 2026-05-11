@@ -1,47 +1,60 @@
 /**
  * gratuityCalculator.js — UAE End-of-Service Benefit (EOSB / Gratuity) Calculator
  *
- * Based on UAE Labour Law (Federal Decree-Law No. 33 of 2021) Article 51:
+ * Based on UAE Labour Law (Federal Decree-Law No. 33 of 2021) and MOHRE guidelines.
  *
- * Eligibility:
- *   - Less than 1 year of service: NO gratuity
- *   - 1 to 5 years: 21 calendar days' basic salary per year of service
- *   - More than 5 years: 30 calendar days' basic salary per year for each year beyond 5
- *     (the first 5 years still accrue at 21 days/year)
+ * ── FORMULA ──────────────────────────────────────────────────────────────────
+ * Daily wage = Basic Salary ÷ 30
  *
- * Cap: Total gratuity cannot exceed 2 years' total basic salary (Article 51 cap).
+ * Gratuity tiers (based on years of service):
+ *   < 1 year:   No gratuity
+ *   1–5 years:  21 days' basic salary per year of service
+ *   > 5 years:  30 days' basic salary per year of service (for ALL years, not just beyond 5)
+ *               i.e. if service = 6 years: 30 × 6 years × daily rate
  *
- * Pro-rata: Partial years beyond the first year are calculated proportionally.
+ * Cap: Total gratuity cannot exceed 2 years' basic salary (24 months).
  *
- * Note: Gratuity is based on BASIC SALARY only (not allowances).
+ * ── RESIGNATION PARTIAL ENTITLEMENT ─────────────────────────────────────────
+ * When the employee RESIGNS (not terminated):
+ *   1–3 years:  1/3 of full gratuity
+ *   3–5 years:  2/3 of full gratuity
+ *   > 5 years:  Full gratuity
  *
- * Under Federal Decree-Law No. 33 of 2021 (effective Feb 2022):
- *   Both resignation and termination receive full gratuity after 1 year of service.
+ * When TERMINATED (without misconduct): Full gratuity always.
+ *
+ * ── SERVICE PERIOD ───────────────────────────────────────────────────────────
+ * The last working day (termination date) is INCLUDED in the service period.
+ * Service is displayed as "X Years, Y Months, Z Days".
+ *
+ * ── CONTRACT TYPE ────────────────────────────────────────────────────────────
+ * Limited and Unlimited contracts both follow the same gratuity formula.
+ * Resignation partial entitlement applies to both.
+ *
+ * ── NOTES ────────────────────────────────────────────────────────────────────
+ * - Only BASIC SALARY counts. Allowances are excluded.
+ * - DIFC and ADGM follow separate employment regulations.
+ * - Gratuity can be denied only for gross misconduct (Article 120).
  */
 
 /**
  * Calculate the exact service period between two dates using calendar arithmetic.
- * Returns { years, months, days, totalYears (decimal) }
- *
- * Uses the same method as UAE MOHRE: count complete years, then complete months,
- * then remaining days — all based on calendar dates, not 365.25-day approximation.
+ * The last working day (endDate) is INCLUDED (adds 1 day before calculating).
  *
  * @param {string|Date} startDate
- * @param {string|Date} endDate
- * @returns {{ years: number, months: number, days: number, totalYears: number }}
+ * @param {string|Date} endDate  — last working day (inclusive)
+ * @returns {{ years: number, months: number, days: number, totalYears: number, serviceLabel: string }}
  */
 export function servicePeriod(startDate, endDate = new Date()) {
-  const s = new Date(startDate);
-  // UAE gratuity: the last working day (termination date) is included in the service period.
-  // Add 1 day to the end date so that e.g. 01/01/2020 → 01/01/2026 = 6 Years, 0 Months, 1 Days
-  // which is the correct UAE MOHRE calculation (inclusive of last day).
+  const s    = new Date(startDate);
   const eRaw = new Date(endDate);
+
+  if (isNaN(s.getTime()) || isNaN(eRaw.getTime()) || eRaw < s) {
+    return { years: 0, months: 0, days: 0, totalYears: 0, serviceLabel: '0 Years, 0 Months, 0 Days' };
+  }
+
+  // Include the last working day by adding 1 day to end date
   const e = new Date(eRaw);
   e.setDate(e.getDate() + 1);
-
-  if (isNaN(s.getTime()) || isNaN(e.getTime()) || eRaw < s) {
-    return { years: 0, months: 0, days: 0, totalYears: 0 };
-  }
 
   let years  = e.getFullYear() - s.getFullYear();
   let months = e.getMonth()    - s.getMonth();
@@ -50,7 +63,6 @@ export function servicePeriod(startDate, endDate = new Date()) {
   // Borrow from months if days are negative
   if (days < 0) {
     months--;
-    // Days in the previous month relative to end date
     const prevMonth = new Date(e.getFullYear(), e.getMonth(), 0);
     days += prevMonth.getDate();
   }
@@ -61,18 +73,18 @@ export function servicePeriod(startDate, endDate = new Date()) {
     months += 12;
   }
 
-  // Total years as a decimal for calculation purposes
-  // Use the exact calendar difference in days / 365.0 for pro-rata
-  // (e already has +1 day added for inclusive last-day counting)
-  const msPerDay = 1000 * 60 * 60 * 24;
-  const totalDays = Math.round((e - s) / msPerDay);
+  // Total years as decimal for calculation (use exact day count / 365)
+  const msPerDay   = 1000 * 60 * 60 * 24;
+  const totalDays  = Math.round((e - s) / msPerDay);
   const totalYears = totalDays / 365.0;
 
-  return { years, months, days, totalYears };
+  const serviceLabel = `${years} Year${years !== 1 ? 's' : ''}, ${months} Month${months !== 1 ? 's' : ''}, ${days} Day${days !== 1 ? 's' : ''}`;
+
+  return { years, months, days, totalYears, serviceLabel };
 }
 
 /**
- * Legacy helper — returns decimal years (kept for backward compat).
+ * Legacy helper — returns decimal years.
  * @param {string|Date} startDate
  * @param {string|Date} endDate
  * @returns {number}
@@ -82,105 +94,155 @@ export function yearsOfService(startDate, endDate = new Date()) {
 }
 
 /**
- * Calculate accrued EOSB (gratuity) for an employee.
+ * Calculate the FULL gratuity entitlement (before resignation reduction).
  *
- * Uses calendar-accurate service period. Gratuity tiers:
- *   - < 1 year: not eligible
- *   - 1–5 years: 21 days basic per year (pro-rata for partial year)
- *   - > 5 years: first 5yr at 21 days/yr + beyond 5yr at 30 days/yr (pro-rata)
- * Cap: 2 years' basic salary (24 months).
+ * Formula:
+ *   Daily rate = basic / 30
+ *   1–5 years:  21 days × years × daily rate
+ *   > 5 years:  30 days × years × daily rate  (ALL years at 30 days)
+ *
+ * @param {number} basicSalaryAED
+ * @param {number} totalYears — decimal years of service
+ * @returns {{ gratuityFull: number, breakdown: string, dailyRate: number }}
+ */
+function computeFullGratuity(basicSalaryAED, totalYears) {
+  const basic     = parseFloat(basicSalaryAED) || 0;
+  const dailyRate = basic / 30;
+  let gratuityFull = 0;
+  let breakdown    = '';
+
+  if (totalYears < 1) {
+    return { gratuityFull: 0, breakdown: 'Less than 1 year — not eligible', dailyRate };
+  }
+
+  if (totalYears <= 5) {
+    // 21 days per year (pro-rata for partial year)
+    gratuityFull = dailyRate * 21 * totalYears;
+    breakdown    = `${totalYears.toFixed(4)} yrs × 21 days × AED ${dailyRate.toFixed(2)}/day`;
+  } else {
+    // > 5 years: 30 days per year for ALL years of service
+    gratuityFull = dailyRate * 30 * totalYears;
+    breakdown    = `${totalYears.toFixed(4)} yrs × 30 days × AED ${dailyRate.toFixed(2)}/day`;
+  }
+
+  return { gratuityFull, breakdown, dailyRate };
+}
+
+/**
+ * Calculate accrued EOSB (gratuity) for an employee.
  *
  * @param {number} basicSalaryAED   — current monthly basic salary in AED
  * @param {string|Date} startDate   — employment start date
- * @param {string|Date} [endDate]   — calculation date (defaults to today)
+ * @param {string|Date} [endDate]   — last working day (defaults to today)
+ * @param {'Termination'|'Resignation'} [reason] — reason for leaving (default: Termination)
+ * @param {'Limited'|'Unlimited'} [contractType] — contract type (default: Unlimited)
  * @returns {{
- *   years: number,           — complete years of service
- *   months: number,          — remaining months
- *   days: number,            — remaining days
- *   totalYears: number,      — total service as decimal
+ *   years: number, months: number, days: number, totalYears: number, serviceLabel: string,
  *   eligible: boolean,
- *   dailyRate: number,       — basic salary / 30
- *   gratuityRaw: number,     — calculated gratuity before cap (AED)
- *   gratuityCapped: number,  — gratuity after 2-year cap (AED)
- *   cap: number,             — 2-year basic salary cap (AED)
+ *   dailyRate: number,
+ *   gratuityFull: number,     — full entitlement before resignation reduction
+ *   reductionFactor: number,  — 1 = full, 2/3, 1/3
+ *   reductionLabel: string,   — e.g. "1/3 (resignation, 1–3 years)"
+ *   gratuityRaw: number,      — after reduction, before cap
+ *   gratuityCapped: number,   — after 2-year cap
+ *   cap: number,
  *   breakdown: string,
  *   capped: boolean,
- *   serviceLabel: string,    — e.g. "6 Years, 0 Months, 1 Days"
  * }}
  */
-export function calculateGratuity(basicSalaryAED, startDate, endDate = new Date()) {
+export function calculateGratuity(
+  basicSalaryAED,
+  startDate,
+  endDate = new Date(),
+  reason = 'Termination',
+  contractType = 'Unlimited'
+) {
   const basic  = parseFloat(basicSalaryAED) || 0;
   const period = servicePeriod(startDate, endDate);
-  const { years, months, days, totalYears } = period;
-
-  const serviceLabel = `${years} Year${years !== 1 ? 's' : ''}, ${months} Month${months !== 1 ? 's' : ''}, ${days} Day${days !== 1 ? 's' : ''}`;
+  const { years, months, days, totalYears, serviceLabel } = period;
 
   if (totalYears < 1) {
     return {
-      years, months, days, totalYears,
+      years, months, days, totalYears, serviceLabel,
       eligible: false,
       dailyRate: basic / 30,
+      gratuityFull: 0,
+      reductionFactor: 0,
+      reductionLabel: 'Not eligible (< 1 year)',
       gratuityRaw: 0,
       gratuityCapped: 0,
       cap: basic * 24,
       breakdown: `Less than 1 year of service — no gratuity entitlement. (${serviceLabel})`,
       capped: false,
-      serviceLabel,
     };
   }
 
-  // Daily rate = basic / 30 (UAE standard: 30-day month for gratuity)
-  const dailyRate = basic / 30;
+  const { gratuityFull, breakdown, dailyRate } = computeFullGratuity(basic, totalYears);
 
-  let gratuity = 0;
-  let breakdown = '';
+  // ── Resignation partial entitlement ──────────────────────────────────────
+  // Termination without misconduct = full gratuity always
+  // Resignation:
+  //   1–3 years: 1/3
+  //   3–5 years: 2/3
+  //   > 5 years: full
+  let reductionFactor = 1;
+  let reductionLabel  = 'Full entitlement (termination)';
 
-  if (totalYears <= 5) {
-    // 21 days per year (pro-rata for partial year beyond first complete year)
-    gratuity = dailyRate * 21 * totalYears;
-    breakdown = `${totalYears.toFixed(4)} yrs × 21 days × AED ${dailyRate.toFixed(2)}/day`;
-  } else {
-    // First 5 years: 21 days/year
-    const first5 = dailyRate * 21 * 5;
-    // Beyond 5 years: 30 days/year (pro-rata)
-    const beyond = dailyRate * 30 * (totalYears - 5);
-    gratuity = first5 + beyond;
-    breakdown = `5 yrs × 21 days + ${(totalYears - 5).toFixed(4)} yrs × 30 days × AED ${dailyRate.toFixed(2)}/day`;
+  const isResignation = reason === 'Resignation';
+  if (isResignation) {
+    if (totalYears < 3) {
+      reductionFactor = 1 / 3;
+      reductionLabel  = '1/3 entitlement (resignation, 1–3 years service)';
+    } else if (totalYears < 5) {
+      reductionFactor = 2 / 3;
+      reductionLabel  = '2/3 entitlement (resignation, 3–5 years service)';
+    } else {
+      reductionFactor = 1;
+      reductionLabel  = 'Full entitlement (resignation, > 5 years service)';
+    }
   }
 
-  // Cap: 2 years' basic salary = 24 months
-  const cap = basic * 24;
-  const gratuityCapped = Math.min(gratuity, cap);
+  const gratuityRaw    = gratuityFull * reductionFactor;
+  const cap            = basic * 24; // 2 years' basic salary
+  const gratuityCapped = Math.min(gratuityRaw, cap);
 
   return {
-    years, months, days, totalYears,
+    years, months, days, totalYears, serviceLabel,
     eligible: true,
     dailyRate,
-    gratuityRaw: gratuity,
+    gratuityFull,
+    reductionFactor,
+    reductionLabel,
+    gratuityRaw,
     gratuityCapped,
     cap,
     breakdown,
-    capped: gratuity > cap,
-    serviceLabel,
+    capped: gratuityRaw > cap,
   };
 }
 
 /**
  * Calculate end-of-service settlement when an employee leaves.
  *
- * @param {object} employee — employee record with basicSalary, startDate, housingAllowance, transportAllowance, etc.
- * @param {string} terminationDate — YYYY-MM-DD
- * @param {number} [outstandingAdvances] — any salary advances to deduct (AED)
+ * @param {object} employee — employee record
+ * @param {string} terminationDate — YYYY-MM-DD (last working day)
+ * @param {number} [outstandingAdvances] — salary advances to deduct (AED)
+ * @param {'Termination'|'Resignation'} [reason]
  * @returns {object} full settlement breakdown
  */
-export function calculateEndOfService(employee, terminationDate, outstandingAdvances = 0) {
+export function calculateEndOfService(
+  employee,
+  terminationDate,
+  outstandingAdvances = 0,
+  reason = 'Termination'
+) {
   const termDate  = new Date(terminationDate);
   const startDate = new Date(employee.startDate || employee.employmentStartDate);
 
   // Days worked in final month (pro-rata final salary)
   const lastDayOfMonth = new Date(termDate.getFullYear(), termDate.getMonth() + 1, 0).getDate();
-  const daysWorked  = termDate.getDate();
-  const daysInMonth = lastDayOfMonth;
+  const daysWorked     = termDate.getDate();
+  const daysInMonth    = lastDayOfMonth;
 
   const basicSalary        = parseFloat(employee.basicSalary) || 0;
   const housingAllowance   = parseFloat(employee.housingAllowance) || 0;
@@ -192,7 +254,8 @@ export function calculateEndOfService(employee, terminationDate, outstandingAdva
   const proRataFinalSalary = (totalMonthly / daysInMonth) * daysWorked;
 
   // Gratuity
-  const gratuityResult = calculateGratuity(basicSalary, startDate, termDate);
+  const contractType   = employee.contractType || 'Unlimited';
+  const gratuityResult = calculateGratuity(basicSalary, startDate, termDate, reason, contractType);
 
   // Total settlement
   const totalGross = proRataFinalSalary + gratuityResult.gratuityCapped;
@@ -202,6 +265,8 @@ export function calculateEndOfService(employee, terminationDate, outstandingAdva
     employee:          employee.name,
     startDate:         startDate.toISOString().split('T')[0],
     terminationDate,
+    reason,
+    contractType,
     yearsOfService:    gratuityResult.totalYears,
     serviceLabel:      gratuityResult.serviceLabel,
     basicSalary,
