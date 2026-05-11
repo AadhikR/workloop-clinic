@@ -1,13 +1,14 @@
 /**
  * EndOfServiceScreen.jsx — UAE End-of-Service Settlement Calculator
  *
- * When an employee is terminated or resigns, this screen calculates:
+ * Calculates:
  *   1. Gratuity / EOSB (UAE Labour Law Art. 51)
  *   2. Pro-rata final salary for the last partial month
  *   3. Outstanding advance deductions
  *   4. Total net settlement payable
  *
- * Can be opened from the employee profile or payroll module.
+ * Service period displayed as "X Years, Y Months, Z Days" (calendar-accurate).
+ * Gratuity: 1–5yr = 21 days/yr, >5yr = 30 days/yr beyond 5, capped at 2yr basic.
  */
 import { useState } from 'react';
 import { X, Calculator, Download } from 'lucide-react';
@@ -24,7 +25,8 @@ export default function EndOfServiceScreen({ employee, onClose }) {
   const [result, setResult] = useState(null);
 
   const calculate = () => {
-    if (!employee.startDate && !employee.employmentStartDate) {
+    const startDate = employee.startDate || employee.employmentStartDate;
+    if (!startDate) {
       alert('Employee start date is not set. Please update the employee profile first.');
       return;
     }
@@ -38,6 +40,7 @@ export default function EndOfServiceScreen({ employee, onClose }) {
 
   const printSettlement = () => {
     if (!result) return;
+    const serviceLabel = result.gratuity?.serviceLabel || `${result.yearsOfService.toFixed(2)} years`;
     const win = window.open('', '_blank');
     win.document.write(`
       <html><head><title>End of Service Settlement — ${employee.name}</title>
@@ -55,7 +58,7 @@ export default function EndOfServiceScreen({ employee, onClose }) {
       <h1>End-of-Service Settlement</h1>
       <p><strong>Employee:</strong> ${result.employee}</p>
       <p><strong>Start Date:</strong> ${formatDateUAE(result.startDate)} &nbsp;|&nbsp; <strong>Termination Date:</strong> ${formatDateUAE(result.terminationDate)}</p>
-      <p><strong>Years of Service:</strong> ${result.yearsOfService.toFixed(2)} years</p>
+      <p><strong>Service Period:</strong> ${serviceLabel}</p>
 
       <h2>Final Month Salary (Pro-rata)</h2>
       <table>
@@ -66,8 +69,10 @@ export default function EndOfServiceScreen({ employee, onClose }) {
 
       <h2>Gratuity / EOSB (UAE Labour Law Art. 51)</h2>
       <table>
+        <tr><td>Service Period</td><td>${serviceLabel}</td></tr>
         <tr><td>Eligible</td><td>${result.gratuity.eligible ? 'Yes' : 'No (< 1 year service)'}</td></tr>
         ${result.gratuity.eligible ? `
+        <tr><td>Daily Rate (Basic ÷ 30)</td><td>${formatAED(result.gratuity.dailyRate)}</td></tr>
         <tr><td>Calculation</td><td>${result.gratuity.breakdown}</td></tr>
         <tr><td>Gratuity (before cap)</td><td>${formatAED(result.gratuity.gratuityRaw)}</td></tr>
         <tr><td>2-Year Cap</td><td>${formatAED(result.gratuity.cap)}</td></tr>
@@ -80,7 +85,7 @@ export default function EndOfServiceScreen({ employee, onClose }) {
         <tr><td>Pro-rata Final Salary</td><td>${formatAED(result.proRataFinalSalary)}</td></tr>
         <tr><td>Gratuity / EOSB</td><td>${formatAED(result.gratuity.gratuityCapped)}</td></tr>
         <tr><td>Total Gross</td><td>${formatAED(result.totalGross)}</td></tr>
-        <tr class="deduct"><td>Outstanding Advances</td><td>- ${formatAED(result.outstandingAdvances)}</td></tr>
+        ${result.outstandingAdvances > 0 ? `<tr class="deduct"><td>Outstanding Advances</td><td>- ${formatAED(result.outstandingAdvances)}</td></tr>` : ''}
         <tr class="total"><td>NET SETTLEMENT PAYABLE</td><td>${formatAED(result.totalNet)}</td></tr>
       </table>
 
@@ -92,6 +97,8 @@ export default function EndOfServiceScreen({ employee, onClose }) {
     win.document.close();
     win.print();
   };
+
+  const serviceLabel = result?.gratuity?.serviceLabel || '';
 
   return (
     <div className="modal-overlay">
@@ -129,7 +136,7 @@ export default function EndOfServiceScreen({ employee, onClose }) {
                 <div className="form-group">
                   <label>Basic Salary (AED)</label>
                   <input className="form-control" value={formatAED(employee.basicSalary)} disabled/>
-                  <span className="hint">Gratuity is calculated on basic salary only</span>
+                  <span className="hint">Gratuity is calculated on basic salary only (UAE Labour Law)</span>
                 </div>
                 <div className="form-group">
                   <label>Outstanding Salary Advances (AED)</label>
@@ -162,7 +169,7 @@ export default function EndOfServiceScreen({ employee, onClose }) {
                   <strong>{result.employee}</strong> &nbsp;|&nbsp;
                   Start: {formatDateUAE(result.startDate)} &nbsp;|&nbsp;
                   End: {formatDateUAE(result.terminationDate)} &nbsp;|&nbsp;
-                  Service: <strong>{result.yearsOfService.toFixed(2)} years</strong>
+                  Service: <strong>{serviceLabel}</strong>
                 </div>
               </div>
 
@@ -206,17 +213,17 @@ export default function EndOfServiceScreen({ employee, onClose }) {
                     {!result.gratuity.eligible ? (
                       <div style={{ padding:'16px 20px', color:'var(--gray-500)', fontSize:13 }}>
                         <strong>Not eligible</strong> — less than 1 year of service.
-                        <br/>Service: {result.gratuity.years.toFixed(2)} years
+                        <br/>Service: {serviceLabel}
                       </div>
                     ) : (
                       <table>
                         <tbody>
                           <tr>
-                            <td>Years of Service</td>
-                            <td className="text-right">{result.gratuity.years.toFixed(2)} years</td>
+                            <td>Service Period</td>
+                            <td className="text-right" style={{ fontWeight:600 }}>{serviceLabel}</td>
                           </tr>
                           <tr>
-                            <td>Daily Rate (Basic/30)</td>
+                            <td>Daily Rate (Basic ÷ 30)</td>
                             <td className="text-right">{formatAED(result.gratuity.dailyRate)}</td>
                           </tr>
                           <tr>

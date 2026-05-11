@@ -247,7 +247,7 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
                     </div>
                     <div style={{ fontSize:12.5, color:'var(--gray-700)' }}>
                       {gratuity.eligible
-                        ? <><strong>{gratuity.years.toFixed(2)} years</strong> service &nbsp;|&nbsp; Accrued: <strong>{formatAED(gratuity.gratuityCapped)}</strong>{gratuity.capped?' (capped at 2yr basic)':''}</>
+                        ? <><strong>{gratuity.serviceLabel}</strong> &nbsp;|&nbsp; Accrued: <strong>{formatAED(gratuity.gratuityCapped)}</strong>{gratuity.capped?' (capped at 2yr basic)':''}</>
                         : gratuity.breakdown}
                     </div>
                     {gratuity.eligible && <div style={{ fontSize:11.5, color:'var(--gray-500)', marginTop:4 }}>{gratuity.breakdown}</div>}
