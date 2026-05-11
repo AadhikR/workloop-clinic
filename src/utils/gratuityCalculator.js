@@ -105,7 +105,20 @@ export function yearsOfService(startDate, endDate = new Date()) {
  * @param {number} totalYears — decimal years of service
  * @returns {{ gratuityFull: number, breakdown: string, dailyRate: number }}
  */
-function computeFullGratuity(basicSalaryAED, totalYears) {
+/**
+ * Convert a service period (years, months, days) to a decimal year value
+ * using the standard UAE gratuity convention:
+ *   1 year = 12 months = 365 days
+ *   months are counted as 1/12 of a year
+ *   remaining days are counted as days/365
+ *
+ * This avoids floating-point drift from raw millisecond division.
+ */
+function periodToDecimalYears(years, months, days) {
+  return years + (months / 12) + (days / 365);
+}
+
+function computeFullGratuity(basicSalaryAED, totalYears, years, months, days) {
   const basic     = parseFloat(basicSalaryAED) || 0;
   const dailyRate = basic / 30;
   let gratuityFull = 0;
@@ -116,18 +129,24 @@ function computeFullGratuity(basicSalaryAED, totalYears) {
   }
 
   if (totalYears <= 5) {
-    // 1–5 years: 21 days per year (pro-rata for partial year)
-    gratuityFull = dailyRate * 21 * totalYears;
-    breakdown    = `${totalYears.toFixed(4)} yrs × 21 days × AED ${dailyRate.toFixed(2)}/day`;
+    // 1–5 years: 21 days per year (pro-rata using calendar components)
+    const decYears = periodToDecimalYears(years, months, days);
+    gratuityFull   = dailyRate * 21 * decYears;
+    breakdown      = `${decYears.toFixed(4)} yrs × 21 days × AED ${dailyRate.toFixed(2)}/day`;
   } else {
     // > 5 years:
-    //   First 5 years at 21 days/year
-    //   Years beyond 5 at 30 days/year (pro-rata)
-    // e.g. 6yr 0m 1d: (5 × 21 + 1.003 × 30) × 240 = (105 + 30.08) × 240 = AED 32,419
-    const first5  = dailyRate * 21 * 5;
-    const beyond  = dailyRate * 30 * (totalYears - 5);
-    gratuityFull  = first5 + beyond;
-    breakdown     = `(5 yrs × 21 days) + (${(totalYears - 5).toFixed(4)} yrs × 30 days) × AED ${dailyRate.toFixed(2)}/day`;
+    //   First 5 complete years at 21 days/year = fixed amount
+    //   Remaining period (years-5, months, days) at 30 days/year
+    const first5 = dailyRate * 21 * 5;
+
+    // Calculate the "beyond 5 years" portion using calendar components
+    // Subtract 5 complete years from the service period
+    const beyondYears  = years - 5;   // complete years beyond 5
+    const beyondDec    = periodToDecimalYears(beyondYears, months, days);
+    const beyond       = dailyRate * 30 * beyondDec;
+
+    gratuityFull = first5 + beyond;
+    breakdown    = `(5 yrs × 21 days) + (${beyondDec.toFixed(4)} yrs × 30 days) × AED ${dailyRate.toFixed(2)}/day`;
   }
 
   return { gratuityFull, breakdown, dailyRate };
@@ -182,7 +201,7 @@ export function calculateGratuity(
     };
   }
 
-  const { gratuityFull, breakdown, dailyRate } = computeFullGratuity(basic, totalYears);
+  const { gratuityFull, breakdown, dailyRate } = computeFullGratuity(basic, totalYears, years, months, days);
 
   // ── Resignation partial entitlement ──────────────────────────────────────
   // Termination without misconduct = full gratuity always
