@@ -116,13 +116,18 @@ function computeFullGratuity(basicSalaryAED, totalYears) {
   }
 
   if (totalYears <= 5) {
-    // 21 days per year (pro-rata for partial year)
+    // 1–5 years: 21 days per year (pro-rata for partial year)
     gratuityFull = dailyRate * 21 * totalYears;
     breakdown    = `${totalYears.toFixed(4)} yrs × 21 days × AED ${dailyRate.toFixed(2)}/day`;
   } else {
-    // > 5 years: 30 days per year for ALL years of service
-    gratuityFull = dailyRate * 30 * totalYears;
-    breakdown    = `${totalYears.toFixed(4)} yrs × 30 days × AED ${dailyRate.toFixed(2)}/day`;
+    // > 5 years:
+    //   First 5 years at 21 days/year
+    //   Years beyond 5 at 30 days/year (pro-rata)
+    // e.g. 6yr 0m 1d: (5 × 21 + 1.003 × 30) × 240 = (105 + 30.08) × 240 = AED 32,419
+    const first5  = dailyRate * 21 * 5;
+    const beyond  = dailyRate * 30 * (totalYears - 5);
+    gratuityFull  = first5 + beyond;
+    breakdown     = `(5 yrs × 21 days) + (${(totalYears - 5).toFixed(4)} yrs × 30 days) × AED ${dailyRate.toFixed(2)}/day`;
   }
 
   return { gratuityFull, breakdown, dailyRate };
