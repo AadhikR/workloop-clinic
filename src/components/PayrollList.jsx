@@ -73,17 +73,21 @@ export default function PayrollList({ onEdit }) {
     setCreating(true);
     try {
       const activeEmps = employees.filter(emp => emp.active);
+      // Pre-fill salary breakdown from employee profile (housing, transport, allowances)
       const entries = activeEmps.map(emp => ({
-        employeeId: emp.id,
-        basicSalary: emp.basicSalary,
-        allowance: emp.allowance ?? 0,
-        increment: 0,
-        bonus: 0,
-        otherPay: 0,
+        employeeId:         emp.id,
+        basicSalary:        emp.basicSalary,
+        housingAllowance:   emp.housingAllowance ?? 0,
+        transportAllowance: emp.transportAllowance ?? 0,
+        allowance:          emp.allowance ?? 0,
+        increment:          0,
+        bonus:              0,
+        otherPay:           0,
+        duCost:             0,
         additionalAllowances: [],
-        deductions: [],
-        variableAllowance: 0,
-        excluded: false,
+        deductions:         [],
+        variableAllowance:  0,
+        excluded:           false,
       }));
 
       // Generate a UUID-compatible id for the new payroll
@@ -301,6 +305,7 @@ export default function PayrollList({ onEdit }) {
                     <th>Total (AED)</th>
                     <th>Description</th>
                     <th>Status</th>
+                    <th>Run By</th>
                     <th>SIF Filename</th>
                     <th></th>
                   </tr>
@@ -327,6 +332,7 @@ export default function PayrollList({ onEdit }) {
                             {p.status === 'generated' ? 'Generated' : 'Draft'}
                           </span>
                         </td>
+                        <td className="text-muted text-sm">{p.runBy || '—'}</td>
                         <td className="font-mono text-sm text-muted">{filename}</td>
                         <td onClick={e => e.stopPropagation()}>
                           <div className="flex gap-2">

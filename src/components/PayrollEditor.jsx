@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Download, Eye, Upload, AlertCircle, Plus, ChevronDown, CheckCircle } from 'lucide-react';
+import { Download, Eye, Upload, AlertCircle, Plus, ChevronDown, CheckCircle, FileText } from 'lucide-react';
 import { generateSIF, generateSIFFilename } from '../utils/sifGenerator';
 import { parseCSV, readFileAsText } from '../utils/csvImport';
 import { savePayroll } from '../utils/storage';
 import AllowDeductPanel, { computeFinalAllowance } from './AllowDeductPanel';
 import SIFPreviewModal from './SIFPreviewModal';
+import { downloadPayslip, downloadAllPayslips } from '../utils/payslipGenerator';
 
 function getMonthName(month) {
   return ['January','February','March','April','May','June',
@@ -25,6 +26,13 @@ function normaliseEntry(e) {
     deductions: e.deductions ?? [],
     ...e,
   };
+}
+
+// ── Payslip download handler ─────────────────────────────────────────────────
+function handleDownloadPayslip(company, employees, payroll, entry) {
+  const emp = employees.find(e => e.id === entry.employeeId);
+  if (!emp) return;
+  downloadPayslip(company, emp, payroll, entry);
 }
 
 export default function PayrollEditor({ payroll, employees, company, onSave, onBack }) {
@@ -211,6 +219,14 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
             onChange={e => { if (e.target.files[0]) handleCSVImport(e.target.files[0]); e.target.value = ''; }}
           />
           <button className="btn btn-outline btn-sm" onClick={handleSaveDraft}>Save Draft</button>
+          <button
+            className="btn btn-outline btn-sm"
+            title="Download payslips for all active employees"
+            onClick={() => downloadAllPayslips(company, employees, buildPayroll())}
+            disabled={!canGenerate}
+          >
+            <FileText size={14} /> All Payslips
+          </button>
           <button className="btn btn-outline btn-sm" onClick={handlePreview} disabled={!canGenerate}>
             <Eye size={14} /> Preview SIF
           </button>
@@ -311,14 +327,16 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                   <th style={{ width: 36 }}>✓</th>
                   <th>Name</th>
                   <th>MOL ID</th>
-                  <th style={{ width: 130 }}>Basic</th>
-                  <th style={{ width: 130 }}>Allowance</th>
-                  <th style={{ width: 110 }}>Increment</th>
-                  <th style={{ width: 130 }}>Bonus/Incentive</th>
-                  <th style={{ width: 110 }}>Other Pay</th>
-                  <th style={{ width: 110 }}>DU Cost</th>
+                  <th style={{ width: 110 }}>Basic</th>
+                  <th style={{ width: 100 }}>Housing</th>
+                  <th style={{ width: 100 }}>Transport</th>
+                  <th style={{ width: 110 }}>Allowance</th>
+                  <th style={{ width: 100 }}>Increment</th>
+                  <th style={{ width: 110 }}>Bonus/Incentive</th>
+                  <th style={{ width: 100 }}>Other Pay</th>
+                  <th style={{ width: 90 }}>DU Cost</th>
                   <th
-                    style={{ width: 100 }}
+                    style={{ width: 90 }}
                     title="Click to add named additional allowances per employee"
                     onClick={() => setShowPanel(true)}
                   >
@@ -327,7 +345,7 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                     </span>
                   </th>
                   <th
-                    style={{ width: 100 }}
+                    style={{ width: 90 }}
                     title="Click to add named deductions per employee"
                     onClick={() => setShowPanel(true)}
                   >
@@ -335,10 +353,11 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                       Deductions <ChevronDown size={11} />
                     </span>
                   </th>
-                  <th style={{ width: 110, background: 'var(--primary-light)', color: 'var(--primary-dark)' }}>
+                  <th style={{ width: 100, background: 'var(--primary-light)', color: 'var(--primary-dark)' }}>
                     Final Allow.
                   </th>
-                  <th style={{ width: 110 }}>Total (AED)</th>
+                  <th style={{ width: 100 }}>Total (AED)</th>
+                  <th style={{ width: 60 }}>Payslip</th>
                 </tr>
               </thead>
               <tbody>
@@ -364,6 +383,18 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                         <input type="number" min="0" step="1"
                           value={entry.basicSalary} disabled={entry.excluded}
                           onChange={e => updateEntry(idx, 'basicSalary', e.target.value)} />
+                      </td>
+                      <td>
+                        {/* Housing allowance — pre-filled from employee profile */}
+                        <input type="number" min="0" step="1"
+                          value={entry.housingAllowance ?? emp.housingAllowance ?? 0} disabled={entry.excluded}
+                          onChange={e => updateEntry(idx, 'housingAllowance', e.target.value)} />
+                      </td>
+                      <td>
+                        {/* Transport allowance — pre-filled from employee profile */}
+                        <input type="number" min="0" step="1"
+                          value={entry.transportAllowance ?? emp.transportAllowance ?? 0} disabled={entry.excluded}
+                          onChange={e => updateEntry(idx, 'transportAllowance', e.target.value)} />
                       </td>
                       <td>
                         <input type="number" min="0" step="1"
@@ -417,13 +448,24 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                       >
                         {finalAllow.toLocaleString('en-AE')}
                       </td>
-                      <td
-                        className="text-right font-bold"
-                        style={{ color: entry.excluded ? 'var(--gray-400)' : 'var(--gray-800)' }}
-                      >
-                        {total.toLocaleString('en-AE')}
-                      </td>
-                    </tr>
+                     <td
+                       className="text-right font-bold"
+                       style={{ color: entry.excluded ? 'var(--gray-400)' : 'var(--gray-800)' }}
+                     >
+                       {total.toLocaleString('en-AE')}
+                     </td>
+                     <td>
+                       {!entry.excluded && canGenerate && (
+                         <button
+                           className="btn btn-ghost btn-icon btn-sm"
+                           title={`Download payslip for ${emp.name}`}
+                           onClick={() => handleDownloadPayslip(company, employees, buildPayroll(), entry)}
+                         >
+                           <FileText size={13} />
+                         </button>
+                       )}
+                     </td>
+                   </tr>
                   );
                 })}
               </tbody>
@@ -431,6 +473,12 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                 <tr style={{ background: 'var(--gray-50)', fontWeight: 700, fontSize: 13 }}>
                   <td colSpan={3} style={{ textAlign: 'right', paddingRight: 12, color: 'var(--gray-600)' }}>TOTALS</td>
                   <td style={{ paddingLeft: 8, textAlign: 'right' }}>{totalBasic.toLocaleString('en-AE')}</td>
+                  <td className="text-right" style={{ color: 'var(--gray-600)' }}>
+                    {activeEntries.reduce((s,e) => s+(parseFloat(e.housingAllowance??0)||0),0).toLocaleString('en-AE')}
+                  </td>
+                  <td className="text-right" style={{ color: 'var(--gray-600)' }}>
+                    {activeEntries.reduce((s,e) => s+(parseFloat(e.transportAllowance??0)||0),0).toLocaleString('en-AE')}
+                  </td>
                   <td className="text-right">{totalAllowance.toLocaleString('en-AE')}</td>
                   <td className="text-right">{totalIncrement.toLocaleString('en-AE')}</td>
                   <td className="text-right">{totalBonus.toLocaleString('en-AE')}</td>
@@ -450,6 +498,7 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                   <td className="text-right" style={{ color: 'var(--primary)' }}>
                     {grandTotal.toLocaleString('en-AE')}
                   </td>
+                  <td></td>
                 </tr>
               </tfoot>
             </table>

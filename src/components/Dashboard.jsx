@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Building2, Users, FileText, CheckCircle, AlertCircle, ArrowRight } from 'lucide-react';
+import { Building2, Users, FileText, CheckCircle, AlertCircle, ArrowRight, Clock, ShieldAlert } from 'lucide-react';
 import { getCompany, getEmployees, getPayrolls } from '../utils/storage';
 
 export default function Dashboard({ onNavigate }) {
@@ -17,7 +17,7 @@ export default function Dashboard({ onNavigate }) {
     });
   }, []);
 
-  const activeEmps    = employees.filter(e => e.active);
+  const activeEmps    = employees.filter(e => e.active !== false && e.employmentStatus !== 'Terminated');
   const generatedRuns = payrolls.filter(p => p.status === 'generated');
   const draftRuns     = payrolls.filter(p => p.status !== 'generated');
 
@@ -27,6 +27,46 @@ export default function Dashboard({ onNavigate }) {
 
   const getMonthName = (month) =>
     ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month - 1];
+
+  // ── WPS 30-day deadline tracker (UAE Labour Law Article 56) ─────────────────
+  // For each active employee, check if the current month's salary has been processed
+  // within 30 days of the salary due date. Warn if any are overdue or approaching.
+  const today = new Date();
+  const currentYear  = today.getFullYear();
+  const currentMonth = today.getMonth() + 1; // 1-based
+  const currentPeriod = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
+  // Previous month period (salary for last month should be paid within 30 days)
+  const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+  const prevYear  = currentMonth === 1 ? currentYear - 1 : currentYear;
+  const prevPeriod = `${prevYear}-${String(prevMonth).padStart(2, '0')}`;
+
+  // Check if previous month payroll has been generated
+  const prevPayroll = payrolls.find(p => p.period === prevPeriod && p.status === 'generated');
+  // Day of month — if > 30 and prev month not processed, show warning
+  const dayOfMonth = today.getDate();
+  const wpsDeadlineWarning = !prevPayroll && dayOfMonth > 25 && activeEmps.length > 0;
+  const wpsDeadlineCritical = !prevPayroll && dayOfMonth > 30 && activeEmps.length > 0;
+
+  // ── Document expiry summary (next 30 days) ──────────────────────────────────
+  const docWarnings = [];
+  employees.forEach(emp => {
+    if (emp.employmentStatus === 'Terminated') return;
+    const checks = [
+      { label: 'Visa', date: emp.visaExpiry, days: 60 },
+      { label: 'Passport', date: emp.passportExpiry, days: 60 },
+      { label: 'Emirates ID', date: emp.emiratesIdExpiry, days: 30 },
+      { label: 'Labour Card', date: emp.labourCardExpiry, days: 60 },
+    ];
+    checks.forEach(({ label, date, days }) => {
+      if (!date) return;
+      const expiry = new Date(date);
+      const diffDays = Math.ceil((expiry - today) / (1000 * 60 * 60 * 24));
+      if (diffDays <= days && diffDays >= 0) {
+        docWarnings.push({ emp: emp.name, label, expiry: date, daysLeft: diffDays });
+      }
+    });
+  });
+  const criticalDocs = docWarnings.filter(d => d.daysLeft < 30);
 
   const steps = [
     {
@@ -38,15 +78,15 @@ export default function Dashboard({ onNavigate }) {
     },
     {
       done: activeEmps.length > 0,
-      label: 'Employee Master Data',
+      label: 'Employees',
       desc: `${activeEmps.length} active employee${activeEmps.length !== 1 ? 's' : ''} configured`,
       nav: 'employees',
       icon: Users,
     },
     {
       done: generatedRuns.length > 0,
-      label: 'Generate SIF Files',
-      desc: `${generatedRuns.length} SIF file${generatedRuns.length !== 1 ? 's' : ''} generated`,
+      label: 'Payroll Module',
+      desc: `${generatedRuns.length} payroll run${generatedRuns.length !== 1 ? 's' : ''} generated`,
       nav: 'payroll',
       icon: FileText,
     },
@@ -71,15 +111,52 @@ export default function Dashboard({ onNavigate }) {
         <div className="card mb-4" style={{ background: 'linear-gradient(135deg, #1a56db 0%, #1e429f 100%)', border: 'none', color: 'white' }}>
           <div className="card-body">
             <h3 style={{ color: 'white', fontSize: 20, marginBottom: 6 }}>
-              UAE WPS SIF File Generator
+              Workloop — UAE Payroll &amp; HRMS
             </h3>
             <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14 }}>
               {company?.name
                 ? `Welcome back, ${company.name}`
-                : 'Generate compliant Wage Protection System (WPS) SIF files for salary uploads in Dubai.'}
+                : 'Manage payroll, employees, WPS/SIF files, and UAE compliance — all in one place.'}
             </p>
           </div>
         </div>
+
+        {/* WPS 30-day deadline warning (UAE Labour Law Article 56) */}
+        {wpsDeadlineWarning && (
+          <div className={`alert ${wpsDeadlineCritical ? 'alert-danger' : 'alert-warning'} mb-4`}>
+            <Clock size={16} />
+            <div>
+              <strong>WPS Deadline Alert (Article 56):</strong>{' '}
+              {wpsDeadlineCritical
+                ? `Salary for ${getMonthName(prevMonth)} ${prevYear} is overdue — UAE Labour Law requires payment within 30 days of the salary due date.`
+                : `Salary for ${getMonthName(prevMonth)} ${prevYear} has not been processed yet. Payment is due within 30 days to comply with UAE WPS regulations.`}
+              {' '}
+              <button className="btn btn-ghost btn-sm" style={{ padding: '0 4px', textDecoration: 'underline' }}
+                onClick={() => onNavigate('payroll')}>
+                Go to Payroll
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Document expiry critical warnings */}
+        {criticalDocs.length > 0 && (
+          <div className="alert alert-danger mb-4">
+            <ShieldAlert size={16} />
+            <div>
+              <strong>{criticalDocs.length} document{criticalDocs.length !== 1 ? 's' : ''} expiring within 30 days:</strong>{' '}
+              {criticalDocs.slice(0, 3).map((d, i) => (
+                <span key={i}>{d.emp} ({d.label} — {d.daysLeft}d){i < Math.min(criticalDocs.length, 3) - 1 ? ', ' : ''}</span>
+              ))}
+              {criticalDocs.length > 3 && ` and ${criticalDocs.length - 3} more.`}
+              {' '}
+              <button className="btn btn-ghost btn-sm" style={{ padding: '0 4px', textDecoration: 'underline' }}
+                onClick={() => onNavigate('employees')}>
+                View Employees
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Setup checklist */}
         <div className="card mb-4">
@@ -144,11 +221,11 @@ export default function Dashboard({ onNavigate }) {
             <div className="stat-value" style={{ color: 'var(--success)' }}>{generatedRuns.length}</div>
           </div>
           <div className="stat-card">
-            <div className="stat-label">MOL Employer ID</div>
-            <div className="stat-value" style={{ fontSize: 14, fontFamily: 'monospace', marginTop: 8 }}>
-              {company?.molEmployerId || '—'}
+            <div className="stat-label">Doc Expiry Alerts</div>
+            <div className="stat-value" style={{ color: criticalDocs.length > 0 ? 'var(--danger)' : 'var(--success)' }}>
+              {criticalDocs.length}
             </div>
-            <div className="stat-sub">{company?.name || 'Not configured'}</div>
+            <div className="stat-sub">{docWarnings.length} within 60 days</div>
           </div>
         </div>
 
@@ -211,7 +288,7 @@ export default function Dashboard({ onNavigate }) {
                 onClick={() => onNavigate('company')}>
                 Company Settings
               </button>{' '}
-              and enter your MOL Employer ID to start generating SIF files.
+              and enter your MOL Employer ID to start generating WPS/SIF files.
             </div>
           </div>
         )}

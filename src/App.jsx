@@ -9,10 +9,10 @@ import PayrollManager from './components/PayrollManager';
 import './index.css';
 
 const NAV_ITEMS = [
-  { id: 'dashboard', label: 'Dashboard',           icon: LayoutDashboard },
-  { id: 'company',   label: 'Company Settings',    icon: Building2 },
-  { id: 'employees', label: 'Employee Master Data', icon: Users },
-  { id: 'payroll',   label: 'Payroll Runs',         icon: FileText },
+  { id: 'dashboard', label: 'Dashboard',        icon: LayoutDashboard },
+  { id: 'company',   label: 'Company Settings', icon: Building2 },
+  { id: 'employees', label: 'Employees',         icon: Users },
+  { id: 'payroll',   label: 'Payroll Module',    icon: FileText },
 ];
 
 // ─── Inner app (only rendered when authenticated) ───────────────────────────
@@ -42,8 +42,8 @@ function AppShell() {
       {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-logo">
-          <h1>SIF Generator</h1>
-          <p>UAE WPS Salary Files</p>
+          <h1>Workloop</h1>
+          <p>UAE Payroll &amp; HRMS</p>
         </div>
 
         <nav className="sidebar-nav">
