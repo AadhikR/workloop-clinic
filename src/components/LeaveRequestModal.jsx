@@ -27,6 +27,8 @@ const BEREAVEMENT_RELATIONSHIPS = [
 
 export default function LeaveRequestModal({
   employee,
+  allEmployees,
+  onEmployeeChange,
   leaveTypes,
   leaveBalances,
   publicHolidayDates,
@@ -172,6 +174,18 @@ export default function LeaveRequestModal({
           )}
 
           <div className="form-grid form-grid-2">
+            {/* Employee selector — shown when HR is submitting on behalf of an employee */}
+            {allEmployees && allEmployees.length > 1 && (
+              <div className="form-group" style={{ gridColumn:'1/-1' }}>
+                <label>Employee *</label>
+                <select className="form-control" value={employee?.id || ''}
+                  onChange={e => onEmployeeChange && onEmployeeChange(allEmployees.find(emp => emp.id === e.target.value))}>
+                  {allEmployees.map(e => (
+                    <option key={e.id} value={e.id}>{e.name}{e.department ? ` — ${e.department}` : ''}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             {/* Leave Type */}
             <div className="form-group" style={{ gridColumn:'1/-1' }}>
               <label>Leave Type *</label>

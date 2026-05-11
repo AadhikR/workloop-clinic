@@ -246,7 +246,13 @@ export default function LeaveManager() {
       <div className="page-header">
         <h2>Leave Management</h2>
         <div className="page-header-actions">
-          <button className="btn btn-primary" onClick={() => { setSelectedEmployee(employees[0]); setShowEmpSelector(true); }}>
+          <button className="btn btn-primary"
+            disabled={employees.filter(e => e.employmentStatus !== 'Terminated').length === 0}
+            onClick={() => {
+              setSelectedEmployee(employees.find(e => e.employmentStatus !== 'Terminated') || employees[0]);
+              setShowEmpSelector(false);
+              setShowRequestModal(true);
+            }}>
             <Plus size={15}/> New Leave Request
           </button>
         </div>
@@ -731,34 +737,6 @@ export default function LeaveManager() {
         )}
       </div>
 
-      {/* ── Employee Selector (step 1) ── */}
-      {showEmpSelector && (
-        <div className="modal-overlay" style={{ zIndex:300 }}>
-          <div className="modal" style={{ maxWidth:500 }}>
-            <div className="modal-header">
-              <h3>Select Employee</h3>
-              <button className="btn btn-ghost btn-icon" onClick={() => setShowEmpSelector(false)}><X size={18}/></button>
-            </div>
-            <div className="modal-body">
-              <div className="form-group">
-                <label>Employee</label>
-                <select className="form-control" value={selectedEmployee?.id || ''}
-                  onChange={e => setSelectedEmployee(employees.find(emp => emp.id === e.target.value))}>
-                  {employees.filter(e => e.employmentStatus !== 'Terminated').map(e => (
-                    <option key={e.id} value={e.id}>{e.name}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn btn-outline" onClick={() => setShowEmpSelector(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={() => { setShowEmpSelector(false); setShowRequestModal(true); }}>
-                Continue →
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── Approval/Rejection Modal ── */}
       {approvalModal && (
@@ -795,12 +773,14 @@ export default function LeaveManager() {
         </div>
       )}
 
-      {/* ── Inline Leave Request Form (when employee selected) ── */}
-      {showRequestModal && selectedEmployee && leaveTypes.length > 0 && (
+      {/* ── Leave Request Form ── */}
+      {showRequestModal && leaveTypes.length > 0 && (
         <LeaveRequestModal
-          employee={selectedEmployee}
+          employee={selectedEmployee || employees.find(e => e.employmentStatus !== 'Terminated') || employees[0]}
+          allEmployees={employees.filter(e => e.employmentStatus !== 'Terminated')}
+          onEmployeeChange={setSelectedEmployee}
           leaveTypes={leaveTypes}
-          leaveBalances={allBalances.filter(b => b.employeeId === selectedEmployee.id)}
+          leaveBalances={allBalances.filter(b => b.employeeId === (selectedEmployee?.id || employees[0]?.id))}
           publicHolidayDates={publicHolidayDates}
           weekendDef={weekendDef}
           onSubmit={handleSubmitRequest}
