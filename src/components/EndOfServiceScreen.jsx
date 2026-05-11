@@ -13,6 +13,7 @@
 import { useState } from 'react';
 import { X, Calculator, Download } from 'lucide-react';
 import { calculateEndOfService } from '../utils/gratuityCalculator';
+import { calculateLeaveEncashment } from '../utils/leaveEngine';
 import { formatAED, formatDateUAE } from '../utils/uaeValidators';
 
 export default function EndOfServiceScreen({ employee, onClose }) {
@@ -20,6 +21,7 @@ export default function EndOfServiceScreen({ employee, onClose }) {
 
   const [terminationDate, setTerminationDate]   = useState(employee.terminationDate || today);
   const [outstandingAdvances, setOutstandingAdvances] = useState('0');
+  const [unusedLeaveDays, setUnusedLeaveDays]   = useState('0');
   const [reason, setReason]                     = useState(
     employee.terminationReason?.toLowerCase().includes('resign') ? 'Resignation' : 'Termination'
   );
@@ -37,7 +39,12 @@ export default function EndOfServiceScreen({ employee, onClose }) {
       parseFloat(outstandingAdvances) || 0,
       reason
     );
-    setResult(settlement);
+    // Art. 29 — Leave encashment: unused annual leave days × (basic/30)
+    const leaveEnc = calculateLeaveEncashment(
+      parseFloat(unusedLeaveDays) || 0,
+      employee.basicSalary
+    );
+    setResult({ ...settlement, leaveEncashment: leaveEnc });
   };
 
   const printSettlement = () => {
@@ -62,6 +69,7 @@ export default function EndOfServiceScreen({ employee, onClose }) {
       <p><strong>Contract Type:</strong> ${result.contractType} &nbsp;|&nbsp; <strong>Reason:</strong> ${result.reason}</p>
       <p><strong>Start Date:</strong> ${formatDateUAE(result.startDate)} &nbsp;|&nbsp; <strong>Last Working Day:</strong> ${formatDateUAE(result.terminationDate)}</p>
       <p><strong>Service Period:</strong> ${serviceLabel}</p>
+      <p><strong>Unused Annual Leave:</strong> ${result.leaveEncashment?.unusedDays || 0} days = ${formatAED(result.leaveEncashment?.encashmentAmount || 0)} (Art. 29 encashment)</p>
 
       <h2>Final Month Salary (Pro-rata)</h2>
       <table>
@@ -89,9 +97,10 @@ export default function EndOfServiceScreen({ employee, onClose }) {
       <table>
         <tr><td>Pro-rata Final Salary</td><td>${formatAED(result.proRataFinalSalary)}</td></tr>
         <tr><td>Gratuity / EOSB</td><td>${formatAED(result.gratuity.gratuityCapped)}</td></tr>
-        <tr><td>Total Gross</td><td>${formatAED(result.totalGross)}</td></tr>
+        ${(result.leaveEncashment?.encashmentAmount || 0) > 0 ? `<tr><td>Annual Leave Encashment (Art. 29)</td><td>${formatAED(result.leaveEncashment.encashmentAmount)}</td></tr>` : ''}
+        <tr><td>Total Gross</td><td>${formatAED((result.totalGross || 0) + (result.leaveEncashment?.encashmentAmount || 0))}</td></tr>
         ${result.outstandingAdvances > 0 ? `<tr class="deduct"><td>Outstanding Advances</td><td>- ${formatAED(result.outstandingAdvances)}</td></tr>` : ''}
-        <tr class="total"><td>NET SETTLEMENT PAYABLE</td><td>${formatAED(result.totalNet)}</td></tr>
+        <tr class="total"><td>NET SETTLEMENT PAYABLE</td><td>${formatAED((result.totalGross || 0) + (result.leaveEncashment?.encashmentAmount || 0) - (result.outstandingAdvances || 0))}</td></tr>
       </table>
 
       <div class="footer">
@@ -142,6 +151,19 @@ export default function EndOfServiceScreen({ employee, onClose }) {
                 <div className="form-group">
                   <label>Contract Type</label>
                   <input className="form-control" value={employee.contractType || 'Unlimited'} disabled/>
+                </div>
+                <div className="form-group">
+                  <label>Unused Annual Leave Days (Art. 29)</label>
+                  <input
+                    className="form-control"
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    value={unusedLeaveDays}
+                    onChange={e => { setUnusedLeaveDays(e.target.value); setResult(null); }}
+                    placeholder="0"
+                  />
+                  <span className="hint">Unused annual leave is encashable on exit — check Leave module for balance</span>
                 </div>
                 <div className="form-group">
                   <label>Reason for Leaving *</label>
@@ -300,9 +322,23 @@ export default function EndOfServiceScreen({ employee, onClose }) {
                         <td>Gratuity / EOSB</td>
                         <td className="text-right">{formatAED(result.gratuity.gratuityCapped)}</td>
                       </tr>
+                      {/* Art. 29 — Annual leave encashment */}
+                      {(result.leaveEncashment?.encashmentAmount || 0) > 0 && (
+                        <tr>
+                          <td>
+                            Annual Leave Encashment (Art. 29)
+                            <span className="text-sm text-muted" style={{ marginLeft:8 }}>
+                              {result.leaveEncashment.unusedDays} days × {formatAED(result.leaveEncashment.dailyRate)}/day
+                            </span>
+                          </td>
+                          <td className="text-right">{formatAED(result.leaveEncashment.encashmentAmount)}</td>
+                        </tr>
+                      )}
                       <tr style={{ fontWeight:600 }}>
                         <td>Total Gross</td>
-                        <td className="text-right">{formatAED(result.totalGross)}</td>
+                        <td className="text-right">
+                          {formatAED(result.totalGross + (result.leaveEncashment?.encashmentAmount || 0))}
+                        </td>
                       </tr>
                       {result.outstandingAdvances > 0 && (
                         <tr style={{ color:'var(--danger)' }}>
@@ -312,7 +348,9 @@ export default function EndOfServiceScreen({ employee, onClose }) {
                       )}
                       <tr style={{ background:'var(--primary-light)', fontWeight:700, fontSize:15 }}>
                         <td style={{ color:'var(--primary-dark)' }}>NET SETTLEMENT PAYABLE</td>
-                        <td className="text-right" style={{ color:'var(--primary)' }}>{formatAED(result.totalNet)}</td>
+                        <td className="text-right" style={{ color:'var(--primary)' }}>
+                          {formatAED(result.totalGross + (result.leaveEncashment?.encashmentAmount || 0) - result.outstandingAdvances)}
+                        </td>
                       </tr>
                     </tbody>
                   </table>
