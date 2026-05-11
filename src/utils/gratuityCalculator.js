@@ -32,9 +32,14 @@
  */
 export function servicePeriod(startDate, endDate = new Date()) {
   const s = new Date(startDate);
-  const e = new Date(endDate);
+  // UAE gratuity: the last working day (termination date) is included in the service period.
+  // Add 1 day to the end date so that e.g. 01/01/2020 → 01/01/2026 = 6 Years, 0 Months, 1 Days
+  // which is the correct UAE MOHRE calculation (inclusive of last day).
+  const eRaw = new Date(endDate);
+  const e = new Date(eRaw);
+  e.setDate(e.getDate() + 1);
 
-  if (isNaN(s.getTime()) || isNaN(e.getTime()) || e < s) {
+  if (isNaN(s.getTime()) || isNaN(e.getTime()) || eRaw < s) {
     return { years: 0, months: 0, days: 0, totalYears: 0 };
   }
 
@@ -58,6 +63,7 @@ export function servicePeriod(startDate, endDate = new Date()) {
 
   // Total years as a decimal for calculation purposes
   // Use the exact calendar difference in days / 365.0 for pro-rata
+  // (e already has +1 day added for inclusive last-day counting)
   const msPerDay = 1000 * 60 * 60 * 24;
   const totalDays = Math.round((e - s) / msPerDay);
   const totalYears = totalDays / 365.0;
