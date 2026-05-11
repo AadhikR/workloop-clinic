@@ -45,17 +45,15 @@
  * @returns {{ years: number, months: number, days: number, totalYears: number, serviceLabel: string }}
  */
 export function servicePeriod(startDate, endDate = new Date()) {
-  const s    = new Date(startDate);
-  const eRaw = new Date(endDate);
+  const s = new Date(startDate);
+  const e = new Date(endDate);
 
-  if (isNaN(s.getTime()) || isNaN(eRaw.getTime()) || eRaw < s) {
+  if (isNaN(s.getTime()) || isNaN(e.getTime()) || e < s) {
     return { years: 0, months: 0, days: 0, totalYears: 0, serviceLabel: '0 Years, 0 Months, 0 Days' };
   }
 
-  // Include the last working day by adding 1 day to end date
-  const e = new Date(eRaw);
-  e.setDate(e.getDate() + 1);
-
+  // Last working day is NOT included — service period is start date up to (but not including) end date.
+  // e.g. Start 01/01/2020, Last Day 01/01/2026 → 6 Years, 0 Months, 0 Days → Gratuity AED 32,400
   let years  = e.getFullYear() - s.getFullYear();
   let months = e.getMonth()    - s.getMonth();
   let days   = e.getDate()     - s.getDate();
