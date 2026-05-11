@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Component } from 'react';
 import {
   Users, Plus, Trash2, X, Upload, AlertCircle, Search,
   FileDown, Info, Download, History, AlertTriangle, Calculator
@@ -264,8 +264,36 @@ function JobHistoryModal({ employee, onClose }) {
   );
 }
 
+// ── Error Boundary ───────────────────────────────────────────────────────────
+class EmpErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ padding: 40 }}>
+          <div className="alert alert-danger">
+            <AlertCircle size={16}/>
+            <div>
+              <strong>Failed to load Employees page.</strong>
+              <br/>
+              <span style={{ fontSize: 12, fontFamily: 'monospace' }}>{String(this.state.error)}</span>
+              <br/>
+              <span style={{ fontSize: 12 }}>
+                If this is a new deployment, please run the database migration first:
+                open <code>supabase_migration_existing_db.sql</code> in Supabase SQL Editor and click Run.
+              </span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 // ── Main EmployeeManager ─────────────────────────────────────────────────────
-export default function EmployeeManager() {
+function EmployeeManagerInner() {
   const [employees, setEmployees]         = useState([]);
   const [loading, setLoading]             = useState(true);
   const [modal, setModal]                 = useState(null);
@@ -374,15 +402,18 @@ export default function EmployeeManager() {
     return matchSearch && matchStatus && matchDept;
   });
 
-  const activeCount     = employees.filter(e => e.employmentStatus !== 'Terminated' && e.active !== false).length;
-  const terminatedCount = employees.filter(e => e.employmentStatus === 'Terminated').length;
+  // Defensive: employmentStatus may be undefined on pre-migration records
+  const activeCount     = employees.filter(e => (e.employmentStatus || 'Active') !== 'Terminated' && e.active !== false).length;
+  const terminatedCount = employees.filter(e => (e.employmentStatus || 'Active') === 'Terminated').length;
 
-  // Count expiry alerts
-  const today = new Date();
+  // Count expiry alerts — defensive: handle employees without new fields (pre-migration)
   const expiryAlerts = employees.reduce((count, emp) => {
-    if (emp.employmentStatus === 'Terminated') return count;
+    if ((emp.employmentStatus || 'Active') === 'Terminated') return count;
     const checks = [emp.visaExpiry, emp.passportExpiry, emp.emiratesIdExpiry, emp.labourCardExpiry];
-    return count + checks.filter(d => d && daysUntil(d) !== null && daysUntil(d) <= 60).length;
+    return count + checks.filter(d => {
+      if (!d) return false;
+      try { const days = daysUntil(d); return days !== null && days <= 60; } catch { return false; }
+    }).length;
   }, 0);
 
   return (
@@ -639,5 +670,13 @@ export default function EmployeeManager() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function EmployeeManager() {
+  return (
+    <EmpErrorBoundary>
+      <EmployeeManagerInner />
+    </EmpErrorBoundary>
   );
 }
