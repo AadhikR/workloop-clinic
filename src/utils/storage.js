@@ -478,7 +478,9 @@ function dbToEntry(row) {
     increment:            parseFloat(row.increment) || 0,
     bonus:                parseFloat(row.bonus) || 0,
     otherPay:             parseFloat(row.other_pay) || 0,
-    duCost:               parseFloat(row.du_cost) || 0,
+    // du_cost column repurposed to store leaveDeduction (editable leave deduction per payroll entry)
+    leaveDeduction:       parseFloat(row.du_cost) || 0,
+    duCost:               0,
     variableAllowance:    parseFloat(row.variable_allowance) || 0,
     additionalAllowances: row.additional_allowances ?? [],
     deductions:           row.deductions ?? [],
@@ -498,7 +500,8 @@ function entryToDb(entry, runId, userId) {
     increment:             parseFloat(entry.increment) || 0,
     bonus:                 parseFloat(entry.bonus) || 0,
     other_pay:             parseFloat(entry.otherPay) || 0,
-    du_cost:               parseFloat(entry.duCost) || 0,
+    // Store leaveDeduction in du_cost column (repurposed — no schema change needed)
+    du_cost:               parseFloat(entry.leaveDeduction) || 0,
     variable_allowance:    parseFloat(entry.variableAllowance) || 0,
     additional_allowances: entry.additionalAllowances ?? [],
     deductions:            entry.deductions ?? [],
