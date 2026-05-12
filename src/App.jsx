@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LayoutDashboard, Building2, Users, FileText, LogOut, User, CalendarDays } from 'lucide-react';
+import { LayoutDashboard, Building2, Users, FileText, LogOut, User, CalendarDays, Clock } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import AuthPage from './components/AuthPage';
 import Dashboard from './components/Dashboard';
@@ -7,14 +7,16 @@ import CompanySettings from './components/CompanySettings';
 import EmployeeManager from './components/EmployeeManager';
 import PayrollManager from './components/PayrollManager';
 import LeaveManager from './components/LeaveManager';
+import AttendanceManager from './components/AttendanceManager';
 import './index.css';
 
 const NAV_ITEMS = [
-  { id: 'dashboard', label: 'Dashboard',        icon: LayoutDashboard },
-  { id: 'company',   label: 'Company Settings', icon: Building2 },
-  { id: 'employees', label: 'Employees',         icon: Users },
-  { id: 'payroll',   label: 'Payroll Module',    icon: FileText },
-  { id: 'leave',     label: 'Leave',             icon: CalendarDays },
+  { id: 'dashboard',  label: 'Dashboard',        icon: LayoutDashboard },
+  { id: 'company',    label: 'Company Settings', icon: Building2 },
+  { id: 'employees',  label: 'Employees',         icon: Users },
+  { id: 'payroll',    label: 'Payroll Module',    icon: FileText },
+  { id: 'leave',      label: 'Leave',             icon: CalendarDays },
+  { id: 'attendance', label: 'Attendance',        icon: Clock },
 ];
 
 // ─── Inner app (only rendered when authenticated) ───────────────────────────
@@ -31,12 +33,13 @@ function AppShell() {
 
   const renderPage = () => {
     switch (page) {
-      case 'dashboard': return <Dashboard onNavigate={setPage} />;
-      case 'company':   return <CompanySettings />;
-      case 'employees': return <EmployeeManager />;
-      case 'payroll':   return <PayrollManager />;
-      case 'leave':     return <LeaveManager />;
-      default:          return <Dashboard onNavigate={setPage} />;
+      case 'dashboard':  return <Dashboard onNavigate={setPage} />;
+      case 'company':    return <CompanySettings />;
+      case 'employees':  return <EmployeeManager />;
+      case 'payroll':    return <PayrollManager />;
+      case 'leave':      return <LeaveManager />;
+      case 'attendance': return <AttendanceManager />;
+      default:           return <Dashboard onNavigate={setPage} />;
     }
   };
 

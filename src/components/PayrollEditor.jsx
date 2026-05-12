@@ -8,6 +8,8 @@ import SIFPreviewModal from './SIFPreviewModal';
 import { downloadPayslip, downloadAllPayslips } from '../utils/payslipGenerator';
 import { calculatePayrollLeaveDeductions } from '../utils/leaveEngine';
 import { getLeaveRequests } from '../utils/leaveStorage';
+import { getAttendancePayrollData } from '../utils/attendanceStorage';
+import { getPayrollSummaryFromAttendance, formatHours } from '../utils/attendanceEngine';
 
 function getMonthName(month) {
   return ['January','February','March','April','May','June',
@@ -51,6 +53,8 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
   const [showPanel, setShowPanel] = useState(false);
   const [autoSaved, setAutoSaved] = useState(false);
   const [leaveDeductions, setLeaveDeductions] = useState({}); // { [employeeId]: deductionResult }
+  const [attendanceData, setAttendanceData]   = useState(null); // { periodClosed, payrollReady, byEmployee }
+  const [attendanceWarning, setAttendanceWarning] = useState(false);
   const autoSaveTimer = useRef(null);
   const fileRef = useRef();
 
@@ -85,6 +89,15 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
       }));
     }).catch(() => {}); // leave module may not be set up yet — fail silently
   }, [payroll.period, employees]);
+
+  // Load attendance data for this payroll period (Connection C)
+  // Art. 56: Payroll must not run against unclosed attendance period
+  useEffect(() => {
+    getAttendancePayrollData(payroll.period).then(data => {
+      setAttendanceData(data);
+      setAttendanceWarning(!data.periodClosed);
+    }).catch(() => {}); // attendance module may not be set up yet — fail silently
+  }, [payroll.period]);
 
   // Auto-save helper — debounced 800ms after last change
   const triggerAutoSave = useCallback((updatedEntries, updatedMeta) => {
@@ -341,6 +354,64 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
             <div className="stat-sub">AED — {daysInMonth} days</div>
           </div>
         </div>
+
+        {/* ── Attendance Warning (Art. 56 — period must be closed before payroll) ── */}
+        {attendanceWarning && (
+          <div className="alert alert-warning mb-4">
+            <AlertCircle size={16}/>
+            <div>
+              <strong>Art. 56 — Attendance Not Finalised:</strong> The attendance period for {payroll.period} has not been closed yet.
+              UAE Labour Law requires payroll to be based on finalised attendance data.
+              Please close the attendance period in the <strong>Attendance</strong> module before running payroll.
+            </div>
+          </div>
+        )}
+
+        {/* ── Attendance Line Items Panel (Connection C) ── */}
+        {attendanceData && Object.keys(attendanceData.byEmployee || {}).length > 0 && (
+          <div className="card mb-4">
+            <div className="card-header">
+              <h3><Info size={15} style={{ marginRight:6, color:'var(--primary)' }}/>Attendance-Derived Payroll Items</h3>
+              <span className={`badge ${attendanceData.periodClosed ? 'badge-green' : 'badge-amber'}`}>
+                {attendanceData.periodClosed ? '✓ Period Closed' : 'Period Open'}
+              </span>
+            </div>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>Employee</th><th>Item</th><th>Type</th><th className="text-right">Amount (AED)</th></tr>
+                </thead>
+                <tbody>
+                  {Object.entries(attendanceData.byEmployee).map(([empId, empRecords]) => {
+                    const emp = employees.find(e => e.id === empId);
+                    const summary = getPayrollSummaryFromAttendance(empRecords, emp?.basicSalary || 0);
+                    return summary.lineItems.map((item, i) => (
+                      <tr key={`${empId}-${i}`}>
+                        <td style={{ fontWeight: i === 0 ? 500 : 400, color: i === 0 ? 'var(--gray-800)' : 'var(--gray-400)' }}>
+                          {i === 0 ? emp?.name : ''}
+                        </td>
+                        <td className="text-sm">{item.label}</td>
+                        <td>
+                          <span className={`badge ${item.type === 'deduction' ? 'badge-red' : 'badge-green'}`}>
+                            {item.type === 'deduction' ? 'Deduction' : 'Earning'}
+                          </span>
+                        </td>
+                        <td className="text-right" style={{ color: item.type === 'deduction' ? 'var(--danger)' : 'var(--success)', fontWeight:600 }}>
+                          {item.type === 'deduction' ? '-' : '+'}{item.amount.toLocaleString('en-AE', { minimumFractionDigits:2 })}
+                        </td>
+                      </tr>
+                    ));
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ padding:'10px 20px', fontSize:12, color:'var(--gray-500)', borderTop:'1px solid var(--gray-100)' }}>
+              <Info size={12} style={{ marginRight:4 }}/>
+              Absence deductions (Art. 56), overtime earnings (Art. 19), and late deductions are pulled from the Attendance module.
+              Apply them as named deductions/additions via the Allowances &amp; Deductions panel below.
+            </div>
+          </div>
+        )}
 
         {/* ── Leave Deductions Panel ── */}
         {Object.keys(leaveDeductions).length > 0 && (
