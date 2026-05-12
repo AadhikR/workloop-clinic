@@ -24,6 +24,7 @@ function normaliseEntry(e) {
     increment: e.increment ?? 0,
     bonus: e.bonus ?? 0,
     otherPay: e.otherPay ?? 0,
+    leaveDeduction: e.leaveDeduction ?? 0, // editable leave deduction (pre-filled from Leave module)
     additionalAllowances: e.additionalAllowances ?? [],
     deductions: e.deductions ?? [],
     ...e,
@@ -53,7 +54,7 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
   const autoSaveTimer = useRef(null);
   const fileRef = useRef();
 
-  // Load leave deductions for this payroll period
+  // Load leave deductions for this payroll period and pre-fill entry fields
   useEffect(() => {
     const [y, m] = payroll.period.split('-').map(Number);
     const periodStart = `${y}-${String(m).padStart(2,'0')}-01`;
@@ -72,6 +73,16 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
         }
       }
       setLeaveDeductions(deductMap);
+
+      // Pre-fill leaveDeduction on entries that don't already have a manual override
+      setEntries(prev => prev.map(entry => {
+        const calc = deductMap[entry.employeeId];
+        // Only pre-fill if the entry has no existing leaveDeduction value (0 or undefined)
+        if (calc && (!entry.leaveDeduction || entry.leaveDeduction === 0)) {
+          return { ...entry, leaveDeduction: parseFloat(calc.totalDeduction.toFixed(2)) };
+        }
+        return entry;
+      }));
     }).catch(() => {}); // leave module may not be set up yet — fail silently
   }, [payroll.period, employees]);
 
@@ -493,11 +504,19 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                           value={entry.otherPay} disabled={entry.excluded}
                           onChange={e => updateEntry(idx, 'otherPay', e.target.value)} />
                       </td>
-                      {/* Leave Deductions — auto-calculated from approved leave in this period */}
-                      <td className="text-right text-sm" style={{ color: leaveDeductions[emp.id]?.totalDeduction > 0 ? 'var(--danger)' : 'var(--gray-400)', fontWeight: leaveDeductions[emp.id]?.totalDeduction > 0 ? 600 : 400 }}>
-                        {leaveDeductions[emp.id]?.totalDeduction > 0
-                          ? `-${leaveDeductions[emp.id].totalDeduction.toLocaleString('en-AE', { minimumFractionDigits:2 })}`
-                          : '—'}
+                      {/* Leave Deductions — auto-filled from Leave module, editable for manual override */}
+                      <td style={{ position:'relative' }}>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={entry.leaveDeduction ?? 0}
+                          disabled={entry.excluded}
+                          placeholder="0.00"
+                          title="Auto-filled from approved leave. Edit to override."
+                          style={{ color: (parseFloat(entry.leaveDeduction) || 0) > 0 ? 'var(--danger)' : undefined }}
+                          onChange={e => updateEntry(idx, 'leaveDeduction', parseFloat(e.target.value) || 0)}
+                        />
                       </td>
                       <td
                         className="text-right text-sm"
@@ -560,8 +579,8 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                   <td className="text-right">{totalBonus.toLocaleString('en-AE')}</td>
                   <td className="text-right">{totalOtherPay.toLocaleString('en-AE')}</td>
                   <td className="text-right" style={{ color: 'var(--danger)', fontWeight:600 }}>
-                    {Object.values(leaveDeductions).reduce((s, d) => s + d.totalDeduction, 0) > 0
-                      ? `-${Object.values(leaveDeductions).reduce((s, d) => s + d.totalDeduction, 0).toLocaleString('en-AE')}`
+                    {activeEntries.reduce((s, e) => s + (parseFloat(e.leaveDeduction) || 0), 0) > 0
+                      ? `-${activeEntries.reduce((s, e) => s + (parseFloat(e.leaveDeduction) || 0), 0).toLocaleString('en-AE', { minimumFractionDigits:2 })}`
                       : '—'}
                   </td>
                   <td className="text-right" style={{ color: 'var(--success)' }}>

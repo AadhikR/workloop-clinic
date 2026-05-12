@@ -14,9 +14,11 @@ export function computeFinalAllowance(entry) {
   const bon    = parseFloat(entry.bonus) || 0;
   const oth    = parseFloat(entry.otherPay) || 0;
   const du     = parseFloat(entry.duCost) || 0;
+  // leaveDeduction: editable leave deduction (unpaid/sick leave) — subtracted from net allowance
+  const leaveDed = parseFloat(entry.leaveDeduction) || 0;
   const addAllow = (entry.additionalAllowances || []).reduce((s, a) => s + (parseFloat(a.amount) || 0), 0);
   const deds     = (entry.deductions || []).reduce((s, d) => s + (parseFloat(d.amount) || 0), 0);
-  return base + inc + bon + oth + addAllow - deds - du;
+  return base + inc + bon + oth + addAllow - deds - du - leaveDed;
 }
 
 export default function AllowDeductPanel({ entries, employees, onClose, onSave }) {
