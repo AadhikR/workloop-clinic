@@ -1,11 +1,13 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Download, Eye, Upload, AlertCircle, Plus, ChevronDown, CheckCircle, FileText } from 'lucide-react';
+import { Download, Eye, Upload, AlertCircle, Plus, ChevronDown, CheckCircle, FileText, Info } from 'lucide-react';
 import { generateSIF, generateSIFFilename } from '../utils/sifGenerator';
 import { parseCSV, readFileAsText } from '../utils/csvImport';
 import { savePayroll } from '../utils/storage';
 import AllowDeductPanel, { computeFinalAllowance } from './AllowDeductPanel';
 import SIFPreviewModal from './SIFPreviewModal';
 import { downloadPayslip, downloadAllPayslips } from '../utils/payslipGenerator';
+import { calculatePayrollLeaveDeductions } from '../utils/leaveEngine';
+import { getLeaveRequests } from '../utils/leaveStorage';
 
 function getMonthName(month) {
   return ['January','February','March','April','May','June',
@@ -47,8 +49,31 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
   const [importMsg, setImportMsg] = useState(null);
   const [showPanel, setShowPanel] = useState(false);
   const [autoSaved, setAutoSaved] = useState(false);
+  const [leaveDeductions, setLeaveDeductions] = useState({}); // { [employeeId]: deductionResult }
   const autoSaveTimer = useRef(null);
   const fileRef = useRef();
+
+  // Load leave deductions for this payroll period
+  useEffect(() => {
+    const [y, m] = payroll.period.split('-').map(Number);
+    const periodStart = `${y}-${String(m).padStart(2,'0')}-01`;
+    const daysInMonth = new Date(y, m, 0).getDate();
+    const periodEnd   = `${y}-${String(m).padStart(2,'0')}-${String(daysInMonth).padStart(2,'0')}`;
+
+    getLeaveRequests({ status: 'Approved', year: y }).then(leaves => {
+      const deductMap = {};
+      for (const emp of employees) {
+        const empLeaves = leaves.filter(l => l.employeeId === emp.id);
+        if (empLeaves.length > 0) {
+          const result = calculatePayrollLeaveDeductions(empLeaves, periodStart, periodEnd, emp.basicSalary);
+          if (result.totalDeduction > 0) {
+            deductMap[emp.id] = result;
+          }
+        }
+      }
+      setLeaveDeductions(deductMap);
+    }).catch(() => {}); // leave module may not be set up yet — fail silently
+  }, [payroll.period, employees]);
 
   // Auto-save helper — debounced 800ms after last change
   const triggerAutoSave = useCallback((updatedEntries, updatedMeta) => {
@@ -305,6 +330,58 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
             <div className="stat-sub">AED — {daysInMonth} days</div>
           </div>
         </div>
+
+        {/* ── Leave Deductions Panel ── */}
+        {Object.keys(leaveDeductions).length > 0 && (
+          <div className="card mb-4">
+            <div className="card-header">
+              <h3><Info size={15} style={{ marginRight:6, color:'var(--warning)' }}/>Leave Deductions This Period</h3>
+              <span className="badge badge-amber">{Object.keys(leaveDeductions).length} employee{Object.keys(leaveDeductions).length !== 1 ? 's' : ''} affected</span>
+            </div>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Employee</th>
+                    <th>Leave Type</th>
+                    <th>Days</th>
+                    <th className="text-right">Deduction (AED)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(leaveDeductions).map(([empId, ded]) => {
+                    const emp = employees.find(e => e.id === empId);
+                    return ded.lineItems.map((item, i) => (
+                      <tr key={`${empId}-${i}`}>
+                        <td style={{ fontWeight: i === 0 ? 500 : 400, color: i === 0 ? 'var(--gray-800)' : 'var(--gray-400)' }}>
+                          {i === 0 ? emp?.name : ''}
+                        </td>
+                        <td className="text-sm">{item.label}</td>
+                        <td>{item.days}</td>
+                        <td className="text-right" style={{ color:'var(--danger)', fontWeight:600 }}>
+                          -{item.amount.toLocaleString('en-AE', { minimumFractionDigits:2 })}
+                        </td>
+                      </tr>
+                    ));
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr style={{ background:'var(--danger-light)', fontWeight:700 }}>
+                    <td colSpan={3} style={{ textAlign:'right', paddingRight:12, color:'var(--danger)' }}>
+                      Total Leave Deductions
+                    </td>
+                    <td className="text-right" style={{ color:'var(--danger)' }}>
+                      -{Object.values(leaveDeductions).reduce((s, d) => s + d.totalDeduction, 0).toLocaleString('en-AE', { minimumFractionDigits:2 })} AED
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+            <div style={{ padding:'10px 20px', fontSize:12, color:'var(--gray-500)', borderTop:'1px solid var(--gray-100)' }}>
+              <Info size={12} style={{ marginRight:4 }}/> These deductions are calculated from approved leave requests in the Leave module. Apply them manually in the Deductions column below, or add them as named deductions via Allowances &amp; Deductions.
+            </div>
+          </div>
+        )}
 
         {/* ── Entry Table ── */}
         <div className="card">

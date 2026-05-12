@@ -499,6 +499,118 @@ export function calculateLeaveEncashment(unusedDays, basicSalary) {
   };
 }
 
+// ── Payroll Leave Deduction Calculator ───────────────────────────────────────
+
+/**
+ * Calculate leave-related salary deductions for a payroll period.
+ *
+ * Covers:
+ *   1. Approved UNPAID leave days overlapping the period → deduct (basic/30) × days
+ *   2. Approved SICK leave at half-pay tier → deduct 50% of (basic/30) × half-pay days
+ *   3. Approved SICK leave at unpaid tier → deduct (basic/30) × unpaid days
+ *   4. Approved HAJJ leave (unpaid) → deduct (basic/30) × days
+ *
+ * @param {object[]} approvedLeaves — approved leave requests for this employee
+ * @param {string} periodStart — 'YYYY-MM-DD' first day of payroll period
+ * @param {string} periodEnd   — 'YYYY-MM-DD' last day of payroll period
+ * @param {number} basicSalary — monthly basic salary in AED
+ * @param {number} sickFullPayUsed — sick full-pay days already used this year
+ * @returns {{
+ *   unpaidLeaveDays: number,
+ *   unpaidLeaveDeduction: number,
+ *   sickHalfPayDays: number,
+ *   sickHalfPayDeduction: number,
+ *   sickUnpaidDays: number,
+ *   sickUnpaidDeduction: number,
+ *   totalDeduction: number,
+ *   lineItems: Array<{label: string, days: number, amount: number}>,
+ * }}
+ */
+export function calculatePayrollLeaveDeductions(approvedLeaves, periodStart, periodEnd, basicSalary, sickFullPayUsed = 0) {
+  const daily  = (parseFloat(basicSalary) || 0) / 30;
+  const pStart = new Date(periodStart);
+  const pEnd   = new Date(periodEnd);
+  pStart.setHours(0, 0, 0, 0);
+  pEnd.setHours(0, 0, 0, 0);
+
+  let unpaidLeaveDays  = 0;
+  let sickHalfPayDays  = 0;
+  let sickUnpaidDays   = 0;
+  let runningSickUsed  = sickFullPayUsed;
+  const lineItems      = [];
+
+  for (const leave of (approvedLeaves || [])) {
+    if (leave.status !== 'Approved') continue;
+
+    const lStart = new Date(leave.startDate);
+    const lEnd   = new Date(leave.endDate);
+    lStart.setHours(0, 0, 0, 0);
+    lEnd.setHours(0, 0, 0, 0);
+
+    // Find overlap between leave period and payroll period
+    const overlapStart = lStart > pStart ? lStart : pStart;
+    const overlapEnd   = lEnd < pEnd ? lEnd : pEnd;
+    if (overlapStart > overlapEnd) continue;
+
+    const overlapDays = Math.round((overlapEnd - overlapStart) / (1000 * 60 * 60 * 24)) + 1;
+    if (overlapDays <= 0) continue;
+
+    if (leave.leaveTypeCode === 'UNPAID') {
+      // Unpaid leave: deduct full daily rate × days
+      unpaidLeaveDays += overlapDays;
+      lineItems.push({
+        label: `Unpaid Leave (${leave.startDate} – ${leave.endDate})`,
+        days:  overlapDays,
+        amount: overlapDays * daily,
+      });
+    } else if (leave.leaveTypeCode === 'HAJJ') {
+      // Hajj leave is unpaid — Art. 29
+      unpaidLeaveDays += overlapDays;
+      lineItems.push({
+        label: `Hajj Leave — Unpaid (Art. 29)`,
+        days:  overlapDays,
+        amount: overlapDays * daily,
+      });
+    } else if (leave.leaveTypeCode === 'SICK') {
+      // Art. 31: apply tier calculation based on cumulative sick days used this year
+      const tierResult = calculateSickLeavePay(runningSickUsed, overlapDays, daily);
+      if (tierResult.halfPayDays > 0) {
+        sickHalfPayDays += tierResult.halfPayDays;
+        lineItems.push({
+          label: `Sick Leave — Half Pay (Art. 31)`,
+          days:  tierResult.halfPayDays,
+          amount: tierResult.halfPayDays * daily * 0.5,
+        });
+      }
+      if (tierResult.unpaidDays > 0) {
+        sickUnpaidDays += tierResult.unpaidDays;
+        lineItems.push({
+          label: `Sick Leave — Unpaid (Art. 31)`,
+          days:  tierResult.unpaidDays,
+          amount: tierResult.unpaidDays * daily,
+        });
+      }
+      runningSickUsed += overlapDays;
+    }
+  }
+
+  const unpaidLeaveDeduction = unpaidLeaveDays * daily;
+  const sickHalfPayDeduction = sickHalfPayDays * daily * 0.5;
+  const sickUnpaidDeduction  = sickUnpaidDays * daily;
+  const totalDeduction       = unpaidLeaveDeduction + sickHalfPayDeduction + sickUnpaidDeduction;
+
+  return {
+    unpaidLeaveDays,
+    unpaidLeaveDeduction,
+    sickHalfPayDays,
+    sickHalfPayDeduction,
+    sickUnpaidDays,
+    sickUnpaidDeduction,
+    totalDeduction,
+    lineItems,
+  };
+}
+
 // ── Compliance Validators ─────────────────────────────────────────────────────
 
 /**
