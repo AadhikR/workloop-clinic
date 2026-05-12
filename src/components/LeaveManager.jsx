@@ -8,10 +8,10 @@
  *   4. Balances    — HR summary table: all employees × all leave types
  *   5. Settings    — leave year, weekend, carry-forward, public holidays, Ramadan
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Calendar, Users, BarChart2, Settings, Plus, Check, X, AlertCircle,
-  Clock, Download, ChevronLeft, ChevronRight, Info, Trash2, Save
+  Clock, Download, ChevronLeft, ChevronRight, Info, Trash2, Save, RefreshCw
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getEmployees } from '../utils/storage';
@@ -19,7 +19,7 @@ import {
   getLeaveTypes, getLeaveRequests, submitLeaveRequest, updateLeaveRequestStatus,
   cancelLeaveRequest, getLeaveBalances, getAllLeaveBalances, upsertLeaveBalance,
   getPublicHolidays, savePublicHoliday, deletePublicHoliday,
-  getLeaveSettings, saveLeaveSettings, initialiseLeaveModule
+  getLeaveSettings, saveLeaveSettings, initialiseLeaveModule, recalculateAllBalances
 } from '../utils/leaveStorage';
 import {
   calculateAnnualLeaveAccrual, countLeaveDays, getLeaveAdvancePayWarnings,
@@ -108,7 +108,6 @@ export default function LeaveManager() {
       setEmployees(emps);
       setLeaveTypes(types);
       setRequests(reqs);
-      setAllBalances(bals);
       setHolidays(hols);
       const defaultSettings = {
         leaveYearType: 'calendar', weekendDefinition: 'fri-sat',
@@ -118,6 +117,20 @@ export default function LeaveManager() {
       };
       setSettings(sett || defaultSettings);
       setSettingsForm(sett || defaultSettings);
+
+      // Auto-recalculate balances from approved requests + accrual
+      if (emps.length > 0 && types.length > 0) {
+        try {
+          await recalculateAllBalances(emps, types, reqs, new Date().getFullYear(), (sett || defaultSettings).leaveYearType);
+          const freshBals = await getAllLeaveBalances();
+          setAllBalances(freshBals);
+        } catch (e) {
+          console.warn('Balance recalculation failed (leave tables may not exist yet):', e.message);
+          setAllBalances(bals);
+        }
+      } else {
+        setAllBalances(bals);
+      }
     } catch (err) {
       console.error('LeaveManager loadAll:', err);
     } finally {
@@ -535,8 +548,8 @@ export default function LeaveManager() {
                         const lt = leaveTypes.find(t => t.code === r.leaveTypeCode);
                         const emp = employees.find(e => e.id === r.employeeId);
                         return (
-                          <div key={r.id} style={{ fontSize:10, background: lt?.color + '22', color: lt?.color, borderRadius:3, padding:'1px 4px', marginBottom:2, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                            {emp?.name?.split(' ')[0]}
+                          <div key={r.id} title={`${emp?.name} — ${lt?.name} (${formatDateUAE(r.startDate)} – ${formatDateUAE(r.endDate)})`} style={{ fontSize:10, background: lt?.color + '22', color: lt?.color, borderRadius:3, padding:'1px 4px', marginBottom:2, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                            {emp?.name?.split(' ')[0]} {r.startDate === dateStr ? `↑${formatDateUAE(r.startDate).slice(0,5)}` : ''}
                           </div>
                         );
                       })}
@@ -554,9 +567,23 @@ export default function LeaveManager() {
           <div className="card">
             <div className="card-header">
               <h3>Leave Balances — {new Date().getFullYear()}</h3>
-              <button className="btn btn-outline btn-sm" onClick={() => exportBalancesCSV(employees, leaveTypes, allBalances)}>
-                <Download size={14}/> Export CSV
-              </button>
+              <div style={{ display:'flex', gap:8 }}>
+                <button className="btn btn-outline btn-sm" onClick={async () => {
+                  setSaving(true);
+                  try {
+                    await recalculateAllBalances(employees, leaveTypes, requests, new Date().getFullYear(), settings?.leaveYearType || 'calendar');
+                    const freshBals = await getAllLeaveBalances();
+                    setAllBalances(freshBals);
+                    showMsg('success', 'Leave balances recalculated.');
+                  } catch(e) { showMsg('danger', 'Recalculation failed: ' + e.message); }
+                  finally { setSaving(false); }
+                }} disabled={saving}>
+                  <RefreshCw size={14}/> Recalculate
+                </button>
+                <button className="btn btn-outline btn-sm" onClick={() => exportBalancesCSV(employees, leaveTypes, allBalances)}>
+                  <Download size={14}/> Export CSV
+                </button>
+              </div>
             </div>
             <div className="table-wrap">
               <table>

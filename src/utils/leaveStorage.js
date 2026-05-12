@@ -1,5 +1,7 @@
 /**
  * leaveStorage.js — Supabase data layer for the Leave Management module
+ * Includes recalculateAllBalances() which computes leave balances from
+ * approved requests + employee accrual and saves them to leave_balances.
  *
  * All functions are async and scoped to the current user via RLS.
  * Covers: leave settings, leave types, public holidays, leave requests,
@@ -7,7 +9,7 @@
  */
 
 import { supabase } from '../lib/supabase';
-import { DEFAULT_LEAVE_TYPES, UAE_PUBLIC_HOLIDAYS_2025, UAE_PUBLIC_HOLIDAYS_2026 } from './leaveEngine';
+import { DEFAULT_LEAVE_TYPES, UAE_PUBLIC_HOLIDAYS_2025, UAE_PUBLIC_HOLIDAYS_2026, calculateAnnualLeaveAccrual } from './leaveEngine';
 
 // ── LEAVE SETTINGS ────────────────────────────────────────────────────────────
 
@@ -458,4 +460,107 @@ export async function initialiseLeaveModule() {
   } catch (err) {
     console.error('initialiseLeaveModule:', err);
   }
+}
+
+// ── RECALCULATE BALANCES ──────────────────────────────────────────────────────
+
+/**
+ * Recalculate and save leave balances for all employees.
+ * Called when the Balances tab is opened or when a leave request is approved.
+ *
+ * For each employee × leave type:
+ *   - entitled_days = annual entitlement (from leave type config)
+ *   - accrued_days  = calculated from employment start date (annual leave only)
+ *   - used_days     = sum of approved leave days for this type in the current year
+ *   - pending_days  = sum of pending leave days
+ *   - remaining     = accrued_days - used_days (or entitled - used for fixed types)
+ *
+ * @param {object[]} employees
+ * @param {object[]} leaveTypes
+ * @param {object[]} allRequests — all leave requests (any status)
+ * @param {number} year — leave year (default: current year)
+ * @param {string} leaveYearType — 'calendar' | 'anniversary'
+ */
+export async function recalculateAllBalances(employees, leaveTypes, allRequests, year, leaveYearType = 'calendar') {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const currentYear = year || new Date().getFullYear();
+
+  const rows = [];
+
+  for (const emp of employees) {
+    if (!emp.id) continue;
+
+    for (const lt of leaveTypes) {
+      if (!lt.id) continue;
+
+      // Filter requests for this employee + type + year
+      const empRequests = allRequests.filter(r =>
+        r.employeeId === emp.id &&
+        r.leaveTypeCode === lt.code &&
+        r.startDate?.startsWith(String(currentYear))
+      );
+
+      const usedDays    = empRequests.filter(r => r.status === 'Approved').reduce((s, r) => s + (parseFloat(r.daysRequested) || 0), 0);
+      const pendingDays = empRequests.filter(r => r.status === 'Pending').reduce((s, r) => s + (parseFloat(r.daysRequested) || 0), 0);
+
+      // Sick leave tier tracking
+      const sickFullPayUsed  = empRequests.filter(r => r.status === 'Approved').reduce((s, r) => {
+        const days = parseFloat(r.daysRequested) || 0;
+        const prev = s;
+        if (prev < 15) return Math.min(prev + days, 15);
+        return prev;
+      }, 0);
+      const sickHalfPayUsed  = Math.max(0, Math.min(usedDays - 15, 30));
+      const sickUnpaidUsed   = Math.max(0, usedDays - 45);
+
+      // Hajj: check if ever taken
+      const hajjTaken = lt.code === 'HAJJ' && allRequests.some(r =>
+        r.employeeId === emp.id && r.leaveTypeCode === 'HAJJ' && r.status === 'Approved'
+      );
+
+      // Accrued days
+      let accruedDays    = lt.annualEntitlementDays;
+      let entitledDays   = lt.annualEntitlementDays;
+
+      if (lt.code === 'ANNUAL' && (emp.startDate || emp.employmentStartDate)) {
+        const accrual = calculateAnnualLeaveAccrual(
+          emp.startDate || emp.employmentStartDate,
+          new Date(),
+          leaveYearType
+        );
+        accruedDays  = accrual.totalAccrued;
+        entitledDays = accrual.entitlementPerYear;
+      }
+
+      const remainingDays = Math.max(0, accruedDays - usedDays);
+
+      rows.push({
+        user_id:            user.id,
+        employee_id:        emp.id,
+        leave_type_id:      lt.id,
+        leave_type_code:    lt.code,
+        leave_year:         currentYear,
+        entitled_days:      entitledDays,
+        accrued_days:       accruedDays,
+        used_days:          usedDays,
+        pending_days:       pendingDays,
+        carried_forward:    0,
+        remaining_days:     remainingDays,
+        sick_full_pay_used: lt.code === 'SICK' ? sickFullPayUsed : 0,
+        sick_half_pay_used: lt.code === 'SICK' ? sickHalfPayUsed : 0,
+        sick_unpaid_used:   lt.code === 'SICK' ? sickUnpaidUsed : 0,
+        hajj_taken:         hajjTaken,
+      });
+    }
+  }
+
+  if (rows.length === 0) return;
+
+  // Upsert all balances in one call
+  const { error } = await supabase
+    .from('leave_balances')
+    .upsert(rows, { onConflict: 'user_id,employee_id,leave_type_code,leave_year' });
+  if (error) throw error;
 }

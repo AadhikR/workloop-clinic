@@ -411,7 +411,7 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                   <th style={{ width: 100 }}>Increment</th>
                   <th style={{ width: 110 }}>Bonus/Incentive</th>
                   <th style={{ width: 100 }}>Other Pay</th>
-                  <th style={{ width: 90 }}>DU Cost</th>
+                  <th style={{ width: 100, color:'var(--danger)' }}>Leave Ded.</th>
                   <th
                     style={{ width: 90 }}
                     title="Click to add named additional allowances per employee"
@@ -493,12 +493,11 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                           value={entry.otherPay} disabled={entry.excluded}
                           onChange={e => updateEntry(idx, 'otherPay', e.target.value)} />
                       </td>
-                      <td>
-                        <input type="number" min="0" step="0.01"
-                          value={entry.duCost ?? ''}
-                          disabled={entry.excluded}
-                          placeholder="0.00"
-                          onChange={e => updateEntry(idx, 'duCost', e.target.value)} />
+                      {/* Leave Deductions — auto-calculated from approved leave in this period */}
+                      <td className="text-right text-sm" style={{ color: leaveDeductions[emp.id]?.totalDeduction > 0 ? 'var(--danger)' : 'var(--gray-400)', fontWeight: leaveDeductions[emp.id]?.totalDeduction > 0 ? 600 : 400 }}>
+                        {leaveDeductions[emp.id]?.totalDeduction > 0
+                          ? `-${leaveDeductions[emp.id].totalDeduction.toLocaleString('en-AE', { minimumFractionDigits:2 })}`
+                          : '—'}
                       </td>
                       <td
                         className="text-right text-sm"
@@ -560,8 +559,10 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                   <td className="text-right">{totalIncrement.toLocaleString('en-AE')}</td>
                   <td className="text-right">{totalBonus.toLocaleString('en-AE')}</td>
                   <td className="text-right">{totalOtherPay.toLocaleString('en-AE')}</td>
-                  <td className="text-right" style={{ color: 'var(--gray-700)' }}>
-                    {totalDuCost.toLocaleString('en-AE')}
+                  <td className="text-right" style={{ color: 'var(--danger)', fontWeight:600 }}>
+                    {Object.values(leaveDeductions).reduce((s, d) => s + d.totalDeduction, 0) > 0
+                      ? `-${Object.values(leaveDeductions).reduce((s, d) => s + d.totalDeduction, 0).toLocaleString('en-AE')}`
+                      : '—'}
                   </td>
                   <td className="text-right" style={{ color: 'var(--success)' }}>
                     {totalAddAllow > 0 ? `+${totalAddAllow.toLocaleString('en-AE')}` : '—'}
