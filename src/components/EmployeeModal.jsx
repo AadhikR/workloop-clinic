@@ -2,10 +2,11 @@
  * EmployeeModal.jsx — Add/Edit Employee modal with tabbed UAE HR profile
  * Tabs: Personal | Job & Contract | Salary & Bank | UAE Compliance
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, UserCheck, Briefcase, CreditCard, Shield } from 'lucide-react';
 import { validateIBAN, validateEmiratesID, validateMolId, formatAED, formatDateUAE } from '../utils/uaeValidators';
 import { calculateGratuity } from '../utils/gratuityCalculator';
+import { getShifts } from '../utils/attendanceStorage';
 
 const FREE_ZONES = ['DIFC','ADGM','JAFZA','DMCC','DAFZA','TECOM','Dubai Internet City','Dubai Media City','Dubai Healthcare City','Meydan Free Zone','RAKEZ','SAIF Zone','KIZAD','Abu Dhabi Free Zone','Hamriyah Free Zone','Other'];
 const VISA_TYPES = ['Employment Visa','Investor Visa','Dependent Visa','Tourist (Temp)','Exempt'];
@@ -38,6 +39,11 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [tab, setTab]       = useState('personal');
+  const [shifts, setShifts] = useState([]);
+
+  useEffect(() => {
+    getShifts().then(setShifts).catch(() => {});
+  }, []);
 
   const f = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -200,6 +206,16 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
                     <option key={e.id} value={e.id}>{e.name}</option>
                   ))}
                 </select>
+              </div>
+              <div className="form-group">
+                <label>Assigned Shift (Attendance)</label>
+                <select className="form-control" value={form.shiftId || ''} onChange={e => f('shiftId', e.target.value)}>
+                  <option value="">Company Default</option>
+                  {shifts.map(s => (
+                    <option key={s.id} value={s.id}>{s.name} ({s.startTime || 'Flexible'} – {s.endTime || ''}, {s.expectedHours}h)</option>
+                  ))}
+                </select>
+                <span className="hint">Override the company default shift for this employee. Used by the Attendance module.</span>
               </div>
               <div className="form-group">
                 <label>Employment Status</label>
