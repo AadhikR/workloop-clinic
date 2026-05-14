@@ -22,8 +22,9 @@
   --gray-800: #2d2d2f;
   --gray-900: #1d1d1f;
 
-  --sidebar-w: 248px;
-  --header-h:  64px;
+  --sidebar-w:   240px;
+  --sidebar-gap: 12px;
+  --header-h:    64px;
   --radius:    14px;
   --radius-sm: 10px;
   --radius-lg: 20px;
@@ -53,8 +54,13 @@ body {
   display: flex;
   flex-direction: column;
   position: fixed;
-  top: 0; left: 0; bottom: 0;
+  top: var(--sidebar-gap);
+  left: var(--sidebar-gap);
+  bottom: var(--sidebar-gap);
   z-index: 100;
+  border-radius: 22px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.22), 0 2px 8px rgba(0,0,0,0.12);
+  overflow: hidden;
 }
 
 .sidebar-logo {
@@ -97,7 +103,7 @@ body {
 .nav-item svg    { flex-shrink: 0; }
 
 .main-content {
-  margin-left: var(--sidebar-w);
+  margin-left: calc(var(--sidebar-w) + var(--sidebar-gap) * 2);
   flex: 1;
   display: flex;
   flex-direction: column;
