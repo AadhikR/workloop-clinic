@@ -53,28 +53,47 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
   const validate = () => {
     const e = {};
     if (!form.name.trim()) e.name = 'Required';
-    const molCheck = validateMolId(form.molId);
-    if (!molCheck.valid) e.molId = molCheck.message;
-    if (!form.bankRoutingCode.trim()) e.bankRoutingCode = 'Required';
-    if (!form.iban.trim()) {
-      e.iban = 'Required';
-    } else {
+    // Format-only checks — only run when the field has a value
+    if (form.molId) {
+      const molCheck = validateMolId(form.molId);
+      if (!molCheck.valid) e.molId = molCheck.message;
+    }
+    if (form.iban) {
       const ibanCheck = validateIBAN(form.iban);
       if (!ibanCheck.valid) e.iban = ibanCheck.message;
-    }
-    if (!form.basicSalary || isNaN(form.basicSalary) || Number(form.basicSalary) < 0) {
-      e.basicSalary = 'Must be a positive number';
     }
     if (form.emiratesId) {
       const eidCheck = validateEmiratesID(form.emiratesId);
       if (!eidCheck.valid) e.emiratesId = eidCheck.message;
     }
+    if (form.basicSalary && (isNaN(form.basicSalary) || Number(form.basicSalary) < 0)) {
+      e.basicSalary = 'Must be a positive number';
+    }
     return e;
   };
 
+  // Which tabs currently have errors (for cross-tab error banner)
+  const TAB_FIELDS = {
+    personal:   ['name'],
+    job:        [],
+    salary:     ['basicSalary', 'iban', 'bankRoutingCode'],
+    compliance: ['molId', 'emiratesId'],
+  };
+  const tabsWithErrors = (errs) =>
+    Object.entries(TAB_FIELDS)
+      .filter(([, fields]) => fields.some(f => errs[f]))
+      .map(([t]) => TABS.find(tb => tb.id === t)?.label)
+      .filter(Boolean);
+
   const handleSave = async () => {
     const e = validate();
-    if (Object.keys(e).length) { setErrors(e); return; }
+    if (Object.keys(e).length) {
+      setErrors(e);
+      // Switch to first tab that has errors
+      const errTab = Object.entries(TAB_FIELDS).find(([, fields]) => fields.some(f => e[f]));
+      if (errTab) setTab(errTab[0]);
+      return;
+    }
     setSaving(true);
     try {
       await onSave({
@@ -120,6 +139,16 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
         </div>
 
         <div className="modal-body">
+
+          {/* Cross-tab error banner */}
+          {Object.keys(errors).length > 0 && (() => {
+            const tabs = tabsWithErrors(errors);
+            return tabs.length > 0 ? (
+              <div style={{ background:'#fef2f2', border:'1px solid #fecaca', borderRadius:8, padding:'10px 14px', marginBottom:16, fontSize:13, color:'#991b1b', display:'flex', gap:8, alignItems:'flex-start' }}>
+                <span>⚠ Please fix errors on: <strong>{tabs.join(', ')}</strong></span>
+              </div>
+            ) : null;
+          })()}
 
           {/* ── PERSONAL ── */}
           {tab === 'personal' && (
