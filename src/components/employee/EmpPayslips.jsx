@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ChevronDown, ChevronUp, Download } from 'lucide-react';
 import { getMyPayslips, getMyEmployeeRecord } from '../../utils/profileStorage';
 import { getCompany } from '../../utils/storage';
-import { generatePayslipPDF } from '../../utils/payslipGenerator';
+import { downloadPayslip } from '../../utils/payslipGenerator';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -57,7 +57,7 @@ export default function EmpPayslips() {
     const entry = { ...ps.snapshot, employeeId: ps.employeeId };
 
     try {
-      await generatePayslipPDF(company, empObj, run, entry);
+      downloadPayslip(company, empObj, run, entry);
     } catch (err) {
       console.error('payslip PDF error:', err);
     }
