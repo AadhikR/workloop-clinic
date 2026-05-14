@@ -1,94 +1,125 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { getProfile, createAdminProfile, linkEmployeeAccount } from '../utils/profileStorage';
+import { getProfile, linkEmployeeAccount } from '../utils/profileStorage';
 
 const AuthContext = createContext(null);
-
-/**
- * Determine and return the profile for a signed-in user.
- *
- * Resolution order (stops at the first match):
- *   1. Existing user_profiles row → use it.
- *   2. User owns a companies row  → create admin profile.
- *   3. link_employee_account() matches work_email → employee profile created by RPC.
- *   4. Fallback                   → create admin profile (brand-new HR user, no company yet).
- */
-async function resolveProfile(user) {
-  // 1 — Always try employee link first.
-  //     The RPC upserts user_profiles with the correct role, so this also
-  //     repairs any stale admin profile that was created on a previous attempt.
-  const linked = await linkEmployeeAccount();
-  if (linked?.success) {
-    return getProfile();
-  }
-
-  // 2 — Not an employee — check for an existing admin profile.
-  const existing = await getProfile();
-  if (existing) return existing;
-
-  // 3 — New admin: create the profile row (no company set up yet is fine).
-  return createAdminProfile(user);
-}
 
 export function AuthProvider({ children }) {
   const [user, setUser]       = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Guard against stale async resolutions if auth state changes quickly
+  // Prevent stale async resolutions if auth state changes quickly
   const resolvingFor = useRef(null);
 
-  async function handleUser(newUser) {
-    resolvingFor.current = newUser?.id ?? null;
-
-    if (!newUser) {
-      setUser(null);
-      setProfile(null);
-      setLoading(false);
-      return;
-    }
-
-    setUser(newUser);
-    setLoading(true);
-
-    try {
-      const prof = await resolveProfile(newUser);
-      if (resolvingFor.current !== newUser.id) return;
-      // Hard fallback: authenticated users are always at least admin
-      setProfile(prof ?? { role: 'admin', companyUserId: newUser.id, employeeId: null });
-    } catch (err) {
-      console.error('resolveProfile failed:', err);
-      if (resolvingFor.current !== newUser.id) return;
-      setProfile({ role: 'admin', companyUserId: newUser.id, employeeId: null });
-    } finally {
-      if (resolvingFor.current === newUser.id) setLoading(false);
-    }
-  }
-
   useEffect(() => {
-    // onAuthStateChange fires INITIAL_SESSION immediately — no need for a
-    // separate getSession() call, which would trigger a second concurrent resolution.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      handleUser(session?.user ?? null);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      const newUser = session?.user ?? null;
+      resolvingFor.current = newUser?.id ?? null;
+
+      if (!newUser) {
+        setUser(null);
+        setProfile(null);
+        setLoading(false);
+        return;
+      }
+
+      // On page reload / token refresh: restore profile from DB.
+      // SIGNED_IN is handled by the explicit sign-in functions below,
+      // which set profile directly — skip auto-read to avoid races.
+      if (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
+        setUser(newUser);
+        try {
+          const prof = await getProfile();
+          if (resolvingFor.current === newUser.id) setProfile(prof);
+        } catch {
+          if (resolvingFor.current === newUser.id) setProfile(null);
+        }
+        if (resolvingFor.current === newUser.id) setLoading(false);
+      }
     });
 
     return () => subscription.unsubscribe();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const signUp = async (email, password) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { emailRedirectTo: window.location.origin },
-    });
-    if (error) throw error;
-    return data;
+  // ── Create a new company (first-time admin registration) ─────────────────
+  const createCompany = async (companyName, email, password) => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error) throw error;
+
+      const u = data.user;
+      if (!u) throw new Error('Sign-up succeeded but no user was returned. Check your email to confirm, then sign in.');
+
+      const { error: coErr } = await supabase
+        .from('companies')
+        .insert({ user_id: u.id, name: companyName });
+      if (coErr) throw coErr;
+
+      await supabase.from('user_profiles').upsert(
+        { user_id: u.id, role: 'admin', company_user_id: u.id, employee_id: null },
+        { onConflict: 'user_id' }
+      );
+
+      setUser(u);
+      setProfile({ role: 'admin', companyUserId: u.id, employeeId: null });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const signIn = async (email, password) => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw error;
-    return data;
+  // ── Admin sign-in ─────────────────────────────────────────────────────────
+  const signInAsAdmin = async (email, password) => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+
+      const u = data.user;
+
+      // Verify this user owns a company (RLS: companies.user_id = auth.uid())
+      const { data: company } = await supabase
+        .from('companies').select('id').limit(1).maybeSingle();
+
+      if (!company) {
+        await supabase.auth.signOut();
+        throw new Error('No company account found for this email. Use "Create Company" to register, or sign in as Employee.');
+      }
+
+      // Ensure profile row is correct
+      await supabase.from('user_profiles').upsert(
+        { user_id: u.id, role: 'admin', company_user_id: u.id, employee_id: null },
+        { onConflict: 'user_id' }
+      );
+
+      setUser(u);
+      setProfile({ role: 'admin', companyUserId: u.id, employeeId: null });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── Employee sign-in ──────────────────────────────────────────────────────
+  const signInAsEmployee = async (email, password) => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+
+      // Link auth user → employees row via work_email match
+      const linked = await linkEmployeeAccount();
+      if (!linked?.success) {
+        await supabase.auth.signOut();
+        throw new Error('No employee record found for this email. Contact your HR admin to add your work email.');
+      }
+
+      const prof = await getProfile();
+      setUser(data.user);
+      setProfile(prof);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const signOut = async () => {
@@ -106,10 +137,11 @@ export function AuthProvider({ children }) {
   return (
     <AuthContext.Provider value={{
       user,
-      profile,        // { role, companyUserId, employeeId } — null while loading
+      profile,
       loading,
-      signUp,
-      signIn,
+      createCompany,
+      signInAsAdmin,
+      signInAsEmployee,
       signOut,
       resetPassword,
     }}>
