@@ -119,6 +119,7 @@ export default function EmpLeave() {
       p_days_requested:  computedDays,
       p_reason:          form.reason,
       p_attachment_url:  '',
+      p_warnings:        formWarnings,
     });
 
     setSaving(false);

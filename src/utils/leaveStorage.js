@@ -371,6 +371,7 @@ function dbToLeaveRequest(row) {
     examDates:       row.exam_dates,
     submittedAt:     row.submitted_at,
     createdAt:       row.created_at,
+    warnings:        Array.isArray(row.warnings) ? row.warnings : (row.warnings ?? []),
   };
 }
 

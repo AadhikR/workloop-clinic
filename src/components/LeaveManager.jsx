@@ -29,6 +29,24 @@ import {
 import { formatDateUAE, formatAED } from '../utils/uaeValidators';
 import LeaveRequestModal from './LeaveRequestModal';
 
+function RequestWarnings({ warnings }) {
+  if (!warnings?.length) return null;
+  return (
+    <div style={{ marginTop: 4 }}>
+      {warnings.map((w, i) => (
+        <div key={i} style={{
+          display: 'inline-flex', alignItems: 'center', gap: 4,
+          background: '#fffbeb', border: '1px solid #fcd34d',
+          borderRadius: 4, padding: '2px 6px', fontSize: 11,
+          color: '#92400e', marginRight: 4, marginTop: 2,
+        }}>
+          <AlertCircle size={10} /> {w}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Status Badge ─────────────────────────────────────────────────────────────
 function StatusBadge({ status }) {
   const cls = LEAVE_STATUS_COLORS[status] || 'badge-gray';
@@ -384,7 +402,10 @@ export default function LeaveManager() {
                           <tr key={r.id}>
                             <td style={{ fontWeight:500 }}>{emp?.name || '—'}</td>
                             <td>{lt && <LeaveTypeBadge code={lt.code} name={lt.name} color={lt.color}/>}</td>
-                            <td>{formatDateUAE(r.startDate)} – {formatDateUAE(r.endDate)}</td>
+                            <td>
+                              {formatDateUAE(r.startDate)} – {formatDateUAE(r.endDate)}
+                              <RequestWarnings warnings={r.warnings} />
+                            </td>
                             <td>{r.daysRequested}</td>
                             <td className="text-muted text-sm">{formatDateUAE(r.submittedAt?.split('T')[0])}</td>
                             <td>
@@ -454,7 +475,10 @@ export default function LeaveManager() {
                           <td>{lt && <LeaveTypeBadge code={lt.code} name={lt.name} color={lt.color}/>}</td>
                           <td>{formatDateUAE(r.startDate)}</td>
                           <td>{formatDateUAE(r.endDate)}</td>
-                          <td>{r.isHalfDay ? '0.5' : r.daysRequested}</td>
+                          <td>
+                            {r.isHalfDay ? '0.5' : r.daysRequested}
+                            <RequestWarnings warnings={r.warnings} />
+                          </td>
                           <td><StatusBadge status={r.status}/></td>
                           <td className="text-muted text-sm">{formatDateUAE(r.submittedAt?.split('T')[0])}</td>
                           <td className="text-muted text-sm">{r.approvedBy || '—'}</td>
