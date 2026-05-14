@@ -112,23 +112,26 @@ body {
 
 /* ── Page header ──────────────────────────────────────────────────────────── */
 .page-header {
-  background: rgba(255,255,255,0.85);
+  background: rgba(255,255,255,0.88);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border-bottom: 1px solid rgba(0,0,0,0.06);
-  padding: 0 28px;
+  border: 1px solid rgba(0,0,0,0.07);
+  padding: 0 22px;
   height: var(--header-h);
   display: flex;
   align-items: center;
   justify-content: space-between;
   position: sticky;
-  top: 0;
+  top: var(--sidebar-gap);
   z-index: 50;
+  border-radius: 18px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.07), 0 1px 4px rgba(0,0,0,0.05);
+  margin: var(--sidebar-gap) var(--sidebar-gap) 0;
 }
 .page-header h2 { font-size: 18px; font-weight: 600; color: var(--gray-900); letter-spacing: -0.2px; }
 .page-header-actions { display: flex; gap: 8px; align-items: center; }
 
-.page-body { padding: 28px; flex: 1; }
+.page-body { padding: 20px var(--sidebar-gap) 28px; flex: 1; }
 
 /* ── Cards ────────────────────────────────────────────────────────────────── */
 .card {
