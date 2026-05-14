@@ -300,6 +300,52 @@ export async function deletePayroll(id) {
   if (error) throw error;
 }
 
+// ─── PAYSLIPS ────────────────────────────────────────────────────────────────
+
+/**
+ * Upserts one payslip snapshot row per active employee when a payroll is finalised.
+ * Called by PayrollEditor when the admin clicks "Download SIF".
+ */
+export async function createPayslipRecords(payroll) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const activeEntries = (payroll.entries || []).filter(e => !e.excluded);
+  if (!activeEntries.length) return;
+
+  const rows = activeEntries.map(entry => {
+    const gross =
+      (parseFloat(entry.basicSalary)       || 0) +
+      (parseFloat(entry.variableAllowance) || 0) +
+      (parseFloat(entry.housingAllowance)  || 0) +
+      (parseFloat(entry.transportAllowance)|| 0) +
+      (parseFloat(entry.bonus)             || 0) +
+      (parseFloat(entry.otherPay)          || 0) +
+      (entry.additionalAllowances || []).reduce((s, a) => s + (parseFloat(a.amount) || 0), 0);
+
+    const totalDeductions =
+      (entry.deductions || []).reduce((s, d) => s + (parseFloat(d.amount) || 0), 0) +
+      (parseFloat(entry.leaveDeduction) || 0);
+
+    return {
+      user_id:        user.id,
+      payroll_run_id: payroll.id,
+      employee_id:    entry.employeeId,
+      period:         payroll.period,
+      payment_date:   payroll.paymentDate || null,
+      gross_pay:      gross,
+      net_pay:        gross - totalDeductions,
+      data_snapshot:  entry,
+    };
+  });
+
+  const { error } = await supabase
+    .from('payslips')
+    .upsert(rows, { onConflict: 'payroll_run_id,employee_id' });
+
+  if (error) console.error('createPayslipRecords:', error);
+}
+
 // ─── shape converters ───────────────────────────────────────────────────────
 
 function dbToCompany(data) {

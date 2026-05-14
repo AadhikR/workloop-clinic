@@ -73,9 +73,9 @@ export default function AuthPage() {
           }}>
             <FileText size={28} color="white" />
           </div>
-          <h1 style={{ color: 'white', fontSize: 24, fontWeight: 700, margin: 0 }}>SIF Generator</h1>
+          <h1 style={{ color: 'white', fontSize: 24, fontWeight: 700, margin: 0 }}>Workloop</h1>
           <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13, marginTop: 6 }}>
-            UAE WPS Salary File Generator
+            UAE Payroll &amp; HRMS
           </p>
         </div>
 

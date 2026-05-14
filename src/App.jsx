@@ -8,6 +8,7 @@ import EmployeeManager from './components/EmployeeManager';
 import PayrollManager from './components/PayrollManager';
 import LeaveManager from './components/LeaveManager';
 import AttendanceManager from './components/AttendanceManager';
+import EmployeeShell from './components/employee/EmployeeShell';
 import './index.css';
 
 const NAV_ITEMS = [
@@ -19,7 +20,7 @@ const NAV_ITEMS = [
   { id: 'attendance', label: 'Attendance',        icon: Clock },
 ];
 
-// ─── Inner app (only rendered when authenticated) ───────────────────────────
+// ─── Admin shell (HR users) ──────────────────────────────────────────────────
 function AppShell() {
   const { user, signOut } = useAuth();
   const [page, setPage] = useState('dashboard');
@@ -45,7 +46,6 @@ function AppShell() {
 
   return (
     <div className="app-layout">
-      {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-logo">
           <h1>Workloop</h1>
@@ -69,20 +69,14 @@ function AppShell() {
           })}
         </nav>
 
-        {/* User info + logout */}
         <div style={{
           marginTop: 'auto',
           padding: '12px 16px',
           borderTop: '1px solid rgba(255,255,255,0.1)',
         }}>
-          {/* Logged-in user */}
           <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            marginBottom: 10,
-            padding: '8px 10px',
-            borderRadius: 8,
+            display: 'flex', alignItems: 'center', gap: 10,
+            marginBottom: 10, padding: '8px 10px', borderRadius: 8,
             background: 'rgba(255,255,255,0.06)',
           }}>
             <div style={{
@@ -101,28 +95,20 @@ function AppShell() {
                 {user?.email}
               </div>
               <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginTop: 1 }}>
-                Signed in
+                HR Admin
               </div>
             </div>
           </div>
 
-          {/* Sign out button */}
           <button
             onClick={handleSignOut}
             disabled={signingOut}
             style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '7px 10px',
-              borderRadius: 7,
+              width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+              padding: '7px 10px', borderRadius: 7,
               border: '1px solid rgba(255,255,255,0.12)',
-              background: 'transparent',
-              color: 'rgba(255,255,255,0.55)',
-              fontSize: 12,
-              cursor: 'pointer',
-              transition: 'all 0.15s',
+              background: 'transparent', color: 'rgba(255,255,255,0.55)',
+              fontSize: 12, cursor: 'pointer', transition: 'all 0.15s',
             }}
             onMouseEnter={e => {
               e.currentTarget.style.background = 'rgba(239,68,68,0.15)';
@@ -141,7 +127,6 @@ function AppShell() {
         </div>
       </aside>
 
-      {/* Main content */}
       <main className="main-content">
         {renderPage()}
       </main>
@@ -149,17 +134,15 @@ function AppShell() {
   );
 }
 
-// ─── Root: shows login page or app depending on auth state ──────────────────
+// ─── Root: resolves role then renders the correct shell ──────────────────────
 function Root() {
-  const { user, loading } = useAuth();
+  const { user, profile, loading } = useAuth();
 
   if (loading) {
     return (
       <div style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
+        minHeight: '100vh', display: 'flex',
+        alignItems: 'center', justifyContent: 'center',
         background: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)',
       }}>
         <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.6)' }}>
@@ -176,10 +159,33 @@ function Root() {
     );
   }
 
-  return user ? <AppShell /> : <AuthPage />;
+  if (!user) return <AuthPage />;
+
+  // profile is null briefly while resolveProfile() runs after sign-in
+  if (!profile) {
+    return (
+      <div style={{
+        minHeight: '100vh', display: 'flex',
+        alignItems: 'center', justifyContent: 'center',
+        background: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)',
+      }}>
+        <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.6)' }}>
+          <div style={{
+            width: 40, height: 40, border: '3px solid rgba(255,255,255,0.2)',
+            borderTopColor: '#1a56db', borderRadius: '50%',
+            animation: 'spin 0.8s linear infinite',
+            margin: '0 auto 16px',
+          }} />
+          <p style={{ fontSize: 14 }}>Setting up your account…</p>
+        </div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
+
+  return profile.role === 'employee' ? <EmployeeShell /> : <AppShell />;
 }
 
-// ─── App: wraps everything in AuthProvider ───────────────────────────────────
 export default function App() {
   return (
     <AuthProvider>

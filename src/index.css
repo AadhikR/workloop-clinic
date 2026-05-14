@@ -488,3 +488,104 @@ tr:hover td { background: var(--gray-50); }
   .leave-calendar-grid { grid-template-columns: repeat(7, minmax(40px, 1fr)); }
   .leave-calendar-cell { min-height: 50px; }
 }
+
+/* ── Employee Self-Service Shell ─────────────────────────────────────────── */
+
+.emp-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--gray-50);
+}
+
+/* Desktop sidebar (hidden on mobile) */
+.emp-sidebar {
+  display: none;
+  width: 220px;
+  background: var(--gray-900);
+  color: white;
+  flex-direction: column;
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  z-index: 100;
+}
+
+.emp-sidebar-logo {
+  padding: 20px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+.emp-sidebar-logo h1 { font-size: 15px; font-weight: 700; color: white; }
+.emp-sidebar-logo p  { font-size: 11px; color: var(--gray-500); margin-top: 2px; }
+
+/* Scrollable main area; leaves room for bottom nav on mobile */
+.emp-main {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 68px;
+}
+
+/* Page header — sticky, white, compact */
+.emp-page-header {
+  background: white;
+  border-bottom: 1px solid var(--gray-200);
+  padding: 14px 16px;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+.emp-page-header h2 { font-size: 18px; font-weight: 700; color: var(--gray-900); }
+.emp-page-header p  { font-size: 12px; color: var(--gray-500); margin-top: 2px; }
+
+/* Page body padding */
+.emp-page-body { padding: 14px 16px; }
+
+/* Card — slightly more rounded than the admin card */
+.emp-card {
+  background: white;
+  border: 1px solid var(--gray-200);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* Bottom tab bar — fixed at bottom of viewport on mobile */
+.emp-bottom-nav {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  height: 60px;
+  background: white;
+  border-top: 1px solid var(--gray-200);
+  display: flex;
+  z-index: 100;
+  /* Safe area inset for devices with home indicators */
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.emp-tab-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--gray-400);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: color 0.15s;
+  padding: 4px 0;
+}
+.emp-tab-btn.active        { color: var(--primary); }
+.emp-tab-btn.active svg    { stroke: var(--primary); }
+
+/* ── Desktop breakpoint: swap bottom nav for sidebar ─────────────────────── */
+@media (min-width: 768px) {
+  .emp-shell        { flex-direction: row; }
+  .emp-sidebar      { display: flex; }          /* show sidebar */
+  .emp-bottom-nav   { display: none; }          /* hide bottom nav */
+  .emp-main         { margin-left: 220px; padding-bottom: 0; }
+  .emp-page-header  { padding: 16px 24px; }
+  .emp-page-body    { padding: 20px 24px; }
+}

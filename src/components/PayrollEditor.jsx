@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Download, Eye, Upload, AlertCircle, Plus, ChevronDown, CheckCircle, FileText, Info } from 'lucide-react';
 import { generateSIF, generateSIFFilename } from '../utils/sifGenerator';
 import { parseCSV, readFileAsText } from '../utils/csvImport';
-import { savePayroll } from '../utils/storage';
+import { savePayroll, createPayslipRecords } from '../utils/storage';
 import AllowDeductPanel, { computeFinalAllowance } from './AllowDeductPanel';
 import SIFPreviewModal from './SIFPreviewModal';
 import { downloadPayslip, downloadAllPayslips } from '../utils/payslipGenerator';
@@ -177,10 +177,12 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
     setPreview({ content, filename, payroll: p });
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     const p = buildPayroll();
     doDownload(p);
-    onSave({ ...p, status: 'generated' });
+    const finalised = { ...p, status: 'generated' };
+    onSave(finalised);
+    await createPayslipRecords(finalised);
   };
 
   const handleMetaChange = (field, value) => {
@@ -689,9 +691,11 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
           sifContent={preview.content}
           filename={preview.filename}
           onClose={() => setPreview(null)}
-          onDownload={() => {
+          onDownload={async () => {
             doDownload(preview.payroll);
-            onSave({ ...preview.payroll, status: 'generated' });
+            const finalised = { ...preview.payroll, status: 'generated' };
+            onSave(finalised);
+            await createPayslipRecords(finalised);
             setPreview(null);
           }}
         />
