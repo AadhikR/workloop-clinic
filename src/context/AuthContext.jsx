@@ -50,7 +50,11 @@ export function AuthProvider({ children }) {
       if (error) throw error;
 
       const u = data.user;
-      if (!u) throw new Error('Sign-up succeeded but no user was returned. Check your email to confirm, then sign in.');
+
+      // Supabase returns a user with empty identities when the email is already registered
+      if (!u || (Array.isArray(u.identities) && u.identities.length === 0)) {
+        throw new Error('An account with this email already exists. Please sign in as Admin instead.');
+      }
 
       const { error: coErr } = await supabase
         .from('companies')
@@ -107,15 +111,36 @@ export function AuthProvider({ children }) {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
 
+      const u = data.user;
+
+      // If a valid employee profile already exists (from a previous sign-up), use it
+      const existingProf = await getProfile();
+      if (existingProf?.role === 'employee') {
+        setUser(u);
+        setProfile(existingProf);
+        return;
+      }
+
+      // First sign-in after admin added them — run the link RPC
       const linked = await linkEmployeeAccount();
       if (!linked?.success) {
         await supabase.auth.signOut();
         throw new Error('No employee record found for this email. Contact your HR admin to add your work email.');
       }
 
-      const prof = await getProfile();
-      setUser(data.user);
-      setProfile(prof);
+      // Ensure the profile row is written regardless of what the RPC did
+      await supabase.from('user_profiles').upsert(
+        {
+          user_id:         u.id,
+          role:            'employee',
+          company_user_id: linked.company_user_id,
+          employee_id:     linked.employee_id,
+        },
+        { onConflict: 'user_id' }
+      );
+
+      setUser(u);
+      setProfile({ role: 'employee', companyUserId: linked.company_user_id, employeeId: linked.employee_id });
     } finally {
       setLoading(false);
     }
@@ -129,17 +154,32 @@ export function AuthProvider({ children }) {
       if (error) throw error;
 
       const u = data.user;
-      if (!u) throw new Error('Account created — check your email to confirm, then sign in.');
 
+      // Existing account — tell the user to sign in instead
+      if (!u || (Array.isArray(u.identities) && u.identities.length === 0)) {
+        throw new Error('An account with this email already exists. Please sign in as Employee instead.');
+      }
+
+      // Link the auth user to their employee record
       const linked = await linkEmployeeAccount();
       if (!linked?.success) {
         await supabase.auth.signOut();
         throw new Error('Your email has not been added to any company. Ask your HR admin to add your work email first.');
       }
 
-      const prof = await getProfile();
+      // Write (or repair) the profile row directly — don't rely solely on the RPC
+      await supabase.from('user_profiles').upsert(
+        {
+          user_id:         u.id,
+          role:            'employee',
+          company_user_id: linked.company_user_id,
+          employee_id:     linked.employee_id,
+        },
+        { onConflict: 'user_id' }
+      );
+
       setUser(u);
-      setProfile(prof);
+      setProfile({ role: 'employee', companyUserId: linked.company_user_id, employeeId: linked.employee_id });
     } finally {
       setLoading(false);
     }
