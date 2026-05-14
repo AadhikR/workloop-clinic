@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useLayoutEffect } from 'react';
 import { LayoutDashboard, Building2, Users, FileText, LogOut, User, CalendarDays, Clock } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import AuthPage from './components/AuthPage';
@@ -25,6 +25,20 @@ function AppShell() {
   const { user, signOut } = useAuth();
   const [page, setPage] = useState('dashboard');
   const [signingOut, setSigningOut] = useState(false);
+  const navRef  = useRef(null);
+  const [pill, setPill] = useState({ top: 0, height: 36 });
+
+  useLayoutEffect(() => {
+    if (!navRef.current) return;
+    const active = navRef.current.querySelector('.nav-item.active');
+    if (!active) return;
+    const navRect  = navRef.current.getBoundingClientRect();
+    const itemRect = active.getBoundingClientRect();
+    setPill({
+      top:    itemRect.top  - navRect.top  + navRef.current.scrollTop,
+      height: itemRect.height,
+    });
+  }, [page]);
 
   const handleSignOut = async () => {
     setSigningOut(true);
@@ -52,8 +66,12 @@ function AppShell() {
           <p>UAE Payroll &amp; HRMS</p>
         </div>
 
-        <nav className="sidebar-nav">
+        <nav className="sidebar-nav" ref={navRef}>
           <div className="nav-section-label">Navigation</div>
+
+          {/* Sliding pill behind active item */}
+          <div className="nav-pill" style={{ transform: `translateY(${pill.top}px)`, height: pill.height }} />
+
           {NAV_ITEMS.map(item => {
             const Icon = item.icon;
             return (
