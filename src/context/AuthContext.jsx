@@ -107,7 +107,6 @@ export function AuthProvider({ children }) {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
 
-      // Link auth user → employees row via work_email match
       const linked = await linkEmployeeAccount();
       if (!linked?.success) {
         await supabase.auth.signOut();
@@ -116,6 +115,30 @@ export function AuthProvider({ children }) {
 
       const prof = await getProfile();
       setUser(data.user);
+      setProfile(prof);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── Employee sign-up (first time, after admin added their work email) ──────
+  const signUpAsEmployee = async (email, password) => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error) throw error;
+
+      const u = data.user;
+      if (!u) throw new Error('Account created — check your email to confirm, then sign in.');
+
+      const linked = await linkEmployeeAccount();
+      if (!linked?.success) {
+        await supabase.auth.signOut();
+        throw new Error('Your email has not been added to any company. Ask your HR admin to add your work email first.');
+      }
+
+      const prof = await getProfile();
+      setUser(u);
       setProfile(prof);
     } finally {
       setLoading(false);
@@ -142,6 +165,7 @@ export function AuthProvider({ children }) {
       createCompany,
       signInAsAdmin,
       signInAsEmployee,
+      signUpAsEmployee,
       signOut,
       resetPassword,
     }}>

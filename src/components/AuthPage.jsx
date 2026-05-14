@@ -251,34 +251,52 @@ function AdminSignInForm({ onBack }) {
   );
 }
 
-// ── Employee Sign In ──────────────────────────────────────────────────────────
+// ── Employee Sign In / Sign Up ────────────────────────────────────────────────
 function EmployeeSignInForm({ onBack }) {
-  const { signInAsEmployee } = useAuth();
+  const { signInAsEmployee, signUpAsEmployee } = useAuth();
+  const [mode, setMode]         = useState('signin'); // 'signin' | 'signup'
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
+  const [confirm, setConfirm]   = useState('');
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
+
+  const switchMode = (m) => { setMode(m); setError(''); setPassword(''); setConfirm(''); };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    if (mode === 'signup') {
+      if (password !== confirm) { setError('Passwords do not match.'); return; }
+      if (password.length < 8)  { setError('Password must be at least 8 characters.'); return; }
+    }
     setLoading(true);
     try {
-      await signInAsEmployee(email.trim(), password);
+      if (mode === 'signin') {
+        await signInAsEmployee(email.trim(), password);
+      } else {
+        await signUpAsEmployee(email.trim(), password);
+      }
     } catch (err) {
-      setError(err.message || 'Sign-in failed. Please try again.');
+      setError(err.message || 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
   };
+
+  const isSignUp = mode === 'signup';
 
   return (
     <Card>
       <button type="button" onClick={onBack} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gray-500)', display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, marginBottom: 20, padding: 0 }}>
         <ArrowLeft size={14} /> Back
       </button>
-      <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: 'var(--gray-900)' }}>Employee Sign In</h2>
-      <p style={{ fontSize: 13, color: 'var(--gray-500)', marginBottom: 24 }}>Access your payslips, leave &amp; attendance</p>
+      <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: 'var(--gray-900)' }}>
+        {isSignUp ? 'Employee Sign Up' : 'Employee Sign In'}
+      </h2>
+      <p style={{ fontSize: 13, color: 'var(--gray-500)', marginBottom: 24 }}>
+        {isSignUp ? 'Create your account using your work email' : 'Access your payslips, leave & attendance'}
+      </p>
 
       <ErrorBanner msg={error} />
 
@@ -293,20 +311,52 @@ function EmployeeSignInForm({ onBack }) {
           </div>
         </div>
 
-        <div className="form-group" style={{ marginBottom: 24 }}>
+        <div className="form-group" style={{ marginBottom: isSignUp ? 16 : 24 }}>
           <label style={{ fontSize: 13, fontWeight: 600 }}>Password</label>
-          <PasswordInput value={password} onChange={e => setPassword(e.target.value)} />
+          <PasswordInput value={password} onChange={e => setPassword(e.target.value)}
+            placeholder={isSignUp ? 'Min. 8 characters' : '••••••••'}
+            autoComplete={isSignUp ? 'new-password' : 'current-password'} />
         </div>
+
+        {isSignUp && (
+          <div className="form-group" style={{ marginBottom: 24 }}>
+            <label style={{ fontSize: 13, fontWeight: 600 }}>Confirm password</label>
+            <PasswordInput value={confirm} onChange={e => setConfirm(e.target.value)}
+              placeholder="Re-enter password" autoComplete="new-password" />
+          </div>
+        )}
 
         <button type="submit" className="btn btn-primary" disabled={loading}
           style={{ width: '100%', justifyContent: 'center' }}>
-          {loading ? <><Loader size={15} style={{ animation: 'spin 1s linear infinite' }} /> Signing in…</> : 'Sign in as Employee'}
+          {loading
+            ? <><Loader size={15} style={{ animation: 'spin 1s linear infinite' }} /> {isSignUp ? 'Creating account…' : 'Signing in…'}</>
+            : isSignUp ? 'Create Employee Account' : 'Sign in as Employee'}
         </button>
       </form>
 
-      <p style={{ fontSize: 12, color: 'var(--gray-400)', textAlign: 'center', marginTop: 16 }}>
-        First time? Ask your HR admin to add your work email, then create an account using that email address.
-      </p>
+      <div style={{ textAlign: 'center', marginTop: 16, fontSize: 13, color: 'var(--gray-500)' }}>
+        {isSignUp ? (
+          <>Already have an account?{' '}
+            <button type="button" onClick={() => switchMode('signin')}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', fontWeight: 600 }}>
+              Sign in
+            </button>
+          </>
+        ) : (
+          <>First time here?{' '}
+            <button type="button" onClick={() => switchMode('signup')}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', fontWeight: 600 }}>
+              Create account
+            </button>
+          </>
+        )}
+      </div>
+
+      {!isSignUp && (
+        <p style={{ fontSize: 12, color: 'var(--gray-400)', textAlign: 'center', marginTop: 8 }}>
+          Your HR admin must add your work email before you can sign up.
+        </p>
+      )}
     </Card>
   );
 }
