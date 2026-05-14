@@ -60,22 +60,22 @@ export function AuthProvider({ children }) {
     setUser(newUser);
     setLoading(true);
 
-    const prof = await resolveProfile();
-
-    // Discard result if auth changed while we were awaiting
-    if (resolvingFor.current !== newUser.id) return;
-
-    setProfile(prof);
-    setLoading(false);
+    try {
+      const prof = await resolveProfile();
+      if (resolvingFor.current !== newUser.id) return;
+      setProfile(prof);
+    } catch (err) {
+      console.error('resolveProfile failed:', err);
+      if (resolvingFor.current !== newUser.id) return;
+      setProfile(null);
+    } finally {
+      if (resolvingFor.current === newUser.id) setLoading(false);
+    }
   }
 
   useEffect(() => {
-    // Initial session check
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      handleUser(session?.user ?? null);
-    });
-
-    // Subsequent auth state changes (login, logout, token refresh)
+    // onAuthStateChange fires INITIAL_SESSION immediately — no need for a
+    // separate getSession() call, which would trigger a second concurrent resolution.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       handleUser(session?.user ?? null);
     });
