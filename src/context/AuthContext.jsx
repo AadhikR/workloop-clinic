@@ -14,28 +14,19 @@ const AuthContext = createContext(null);
  *   4. Fallback                   → create admin profile (brand-new HR user, no company yet).
  */
 async function resolveProfile(user) {
-  // 1 — existing profile
-  const existing = await getProfile();
-  if (existing) return existing;
-
-  // 2 — does this user own a company? (RLS: companies.user_id = auth.uid())
-  const { data: company } = await supabase
-    .from('companies')
-    .select('id')
-    .limit(1)
-    .maybeSingle();
-
-  if (company) {
-    return createAdminProfile(user);
-  }
-
-  // 3 — try to link as employee (SECURITY DEFINER RPC matches on work_email)
+  // 1 — Always try employee link first.
+  //     The RPC upserts user_profiles with the correct role, so this also
+  //     repairs any stale admin profile that was created on a previous attempt.
   const linked = await linkEmployeeAccount();
   if (linked?.success) {
     return getProfile();
   }
 
-  // 4 — new admin who hasn't set up their company yet
+  // 2 — Not an employee — check for an existing admin profile.
+  const existing = await getProfile();
+  if (existing) return existing;
+
+  // 3 — New admin: create the profile row (no company set up yet is fine).
   return createAdminProfile(user);
 }
 

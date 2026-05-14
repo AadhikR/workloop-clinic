@@ -105,6 +105,24 @@ export async function getMyEmployeeRecord() {
 }
 
 /**
+ * Fetch the company record for the currently signed-in employee.
+ * Requires the "employees: read own company" RLS policy on the companies table.
+ */
+export async function getMyCompany() {
+  const profile = await getProfile();
+  if (!profile?.companyUserId) return null;
+
+  const { data, error } = await supabase
+    .from('companies')
+    .select('*')
+    .eq('user_id', profile.companyUserId)
+    .maybeSingle();
+
+  if (error) { console.error('getMyCompany:', error); return null; }
+  return data;
+}
+
+/**
  * Fetch all payslips for the currently signed-in employee.
  * RLS restricts rows to employee_id = their linked employee row.
  * Returns newest period first.

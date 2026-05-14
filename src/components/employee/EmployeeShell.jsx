@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Home, CalendarDays, Clock, FileText, User, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { getMyEmployeeRecord, getMyCompany } from '../../utils/profileStorage';
 import EmpHome from './EmpHome';
 import EmpLeave from './EmpLeave';
 import EmpAttendance from './EmpAttendance';
@@ -16,9 +17,18 @@ const TABS = [
 ];
 
 export default function EmployeeShell() {
-  const { signOut, profile } = useAuth();
-  const [tab, setTab] = useState('home');
+  const { signOut } = useAuth();
+  const [tab, setTab]             = useState('home');
   const [signingOut, setSigningOut] = useState(false);
+  const [emp, setEmp]             = useState(null);
+  const [company, setCompany]     = useState(null);
+
+  useEffect(() => {
+    Promise.all([getMyEmployeeRecord(), getMyCompany()]).then(([e, c]) => {
+      setEmp(e);
+      setCompany(c);
+    });
+  }, []);
 
   const handleSignOut = async () => {
     setSigningOut(true);
@@ -42,8 +52,16 @@ export default function EmployeeShell() {
       {/* Desktop sidebar */}
       <aside className="emp-sidebar">
         <div className="emp-sidebar-logo">
-          <h1>Workloop</h1>
-          <p>Employee Portal</p>
+          {company?.name
+            ? <>
+                <h1 style={{ fontSize: 15, fontWeight: 700 }}>{company.name}</h1>
+                <p style={{ fontSize: 11, opacity: 0.5, marginTop: 2 }}>Employee Portal</p>
+              </>
+            : <>
+                <h1>Workloop</h1>
+                <p>Employee Portal</p>
+              </>
+          }
         </div>
 
         <nav style={{ flex: 1, padding: '8px 0' }}>
@@ -62,7 +80,32 @@ export default function EmployeeShell() {
           })}
         </nav>
 
+        {/* Employee identity + sign out */}
         <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+          {emp && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              marginBottom: 10, padding: '8px 10px', borderRadius: 8,
+              background: 'rgba(255,255,255,0.06)',
+            }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: '50%',
+                background: 'rgba(255,255,255,0.15)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}>
+                <User size={13} color="rgba(255,255,255,0.8)" />
+              </div>
+              <div style={{ overflow: 'hidden' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.9)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {emp.name}
+                </div>
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginTop: 1 }}>
+                  {emp.job_title || 'Employee'}
+                </div>
+              </div>
+            </div>
+          )}
+
           <button
             onClick={handleSignOut}
             disabled={signingOut}
