@@ -3,11 +3,11 @@ import { useAuth } from '../context/AuthContext';
 import { FileText, Mail, Lock, Eye, EyeOff, AlertCircle, Building2, User, ArrowLeft, Loader } from 'lucide-react';
 
 const BG_STYLE = {
-  background: '#F8FAFC',
+  background: '#EEF2F7',
   backgroundImage: [
-    'radial-gradient(ellipse 80% 60% at 15% 40%, rgba(90,200,250,0.14) 0%, transparent 60%)',
-    'radial-gradient(ellipse 70% 55% at 85% 18%, rgba(191,90,242,0.10) 0%, transparent 60%)',
-    'radial-gradient(ellipse 55% 40% at 60% 88%, rgba(90,200,250,0.08) 0%, transparent 55%)',
+    'radial-gradient(ellipse 70% 55% at 15% 40%, rgba(37,99,235,0.07) 0%, transparent 65%)',
+    'radial-gradient(ellipse 60% 45% at 85% 18%, rgba(6,182,212,0.05) 0%, transparent 65%)',
+    'radial-gradient(ellipse 50% 40% at 55% 88%, rgba(56,189,248,0.04) 0%, transparent 60%)',
   ].join(', '),
 };
 
@@ -396,14 +396,14 @@ export default function AuthPage() {
       <div style={{ textAlign: 'center', marginBottom: 28 }}>
         <div style={{
           width: 56, height: 56, borderRadius: 16,
-          background: 'linear-gradient(135deg, #5AC8FA 0%, #BF5AF2 100%)',
+          background: 'linear-gradient(135deg, #2563EB 0%, #06B6D4 100%)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           margin: '0 auto 14px',
-          boxShadow: '0 8px 28px rgba(90,200,250,0.35)',
+          boxShadow: '0 8px 28px rgba(37,99,235,0.30)',
         }}>
           <FileText size={28} color="white" />
         </div>
-        <h1 style={{ color: '#1D1D1F', fontSize: 24, fontWeight: 700, margin: 0, letterSpacing: '-0.4px' }}>Workloop</h1>
+        <h1 style={{ color: '#0F172A', fontSize: 24, fontWeight: 700, margin: 0, letterSpacing: '-0.4px' }}>Workloop</h1>
         <p style={{ color: '#64748B', fontSize: 13, marginTop: 4 }}>UAE Payroll &amp; HRMS</p>
       </div>
 
@@ -415,8 +415,8 @@ export default function AuthPage() {
 
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .alert-success { background: rgba(50,215,75,0.10); border: 1px solid rgba(50,215,75,0.25); color: #198330; border-radius: 10px; padding: 10px 14px; display: flex; align-items: flex-start; gap: 8px; }
-        .alert-danger  { background: rgba(255,69,58,0.10); border: 1px solid rgba(255,69,58,0.22); color: #cc2e24; border-radius: 10px; padding: 10px 14px; display: flex; align-items: flex-start; gap: 8px; }
+        .alert-success { background: rgba(22,163,74,0.09); border: 1px solid rgba(22,163,74,0.18); color: #15803D; border-radius: 10px; padding: 10px 14px; display: flex; align-items: flex-start; gap: 8px; backdrop-filter: blur(12px); }
+        .alert-danger  { background: rgba(220,38,38,0.09); border: 1px solid rgba(220,38,38,0.18); color: #991B1B; border-radius: 10px; padding: 10px 14px; display: flex; align-items: flex-start; gap: 8px; backdrop-filter: blur(12px); }
         .mb-4 { margin-bottom: 16px; }
       `}</style>
     </div>
