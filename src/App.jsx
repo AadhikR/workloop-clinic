@@ -99,29 +99,31 @@ function AppShell() {
         <div style={{
           marginTop: 'auto',
           padding: '12px 16px',
-          borderTop: '1px solid rgba(255,255,255,0.1)',
+          borderTop: '1px solid rgba(255,255,255,0.07)',
         }}>
           <div style={{
             display: 'flex', alignItems: 'center', gap: 10,
-            marginBottom: 10, padding: '8px 10px', borderRadius: 8,
+            marginBottom: 10, padding: '8px 10px', borderRadius: 10,
             background: 'rgba(255,255,255,0.06)',
+            border: '1px solid rgba(255,255,255,0.08)',
           }}>
             <div style={{
               width: 30, height: 30, borderRadius: '50%',
-              background: 'rgba(255,255,255,0.15)',
+              background: 'linear-gradient(135deg, rgba(90,200,250,0.35), rgba(191,90,242,0.35))',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               flexShrink: 0,
+              border: '1px solid rgba(255,255,255,0.12)',
             }}>
-              <User size={14} color="rgba(255,255,255,0.8)" />
+              <User size={14} color="rgba(255,255,255,0.9)" />
             </div>
             <div style={{ overflow: 'hidden', flex: 1 }}>
               <div style={{
-                fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.9)',
+                fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.90)',
                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
               }}>
                 {user?.email}
               </div>
-              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginTop: 1 }}>
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.38)', marginTop: 1 }}>
                 HR Admin
               </div>
             </div>
@@ -132,20 +134,20 @@ function AppShell() {
             disabled={signingOut}
             style={{
               width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-              padding: '7px 10px', borderRadius: 7,
-              border: '1px solid rgba(255,255,255,0.12)',
-              background: 'transparent', color: 'rgba(255,255,255,0.55)',
-              fontSize: 12, cursor: 'pointer', transition: 'all 0.15s',
+              padding: '7px 10px', borderRadius: 8,
+              border: '1px solid rgba(255,255,255,0.10)',
+              background: 'transparent', color: 'rgba(255,255,255,0.50)',
+              fontSize: 12, cursor: 'pointer', transition: 'all 0.18s',
             }}
             onMouseEnter={e => {
-              e.currentTarget.style.background = 'rgba(239,68,68,0.15)';
-              e.currentTarget.style.color = '#fca5a5';
-              e.currentTarget.style.borderColor = 'rgba(239,68,68,0.3)';
+              e.currentTarget.style.background = 'rgba(255,69,58,0.15)';
+              e.currentTarget.style.color = 'rgba(255,150,140,0.95)';
+              e.currentTarget.style.borderColor = 'rgba(255,69,58,0.28)';
             }}
             onMouseLeave={e => {
               e.currentTarget.style.background = 'transparent';
-              e.currentTarget.style.color = 'rgba(255,255,255,0.55)';
-              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)';
+              e.currentTarget.style.color = 'rgba(255,255,255,0.50)';
+              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)';
             }}
           >
             <LogOut size={13} />
@@ -170,12 +172,14 @@ function Root() {
       <div style={{
         minHeight: '100vh', display: 'flex',
         alignItems: 'center', justifyContent: 'center',
-        background: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)',
+        background: '#F8FAFC',
+        backgroundImage: 'radial-gradient(ellipse 80% 60% at 20% 40%, rgba(90,200,250,0.12) 0%, transparent 60%), radial-gradient(ellipse 70% 50% at 80% 20%, rgba(191,90,242,0.09) 0%, transparent 60%)',
       }}>
-        <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.6)' }}>
+        <div style={{ textAlign: 'center', color: '#64748B' }}>
           <div style={{
-            width: 40, height: 40, border: '3px solid rgba(255,255,255,0.2)',
-            borderTopColor: '#1a56db', borderRadius: '50%',
+            width: 40, height: 40,
+            border: '3px solid rgba(90,200,250,0.2)',
+            borderTopColor: '#5AC8FA', borderRadius: '50%',
             animation: 'spin 0.8s linear infinite',
             margin: '0 auto 16px',
           }} />
@@ -194,12 +198,14 @@ function Root() {
       <div style={{
         minHeight: '100vh', display: 'flex',
         alignItems: 'center', justifyContent: 'center',
-        background: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)',
+        background: '#F8FAFC',
+        backgroundImage: 'radial-gradient(ellipse 80% 60% at 20% 40%, rgba(90,200,250,0.12) 0%, transparent 60%), radial-gradient(ellipse 70% 50% at 80% 20%, rgba(191,90,242,0.09) 0%, transparent 60%)',
       }}>
-        <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.6)' }}>
+        <div style={{ textAlign: 'center', color: '#64748B' }}>
           <div style={{
-            width: 40, height: 40, border: '3px solid rgba(255,255,255,0.2)',
-            borderTopColor: '#1a56db', borderRadius: '50%',
+            width: 40, height: 40,
+            border: '3px solid rgba(90,200,250,0.2)',
+            borderTopColor: '#5AC8FA', borderRadius: '50%',
             animation: 'spin 0.8s linear infinite',
             margin: '0 auto 16px',
           }} />

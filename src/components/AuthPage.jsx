@@ -2,7 +2,14 @@ import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { FileText, Mail, Lock, Eye, EyeOff, AlertCircle, Building2, User, ArrowLeft, Loader } from 'lucide-react';
 
-const BG = 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)';
+const BG_STYLE = {
+  background: '#F8FAFC',
+  backgroundImage: [
+    'radial-gradient(ellipse 80% 60% at 15% 40%, rgba(90,200,250,0.14) 0%, transparent 60%)',
+    'radial-gradient(ellipse 70% 55% at 85% 18%, rgba(191,90,242,0.10) 0%, transparent 60%)',
+    'radial-gradient(ellipse 55% 40% at 60% 88%, rgba(90,200,250,0.08) 0%, transparent 55%)',
+  ].join(', '),
+};
 
 function PasswordInput({ value, onChange, placeholder = '••••••••', autoComplete = 'current-password' }) {
   const [show, setShow] = useState(false);
@@ -32,8 +39,13 @@ function PasswordInput({ value, onChange, placeholder = '•••••••�
 function Card({ children }) {
   return (
     <div style={{
-      background: 'white', borderRadius: 16, padding: '32px 28px',
-      boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+      background: 'rgba(255,255,255,0.72)',
+      backdropFilter: 'saturate(180%) blur(32px)',
+      WebkitBackdropFilter: 'saturate(180%) blur(32px)',
+      border: '1px solid rgba(255,255,255,0.65)',
+      borderRadius: 22,
+      padding: '32px 28px',
+      boxShadow: '0 8px 40px rgba(0,0,0,0.09), 0 2px 8px rgba(0,0,0,0.05)',
       width: '100%', maxWidth: 420,
     }}>
       {children}
@@ -378,33 +390,33 @@ export default function AuthPage() {
     <div style={{
       minHeight: '100vh', display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center',
-      background: BG, padding: '24px',
+      ...BG_STYLE, padding: '24px',
     }}>
       {/* Brand header */}
       <div style={{ textAlign: 'center', marginBottom: 28 }}>
         <div style={{
-          width: 52, height: 52, borderRadius: 13,
-          background: 'linear-gradient(135deg, #1a56db, #1e429f)',
+          width: 56, height: 56, borderRadius: 16,
+          background: 'linear-gradient(135deg, #5AC8FA 0%, #BF5AF2 100%)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          margin: '0 auto 12px',
-          boxShadow: '0 8px 24px rgba(26,86,219,0.4)',
+          margin: '0 auto 14px',
+          boxShadow: '0 8px 28px rgba(90,200,250,0.35)',
         }}>
-          <FileText size={26} color="white" />
+          <FileText size={28} color="white" />
         </div>
-        <h1 style={{ color: 'white', fontSize: 22, fontWeight: 700, margin: 0 }}>Workloop</h1>
-        <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12, marginTop: 4 }}>UAE Payroll &amp; HRMS</p>
+        <h1 style={{ color: '#1D1D1F', fontSize: 24, fontWeight: 700, margin: 0, letterSpacing: '-0.4px' }}>Workloop</h1>
+        <p style={{ color: '#64748B', fontSize: 13, marginTop: 4 }}>UAE Payroll &amp; HRMS</p>
       </div>
 
       {renderView()}
 
-      <p style={{ color: 'rgba(255,255,255,0.25)', fontSize: 11, marginTop: 20 }}>
+      <p style={{ color: '#94A3B8', fontSize: 11, marginTop: 20 }}>
         Your data is encrypted and stored securely.
       </p>
 
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .alert-success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; border-radius: 8px; padding: 10px 14px; display: flex; align-items: flex-start; gap: 8px; }
-        .alert-danger  { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; border-radius: 8px; padding: 10px 14px; display: flex; align-items: flex-start; gap: 8px; }
+        .alert-success { background: rgba(50,215,75,0.10); border: 1px solid rgba(50,215,75,0.25); color: #198330; border-radius: 10px; padding: 10px 14px; display: flex; align-items: flex-start; gap: 8px; }
+        .alert-danger  { background: rgba(255,69,58,0.10); border: 1px solid rgba(255,69,58,0.22); color: #cc2e24; border-radius: 10px; padding: 10px 14px; display: flex; align-items: flex-start; gap: 8px; }
         .mb-4 { margin-bottom: 16px; }
       `}</style>
     </div>
