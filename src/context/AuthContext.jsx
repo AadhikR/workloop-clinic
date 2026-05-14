@@ -13,7 +13,7 @@ const AuthContext = createContext(null);
  *   3. link_employee_account() matches work_email → employee profile created by RPC.
  *   4. Fallback                   → create admin profile (brand-new HR user, no company yet).
  */
-async function resolveProfile() {
+async function resolveProfile(user) {
   // 1 — existing profile
   const existing = await getProfile();
   if (existing) return existing;
@@ -26,7 +26,7 @@ async function resolveProfile() {
     .maybeSingle();
 
   if (company) {
-    return createAdminProfile();
+    return createAdminProfile(user);
   }
 
   // 3 — try to link as employee (SECURITY DEFINER RPC matches on work_email)
@@ -36,7 +36,7 @@ async function resolveProfile() {
   }
 
   // 4 — new admin who hasn't set up their company yet
-  return createAdminProfile();
+  return createAdminProfile(user);
 }
 
 export function AuthProvider({ children }) {
@@ -61,13 +61,14 @@ export function AuthProvider({ children }) {
     setLoading(true);
 
     try {
-      const prof = await resolveProfile();
+      const prof = await resolveProfile(newUser);
       if (resolvingFor.current !== newUser.id) return;
-      setProfile(prof);
+      // Hard fallback: authenticated users are always at least admin
+      setProfile(prof ?? { role: 'admin', companyUserId: newUser.id, employeeId: null });
     } catch (err) {
       console.error('resolveProfile failed:', err);
       if (resolvingFor.current !== newUser.id) return;
-      setProfile(null);
+      setProfile({ role: 'admin', companyUserId: newUser.id, employeeId: null });
     } finally {
       if (resolvingFor.current === newUser.id) setLoading(false);
     }

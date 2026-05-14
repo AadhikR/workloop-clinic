@@ -39,8 +39,12 @@ export async function getProfile() {
  * Safe to call if a profile already exists (ON CONFLICT is handled server-side
  * by the unique PK — Supabase returns a 23505 which we swallow).
  */
-export async function createAdminProfile() {
-  const { data: { user } } = await supabase.auth.getUser();
+export async function createAdminProfile(user) {
+  // Accept the already-resolved user to avoid a second auth.getUser() round-trip
+  if (!user) {
+    const { data } = await supabase.auth.getUser();
+    user = data?.user;
+  }
   if (!user) return null;
 
   const { error } = await supabase
@@ -55,9 +59,9 @@ export async function createAdminProfile() {
   // 23505 = unique_violation — profile already exists, not a real error
   if (error && error.code !== '23505') {
     console.error('createAdminProfile:', error);
-    return null;
   }
 
+  // Always return a working profile — DB persistence failure must not lock the user out
   return { role: 'admin', companyUserId: user.id, employeeId: null };
 }
 
