@@ -1,7 +1,8 @@
-import { useState, useRef, useLayoutEffect } from 'react';
+import { useState, useRef, useLayoutEffect, useEffect } from 'react';
 import { LayoutDashboard, Building2, Users, FileText, LogOut, User, CalendarDays, Clock } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import AuthPage from './components/AuthPage';
+import { getCompany } from './utils/storage';
 import Dashboard from './components/Dashboard';
 import CompanySettings from './components/CompanySettings';
 import EmployeeManager from './components/EmployeeManager';
@@ -26,7 +27,12 @@ function AppShell() {
   const [page, setPage] = useState('dashboard');
   const [signingOut, setSigningOut] = useState(false);
   const navRef  = useRef(null);
-  const [pill, setPill] = useState({ top: 0, height: 36 });
+  const [pill, setPill]         = useState({ top: 0, height: 36 });
+  const [companyName, setCompanyName] = useState('');
+
+  useEffect(() => {
+    getCompany().then(co => { if (co?.name) setCompanyName(co.name); });
+  }, []);
 
   useLayoutEffect(() => {
     if (!navRef.current) return;
@@ -63,7 +69,10 @@ function AppShell() {
       <aside className="sidebar">
         <div className="sidebar-logo">
           <h1>Workloop</h1>
-          <p>UAE Payroll &amp; HRMS</p>
+          {companyName
+            ? <p style={{ color: 'rgba(255,255,255,0.75)', fontWeight: 500, fontSize: 12, marginTop: 3 }}>{companyName}</p>
+            : <p>UAE Payroll &amp; HRMS</p>
+          }
         </div>
 
         <nav className="sidebar-nav" ref={navRef}>
