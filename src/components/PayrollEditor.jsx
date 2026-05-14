@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Download, Eye, Upload, AlertCircle, Plus, ChevronDown, CheckCircle, FileText, Info } from 'lucide-react';
+import { Download, Eye, Upload, AlertCircle, Plus, ChevronDown, CheckCircle, FileText, Info, Send } from 'lucide-react';
 import { generateSIF, generateSIFFilename } from '../utils/sifGenerator';
 import { parseCSV, readFileAsText } from '../utils/csvImport';
 import { savePayroll, createPayslipRecords } from '../utils/storage';
@@ -48,7 +48,9 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
     scrBankRoutingCode: payroll.scrBankRoutingCode,
     description: payroll.description,
   });
-  const [preview, setPreview] = useState(null);
+  const [preview, setPreview]           = useState(null);
+  const [confirmSubmit, setConfirmSubmit] = useState(false);
+  const [submitting, setSubmitting]       = useState(false);
   const [importMsg, setImportMsg] = useState(null);
   const [showPanel, setShowPanel] = useState(false);
   const [autoSaved, setAutoSaved] = useState(false);
@@ -177,12 +179,22 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
     setPreview({ content, filename, payroll: p });
   };
 
-  const handleDownload = async () => {
+  const handleDownload = () => {
     const p = buildPayroll();
     doDownload(p);
-    const finalised = { ...p, status: 'generated' };
-    onSave(finalised);
-    await createPayslipRecords(finalised);
+  };
+
+  const handleSubmitPayroll = async () => {
+    setSubmitting(true);
+    try {
+      const p = buildPayroll();
+      const finalised = { ...p, status: 'generated' };
+      onSave(finalised);
+      await createPayslipRecords(finalised);
+    } finally {
+      setSubmitting(false);
+      setConfirmSubmit(false);
+    }
   };
 
   const handleMetaChange = (field, value) => {
@@ -283,6 +295,9 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
           </button>
           <button className="btn btn-success btn-sm" onClick={handleDownload} disabled={!canGenerate}>
             <Download size={14} /> Download SIF
+          </button>
+          <button className="btn btn-primary btn-sm" onClick={() => setConfirmSubmit(true)} disabled={!canGenerate}>
+            <Send size={14} /> Submit Payroll
           </button>
         </div>
       </div>
@@ -686,16 +701,44 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
         />
       )}
 
+      {/* ── Submit Payroll confirmation ── */}
+      {confirmSubmit && (
+        <div className="modal-overlay">
+          <div className="modal" style={{ maxWidth: 440 }}>
+            <div className="modal-header">
+              <h3>Submit Payroll</h3>
+              <button className="btn btn-ghost btn-icon" onClick={() => setConfirmSubmit(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <p style={{ marginBottom: 12 }}>
+                You are about to submit payroll for <strong>{getMonthName(month)} {year}</strong>.
+              </p>
+              <p style={{ marginBottom: 12 }}>
+                Payslips will be generated for <strong>{activeEntries.length} employee{activeEntries.length !== 1 ? 's' : ''}</strong> and made visible in their Employee Portal.
+              </p>
+              <p style={{ fontSize: 13, color: 'var(--gray-500)' }}>
+                If payroll has been submitted before for this period, the existing payslips will be updated with the latest figures.
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={() => setConfirmSubmit(false)} disabled={submitting}>
+                Cancel
+              </button>
+              <button className="btn btn-primary" onClick={handleSubmitPayroll} disabled={submitting}>
+                {submitting ? 'Submitting…' : 'Confirm & Submit Payroll'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {preview && (
         <SIFPreviewModal
           sifContent={preview.content}
           filename={preview.filename}
           onClose={() => setPreview(null)}
-          onDownload={async () => {
+          onDownload={() => {
             doDownload(preview.payroll);
-            const finalised = { ...preview.payroll, status: 'generated' };
-            onSave(finalised);
-            await createPayslipRecords(finalised);
             setPreview(null);
           }}
         />
