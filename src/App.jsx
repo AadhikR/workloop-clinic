@@ -1,6 +1,5 @@
 import { useState, useRef, useLayoutEffect, useEffect } from 'react';
 import { LayoutDashboard, Building2, Users, FileText, LogOut, User, CalendarDays, Clock } from 'lucide-react';
-import logo from './assets/logo.png';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import AuthPage from './components/AuthPage';
 import { getCompany } from './utils/storage';
@@ -69,11 +68,7 @@ function AppShell() {
     <div className="app-layout">
       <aside className="sidebar">
         <div className="sidebar-logo">
-          <img
-            src={logo}
-            alt="Work Loop"
-            style={{ height: 32, width: 'auto', borderRadius: 6, background: 'white', padding: '2px 6px', display: 'block', marginBottom: 8 }}
-          />
+          <h1>Workloop</h1>
           {companyName
             ? <p style={{ color: 'rgba(255,255,255,0.75)', fontWeight: 500, fontSize: 12, marginTop: 3 }}>{companyName}</p>
             : <p>UAE Payroll &amp; HRMS</p>
