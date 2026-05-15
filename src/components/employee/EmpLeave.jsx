@@ -5,7 +5,7 @@ import {
   getLeaveTypes, getLeaveRequests, getLeaveBalances, getPublicHolidays,
 } from '../../utils/leaveStorage';
 import { supabase } from '../../lib/supabase';
-import { countLeaveDays, validateLeaveRequest, getLeaveTypeColor, calculateAnnualLeaveAccrual } from '../../utils/leaveEngine';
+import { countLeaveDays, validateLeaveRequest, getLeaveTypeColor, calculateAnnualLeaveAccrual, DEFAULT_LEAVE_TYPES } from '../../utils/leaveEngine';
 import { getMyEmployeeRecord } from '../../utils/profileStorage';
 
 function computeBalancesLocally(leaveTypes, requests, empRec, year) {
@@ -90,7 +90,8 @@ export default function EmpLeave() {
     ]).then(([lts, reqs, bals, hols, empRec]) => {
       setLeaveTypes(lts);
       setRequests(reqs);
-      setBalances(bals.length > 0 ? bals : computeBalancesLocally(lts, reqs, empRec, year));
+      const effectiveLts = lts.length > 0 ? lts : DEFAULT_LEAVE_TYPES;
+      setBalances(bals.length > 0 ? bals : computeBalancesLocally(effectiveLts, reqs, empRec, year));
       setHolidays(hols.map(h => h.date));
       setEmp(empRec);
       setLoading(false);

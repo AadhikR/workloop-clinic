@@ -2,8 +2,8 @@
  * EmployeeModal.jsx — Add/Edit Employee modal with tabbed UAE HR profile
  * Tabs: Personal | Job & Contract | Salary & Bank | UAE Compliance
  */
-import { useState, useEffect, useRef } from 'react';
-import { X, UserCheck, Briefcase, CreditCard, Shield, Upload, User } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, UserCheck, Briefcase, CreditCard, Shield } from 'lucide-react';
 import { validateIBAN, validateEmiratesID, validateMolId, formatAED, formatDateUAE } from '../utils/uaeValidators';
 import { calculateGratuity } from '../utils/gratuityCalculator';
 import { getShifts } from '../utils/attendanceStorage';
@@ -40,43 +40,10 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
   const [saving, setSaving]     = useState(false);
   const [tab, setTab]           = useState('personal');
   const [shifts, setShifts]     = useState([]);
-  const [photoUploading, setPhotoUploading] = useState(false);
-  const [photoError, setPhotoError] = useState('');
-  const photoRef = useRef();
 
   useEffect(() => {
     getShifts().then(setShifts).catch(() => {});
   }, []);
-
-  const handlePhotoUpload = (file) => {
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      setPhotoError('Please select an image file.');
-      return;
-    }
-    setPhotoError('');
-    setPhotoUploading(true);
-    const img = new Image();
-    const objectUrl = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(objectUrl);
-      const MAX = 256;
-      const scale = Math.min(1, MAX / Math.max(img.width, img.height));
-      const canvas = document.createElement('canvas');
-      canvas.width  = Math.round(img.width  * scale);
-      canvas.height = Math.round(img.height * scale);
-      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
-      f('photoUrl', dataUrl);
-      setPhotoUploading(false);
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      setPhotoError('Could not read image. Try a different file.');
-      setPhotoUploading(false);
-    };
-    img.src = objectUrl;
-  };
 
   const f = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -186,48 +153,6 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
           {/* ── PERSONAL ── */}
           {tab === 'personal' && (
             <div className="form-grid form-grid-2">
-              {/* Photo */}
-              <div style={{ gridColumn:'1/-1', display:'flex', flexDirection:'column', alignItems:'center', gap:10, paddingBottom:8 }}>
-                <div
-                  style={{
-                    width:72, height:72, borderRadius:'50%',
-                    background:'var(--gray-100)', border:'2px solid var(--gray-200)',
-                    overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center',
-                    cursor:'pointer',
-                  }}
-                  onClick={() => photoRef.current?.click()}
-                  title="Click to upload photo"
-                >
-                  {form.photoUrl
-                    ? <img src={form.photoUrl} alt="avatar" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
-                    : <User size={30} color="var(--gray-400)" />}
-                </div>
-                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                  <button
-                    type="button"
-                    className="btn btn-outline btn-sm"
-                    disabled={photoUploading}
-                    onClick={() => photoRef.current?.click()}
-                  >
-                    <Upload size={13} /> {photoUploading ? 'Uploading…' : 'Upload Photo'}
-                  </button>
-                  {form.photoUrl && (
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-sm"
-                      style={{ color:'var(--danger)' }}
-                      onClick={() => f('photoUrl', '')}
-                    >Remove</button>
-                  )}
-                </div>
-                <input
-                  ref={photoRef} type="file" accept="image/*" style={{ display:'none' }}
-                  onChange={e => { if (e.target.files[0]) handlePhotoUpload(e.target.files[0]); e.target.value = ''; }}
-                />
-                {photoError
-                  ? <div style={{ fontSize:11, color:'var(--danger)' }}>{photoError}</div>
-                  : <div style={{ fontSize:11, color:'var(--gray-400)' }}>JPG or PNG · max 256 px</div>}
-              </div>
               <div className="form-group">
                 <label>Employee No.</label>
                 <input className="form-control" value={form.empNo} onChange={e => f('empNo', e.target.value)} placeholder="e.g. 1001"/>

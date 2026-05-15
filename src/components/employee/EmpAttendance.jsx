@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { LogIn, LogOut, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { getAttendanceRecords } from '../../utils/attendanceStorage';
+import { getAttendanceRecords, recordClockEvent } from '../../utils/attendanceStorage';
 import { ATTENDANCE_STATUS, STATUS_LABELS, STATUS_COLORS } from '../../utils/attendanceEngine';
 import { supabase } from '../../lib/supabase';
 
@@ -47,7 +47,7 @@ export default function EmpAttendance() {
   }
 
   const loadData = useCallback(async () => {
-    if (!profile?.employeeId) return;
+    if (!profile?.employeeId) { setLoading(false); return; }
     const today = todayUAE();
     const from  = new Date(new Date(today).getTime() - RECENT_DAYS * 86400000).toISOString().split('T')[0];
 
@@ -55,8 +55,40 @@ export default function EmpAttendance() {
       getAttendanceRecords({ employeeId: profile.employeeId, dateFrom: today, dateTo: today }),
       getAttendanceRecords({ employeeId: profile.employeeId, dateFrom: from, dateTo: today }),
     ]);
-    setTodayRec(todayRecs[0] ?? null);
-    setHistory(histRecs.filter(r => r.date !== today));
+
+    if (todayRecs.length > 0 || histRecs.length > 0) {
+      setTodayRec(todayRecs[0] ?? null);
+      setHistory(histRecs.filter(r => r.date !== today));
+    } else {
+      // Fallback: derive records from clock_events (employee's own entries)
+      const { data: evts } = await supabase
+        .from('clock_events')
+        .select('*')
+        .eq('employee_id', profile.employeeId)
+        .gte('event_time', `${from}T00:00:00+04:00`)
+        .order('event_time', { ascending: true });
+
+      if (evts?.length) {
+        const byDate = {};
+        for (const ev of evts) {
+          const d = new Date(ev.event_time).toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' });
+          if (!byDate[d]) byDate[d] = { date: d, clockInTime: null, clockOutTime: null, lateMinutes: 0, overtimeHours: 0, status: ATTENDANCE_STATUS.PRESENT };
+          if (ev.event_type === 'CLOCK_IN' && !byDate[d].clockInTime) byDate[d].clockInTime = ev.event_time;
+          if (ev.event_type === 'CLOCK_OUT') byDate[d].clockOutTime = ev.event_time;
+        }
+        const allRecs = Object.values(byDate)
+          .sort((a, b) => b.date.localeCompare(a.date))
+          .map(r => ({
+            ...r,
+            totalHours: r.clockInTime && r.clockOutTime
+              ? (new Date(r.clockOutTime) - new Date(r.clockInTime)) / 3600000
+              : 0,
+          }));
+        setTodayRec(allRecs.find(r => r.date === today) ?? null);
+        setHistory(allRecs.filter(r => r.date !== today));
+      }
+    }
+
     setLoading(false);
   }, [profile?.employeeId]);
 
@@ -64,17 +96,35 @@ export default function EmpAttendance() {
 
   async function clock(eventType) {
     setClocking(true);
-    const { data, error } = await supabase.rpc('employee_record_clock_event', {
+    const now = new Date().toISOString();
+
+    // Try server-side RPC (handles attendance computation + cross-RLS write)
+    const { data: rpcData, error: rpcError } = await supabase.rpc('employee_record_clock_event', {
       p_event_type: eventType,
       p_notes: '',
     });
-    setClocking(false);
-    if (error || !data?.success) {
-      showToast('error', 'Clock event failed. Please try again.');
-      return;
+
+    if (!rpcError && rpcData?.success) {
+      showToast('success', eventType === 'CLOCK_IN' ? 'Clocked in.' : 'Clocked out.');
+      await loadData();
+    } else {
+      // Fallback: direct insert into clock_events under employee's own auth context
+      try {
+        await recordClockEvent({ employeeId: profile.employeeId, eventType, method: 'WEB' });
+        // Optimistic UI update — server attendance record may not exist yet
+        setTodayRec(prev => {
+          const base = prev ?? { date: todayUAE(), status: ATTENDANCE_STATUS.PRESENT, lateMinutes: 0, totalHours: 0, overtimeHours: 0, clockInTime: null, clockOutTime: null };
+          return eventType === 'CLOCK_IN'
+            ? { ...base, clockInTime: now, status: ATTENDANCE_STATUS.PRESENT }
+            : { ...base, clockOutTime: now };
+        });
+        showToast('success', eventType === 'CLOCK_IN' ? 'Clocked in.' : 'Clocked out.');
+      } catch {
+        showToast('error', 'Clock event failed. Please try again.');
+      }
     }
-    showToast('success', eventType === 'CLOCK_IN' ? 'Clocked in.' : 'Clocked out.');
-    await loadData();
+
+    setClocking(false);
   }
 
   async function submitRegularisation(e) {
