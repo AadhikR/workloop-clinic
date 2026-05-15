@@ -7,7 +7,6 @@ import { X, UserCheck, Briefcase, CreditCard, Shield, Upload, User } from 'lucid
 import { validateIBAN, validateEmiratesID, validateMolId, formatAED, formatDateUAE } from '../utils/uaeValidators';
 import { calculateGratuity } from '../utils/gratuityCalculator';
 import { getShifts } from '../utils/attendanceStorage';
-import { supabase } from '../lib/supabase';
 
 const FREE_ZONES = ['DIFC','ADGM','JAFZA','DMCC','DAFZA','TECOM','Dubai Internet City','Dubai Media City','Dubai Healthcare City','Meydan Free Zone','RAKEZ','SAIF Zone','KIZAD','Abu Dhabi Free Zone','Hamriyah Free Zone','Other'];
 const VISA_TYPES = ['Employment Visa','Investor Visa','Dependent Visa','Tourist (Temp)','Exempt'];
@@ -42,29 +41,41 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
   const [tab, setTab]           = useState('personal');
   const [shifts, setShifts]     = useState([]);
   const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoError, setPhotoError] = useState('');
   const photoRef = useRef();
 
   useEffect(() => {
     getShifts().then(setShifts).catch(() => {});
   }, []);
 
-  const handlePhotoUpload = async (file) => {
+  const handlePhotoUpload = (file) => {
     if (!file) return;
-    setPhotoUploading(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      const ext  = file.name.split('.').pop();
-      const path = `${user.id}/${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
-      if (upErr) throw upErr;
-      const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path);
-      f('photoUrl', publicUrl);
-    } catch (err) {
-      // Silently fall back — bucket may not exist; user can paste URL manually
-      console.warn('Photo upload failed:', err.message);
-    } finally {
-      setPhotoUploading(false);
+    if (!file.type.startsWith('image/')) {
+      setPhotoError('Please select an image file.');
+      return;
     }
+    setPhotoError('');
+    setPhotoUploading(true);
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const MAX = 256;
+      const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width  = Math.round(img.width  * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+      f('photoUrl', dataUrl);
+      setPhotoUploading(false);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      setPhotoError('Could not read image. Try a different file.');
+      setPhotoUploading(false);
+    };
+    img.src = objectUrl;
   };
 
   const f = (field, value) => {
@@ -213,7 +224,9 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
                   ref={photoRef} type="file" accept="image/*" style={{ display:'none' }}
                   onChange={e => { if (e.target.files[0]) handlePhotoUpload(e.target.files[0]); e.target.value = ''; }}
                 />
-                <div style={{ fontSize:11, color:'var(--gray-400)' }}>JPG or PNG · shown in employee profile</div>
+                {photoError
+                  ? <div style={{ fontSize:11, color:'var(--danger)' }}>{photoError}</div>
+                  : <div style={{ fontSize:11, color:'var(--gray-400)' }}>JPG or PNG · max 256 px</div>}
               </div>
               <div className="form-group">
                 <label>Employee No.</label>
