@@ -114,7 +114,7 @@ export default function EmpPayslips() {
 
                   {/* Detail breakdown */}
                   {expanded && (
-                    <div style={{ borderTop: '1px solid var(--gray-100)', padding: '12px 16px' }}>
+                    <div style={{ borderTop: '1px solid rgba(100,116,139,0.10)', padding: '12px 16px' }}>
                       <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 10 }}>
                         Earnings
                       </div>
@@ -132,7 +132,7 @@ export default function EmpPayslips() {
                           <span style={{ color: 'var(--gray-800)', fontWeight: 500 }}>AED {fmtAED(row.amount)}</span>
                         </div>
                       ))}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 700, borderTop: '1px solid var(--gray-200)', marginTop: 6, paddingTop: 6 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 700, borderTop: '1px solid rgba(100,116,139,0.14)', marginTop: 6, paddingTop: 6 }}>
                         <span>Gross</span>
                         <span>AED {fmtAED(gross)}</span>
                       </div>
@@ -154,7 +154,7 @@ export default function EmpPayslips() {
                               <span style={{ color: 'var(--danger)', fontWeight: 500 }}>− AED {fmtAED(snap.leaveDeduction)}</span>
                             </div>
                           )}
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 700, borderTop: '1px solid var(--gray-200)', marginTop: 6, paddingTop: 6 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 700, borderTop: '1px solid rgba(100,116,139,0.14)', marginTop: 6, paddingTop: 6 }}>
                             <span>Total Deductions</span>
                             <span style={{ color: 'var(--danger)' }}>− AED {fmtAED(totalDeductions)}</span>
                           </div>

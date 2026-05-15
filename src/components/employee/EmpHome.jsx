@@ -99,7 +99,7 @@ export default function EmpHome({ onNavigate }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{
                 width: 36, height: 36, borderRadius: '50%',
-                background: todayStatus ? STATUS_COLORS[todayStatus] + '22' : 'var(--gray-100)',
+                background: todayStatus ? STATUS_COLORS[todayStatus] + '20' : 'rgba(100,116,139,0.10)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
                 <Clock size={16} color={todayStatus ? STATUS_COLORS[todayStatus] : 'var(--gray-400)'} />
@@ -124,7 +124,7 @@ export default function EmpHome({ onNavigate }) {
           </div>
           {todayRec?.clockInTime && (
             <div style={{
-              padding: '10px 16px', borderTop: '1px solid var(--gray-100)',
+              padding: '10px 16px', borderTop: '1px solid rgba(100,116,139,0.10)',
               display: 'flex', gap: 24, fontSize: 13,
             }}>
               <span style={{ color: 'var(--gray-500)' }}>
@@ -236,7 +236,7 @@ export default function EmpHome({ onNavigate }) {
         {requests.length > 0 && (
           <div className="emp-card">
             <div style={{
-              padding: '12px 16px', borderBottom: '1px solid var(--gray-100)',
+              padding: '12px 16px', borderBottom: '1px solid rgba(100,116,139,0.10)',
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             }}>
               <span style={{ fontWeight: 600, fontSize: 14 }}>Recent Leave Requests</span>
@@ -250,7 +250,7 @@ export default function EmpHome({ onNavigate }) {
             </div>
             {requests.slice(0, 3).map(req => (
               <div key={req.id} style={{
-                padding: '12px 16px', borderBottom: '1px solid var(--gray-50)',
+                padding: '12px 16px', borderBottom: '1px solid rgba(100,116,139,0.07)',
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               }}>
                 <div>

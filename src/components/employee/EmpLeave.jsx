@@ -308,7 +308,7 @@ export default function EmpLeave() {
                     </div>
 
                     {expanded && (
-                      <div style={{ padding: '0 16px 14px', borderTop: '1px solid var(--gray-100)' }}>
+                      <div style={{ padding: '0 16px 14px', borderTop: '1px solid rgba(100,116,139,0.10)' }}>
                         {req.reason && (
                           <p style={{ fontSize: 13, color: 'var(--gray-600)', margin: '12px 0 8px' }}>
                             <strong>Reason:</strong> {req.reason}

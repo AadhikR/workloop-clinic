@@ -24,7 +24,7 @@ function expiryBadge(days) {
 
 function Row({ label, value }) {
   return (
-    <div style={{ display: 'flex', padding: '10px 0', borderBottom: '1px solid var(--gray-100)' }}>
+    <div style={{ display: 'flex', padding: '10px 0', borderBottom: '1px solid rgba(100,116,139,0.10)' }}>
       <div style={{ width: '45%', fontSize: 12, color: 'var(--gray-500)', fontWeight: 500, paddingRight: 8 }}>{label}</div>
       <div style={{ flex: 1, fontSize: 13, color: 'var(--gray-800)', fontWeight: 500 }}>{value || '—'}</div>
     </div>
@@ -34,7 +34,7 @@ function Row({ label, value }) {
 function Section({ title, children }) {
   return (
     <div className="emp-card" style={{ marginBottom: 12 }}>
-      <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--gray-100)', fontWeight: 700, fontSize: 13, color: 'var(--gray-700)' }}>
+      <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(100,116,139,0.10)', fontWeight: 700, fontSize: 13, color: 'var(--gray-700)' }}>
         {title}
       </div>
       <div style={{ padding: '0 16px 4px' }}>
@@ -140,9 +140,11 @@ export default function EmpProfile({ onSignOut, signingOut }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
           <div style={{
             width: 56, height: 56, borderRadius: '50%',
-            background: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'linear-gradient(135deg, rgba(37,99,235,0.14), rgba(6,182,212,0.14))',
+            border: '1px solid rgba(37,99,235,0.18)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <User size={26} color="var(--primary)" />
+            <User size={26} color="#2563EB" />
           </div>
           <div>
             <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--gray-900)' }}>{emp.name}</div>
@@ -164,7 +166,7 @@ export default function EmpProfile({ onSignOut, signingOut }) {
                   <label>Personal Email</label>
                   <input className="form-control" type="email" value={personalEmail} onChange={e => setPersonalEmail(e.target.value)} />
                 </div>
-                <div style={{ height: 1, background: 'var(--gray-100)', margin: '4px 0' }} />
+                <div style={{ height: 1, background: 'rgba(100,116,139,0.10)', margin: '4px 0' }} />
                 <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-500)' }}>Emergency Contact</div>
                 <div className="form-group">
                   <label>Name</label>
