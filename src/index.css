@@ -655,11 +655,14 @@ tr:hover td {
   background: rgba(8,18,46,0.92);
   backdrop-filter: saturate(160%) blur(40px);
   -webkit-backdrop-filter: saturate(160%) blur(40px);
-  border-right: 1px solid rgba(56,189,248,0.10);
+  border: 1px solid rgba(56,189,248,0.10);
+  border-radius: 22px;
+  overflow: hidden;
+  box-shadow: 0 8px 40px rgba(8,18,46,0.40), 0 2px 8px rgba(8,18,46,0.20), inset 0 1px 0 rgba(56,189,248,0.07);
   color: white;
   flex-direction: column;
   position: fixed;
-  top: 0; left: 0; bottom: 0;
+  top: var(--sidebar-gap); left: var(--sidebar-gap); bottom: var(--sidebar-gap);
   z-index: 100;
 }
 
@@ -741,7 +744,7 @@ tr:hover td {
   .emp-shell      { flex-direction: row; }
   .emp-sidebar    { display: flex; }
   .emp-bottom-nav { display: none; }
-  .emp-main       { margin-left: 228px; padding-bottom: 0; }
-  .emp-page-header { padding: 18px 26px; }
+  .emp-main       { margin-left: calc(228px + var(--sidebar-gap) * 2); padding-bottom: 0; }
+  .emp-page-header { padding: 18px 26px; margin: var(--sidebar-gap) var(--sidebar-gap) 0; border-radius: 18px; position: sticky; top: var(--sidebar-gap); }
   .emp-page-body   { padding: 22px 26px; }
 }
