@@ -108,10 +108,12 @@ export default function EmpAttendance() {
       showToast('success', eventType === 'CLOCK_IN' ? 'Clocked in.' : 'Clocked out.');
       await loadData();
     } else {
+      const rpcMsg = rpcError?.message ?? rpcData?.error ?? 'unknown';
+      console.error('[Attendance] RPC failed:', rpcMsg);
+
       // Fallback: direct insert into clock_events under employee's own auth context
       try {
         await recordClockEvent({ employeeId: profile.employeeId, eventType, method: 'WEB' });
-        // Optimistic UI update — server attendance record may not exist yet
         setTodayRec(prev => {
           const base = prev ?? { date: todayUAE(), status: ATTENDANCE_STATUS.PRESENT, lateMinutes: 0, totalHours: 0, overtimeHours: 0, clockInTime: null, clockOutTime: null };
           return eventType === 'CLOCK_IN'
@@ -119,8 +121,9 @@ export default function EmpAttendance() {
             : { ...base, clockOutTime: now };
         });
         showToast('success', eventType === 'CLOCK_IN' ? 'Clocked in.' : 'Clocked out.');
-      } catch {
-        showToast('error', 'Clock event failed. Please try again.');
+      } catch (fallbackErr) {
+        console.error('[Attendance] Direct insert failed:', fallbackErr?.message);
+        showToast('error', `Clock failed: ${rpcMsg}`);
       }
     }
 
