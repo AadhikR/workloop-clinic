@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { FileText, Mail, Lock, Eye, EyeOff, AlertCircle, Building2, User, ArrowLeft, Loader } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, AlertCircle, Building2, User, ArrowLeft, Loader } from 'lucide-react';
+import logo from '../assets/logo.png';
 
 const BG_STYLE = {
   background: '#EEF2F7',
@@ -394,17 +395,12 @@ export default function AuthPage() {
     }}>
       {/* Brand header */}
       <div style={{ textAlign: 'center', marginBottom: 28 }}>
-        <div style={{
-          width: 56, height: 56, borderRadius: 16,
-          background: 'linear-gradient(135deg, #2563EB 0%, #06B6D4 100%)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          margin: '0 auto 14px',
-          boxShadow: '0 8px 28px rgba(37,99,235,0.30)',
-        }}>
-          <FileText size={28} color="white" />
-        </div>
-        <h1 style={{ color: '#0F172A', fontSize: 24, fontWeight: 700, margin: 0, letterSpacing: '-0.4px' }}>Workloop</h1>
-        <p style={{ color: '#64748B', fontSize: 13, marginTop: 4 }}>UAE Payroll &amp; HRMS</p>
+        <img
+          src={logo}
+          alt="Work Loop"
+          style={{ height: 52, width: 'auto', marginBottom: 10, filter: 'drop-shadow(0 4px 16px rgba(37,99,235,0.18))' }}
+        />
+        <p style={{ color: '#64748B', fontSize: 13, marginTop: 0 }}>UAE Payroll &amp; HRMS</p>
       </div>
 
       {renderView()}

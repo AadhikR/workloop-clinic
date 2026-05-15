@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Home, CalendarDays, Clock, FileText, User, LogOut } from 'lucide-react';
+import logo from '../../assets/logo.png';
 import { useAuth } from '../../context/AuthContext';
 import { getMyEmployeeRecord, getMyCompany } from '../../utils/profileStorage';
 import EmpHome from './EmpHome';
@@ -67,16 +68,16 @@ export default function EmployeeShell() {
       {/* Desktop sidebar */}
       <aside className="emp-sidebar">
         <div className="emp-sidebar-logo">
+          <img
+            src={logo}
+            alt="Work Loop"
+            style={{ height: 28, width: 'auto', borderRadius: 5, background: 'white', padding: '2px 5px', display: 'block', marginBottom: 6 }}
+          />
           {company?.name
-            ? <>
-                <h1 style={{ fontSize: 15, fontWeight: 700 }}>{company.name}</h1>
-                <p style={{ fontSize: 11, marginTop: 2 }}>Employee Portal</p>
-              </>
-            : <>
-                <h1>Workloop</h1>
-                <p>Employee Portal</p>
-              </>
+            ? <h1 style={{ fontSize: 14, fontWeight: 700 }}>{company.name}</h1>
+            : null
           }
+          <p style={{ fontSize: 11, marginTop: 2 }}>Employee Portal</p>
         </div>
 
         {/* Nav with sliding pill */}
