@@ -57,7 +57,7 @@ export default function EmpPayslips() {
     const entry = { ...ps.snapshot, employeeId: ps.employeeId };
 
     try {
-      downloadPayslip(company, empObj, run, entry);
+      await downloadPayslip(company, empObj, run, entry);
     } catch (err) {
       console.error('payslip PDF error:', err);
     }
@@ -85,7 +85,8 @@ export default function EmpPayslips() {
               const gross = ps.grossPay;
               const totalDeductions =
                 (snap.deductions || []).reduce((s, d) => s + (parseFloat(d.amount) || 0), 0) +
-                (parseFloat(snap.leaveDeduction) || 0);
+                (parseFloat(snap.leaveDeduction) || 0) +
+                (parseFloat(snap.duCost) || 0);
               const net = ps.netPay;
 
               return (
@@ -120,9 +121,12 @@ export default function EmpPayslips() {
                       </div>
                       {[
                         { label: 'Basic Salary',        amount: snap.basicSalary },
-                        { label: 'Variable Allowance',   amount: snap.variableAllowance },
                         { label: 'Housing Allowance',    amount: snap.housingAllowance },
                         { label: 'Transport Allowance',  amount: snap.transportAllowance },
+                        // Show fixed allowance only when there is no housing/transport breakdown
+                        ...(!parseFloat(snap.housingAllowance) && !parseFloat(snap.transportAllowance) && parseFloat(snap.allowance) > 0
+                          ? [{ label: 'Fixed Allowance', amount: snap.allowance }]
+                          : []),
                         { label: 'Bonus / Incentive',    amount: snap.bonus },
                         { label: 'Other Pay',            amount: snap.otherPay },
                         ...(snap.additionalAllowances || []).map(a => ({ label: a.label, amount: a.amount })),

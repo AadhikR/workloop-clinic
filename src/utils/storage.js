@@ -148,6 +148,18 @@ export async function deleteEmployee(id) {
   if (error) throw error;
 }
 
+/**
+ * Archives (soft-deletes) an employee by marking them as Terminated.
+ * The record is retained for payroll history and audit purposes.
+ */
+export async function archiveEmployee(id) {
+  const { error } = await supabase
+    .from('employees')
+    .update({ active: false, employment_status: 'Terminated' })
+    .eq('id', id);
+  if (error) throw error;
+}
+
 // ─── EMPLOYEE JOB HISTORY ───────────────────────────────────────────────────
 
 /**

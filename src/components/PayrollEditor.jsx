@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Download, Eye, Upload, AlertCircle, Plus, ChevronDown, CheckCircle, FileText, Info, Send } from 'lucide-react';
+import { Download, Eye, Upload, AlertCircle, Plus, ChevronDown, CheckCircle, FileText, Info, Send, Lock } from 'lucide-react';
 import { generateSIF, generateSIFFilename } from '../utils/sifGenerator';
 import { parseCSV, readFileAsText } from '../utils/csvImport';
 import { savePayroll, createPayslipRecords } from '../utils/storage';
@@ -124,6 +124,8 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
       }
     }, 800);
   }, [payroll, onSave]);
+
+  const isLocked = payroll.status === 'generated';
 
   const [year, month] = payroll.period.split('-').map(Number);
   const daysInMonth = getDaysInMonth(year, month);
@@ -261,10 +263,10 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
           <h2>
             Payroll: {getMonthName(month)} {year}
             <span
-              className={`badge ${payroll.status === 'generated' ? 'badge-green' : 'badge-yellow'}`}
-              style={{ marginLeft: 8 }}
+              className={`badge ${isLocked ? 'badge-green' : 'badge-yellow'}`}
+              style={{ marginLeft: 8, display: 'inline-flex', alignItems: 'center', gap: 4 }}
             >
-              {payroll.status === 'generated' ? 'Generated' : 'Draft'}
+              {isLocked ? <><Lock size={11} /> Finalised</> : 'Draft'}
             </span>
           </h2>
         </div>
@@ -274,14 +276,18 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
               <CheckCircle size={14} /> Auto-saved
             </span>
           )}
-          <button className="btn btn-outline btn-sm" onClick={() => fileRef.current.click()}>
-            <Upload size={14} /> Import CSV
-          </button>
+          {!isLocked && (
+            <>
+              <button className="btn btn-outline btn-sm" onClick={() => fileRef.current.click()}>
+                <Upload size={14} /> Import CSV
+              </button>
+              <button className="btn btn-outline btn-sm" onClick={handleSaveDraft}>Save Draft</button>
+            </>
+          )}
           <input
             ref={fileRef} type="file" accept=".csv" style={{ display: 'none' }}
             onChange={e => { if (e.target.files[0]) handleCSVImport(e.target.files[0]); e.target.value = ''; }}
           />
-          <button className="btn btn-outline btn-sm" onClick={handleSaveDraft}>Save Draft</button>
           <button
             className="btn btn-outline btn-sm"
             title="Download payslips for all active employees"
@@ -296,13 +302,24 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
           <button className="btn btn-success btn-sm" onClick={handleDownload} disabled={!canGenerate}>
             <Download size={14} /> Download SIF
           </button>
-          <button className="btn btn-primary btn-sm" onClick={() => setConfirmSubmit(true)} disabled={!canGenerate}>
-            <Send size={14} /> Submit Payroll
-          </button>
+          {!isLocked && (
+            <button className="btn btn-primary btn-sm" onClick={() => setConfirmSubmit(true)} disabled={!canGenerate}>
+              <Send size={14} /> Submit Payroll
+            </button>
+          )}
         </div>
       </div>
 
       <div className="page-body">
+        {isLocked && (
+          <div className="alert alert-success mb-4">
+            <Lock size={16} />
+            <div>
+              <strong>Payroll finalised — locked.</strong> This run has been submitted and payslips have been distributed to employees.
+              Download the SIF file or individual payslips using the buttons above.
+            </div>
+          </div>
+        )}
         {importMsg && (
           <div className={`alert alert-${importMsg.type} mb-4`}>
             <AlertCircle size={16} /> {importMsg.text}
@@ -322,24 +339,24 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
             <div className="form-grid form-grid-3">
               <div className="form-group">
                 <label>Payment Date</label>
-                <input className="form-control" type="date" value={meta.paymentDate}
+                <input className="form-control" type="date" value={meta.paymentDate} disabled={isLocked}
                   onChange={e => handleMetaChange('paymentDate', e.target.value)} />
               </div>
               <div className="form-group">
                 <label>File Creation Time (HHMM)</label>
                 <input className="form-control font-mono" maxLength={4} value={meta.sequenceNo}
-                  placeholder="e.g. 1430"
+                  placeholder="e.g. 1430" disabled={isLocked}
                   onChange={e => handleMetaChange('sequenceNo', e.target.value.replace(/\D/g, '').slice(0, 4))} />
                 <span className="hint">4-digit time in HHMM format — used in SCR line &amp; filename</span>
               </div>
               <div className="form-group">
                 <label>SCR Bank Routing Code</label>
-                <input className="form-control font-mono" value={meta.scrBankRoutingCode}
+                <input className="form-control font-mono" value={meta.scrBankRoutingCode} disabled={isLocked}
                   onChange={e => handleMetaChange('scrBankRoutingCode', e.target.value.trim())} />
               </div>
               <div className="form-group" style={{ gridColumn: '1/-1' }}>
                 <label>Description</label>
-                <input className="form-control" value={meta.description}
+                <input className="form-control" value={meta.description} disabled={isLocked}
                   onChange={e => handleMetaChange('description', e.target.value)} />
               </div>
             </div>
@@ -487,9 +504,11 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
           <div className="card-header">
             <h3>Employee Salary Entries</h3>
             <div className="flex items-center gap-2">
-              <button className="btn btn-outline btn-sm" onClick={() => setShowPanel(true)}>
-                <Plus size={13} /> Allowances &amp; Deductions
-              </button>
+              {!isLocked && (
+                <button className="btn btn-outline btn-sm" onClick={() => setShowPanel(true)}>
+                  <Plus size={13} /> Allowances &amp; Deductions
+                </button>
+              )}
               <span className="text-sm text-muted">
                 Period: {getMonthName(month)} {year} (1–{daysInMonth})
               </span>
@@ -513,21 +532,21 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                   <th style={{ width: 100, color:'var(--danger)' }}>Leave Ded.</th>
                   <th
                     style={{ width: 90 }}
-                    title="Click to add named additional allowances per employee"
-                    onClick={() => setShowPanel(true)}
+                    title={isLocked ? undefined : 'Click to add named additional allowances per employee'}
+                    onClick={() => !isLocked && setShowPanel(true)}
                   >
-                    <span style={hdrClickable}>
-                      Add. Allow <ChevronDown size={11} />
-                    </span>
+                    {isLocked
+                      ? <span>Add. Allow</span>
+                      : <span style={hdrClickable}>Add. Allow <ChevronDown size={11} /></span>}
                   </th>
                   <th
                     style={{ width: 90 }}
-                    title="Click to add named deductions per employee"
-                    onClick={() => setShowPanel(true)}
+                    title={isLocked ? undefined : 'Click to add named deductions per employee'}
+                    onClick={() => !isLocked && setShowPanel(true)}
                   >
-                    <span style={{ ...hdrClickable, color: 'var(--danger)' }}>
-                      Deductions <ChevronDown size={11} />
-                    </span>
+                    {isLocked
+                      ? <span>Deductions</span>
+                      : <span style={{ ...hdrClickable, color: 'var(--danger)' }}>Deductions <ChevronDown size={11} /></span>}
                   </th>
                   <th style={{ width: 100, background: 'var(--primary-light)', color: 'var(--primary-dark)' }}>
                     Final Allow.
@@ -550,6 +569,7 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                         <input
                           type="checkbox"
                           checked={!entry.excluded}
+                          disabled={isLocked}
                           onChange={() => updateEntry(idx, 'excluded', !entry.excluded)}
                         />
                       </td>
@@ -557,49 +577,46 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                       <td className="font-mono text-sm">{emp.molId}</td>
                       <td>
                         <input type="number" min="0" step="1"
-                          value={entry.basicSalary} disabled={entry.excluded}
+                          value={entry.basicSalary} disabled={isLocked || entry.excluded}
                           onChange={e => updateEntry(idx, 'basicSalary', e.target.value)} />
                       </td>
                       <td>
-                        {/* Housing allowance — pre-filled from employee profile */}
                         <input type="number" min="0" step="1"
-                          value={entry.housingAllowance ?? emp.housingAllowance ?? 0} disabled={entry.excluded}
+                          value={entry.housingAllowance ?? emp.housingAllowance ?? 0} disabled={isLocked || entry.excluded}
                           onChange={e => updateEntry(idx, 'housingAllowance', e.target.value)} />
                       </td>
                       <td>
-                        {/* Transport allowance — pre-filled from employee profile */}
                         <input type="number" min="0" step="1"
-                          value={entry.transportAllowance ?? emp.transportAllowance ?? 0} disabled={entry.excluded}
+                          value={entry.transportAllowance ?? emp.transportAllowance ?? 0} disabled={isLocked || entry.excluded}
                           onChange={e => updateEntry(idx, 'transportAllowance', e.target.value)} />
                       </td>
                       <td>
                         <input type="number" min="0" step="1"
-                          value={entry.allowance} disabled={entry.excluded}
+                          value={entry.allowance} disabled={isLocked || entry.excluded}
                           onChange={e => updateEntry(idx, 'allowance', e.target.value)} />
                       </td>
                       <td>
                         <input type="number" min="0" step="1"
-                          value={entry.increment} disabled={entry.excluded}
+                          value={entry.increment} disabled={isLocked || entry.excluded}
                           onChange={e => updateEntry(idx, 'increment', e.target.value)} />
                       </td>
                       <td>
                         <input type="number" min="0" step="1"
-                          value={entry.bonus} disabled={entry.excluded}
+                          value={entry.bonus} disabled={isLocked || entry.excluded}
                           onChange={e => updateEntry(idx, 'bonus', e.target.value)} />
                       </td>
                       <td>
                         <input type="number" min="0" step="1"
-                          value={entry.otherPay} disabled={entry.excluded}
+                          value={entry.otherPay} disabled={isLocked || entry.excluded}
                           onChange={e => updateEntry(idx, 'otherPay', e.target.value)} />
                       </td>
-                      {/* Leave Deductions — auto-filled from Leave module, editable for manual override */}
                       <td style={{ position:'relative' }}>
                         <input
                           type="number"
                           min="0"
                           step="0.01"
                           value={entry.leaveDeduction ?? 0}
-                          disabled={entry.excluded}
+                          disabled={isLocked || entry.excluded}
                           placeholder="0.00"
                           title="Auto-filled from approved leave. Edit to override."
                           style={{ color: (parseFloat(entry.leaveDeduction) || 0) > 0 ? 'var(--danger)' : undefined }}
@@ -608,17 +625,17 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                       </td>
                       <td
                         className="text-right text-sm"
-                        style={{ color: addAllow > 0 ? 'var(--success)' : 'var(--gray-400)', cursor: 'pointer' }}
-                        onClick={() => setShowPanel(true)}
-                        title="Click to edit"
+                        style={{ color: addAllow > 0 ? 'var(--success)' : 'var(--gray-400)', cursor: isLocked ? 'default' : 'pointer' }}
+                        onClick={() => !isLocked && setShowPanel(true)}
+                        title={isLocked ? undefined : 'Click to edit'}
                       >
                         {addAllow > 0 ? `+${addAllow.toLocaleString('en-AE')}` : '—'}
                       </td>
                       <td
                         className="text-right text-sm"
-                        style={{ color: deds > 0 ? 'var(--danger)' : 'var(--gray-400)', cursor: 'pointer' }}
-                        onClick={() => setShowPanel(true)}
-                        title="Click to edit"
+                        style={{ color: deds > 0 ? 'var(--danger)' : 'var(--gray-400)', cursor: isLocked ? 'default' : 'pointer' }}
+                        onClick={() => !isLocked && setShowPanel(true)}
+                        title={isLocked ? undefined : 'Click to edit'}
                       >
                         {deds > 0 ? `-${deds.toLocaleString('en-AE')}` : '—'}
                       </td>

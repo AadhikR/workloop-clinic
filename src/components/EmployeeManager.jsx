@@ -3,7 +3,7 @@ import {
   Users, Plus, Trash2, X, Upload, AlertCircle, Search,
   FileDown, Info, Download, History, AlertTriangle, Calculator
 } from 'lucide-react';
-import { getEmployees, saveEmployee, saveEmployees, deleteEmployee, getJobHistory } from '../utils/storage';
+import { getEmployees, saveEmployee, saveEmployees, archiveEmployee, getJobHistory, addJobHistoryEntry } from '../utils/storage';
 import { parseCSV, readFileAsText } from '../utils/csvImport';
 import { formatDateUAE, formatAED, daysUntil, expiryBadgeClass } from '../utils/uaeValidators';
 import { calculateGratuity } from '../utils/gratuityCalculator';
@@ -319,7 +319,23 @@ function EmployeeManagerInner() {
 
   const handleSaveEmployee = async (emp) => {
     try {
+      const old = emp.id ? employees.find(e => e.id === emp.id) : null;
       const saved = await saveEmployee(emp);
+
+      if (old) {
+        const checks = [
+          { field: 'basicSalary',      type: 'salary_change' },
+          { field: 'jobTitle',         type: 'title_change' },
+          { field: 'department',       type: 'department_change' },
+          { field: 'employmentStatus', type: 'status_change' },
+        ];
+        await Promise.all(
+          checks
+            .filter(c => String(old[c.field] ?? '') !== String(emp[c.field] ?? ''))
+            .map(c => addJobHistoryEntry(emp.id, c.type, old[c.field], emp[c.field]))
+        );
+      }
+
       setEmployees(prev =>
         emp.id
           ? prev.map(e => e.id === emp.id ? saved : e)
@@ -335,12 +351,15 @@ function EmployeeManagerInner() {
   const handleDelete = async (id) => {
     setDeleting(true);
     try {
-      await deleteEmployee(id);
-      setEmployees(prev => prev.filter(e => e.id !== id));
+      await archiveEmployee(id);
+      setEmployees(prev => prev.map(e => e.id === id
+        ? { ...e, active: false, employmentStatus: 'Terminated' }
+        : e
+      ));
       setDeleteConfirm(null);
     } catch (err) {
-      console.error('Delete employee failed:', err);
-      alert('Failed to delete employee: ' + err.message);
+      console.error('Archive employee failed:', err);
+      alert('Failed to archive employee: ' + err.message);
     } finally {
       setDeleting(false);
     }
@@ -655,16 +674,16 @@ function EmployeeManagerInner() {
         <div className="modal-overlay">
           <div className="modal" style={{ maxWidth:400 }}>
             <div className="modal-header">
-              <h3>Delete Employee</h3>
+              <h3>Archive Employee</h3>
               <button className="btn btn-ghost btn-icon" onClick={() => setDeleteConfirm(null)}><X size={18}/></button>
             </div>
             <div className="modal-body">
-              <p>Are you sure you want to delete this employee? This cannot be undone.</p>
+              <p>This employee will be marked as <strong>Terminated</strong> and hidden from active lists. Their payroll history and records are retained.</p>
             </div>
             <div className="modal-footer">
               <button className="btn btn-outline" onClick={() => setDeleteConfirm(null)} disabled={deleting}>Cancel</button>
               <button className="btn btn-danger" onClick={() => handleDelete(deleteConfirm)} disabled={deleting}>
-                <Trash2 size={14}/> {deleting ? 'Deleting…' : 'Delete'}
+                <Trash2 size={14}/> {deleting ? 'Archiving…' : 'Archive Employee'}
               </button>
             </div>
           </div>

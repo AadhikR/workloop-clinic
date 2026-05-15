@@ -25,27 +25,38 @@ export default function Dashboard({ onNavigate }) {
     .sort((a, b) => b.period.localeCompare(a.period))
     .slice(0, 5);
 
+  const trendRuns = [...generatedRuns]
+    .sort((a, b) => a.period.localeCompare(b.period))
+    .slice(-6)
+    .map(p => {
+      const active = p.entries.filter(e => !e.excluded);
+      const total = active.reduce((s, e) =>
+        s + (parseFloat(e.basicSalary) || 0) + (parseFloat(e.variableAllowance) || 0), 0);
+      const [y, m] = p.period.split('-').map(Number);
+      return { period: p.period, label: `${getMonthName(m)} ${y}`, total, count: active.length };
+    });
+  const trendMax = Math.max(...trendRuns.map(r => r.total), 1);
+
   const getMonthName = (month) =>
     ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month - 1];
 
   // ── WPS 30-day deadline tracker (UAE Labour Law Article 56) ─────────────────
-  // For each active employee, check if the current month's salary has been processed
-  // within 30 days of the salary due date. Warn if any are overdue or approaching.
   const today = new Date();
   const currentYear  = today.getFullYear();
-  const currentMonth = today.getMonth() + 1; // 1-based
-  const currentPeriod = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
-  // Previous month period (salary for last month should be paid within 30 days)
+  const currentMonth = today.getMonth() + 1;
   const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1;
   const prevYear  = currentMonth === 1 ? currentYear - 1 : currentYear;
   const prevPeriod = `${prevYear}-${String(prevMonth).padStart(2, '0')}`;
 
-  // Check if previous month payroll has been generated
   const prevPayroll = payrolls.find(p => p.period === prevPeriod && p.status === 'generated');
-  // Day of month — if > 30 and prev month not processed, show warning
-  const dayOfMonth = today.getDate();
-  const wpsDeadlineWarning = !prevPayroll && dayOfMonth > 25 && activeEmps.length > 0;
-  const wpsDeadlineCritical = !prevPayroll && dayOfMonth > 30 && activeEmps.length > 0;
+
+  // Salary must be paid within the company's configured salary day each month.
+  // Warn once that day has passed and prev month payroll isn't generated yet.
+  const salaryDay = company?.defaultSalaryDay ?? 25;
+  const salaryDueThisMonth = new Date(currentYear, currentMonth - 1, salaryDay);
+  const daysPastDue = Math.floor((today - salaryDueThisMonth) / 86400000);
+  const wpsDeadlineWarning  = !prevPayroll && daysPastDue >= 0  && activeEmps.length > 0;
+  const wpsDeadlineCritical = !prevPayroll && daysPastDue >= 10 && activeEmps.length > 0;
 
   // ── Document expiry summary (next 30 days) ──────────────────────────────────
   const docWarnings = [];
@@ -228,6 +239,52 @@ export default function Dashboard({ onNavigate }) {
             <div className="stat-sub">{docWarnings.length} within 60 days</div>
           </div>
         </div>
+
+        {/* Payroll trend */}
+        {trendRuns.length >= 2 && (
+          <div className="card mb-4">
+            <div className="card-header">
+              <h3>Payroll Trend</h3>
+              <span style={{ fontSize:12, color:'var(--gray-500)' }}>Last {trendRuns.length} processed months</span>
+            </div>
+            <div className="card-body">
+              <div style={{ display:'flex', alignItems:'flex-end', gap:12, height:100 }}>
+                {trendRuns.map((r, i) => {
+                  const pct = trendMax > 0 ? (r.total / trendMax) * 100 : 0;
+                  const prev = trendRuns[i - 1];
+                  const delta = prev ? r.total - prev.total : 0;
+                  const isLast = i === trendRuns.length - 1;
+                  return (
+                    <div key={r.period} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:4 }}>
+                      {isLast && delta !== 0 && (
+                        <div style={{ fontSize:10, fontWeight:700, color: delta > 0 ? 'var(--success)' : 'var(--danger)' }}>
+                          {delta > 0 ? '▲' : '▼'} {Math.abs(delta).toLocaleString('en-AE', { maximumFractionDigits:0 })}
+                        </div>
+                      )}
+                      <div
+                        title={`${r.label}: AED ${r.total.toLocaleString('en-AE', { minimumFractionDigits:0 })}`}
+                        style={{
+                          width:'100%', borderRadius:'4px 4px 0 0',
+                          background: isLast ? 'var(--primary)' : 'var(--primary-light)',
+                          height: `${Math.max(pct, 4)}%`,
+                          transition: 'height 0.3s',
+                        }}
+                      />
+                      <div style={{ fontSize:10, color:'var(--gray-500)', textAlign:'center', whiteSpace:'nowrap' }}>
+                        {r.label.split(' ')[0]}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ marginTop:8, fontSize:12, color:'var(--gray-500)', textAlign:'right' }}>
+                Latest: <strong style={{ color:'var(--gray-800)' }}>
+                  AED {trendRuns[trendRuns.length - 1]?.total.toLocaleString('en-AE', { minimumFractionDigits:0 })}
+                </strong>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Recent payrolls */}
         {recentPayrolls.length > 0 && (

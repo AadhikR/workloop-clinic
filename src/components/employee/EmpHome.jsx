@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { CalendarDays, Clock, FileText, ChevronRight, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { getMyEmployeeRecord } from '../../utils/profileStorage';
-import { getLeaveBalances, getLeaveRequests } from '../../utils/leaveStorage';
-import { getPayrolls } from '../../utils/storage';
+import { getMyEmployeeRecord, getMyPayslips } from '../../utils/profileStorage';
+import { getLeaveBalances, getLeaveRequests, getLeaveTypes } from '../../utils/leaveStorage';
+import { calculateAnnualLeaveAccrual } from '../../utils/leaveEngine';
 import { getAttendanceRecords } from '../../utils/attendanceStorage';
 import { ATTENDANCE_STATUS, STATUS_LABELS, STATUS_COLORS } from '../../utils/attendanceEngine';
 
@@ -30,12 +30,12 @@ function fmtDate(iso) {
 
 export default function EmpHome({ onNavigate }) {
   const { profile } = useAuth();
-  const [emp, setEmp]             = useState(null);
-  const [balances, setBalances]   = useState([]);
-  const [requests, setRequests]   = useState([]);
-  const [lastPayroll, setLastPayroll] = useState(null);
-  const [todayRec, setTodayRec]   = useState(null);
-  const [loading, setLoading]     = useState(true);
+  const [emp, setEmp]               = useState(null);
+  const [balances, setBalances]     = useState([]);
+  const [requests, setRequests]     = useState([]);
+  const [lastPayslip, setLastPayslip] = useState(null);
+  const [todayRec, setTodayRec]     = useState(null);
+  const [loading, setLoading]       = useState(true);
 
   useEffect(() => {
     if (!profile?.employeeId) return;
@@ -46,14 +46,37 @@ export default function EmpHome({ onNavigate }) {
       getMyEmployeeRecord(),
       getLeaveBalances(profile.employeeId, year),
       getLeaveRequests({ employeeId: profile.employeeId }),
-      getPayrolls(),
+      getMyPayslips(),
       getAttendanceRecords({ employeeId: profile.employeeId, dateFrom: today, dateTo: today }),
-    ]).then(([empRec, bal, reqs, pays, attRecs]) => {
+      getLeaveTypes(),
+    ]).then(([empRec, bal, reqs, slips, attRecs, lts]) => {
       setEmp(empRec);
-      setBalances(bal);
+
+      let resolvedBal = bal;
+      if (bal.length === 0 && empRec && lts.length > 0) {
+        const startDate = empRec.employment_start_date || empRec.startDate;
+        const accrual = startDate ? calculateAnnualLeaveAccrual(startDate, new Date()) : null;
+        const approvedAnnual = reqs
+          .filter(r => r.leaveTypeCode === 'ANNUAL' && r.status === 'Approved' && r.startDate?.startsWith(String(year)))
+          .reduce((s, r) => s + (parseFloat(r.daysRequested) || 0), 0);
+        const pendingAnnual = reqs
+          .filter(r => r.leaveTypeCode === 'ANNUAL' && r.status === 'Pending' && r.startDate?.startsWith(String(year)))
+          .reduce((s, r) => s + (parseFloat(r.daysRequested) || 0), 0);
+        if (accrual) {
+          resolvedBal = [{
+            leaveTypeCode: 'ANNUAL',
+            entitledDays:  accrual.entitlementPerYear,
+            accruedDays:   accrual.totalAccrued,
+            usedDays:      approvedAnnual,
+            pendingDays:   pendingAnnual,
+            remaining:     Math.max(0, accrual.totalAccrued - approvedAnnual),
+          }];
+        }
+      }
+
+      setBalances(resolvedBal);
       setRequests(reqs.filter(r => r.status === 'Pending' || r.status === 'Approved'));
-      const sorted = [...pays].sort((a, b) => b.period.localeCompare(a.period));
-      setLastPayroll(sorted[0] ?? null);
+      setLastPayslip(slips[0] ?? null); // already sorted newest-first
       setTodayRec(attRecs[0] ?? null);
       setLoading(false);
     });
@@ -71,12 +94,7 @@ export default function EmpHome({ onNavigate }) {
   const pendingReqs = requests.filter(r => r.status === 'Pending').length;
   const todayStatus = todayRec?.status ?? null;
 
-  const lastPayEntry = lastPayroll?.entries?.find(e => e.employeeId === profile.employeeId);
-  const lastPayTotal = lastPayEntry
-    ? (parseFloat(lastPayEntry.basicSalary) || 0) + (parseFloat(lastPayEntry.variableAllowance) || 0)
-    : null;
-
-  const [pyear, pmonth] = lastPayroll?.period?.split('-').map(Number) ?? [];
+  const [pyear, pmonth] = lastPayslip?.period?.split('-').map(Number) ?? [];
   const monthName = pmonth
     ? ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][pmonth - 1]
     : null;
@@ -155,7 +173,7 @@ export default function EmpHome({ onNavigate }) {
               <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Annual Leave</span>
             </div>
             <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--gray-900)', lineHeight: 1 }}>
-              {annualBal ? Math.floor(annualBal.remaining) : '—'}
+              {annualBal ? parseFloat(annualBal.remaining).toFixed(1) : '—'}
             </div>
             <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 4 }}>
               days remaining
@@ -177,13 +195,13 @@ export default function EmpHome({ onNavigate }) {
               <FileText size={15} color="var(--success)" />
               <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Last Payslip</span>
             </div>
-            {lastPayTotal != null ? (
+            {lastPayslip ? (
               <>
                 <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--gray-900)', lineHeight: 1 }}>
-                  {lastPayTotal.toLocaleString('en-AE', { minimumFractionDigits: 0 })}
+                  {lastPayslip.netPay.toLocaleString('en-AE', { minimumFractionDigits: 0 })}
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 4 }}>
-                  AED · {monthName} {pyear}
+                  AED net · {monthName} {pyear}
                 </div>
               </>
             ) : (

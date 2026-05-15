@@ -189,6 +189,34 @@ export async function seedPublicHolidays() {
   if (error) throw error;
 }
 
+/**
+ * Seeds UAE public holidays for a specific year if not already present.
+ * Returns true if any rows were inserted.
+ */
+export async function seedPublicHolidaysForYear(year, holidays) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data: existing } = await supabase
+    .from('public_holidays')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('year', year)
+    .limit(1);
+  if (existing?.length) return false;
+
+  const rows = holidays.map(h => ({
+    user_id: user.id,
+    date:    h.date,
+    name:    h.name,
+    type:    h.type,
+    year,
+  }));
+  const { error } = await supabase.from('public_holidays').insert(rows);
+  if (error) throw error;
+  return true;
+}
+
 export async function savePublicHoliday(holiday) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');

@@ -24,6 +24,17 @@ function getMonthName(month) {
   return MONTH_NAMES[month - 1] || '';
 }
 
+async function tryLoadImage(url) {
+  if (!url) return null;
+  return new Promise(resolve => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+}
+
 /**
  * Generate a PDF payslip for a single employee in a payroll run.
  *
@@ -31,10 +42,11 @@ function getMonthName(month) {
  * @param {object} employee  — employee record (full profile)
  * @param {object} payroll   — payroll run object
  * @param {object} entry     — payroll entry for this employee
- * @returns {jsPDF} — the PDF document (call .save() to download)
+ * @returns {Promise<jsPDF>} — the PDF document (call .save() to download)
  */
-export function generatePayslipPDF(company, employee, payroll, entry) {
+export async function generatePayslipPDF(company, employee, payroll, entry) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const logoImg = await tryLoadImage(company?.logoUrl);
 
   const [year, month] = payroll.period.split('-').map(Number);
   const periodLabel   = `${getMonthName(month)} ${year}`;
@@ -59,14 +71,36 @@ export function generatePayslipPDF(company, employee, payroll, entry) {
   doc.rect(0, 0, pageW, 32, 'F');
 
   doc.setTextColor(...WHITE);
-  doc.setFontSize(18);
-  doc.setFont('helvetica', 'bold');
-  doc.text(company?.name || 'Company Name', margin, 13);
-
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  doc.text('SALARY PAYSLIP', margin, 20);
-  doc.text(`Period: ${periodLabel}`, margin, 26);
+  if (logoImg) {
+    const maxLogoH = 22;
+    const aspect   = logoImg.width / logoImg.height;
+    const logoW    = Math.min(aspect * maxLogoH, 50);
+    const logoH    = logoW / aspect;
+    try {
+      doc.addImage(logoImg, margin, (32 - logoH) / 2, logoW, logoH);
+    } catch {
+      // fallback to text if image format unsupported
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text(company?.name || 'Company Name', margin, 13);
+    }
+    const textStart = margin + logoW + 4;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text(company?.name || '', textStart, 13);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text('SALARY PAYSLIP', textStart, 20);
+    doc.text(`Period: ${periodLabel}`, textStart, 26);
+  } else {
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text(company?.name || 'Company Name', margin, 13);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text('SALARY PAYSLIP', margin, 20);
+    doc.text(`Period: ${periodLabel}`, margin, 26);
+  }
 
   // Right side of header
   doc.setFontSize(9);
@@ -230,8 +264,8 @@ export function generatePayslipPDF(company, employee, payroll, entry) {
  * @param {object} payroll
  * @param {object} entry
  */
-export function downloadPayslip(company, employee, payroll, entry) {
-  const doc = generatePayslipPDF(company, employee, payroll, entry);
+export async function downloadPayslip(company, employee, payroll, entry) {
+  const doc = await generatePayslipPDF(company, employee, payroll, entry);
   const [year, month] = payroll.period.split('-').map(Number);
   const filename = `Payslip_${employee.name?.replace(/\s+/g, '_')}_${getMonthName(month)}_${year}.pdf`;
   doc.save(filename);
@@ -244,10 +278,10 @@ export function downloadPayslip(company, employee, payroll, entry) {
  * @param {Array}  employees
  * @param {object} payroll
  */
-export function downloadAllPayslips(company, employees, payroll) {
+export async function downloadAllPayslips(company, employees, payroll) {
   const activeEntries = payroll.entries.filter(e => !e.excluded);
-  activeEntries.forEach(entry => {
+  for (const entry of activeEntries) {
     const emp = employees.find(e => e.id === entry.employeeId);
-    if (emp) downloadPayslip(company, emp, payroll, entry);
-  });
+    if (emp) await downloadPayslip(company, emp, payroll, entry);
+  }
 }

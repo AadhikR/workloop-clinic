@@ -5,8 +5,41 @@ import {
   getLeaveTypes, getLeaveRequests, getLeaveBalances, getPublicHolidays,
 } from '../../utils/leaveStorage';
 import { supabase } from '../../lib/supabase';
-import { countLeaveDays, validateLeaveRequest, getLeaveTypeColor } from '../../utils/leaveEngine';
+import { countLeaveDays, validateLeaveRequest, getLeaveTypeColor, calculateAnnualLeaveAccrual } from '../../utils/leaveEngine';
 import { getMyEmployeeRecord } from '../../utils/profileStorage';
+
+function computeBalancesLocally(leaveTypes, requests, empRec, year) {
+  return leaveTypes
+    .filter(lt => !lt.isUnlimited)
+    .map(lt => {
+      const empReqs = requests.filter(r =>
+        r.leaveTypeCode === lt.code && r.startDate?.startsWith(String(year))
+      );
+      const usedDays    = empReqs.filter(r => r.status === 'Approved').reduce((s, r) => s + (parseFloat(r.daysRequested) || 0), 0);
+      const pendingDays = empReqs.filter(r => r.status === 'Pending').reduce((s, r) => s + (parseFloat(r.daysRequested) || 0), 0);
+
+      let accruedDays  = lt.annualEntitlementDays || 0;
+      let entitledDays = lt.annualEntitlementDays || 0;
+
+      if (lt.code === 'ANNUAL' && (empRec?.employment_start_date || empRec?.startDate)) {
+        const accrual = calculateAnnualLeaveAccrual(
+          empRec.employment_start_date || empRec.startDate,
+          new Date()
+        );
+        accruedDays  = accrual.totalAccrued;
+        entitledDays = accrual.entitlementPerYear;
+      }
+
+      return {
+        leaveTypeCode: lt.code,
+        entitledDays,
+        accruedDays,
+        usedDays,
+        pendingDays,
+        remaining: Math.max(0, accruedDays - usedDays),
+      };
+    });
+}
 
 function fmtDate(iso) {
   if (!iso) return '—';
@@ -57,7 +90,7 @@ export default function EmpLeave() {
     ]).then(([lts, reqs, bals, hols, empRec]) => {
       setLeaveTypes(lts);
       setRequests(reqs);
-      setBalances(bals);
+      setBalances(bals.length > 0 ? bals : computeBalancesLocally(lts, reqs, empRec, year));
       setHolidays(hols.map(h => h.date));
       setEmp(empRec);
       setLoading(false);
@@ -71,12 +104,25 @@ export default function EmpLeave() {
 
   async function handleCancel(reqId) {
     if (!window.confirm('Cancel this leave request?')) return;
+    const req = requests.find(r => r.id === reqId);
     const { data, error } = await supabase.rpc('employee_cancel_leave_request', { p_request_id: reqId });
     if (error || !data?.success) {
       showToast('error', 'Could not cancel. Please contact HR.');
       return;
     }
     setRequests(prev => prev.map(r => r.id === reqId ? { ...r, status: 'Cancelled' } : r));
+    if (req) {
+      setBalances(prev => prev.map(b =>
+        b.leaveTypeCode === req.leaveTypeCode
+          ? {
+              ...b,
+              usedDays:    Math.max(0, parseFloat(b.usedDays)    - req.daysRequested),
+              pendingDays: Math.max(0, parseFloat(b.pendingDays) - req.daysRequested),
+              remaining:   parseFloat(b.remaining) + req.daysRequested,
+            }
+          : b
+      ));
+    }
     showToast('success', 'Leave request cancelled.');
   }
 
@@ -363,7 +409,7 @@ export default function EmpLeave() {
                         <span style={{ fontWeight: 600, fontSize: 14 }}>{lt?.name ?? bal.leaveTypeCode}</span>
                       </div>
                       <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--gray-800)' }}>
-                        {bal.remaining} <span style={{ fontWeight: 400, color: 'var(--gray-400)' }}>/ {bal.entitledDays} days</span>
+                        {parseFloat(bal.remaining).toFixed(1)} <span style={{ fontWeight: 400, color: 'var(--gray-400)' }}>/ {bal.entitledDays} days</span>
                       </span>
                     </div>
                     <div className="leave-balance-bar">
@@ -373,9 +419,9 @@ export default function EmpLeave() {
                       />
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 11, color: 'var(--gray-400)' }}>
-                      <span>Used: {bal.usedDays}</span>
-                      {bal.pendingDays > 0 && <span>Pending: {bal.pendingDays}</span>}
-                      <span>Remaining: {bal.remaining}</span>
+                      <span>Used: {parseFloat(bal.usedDays).toFixed(1)}</span>
+                      {bal.pendingDays > 0 && <span>Pending: {parseFloat(bal.pendingDays).toFixed(1)}</span>}
+                      <span>Remaining: {parseFloat(bal.remaining).toFixed(1)}</span>
                     </div>
                   </div>
                 );

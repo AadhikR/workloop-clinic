@@ -11,7 +11,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Calendar, Users, BarChart2, Settings, Plus, Check, X, AlertCircle,
-  Clock, Download, ChevronLeft, ChevronRight, Info, Trash2, Save, RefreshCw
+  Clock, Download, ChevronLeft, ChevronRight, Info, Trash2, Save, RefreshCw, Printer
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getEmployees } from '../utils/storage';
@@ -19,7 +19,8 @@ import {
   getLeaveTypes, getLeaveRequests, submitLeaveRequest, updateLeaveRequestStatus,
   cancelLeaveRequest, getLeaveBalances, getAllLeaveBalances, upsertLeaveBalance,
   getPublicHolidays, savePublicHoliday, deletePublicHoliday,
-  getLeaveSettings, saveLeaveSettings, initialiseLeaveModule, recalculateAllBalances
+  getLeaveSettings, saveLeaveSettings, initialiseLeaveModule, recalculateAllBalances,
+  seedPublicHolidaysForYear
 } from '../utils/leaveStorage';
 import {
   calculateAnnualLeaveAccrual, countLeaveDays, getLeaveAdvancePayWarnings,
@@ -522,13 +523,21 @@ export default function LeaveManager() {
                   <ChevronRight size={16}/>
                 </button>
               </h3>
-              <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
                 {leaveTypes.slice(0, 5).map(lt => (
                   <span key={lt.code} style={{ display:'flex', alignItems:'center', gap:4, fontSize:11 }}>
                     <span style={{ width:10, height:10, borderRadius:2, background:lt.color, display:'inline-block' }}/>
                     {lt.name}
                   </span>
                 ))}
+                <button
+                  className="btn btn-outline btn-sm"
+                  style={{ marginLeft: 8 }}
+                  onClick={() => window.print()}
+                  title="Print calendar"
+                >
+                  <Printer size={13} /> Print
+                </button>
               </div>
             </div>
             <div className="card-body" style={{ padding:0 }}>
@@ -734,7 +743,38 @@ export default function LeaveManager() {
 
             {/* Public Holidays */}
             <div className="card">
-              <div className="card-header"><h3>Public Holidays</h3></div>
+              <div className="card-header">
+                <h3>Public Holidays</h3>
+                <div style={{ display:'flex', gap:8 }}>
+                  {[
+                    { year: 2025, list: UAE_PUBLIC_HOLIDAYS_2025 },
+                    { year: 2026, list: UAE_PUBLIC_HOLIDAYS_2026 },
+                  ].map(({ year, list }) => {
+                    const alreadySeeded = holidays.some(h => h.year === year && h.type === 'federal');
+                    return (
+                      <button
+                        key={year}
+                        className="btn btn-outline btn-sm"
+                        disabled={alreadySeeded}
+                        title={alreadySeeded ? `${year} UAE holidays already seeded` : `Seed ${year} UAE federal public holidays`}
+                        onClick={async () => {
+                          try {
+                            const seeded = await seedPublicHolidaysForYear(year, list);
+                            if (seeded) {
+                              const fresh = await getPublicHolidays(year);
+                              setHolidays(prev => [...prev.filter(h => h.year !== year), ...fresh]);
+                            }
+                          } catch (err) {
+                            alert('Failed to seed holidays: ' + err.message);
+                          }
+                        }}
+                      >
+                        {alreadySeeded ? `✓ ${year} seeded` : `Seed ${year} UAE Holidays`}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
               <div className="card-body" style={{ padding:0 }}>
                 <div style={{ padding:'12px 20px', borderBottom:'1px solid var(--gray-200)', display:'flex', gap:8, flexWrap:'wrap', alignItems:'flex-end' }}>
                   <div className="form-group" style={{ margin:0 }}>

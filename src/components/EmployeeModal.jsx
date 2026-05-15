@@ -2,11 +2,12 @@
  * EmployeeModal.jsx — Add/Edit Employee modal with tabbed UAE HR profile
  * Tabs: Personal | Job & Contract | Salary & Bank | UAE Compliance
  */
-import { useState, useEffect } from 'react';
-import { X, UserCheck, Briefcase, CreditCard, Shield } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { X, UserCheck, Briefcase, CreditCard, Shield, Upload, User } from 'lucide-react';
 import { validateIBAN, validateEmiratesID, validateMolId, formatAED, formatDateUAE } from '../utils/uaeValidators';
 import { calculateGratuity } from '../utils/gratuityCalculator';
 import { getShifts } from '../utils/attendanceStorage';
+import { supabase } from '../lib/supabase';
 
 const FREE_ZONES = ['DIFC','ADGM','JAFZA','DMCC','DAFZA','TECOM','Dubai Internet City','Dubai Media City','Dubai Healthcare City','Meydan Free Zone','RAKEZ','SAIF Zone','KIZAD','Abu Dhabi Free Zone','Hamriyah Free Zone','Other'];
 const VISA_TYPES = ['Employment Visa','Investor Visa','Dependent Visa','Tourist (Temp)','Exempt'];
@@ -35,15 +36,36 @@ const EMPTY_EMP = {
 };
 
 export default function EmployeeModal({ employee, allEmployees, onSave, onClose }) {
-  const [form, setForm]     = useState(employee ? { ...EMPTY_EMP, ...employee } : { ...EMPTY_EMP });
-  const [errors, setErrors] = useState({});
-  const [saving, setSaving] = useState(false);
-  const [tab, setTab]       = useState('personal');
-  const [shifts, setShifts] = useState([]);
+  const [form, setForm]         = useState(employee ? { ...EMPTY_EMP, ...employee } : { ...EMPTY_EMP });
+  const [errors, setErrors]     = useState({});
+  const [saving, setSaving]     = useState(false);
+  const [tab, setTab]           = useState('personal');
+  const [shifts, setShifts]     = useState([]);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const photoRef = useRef();
 
   useEffect(() => {
     getShifts().then(setShifts).catch(() => {});
   }, []);
+
+  const handlePhotoUpload = async (file) => {
+    if (!file) return;
+    setPhotoUploading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const ext  = file.name.split('.').pop();
+      const path = `${user.id}/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
+      if (upErr) throw upErr;
+      const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path);
+      f('photoUrl', publicUrl);
+    } catch (err) {
+      // Silently fall back — bucket may not exist; user can paste URL manually
+      console.warn('Photo upload failed:', err.message);
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
 
   const f = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -153,6 +175,48 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
           {/* ── PERSONAL ── */}
           {tab === 'personal' && (
             <div className="form-grid form-grid-2">
+              {/* Photo */}
+              <div className="form-group" style={{ gridColumn:'1/-1', display:'flex', alignItems:'center', gap:16, marginBottom:4 }}>
+                <div
+                  style={{
+                    width:64, height:64, borderRadius:'50%', flexShrink:0,
+                    background:'var(--gray-100)', border:'2px solid var(--gray-200)',
+                    overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center',
+                    cursor:'pointer',
+                  }}
+                  onClick={() => photoRef.current?.click()}
+                  title="Click to upload photo"
+                >
+                  {form.photoUrl
+                    ? <img src={form.photoUrl} alt="avatar" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                    : <User size={28} color="var(--gray-400)" />}
+                </div>
+                <div>
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm"
+                    disabled={photoUploading}
+                    onClick={() => photoRef.current?.click()}
+                  >
+                    <Upload size={13} /> {photoUploading ? 'Uploading…' : 'Upload Photo'}
+                  </button>
+                  <input
+                    ref={photoRef} type="file" accept="image/*" style={{ display:'none' }}
+                    onChange={e => { if (e.target.files[0]) handlePhotoUpload(e.target.files[0]); e.target.value = ''; }}
+                  />
+                  {form.photoUrl && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      style={{ marginLeft:6, color:'var(--danger)' }}
+                      onClick={() => f('photoUrl', '')}
+                    >Remove</button>
+                  )}
+                  <div style={{ fontSize:11, color:'var(--gray-400)', marginTop:4 }}>
+                    JPG or PNG · shown in employee profile
+                  </div>
+                </div>
+              </div>
               <div className="form-group">
                 <label>Employee No.</label>
                 <input className="form-control" value={form.empNo} onChange={e => f('empNo', e.target.value)} placeholder="e.g. 1001"/>
