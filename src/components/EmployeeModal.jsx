@@ -176,10 +176,10 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
           {tab === 'personal' && (
             <div className="form-grid form-grid-2">
               {/* Photo */}
-              <div className="form-group" style={{ gridColumn:'1/-1', display:'flex', alignItems:'center', gap:16, marginBottom:4 }}>
+              <div style={{ gridColumn:'1/-1', display:'flex', flexDirection:'column', alignItems:'center', gap:10, paddingBottom:8 }}>
                 <div
                   style={{
-                    width:64, height:64, borderRadius:'50%', flexShrink:0,
+                    width:72, height:72, borderRadius:'50%',
                     background:'var(--gray-100)', border:'2px solid var(--gray-200)',
                     overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center',
                     cursor:'pointer',
@@ -189,9 +189,9 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
                 >
                   {form.photoUrl
                     ? <img src={form.photoUrl} alt="avatar" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
-                    : <User size={28} color="var(--gray-400)" />}
+                    : <User size={30} color="var(--gray-400)" />}
                 </div>
-                <div>
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                   <button
                     type="button"
                     className="btn btn-outline btn-sm"
@@ -200,22 +200,20 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
                   >
                     <Upload size={13} /> {photoUploading ? 'Uploading…' : 'Upload Photo'}
                   </button>
-                  <input
-                    ref={photoRef} type="file" accept="image/*" style={{ display:'none' }}
-                    onChange={e => { if (e.target.files[0]) handlePhotoUpload(e.target.files[0]); e.target.value = ''; }}
-                  />
                   {form.photoUrl && (
                     <button
                       type="button"
                       className="btn btn-ghost btn-sm"
-                      style={{ marginLeft:6, color:'var(--danger)' }}
+                      style={{ color:'var(--danger)' }}
                       onClick={() => f('photoUrl', '')}
                     >Remove</button>
                   )}
-                  <div style={{ fontSize:11, color:'var(--gray-400)', marginTop:4 }}>
-                    JPG or PNG · shown in employee profile
-                  </div>
                 </div>
+                <input
+                  ref={photoRef} type="file" accept="image/*" style={{ display:'none' }}
+                  onChange={e => { if (e.target.files[0]) handlePhotoUpload(e.target.files[0]); e.target.value = ''; }}
+                />
+                <div style={{ fontSize:11, color:'var(--gray-400)' }}>JPG or PNG · shown in employee profile</div>
               </div>
               <div className="form-group">
                 <label>Employee No.</label>
