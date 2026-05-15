@@ -329,11 +329,14 @@ function EmployeeManagerInner() {
           { field: 'department',       type: 'department_change' },
           { field: 'employmentStatus', type: 'status_change' },
         ];
-        await Promise.all(
-          checks
-            .filter(c => String(old[c.field] ?? '') !== String(emp[c.field] ?? ''))
-            .map(c => addJobHistoryEntry(emp.id, c.type, old[c.field], emp[c.field]))
-        );
+        const changed = checks.filter(c => String(old[c.field] ?? '') !== String(emp[c.field] ?? ''));
+        if (changed.length > 0) {
+          try {
+            await Promise.all(changed.map(c => addJobHistoryEntry(emp.id, c.type, old[c.field], emp[c.field])));
+          } catch (histErr) {
+            console.warn('Job history not saved (table may need RLS policy):', histErr.message);
+          }
+        }
       }
 
       setEmployees(prev =>
