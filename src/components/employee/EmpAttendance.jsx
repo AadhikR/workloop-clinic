@@ -98,7 +98,19 @@ export default function EmpAttendance() {
     setClocking(true);
     const now = new Date().toISOString();
 
-    // Try server-side RPC (handles attendance computation + cross-RLS write)
+    // Optimistic update first — Clock Out button enables immediately after Clock In
+    const snapshot = todayRec;
+    setTodayRec(prev => {
+      const base = prev ?? {
+        date: todayUAE(), status: ATTENDANCE_STATUS.PRESENT,
+        lateMinutes: 0, totalHours: 0, overtimeHours: 0,
+        clockInTime: null, clockOutTime: null,
+      };
+      return eventType === 'CLOCK_IN'
+        ? { ...base, clockInTime: now, status: ATTENDANCE_STATUS.PRESENT }
+        : { ...base, clockOutTime: now };
+    });
+
     const { data: rpcData, error: rpcError } = await supabase.rpc('employee_record_clock_event', {
       p_event_type: eventType,
       p_notes: '',
@@ -106,23 +118,17 @@ export default function EmpAttendance() {
 
     if (!rpcError && rpcData?.success) {
       showToast('success', eventType === 'CLOCK_IN' ? 'Clocked in.' : 'Clocked out.');
-      await loadData();
+      await loadData(); // refresh with server-computed record
     } else {
       const rpcMsg = rpcError?.message ?? rpcData?.error ?? 'unknown';
       console.error('[Attendance] RPC failed:', rpcMsg);
 
-      // Fallback: direct insert into clock_events under employee's own auth context
       try {
         await recordClockEvent({ employeeId: profile.employeeId, eventType, method: 'WEB' });
-        setTodayRec(prev => {
-          const base = prev ?? { date: todayUAE(), status: ATTENDANCE_STATUS.PRESENT, lateMinutes: 0, totalHours: 0, overtimeHours: 0, clockInTime: null, clockOutTime: null };
-          return eventType === 'CLOCK_IN'
-            ? { ...base, clockInTime: now, status: ATTENDANCE_STATUS.PRESENT }
-            : { ...base, clockOutTime: now };
-        });
         showToast('success', eventType === 'CLOCK_IN' ? 'Clocked in.' : 'Clocked out.');
       } catch (fallbackErr) {
         console.error('[Attendance] Direct insert failed:', fallbackErr?.message);
+        setTodayRec(snapshot); // revert optimistic update
         showToast('error', `Clock failed: ${rpcMsg}`);
       }
     }
