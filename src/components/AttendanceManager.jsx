@@ -169,7 +169,7 @@ export default function AttendanceManager() {
   const [approvalModal, setApprovalModal] = useState(null);
   const [approvalReason, setApprovalReason] = useState('');
 
-  useEffect(() => { loadAll(); }, []);
+  useEffect(() => { loadAll(); }, [selectedMonth]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadAll = async () => {
     setLoading(true);

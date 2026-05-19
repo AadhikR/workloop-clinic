@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { FileText, Mail, Lock, Eye, EyeOff, AlertCircle, Building2, User, ArrowLeft, Loader } from 'lucide-react';
+import { FileText, Mail, Lock, Eye, EyeOff, AlertCircle, CheckCircle, Building2, User, ArrowLeft, Loader } from 'lucide-react';
 
 const BG_STYLE = {
   background: '#EEF2F7',
@@ -58,6 +58,15 @@ function ErrorBanner({ msg }) {
   return (
     <div className="alert alert-danger mb-4" style={{ fontSize: 13 }}>
       <AlertCircle size={15} /> {msg}
+    </div>
+  );
+}
+
+function SuccessBanner({ msg }) {
+  if (!msg) return null;
+  return (
+    <div className="alert alert-success mb-4" style={{ fontSize: 13 }}>
+      <CheckCircle size={15} /> {msg}
     </div>
   );
 }
@@ -124,7 +133,7 @@ function CreateCompanyForm({ onBack }) {
     if (password.length < 8)  { setError('Password must be at least 8 characters.'); return; }
     setLoading(true);
     try {
-      await createCompany(company.trim(), email.trim(), password);
+      await createCompany(company.trim(), email.trim().toLowerCase(), password);
     } catch (err) {
       setError(err.message || 'Something went wrong. Please try again.');
     } finally {
@@ -197,7 +206,7 @@ function AdminSignInForm({ onBack }) {
     setError('');
     setLoading(true);
     try {
-      await signInAsAdmin(email.trim(), password);
+      await signInAsAdmin(email.trim().toLowerCase(), password);
     } catch (err) {
       setError(err.message || 'Sign-in failed. Please try again.');
     } finally {
@@ -208,7 +217,7 @@ function AdminSignInForm({ onBack }) {
   const handleReset = async () => {
     if (!email) { setError('Enter your email address first.'); return; }
     try {
-      await resetPassword(email.trim());
+      await resetPassword(email.trim().toLowerCase());
       setResetSent(true);
       setError('');
     } catch (err) {
@@ -266,18 +275,20 @@ function AdminSignInForm({ onBack }) {
 // ── Employee Sign In / Sign Up ────────────────────────────────────────────────
 function EmployeeSignInForm({ onBack }) {
   const { signInAsEmployee, signUpAsEmployee } = useAuth();
-  const [mode, setMode]         = useState('signin'); // 'signin' | 'signup'
-  const [email, setEmail]       = useState('');
-  const [password, setPassword] = useState('');
-  const [confirm, setConfirm]   = useState('');
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState('');
+  const [mode, setMode]           = useState('signin'); // 'signin' | 'signup'
+  const [email, setEmail]         = useState('');
+  const [password, setPassword]   = useState('');
+  const [confirm, setConfirm]     = useState('');
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
 
-  const switchMode = (m) => { setMode(m); setError(''); setPassword(''); setConfirm(''); };
+  const switchMode = (m) => { setMode(m); setError(''); setSuccessMsg(''); setPassword(''); setConfirm(''); };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setSuccessMsg('');
     if (mode === 'signup') {
       if (password !== confirm) { setError('Passwords do not match.'); return; }
       if (password.length < 8)  { setError('Password must be at least 8 characters.'); return; }
@@ -285,9 +296,12 @@ function EmployeeSignInForm({ onBack }) {
     setLoading(true);
     try {
       if (mode === 'signin') {
-        await signInAsEmployee(email.trim(), password);
+        await signInAsEmployee(email.trim().toLowerCase(), password);
       } else {
-        await signUpAsEmployee(email.trim(), password);
+        await signUpAsEmployee(email.trim().toLowerCase(), password);
+        // Account created — switch to sign-in and show a success message
+        setSuccessMsg('Account created successfully! You can now sign in with your email and password.');
+        switchMode('signin');
       }
     } catch (err) {
       setError(err.message || 'Something went wrong. Please try again.');
@@ -310,6 +324,7 @@ function EmployeeSignInForm({ onBack }) {
         {isSignUp ? 'Create your account using your work email' : 'Access your payslips, leave & attendance'}
       </p>
 
+      <SuccessBanner msg={successMsg} />
       <ErrorBanner msg={error} />
 
       <form onSubmit={handleSubmit}>

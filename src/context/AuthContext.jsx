@@ -178,8 +178,9 @@ export function AuthProvider({ children }) {
         { onConflict: 'user_id' }
       );
 
-      setUser(u);
-      setProfile({ role: 'employee', companyUserId: linked.company_user_id, employeeId: linked.employee_id });
+      // Don't auto-login — let AuthPage show a success message and let the
+      // employee sign in manually. (The profile row is already written; sign-in
+      // will pick it up without needing to call the link RPC again.)
     } finally {
       setLoading(false);
     }

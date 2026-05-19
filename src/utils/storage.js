@@ -474,7 +474,7 @@ function employeeToDb(emp, userId) {
 
     // Personal info
     personal_email:     emp.personalEmail ?? '',
-    work_email:         emp.workEmail ?? '',
+    work_email:         (emp.workEmail ?? '').toLowerCase().trim(),
     phone:              emp.phone ?? '',
     date_of_birth:      emp.dateOfBirth || null,
     gender:             emp.gender ?? '',
