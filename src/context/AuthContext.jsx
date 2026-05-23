@@ -4,9 +4,28 @@ import { getProfile, linkEmployeeAccount } from '../utils/profileStorage';
 
 const AuthContext = createContext(null);
 
+// ── Friendly error messages ───────────────────────────────────────────────────
+// Supabase returns terse/technical strings; map them to user-readable ones.
+function mapAuthError(err) {
+  const msg = err?.message ?? String(err);
+  if (/invalid login credentials/i.test(msg))
+    return 'Incorrect email or password. Please try again.';
+  if (/email not confirmed/i.test(msg))
+    return 'Please confirm your email address before signing in. Check your inbox.';
+  if (/too many requests/i.test(msg))
+    return 'Too many attempts. Please wait a few minutes and try again.';
+  if (/user already registered/i.test(msg))
+    return 'This email is already registered. Please sign in instead.';
+  if (/password.*characters/i.test(msg))
+    return 'Password must be at least 8 characters.';
+  return msg || 'Something went wrong. Please try again.';
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser]       = useState(null);
   const [profile, setProfile] = useState(null);
+  // loading is ONLY for the initial page-load session restore.
+  // Individual auth actions use their own local loading state in the form components.
   const [loading, setLoading] = useState(true);
 
   // Prevent stale async resolutions if auth state changes quickly
@@ -26,7 +45,7 @@ export function AuthProvider({ children }) {
 
       // On page reload / token refresh: restore profile from DB.
       // SIGNED_IN is handled by the explicit sign-in functions below,
-      // which set profile directly — skip auto-read to avoid races.
+      // which call setUser/setProfile directly — skip auto-read to avoid races.
       if (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
         setUser(newUser);
         try {
@@ -43,147 +62,149 @@ export function AuthProvider({ children }) {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Create a new company (first-time admin registration) ─────────────────
+  // No global setLoading — the form component controls its own button spinner.
+  // Errors thrown here are caught by the form's try/catch and shown in the UI.
   const createCompany = async (companyName, email, password) => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.auth.signUp({ email, password });
-      if (error) throw error;
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (error) throw new Error(mapAuthError(error));
 
-      const u = data.user;
+    const u = data.user;
 
-      // Supabase returns a user with empty identities when the email is already registered
-      if (!u || (Array.isArray(u.identities) && u.identities.length === 0)) {
-        throw new Error('An account with this email already exists. Please sign in as Admin instead.');
-      }
-
-      const { error: coErr } = await supabase
-        .from('companies')
-        .insert({ user_id: u.id, name: companyName });
-      if (coErr) throw coErr;
-
-      await supabase.from('user_profiles').upsert(
-        { user_id: u.id, role: 'admin', company_user_id: u.id, employee_id: null },
-        { onConflict: 'user_id' }
+    // Supabase silently returns a user with empty identities when the email is
+    // already registered — detect this and give a clear message.
+    if (!u || (Array.isArray(u.identities) && u.identities.length === 0)) {
+      throw new Error(
+        'This email is already registered. Sign in as Admin, or use a different email to create a new company.'
       );
-
-      setUser(u);
-      setProfile({ role: 'admin', companyUserId: u.id, employeeId: null });
-    } finally {
-      setLoading(false);
     }
+
+    const { error: coErr } = await supabase
+      .from('companies')
+      .insert({ user_id: u.id, name: companyName });
+    if (coErr) throw new Error(mapAuthError(coErr));
+
+    const { error: profErr } = await supabase.from('user_profiles').upsert(
+      { user_id: u.id, role: 'admin', company_user_id: u.id, employee_id: null },
+      { onConflict: 'user_id' }
+    );
+    if (profErr) throw new Error(mapAuthError(profErr));
+
+    // React batches both of these together — App renders portal in one pass.
+    setUser(u);
+    setProfile({ role: 'admin', companyUserId: u.id, employeeId: null });
   };
 
   // ── Admin sign-in ─────────────────────────────────────────────────────────
   const signInAsAdmin = async (email, password) => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw new Error(mapAuthError(error));
 
-      const u = data.user;
+    const u = data.user;
 
-      // Verify this user owns a company (RLS: companies.user_id = auth.uid())
-      const { data: company } = await supabase
-        .from('companies').select('id').limit(1).maybeSingle();
+    // Verify this user owns a company (RLS: companies.user_id = auth.uid())
+    const { data: company } = await supabase
+      .from('companies').select('id').limit(1).maybeSingle();
 
-      if (!company) {
-        await supabase.auth.signOut();
-        throw new Error('No company account found for this email. Use "Create Company" to register, or sign in as Employee.');
-      }
-
-      // Ensure profile row is correct
-      await supabase.from('user_profiles').upsert(
-        { user_id: u.id, role: 'admin', company_user_id: u.id, employee_id: null },
-        { onConflict: 'user_id' }
+    if (!company) {
+      await supabase.auth.signOut();
+      throw new Error(
+        'No company account found for this email. Use "Create Company" to register, or try signing in as Employee if you are a staff member.'
       );
-
-      setUser(u);
-      setProfile({ role: 'admin', companyUserId: u.id, employeeId: null });
-    } finally {
-      setLoading(false);
     }
+
+    await supabase.from('user_profiles').upsert(
+      { user_id: u.id, role: 'admin', company_user_id: u.id, employee_id: null },
+      { onConflict: 'user_id' }
+    );
+
+    setUser(u);
+    setProfile({ role: 'admin', companyUserId: u.id, employeeId: null });
   };
 
   // ── Employee sign-in ──────────────────────────────────────────────────────
   const signInAsEmployee = async (email, password) => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw new Error(mapAuthError(error));
 
-      const u = data.user;
+    const u = data.user;
 
-      // If a valid employee profile already exists (from a previous sign-up), use it
-      const existingProf = await getProfile();
-      if (existingProf?.role === 'employee') {
-        setUser(u);
-        setProfile(existingProf);
-        return;
-      }
-
-      // First sign-in after admin added them — run the link RPC
-      const linked = await linkEmployeeAccount();
-      if (!linked?.success) {
-        await supabase.auth.signOut();
-        throw new Error('No employee record found for this email. Contact your HR admin to add your work email.');
-      }
-
-      // Ensure the profile row is written regardless of what the RPC did
-      await supabase.from('user_profiles').upsert(
-        {
-          user_id:         u.id,
-          role:            'employee',
-          company_user_id: linked.company_user_id,
-          employee_id:     linked.employee_id,
-        },
-        { onConflict: 'user_id' }
-      );
-
+    // If a valid employee profile already exists (idempotent re-login), use it.
+    const existingProf = await getProfile();
+    if (existingProf?.role === 'employee') {
       setUser(u);
-      setProfile({ role: 'employee', companyUserId: linked.company_user_id, employeeId: linked.employee_id });
-    } finally {
-      setLoading(false);
+      setProfile(existingProf);
+      return;
     }
+
+    // First sign-in after admin added them — run the link RPC.
+    const linked = await linkEmployeeAccount();
+    if (!linked?.success) {
+      await supabase.auth.signOut();
+      // If the user has an admin account, steer them to the right portal.
+      const { data: company } = await supabase
+        .from('companies').select('id').limit(1).maybeSingle().catch(() => ({ data: null }));
+      if (company) {
+        throw new Error(
+          'This email belongs to an Admin account. Please go back and use "Sign in as Admin" instead.'
+        );
+      }
+      throw new Error(
+        'Your work email has not been added to any company yet. Ask your HR admin to add your email to the employee list first.'
+      );
+    }
+
+    await supabase.from('user_profiles').upsert(
+      {
+        user_id:         u.id,
+        role:            'employee',
+        company_user_id: linked.company_user_id,
+        employee_id:     linked.employee_id,
+      },
+      { onConflict: 'user_id' }
+    );
+
+    setUser(u);
+    setProfile({ role: 'employee', companyUserId: linked.company_user_id, employeeId: linked.employee_id });
   };
 
   // ── Employee sign-up (first time, after admin added their work email) ──────
+  // Does NOT call setLoading or setUser/setProfile — the form component shows
+  // a success banner and switches to sign-in mode after this resolves.
   const signUpAsEmployee = async (email, password) => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.auth.signUp({ email, password });
-      if (error) throw error;
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (error) throw new Error(mapAuthError(error));
 
-      const u = data.user;
+    const u = data.user;
 
-      // Existing account — tell the user to sign in instead
-      if (!u || (Array.isArray(u.identities) && u.identities.length === 0)) {
-        throw new Error('An account with this email already exists. Please sign in as Employee instead.');
-      }
-
-      // Link the auth user to their employee record
-      const linked = await linkEmployeeAccount();
-      if (!linked?.success) {
-        await supabase.auth.signOut();
-        throw new Error('Your email has not been added to any company. Ask your HR admin to add your work email first.');
-      }
-
-      // Write (or repair) the profile row directly — don't rely solely on the RPC
-      await supabase.from('user_profiles').upsert(
-        {
-          user_id:         u.id,
-          role:            'employee',
-          company_user_id: linked.company_user_id,
-          employee_id:     linked.employee_id,
-        },
-        { onConflict: 'user_id' }
+    // Supabase silently returns a user with empty identities for existing emails.
+    if (!u || (Array.isArray(u.identities) && u.identities.length === 0)) {
+      throw new Error(
+        'This email is already registered. Switch to "Sign in" below to log in to your account.'
       );
-
-      // Don't auto-login — let AuthPage show a success message and let the
-      // employee sign in manually. (The profile row is already written; sign-in
-      // will pick it up without needing to call the link RPC again.)
-    } finally {
-      setLoading(false);
     }
+
+    // Link the auth user to their employee record.
+    const linked = await linkEmployeeAccount();
+    if (!linked?.success) {
+      await supabase.auth.signOut();
+      throw new Error(
+        'Your email has not been added to any company. Ask your HR admin to add your work email first, then try again.'
+      );
+    }
+
+    await supabase.from('user_profiles').upsert(
+      {
+        user_id:         u.id,
+        role:            'employee',
+        company_user_id: linked.company_user_id,
+        employee_id:     linked.employee_id,
+      },
+      { onConflict: 'user_id' }
+    );
+
+    // Account created and linked. Do NOT auto-login — let AuthPage show a
+    // success banner and let the employee sign in manually.
+    // (Profile row is already written; sign-in will find it without re-linking.)
   };
 
   const signOut = async () => {
@@ -195,7 +216,7 @@ export function AuthProvider({ children }) {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: window.location.origin,
     });
-    if (error) throw error;
+    if (error) throw new Error(mapAuthError(error));
   };
 
   return (

@@ -57,7 +57,7 @@ function ErrorBanner({ msg }) {
   if (!msg) return null;
   return (
     <div className="alert alert-danger mb-4" style={{ fontSize: 13 }}>
-      <AlertCircle size={15} /> {msg}
+      <AlertCircle size={15} style={{ flexShrink: 0 }} /> {msg}
     </div>
   );
 }
@@ -66,7 +66,7 @@ function SuccessBanner({ msg }) {
   if (!msg) return null;
   return (
     <div className="alert alert-success mb-4" style={{ fontSize: 13 }}>
-      <CheckCircle size={15} /> {msg}
+      <CheckCircle size={15} style={{ flexShrink: 0 }} /> {msg}
     </div>
   );
 }
@@ -117,7 +117,7 @@ function Landing({ onSelect }) {
 }
 
 // ── Create Company ───────────────────────────────────────────────────────────
-function CreateCompanyForm({ onBack }) {
+function CreateCompanyForm({ onBack, onGoAdmin }) {
   const { createCompany } = useAuth();
   const [company, setCompany]   = useState('');
   const [email, setEmail]       = useState('');
@@ -125,6 +125,8 @@ function CreateCompanyForm({ onBack }) {
   const [confirm, setConfirm]   = useState('');
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
+  // show == true while we wait for setUser/setProfile to propagate and portal to load
+  const [submitted, setSubmitted] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -134,12 +136,32 @@ function CreateCompanyForm({ onBack }) {
     setLoading(true);
     try {
       await createCompany(company.trim(), email.trim().toLowerCase(), password);
+      // createCompany called setUser/setProfile — App.jsx will render the portal
+      // on the next render cycle. Show a brief "Setting up…" state.
+      setSubmitted(true);
     } catch (err) {
       setError(err.message || 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
   };
+
+  if (submitted) {
+    return (
+      <Card>
+        <div style={{ textAlign: 'center', padding: '20px 0' }}>
+          <div style={{
+            width: 48, height: 48,
+            border: '3px solid rgba(37,99,235,0.18)',
+            borderTopColor: '#2563EB', borderRadius: '50%',
+            animation: 'spin 0.8s linear infinite',
+            margin: '0 auto 20px',
+          }} />
+          <p style={{ fontSize: 14, color: 'var(--gray-600)', fontWeight: 500 }}>Setting up your company…</p>
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <Card>
@@ -150,6 +172,16 @@ function CreateCompanyForm({ onBack }) {
       <p style={{ fontSize: 13, color: 'var(--gray-500)', marginBottom: 24 }}>Set up your company and admin access</p>
 
       <ErrorBanner msg={error} />
+
+      {/* Quick link when they already have an account */}
+      {/already registered/i.test(error) && (
+        <div style={{ textAlign: 'center', marginTop: -8, marginBottom: 16, fontSize: 13 }}>
+          <button type="button" onClick={onGoAdmin}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', fontWeight: 600, textDecoration: 'underline' }}>
+            Go to Admin Sign In →
+          </button>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit}>
         <div className="form-group" style={{ marginBottom: 16 }}>
@@ -195,11 +227,13 @@ function CreateCompanyForm({ onBack }) {
 // ── Admin Sign In ─────────────────────────────────────────────────────────────
 function AdminSignInForm({ onBack }) {
   const { signInAsAdmin, resetPassword } = useAuth();
-  const [email, setEmail]       = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState('');
+  const [email, setEmail]         = useState('');
+  const [password, setPassword]   = useState('');
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState('');
   const [resetSent, setResetSent] = useState(false);
+  // show brief "signing in…" card after successful auth while portal loads
+  const [submitted, setSubmitted] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -207,6 +241,7 @@ function AdminSignInForm({ onBack }) {
     setLoading(true);
     try {
       await signInAsAdmin(email.trim().toLowerCase(), password);
+      setSubmitted(true);
     } catch (err) {
       setError(err.message || 'Sign-in failed. Please try again.');
     } finally {
@@ -216,14 +251,31 @@ function AdminSignInForm({ onBack }) {
 
   const handleReset = async () => {
     if (!email) { setError('Enter your email address first.'); return; }
+    setError('');
     try {
       await resetPassword(email.trim().toLowerCase());
       setResetSent(true);
-      setError('');
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Failed to send reset email. Try again.');
     }
   };
+
+  if (submitted) {
+    return (
+      <Card>
+        <div style={{ textAlign: 'center', padding: '20px 0' }}>
+          <div style={{
+            width: 48, height: 48,
+            border: '3px solid rgba(37,99,235,0.18)',
+            borderTopColor: '#2563EB', borderRadius: '50%',
+            animation: 'spin 0.8s linear infinite',
+            margin: '0 auto 20px',
+          }} />
+          <p style={{ fontSize: 14, color: 'var(--gray-600)', fontWeight: 500 }}>Signing in…</p>
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <Card>
@@ -234,11 +286,7 @@ function AdminSignInForm({ onBack }) {
       <p style={{ fontSize: 13, color: 'var(--gray-500)', marginBottom: 24 }}>Sign in to manage your company</p>
 
       <ErrorBanner msg={error} />
-      {resetSent && (
-        <div className="alert alert-success mb-4" style={{ fontSize: 13 }}>
-          Password reset email sent — check your inbox.
-        </div>
-      )}
+      {resetSent && <SuccessBanner msg="Password reset email sent — check your inbox." />}
 
       <form onSubmit={handleSubmit}>
         <div className="form-group" style={{ marginBottom: 16 }}>
@@ -275,15 +323,23 @@ function AdminSignInForm({ onBack }) {
 // ── Employee Sign In / Sign Up ────────────────────────────────────────────────
 function EmployeeSignInForm({ onBack }) {
   const { signInAsEmployee, signUpAsEmployee } = useAuth();
-  const [mode, setMode]           = useState('signin'); // 'signin' | 'signup'
-  const [email, setEmail]         = useState('');
-  const [password, setPassword]   = useState('');
-  const [confirm, setConfirm]     = useState('');
-  const [loading, setLoading]     = useState(false);
-  const [error, setError]         = useState('');
+  const [mode, setMode]             = useState('signin'); // 'signin' | 'signup'
+  const [email, setEmail]           = useState('');
+  const [password, setPassword]     = useState('');
+  const [confirm, setConfirm]       = useState('');
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  // show brief "signing in…" card after successful sign-in while portal loads
+  const [submitted, setSubmitted]   = useState(false);
 
-  const switchMode = (m) => { setMode(m); setError(''); setSuccessMsg(''); setPassword(''); setConfirm(''); };
+  const switchMode = (m) => {
+    setMode(m);
+    setError('');
+    setSuccessMsg('');
+    setPassword('');
+    setConfirm('');
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -297,10 +353,11 @@ function EmployeeSignInForm({ onBack }) {
     try {
       if (mode === 'signin') {
         await signInAsEmployee(email.trim().toLowerCase(), password);
+        setSubmitted(true); // portal will load shortly
       } else {
         await signUpAsEmployee(email.trim().toLowerCase(), password);
-        // Account created — switch to sign-in and show a success message
-        setSuccessMsg('Account created successfully! You can now sign in with your email and password.');
+        // Account created but NOT auto-logged-in. Switch to sign-in and tell the user.
+        setSuccessMsg('Account created! Sign in below with your email and password.');
         switchMode('signin');
       }
     } catch (err) {
@@ -311,6 +368,23 @@ function EmployeeSignInForm({ onBack }) {
   };
 
   const isSignUp = mode === 'signup';
+
+  if (submitted) {
+    return (
+      <Card>
+        <div style={{ textAlign: 'center', padding: '20px 0' }}>
+          <div style={{
+            width: 48, height: 48,
+            border: '3px solid rgba(37,99,235,0.18)',
+            borderTopColor: '#2563EB', borderRadius: '50%',
+            animation: 'spin 0.8s linear infinite',
+            margin: '0 auto 20px',
+          }} />
+          <p style={{ fontSize: 14, color: 'var(--gray-600)', fontWeight: 500 }}>Signing in…</p>
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <Card>
@@ -326,6 +400,16 @@ function EmployeeSignInForm({ onBack }) {
 
       <SuccessBanner msg={successMsg} />
       <ErrorBanner msg={error} />
+
+      {/* If they get a "already registered" error during signup, offer a quick switch */}
+      {isSignUp && /already registered/i.test(error) && (
+        <div style={{ textAlign: 'center', marginTop: -8, marginBottom: 16, fontSize: 13 }}>
+          <button type="button" onClick={() => switchMode('signin')}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', fontWeight: 600, textDecoration: 'underline' }}>
+            Switch to Sign In →
+          </button>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit}>
         <div className="form-group" style={{ marginBottom: 16 }}>
@@ -394,10 +478,14 @@ export default function AuthPage() {
 
   const renderView = () => {
     switch (view) {
-      case 'create':   return <CreateCompanyForm   onBack={() => setView('landing')} />;
-      case 'admin':    return <AdminSignInForm      onBack={() => setView('landing')} />;
-      case 'employee': return <EmployeeSignInForm   onBack={() => setView('landing')} />;
-      default:         return <Landing onSelect={setView} />;
+      case 'create':
+        return <CreateCompanyForm onBack={() => setView('landing')} onGoAdmin={() => setView('admin')} />;
+      case 'admin':
+        return <AdminSignInForm onBack={() => setView('landing')} />;
+      case 'employee':
+        return <EmployeeSignInForm onBack={() => setView('landing')} />;
+      default:
+        return <Landing onSelect={setView} />;
     }
   };
 
@@ -430,8 +518,8 @@ export default function AuthPage() {
 
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .alert-success { background: rgba(22,163,74,0.09); border: 1px solid rgba(22,163,74,0.18); color: #15803D; border-radius: 10px; padding: 10px 14px; display: flex; align-items: flex-start; gap: 8px; backdrop-filter: blur(12px); }
-        .alert-danger  { background: rgba(220,38,38,0.09); border: 1px solid rgba(220,38,38,0.18); color: #991B1B; border-radius: 10px; padding: 10px 14px; display: flex; align-items: flex-start; gap: 8px; backdrop-filter: blur(12px); }
+        .alert-success { background: rgba(22,163,74,0.09); border: 1px solid rgba(22,163,74,0.18); color: #15803D; border-radius: 10px; padding: 10px 14px; display: flex; align-items: flex-start; gap: 8px; }
+        .alert-danger  { background: rgba(220,38,38,0.09); border: 1px solid rgba(220,38,38,0.18); color: #991B1B; border-radius: 10px; padding: 10px 14px; display: flex; align-items: flex-start; gap: 8px; }
         .mb-4 { margin-bottom: 16px; }
       `}</style>
     </div>

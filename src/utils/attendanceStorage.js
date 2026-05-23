@@ -23,9 +23,12 @@ import {
 // ── ATTENDANCE SETTINGS ───────────────────────────────────────────────────────
 
 export async function getAttendanceSettings() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
   const { data, error } = await supabase
     .from('attendance_settings')
     .select('*')
+    .eq('user_id', user.id)
     .limit(1)
     .maybeSingle();
   if (error) { console.error('getAttendanceSettings:', error); return null; }
@@ -87,9 +90,12 @@ function dbToAttendanceSettings(row) {
 // ── SHIFTS ────────────────────────────────────────────────────────────────────
 
 export async function getShifts() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
   const { data, error } = await supabase
     .from('shifts')
     .select('*')
+    .eq('user_id', user.id)
     .eq('is_active', true)
     .order('name');
   if (error) { console.error('getShifts:', error); return []; }
@@ -401,9 +407,12 @@ export async function computeAndSaveAttendance({
 // ── ATTENDANCE PERIODS ────────────────────────────────────────────────────────
 
 export async function getAttendancePeriod(period) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
   const { data, error } = await supabase
     .from('attendance_periods')
     .select('*')
+    .eq('user_id', user.id)
     .eq('period', period)
     .maybeSingle();
   if (error) { console.error('getAttendancePeriod:', error); return null; }
@@ -411,9 +420,12 @@ export async function getAttendancePeriod(period) {
 }
 
 export async function getAttendancePeriods() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
   const { data, error } = await supabase
     .from('attendance_periods')
     .select('*')
+    .eq('user_id', user.id)
     .order('period', { ascending: false });
   if (error) { console.error('getAttendancePeriods:', error); return []; }
   return (data || []).map(row => ({ id: row.id, period: row.period, status: row.status, closedAt: row.closed_at, closedBy: row.closed_by, payrollReady: row.payroll_ready, openItems: row.open_items }));
@@ -443,7 +455,9 @@ export async function closeAttendancePeriod(period, closedBy) {
 // ── REGULARISATION REQUESTS ───────────────────────────────────────────────────
 
 export async function getRegularisationRequests(filters = {}) {
-  let query = supabase.from('regularisation_requests').select('*').order('submitted_at', { ascending: false });
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+  let query = supabase.from('regularisation_requests').select('*').eq('user_id', user.id).order('submitted_at', { ascending: false });
   if (filters.employeeId) query = query.eq('employee_id', filters.employeeId);
   if (filters.status)     query = query.eq('status', filters.status);
   const { data, error } = await query;
