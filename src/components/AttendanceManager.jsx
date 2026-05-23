@@ -8,7 +8,7 @@
  *   - Leave Management: reads approved leaves, public holidays, Ramadan period
  *   - Payroll: provides absence deductions, overtime earnings, period close signal
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Clock, Users, AlertCircle, BarChart2, Settings, CheckCircle,
   Plus, X, Check, Download, ChevronLeft, ChevronRight, Save,
@@ -169,9 +169,7 @@ export default function AttendanceManager() {
   const [approvalModal, setApprovalModal] = useState(null);
   const [approvalReason, setApprovalReason] = useState('');
 
-  useEffect(() => { loadAll(); }, [selectedMonth]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const loadAll = async () => {
+  const loadAll = useCallback(async () => {
     setLoading(true);
     try {
       const [emps, sh, sett, leaveSett, leaves, hols, recs, pers, regs] = await Promise.all([
@@ -209,7 +207,17 @@ export default function AttendanceManager() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedMonth]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Initial load + reload when month changes
+  useEffect(() => { loadAll(); }, [loadAll]);
+
+  // Auto-refresh every 30 s so employee clock-ins appear without manual reload
+  const pollRef = useRef(null);
+  useEffect(() => {
+    pollRef.current = setInterval(() => { loadAll(); }, 30000);
+    return () => clearInterval(pollRef.current);
+  }, [loadAll]);
 
   const showMsg = (type, text) => {
     setMsg({ type, text });
@@ -427,6 +435,9 @@ export default function AttendanceManager() {
               return <option key={val} value={val}>{d.toLocaleString('en-AE', { month:'long', year:'numeric' })}</option>;
             })}
           </select>
+          <button className="btn btn-outline btn-sm" onClick={loadAll} disabled={loading} title="Refresh">
+            <RefreshCw size={14}/> Refresh
+          </button>
           {!periodClosed ? (
             <button className="btn btn-outline btn-sm" onClick={handleClosePeriod} disabled={saving}>
               <Lock size={14}/> Close Period
