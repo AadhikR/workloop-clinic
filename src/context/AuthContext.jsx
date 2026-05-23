@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { getProfile, linkEmployeeAccount } from '../utils/profileStorage';
+import { getProfile, createAdminProfile, linkEmployeeAccount } from '../utils/profileStorage';
 
 const AuthContext = createContext(null);
 
@@ -49,8 +49,37 @@ export function AuthProvider({ children }) {
       if (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
         setUser(newUser);
         try {
-          const prof = await getProfile();
-          if (resolvingFor.current === newUser.id) setProfile(prof);
+          let prof = await getProfile();
+
+          // If no profile row exists (e.g., missing RLS SELECT policy caused the
+          // upsert to succeed but the read to fail, or the row was never written),
+          // attempt to auto-recover before giving up.
+          if (!prof) {
+            // Is this user an admin? Check companies table (uses its own RLS policy).
+            const { data: company } = await supabase
+              .from('companies').select('id').limit(1).maybeSingle();
+            if (company) {
+              // Admin whose profile row is missing — re-create it.
+              prof = await createAdminProfile(newUser);
+            } else {
+              // Try employee link as a last resort.
+              const linked = await linkEmployeeAccount().catch(() => null);
+              if (linked?.success) {
+                await supabase.from('user_profiles').upsert(
+                  {
+                    user_id:         newUser.id,
+                    role:            'employee',
+                    company_user_id: linked.company_user_id,
+                    employee_id:     linked.employee_id,
+                  },
+                  { onConflict: 'user_id' }
+                );
+                prof = { role: 'employee', companyUserId: linked.company_user_id, employeeId: linked.employee_id };
+              }
+            }
+          }
+
+          if (resolvingFor.current === newUser.id) setProfile(prof ?? null);
         } catch {
           if (resolvingFor.current === newUser.id) setProfile(null);
         }

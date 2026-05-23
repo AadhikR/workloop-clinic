@@ -163,57 +163,66 @@ function AppShell() {
   );
 }
 
+// ─── Shared spinner / error screens ──────────────────────────────────────────
+const PAGE_BG = {
+  minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+  background: '#F8FAFC',
+  backgroundImage: 'radial-gradient(ellipse 70% 55% at 20% 40%, rgba(37,99,235,0.07) 0%, transparent 65%), radial-gradient(ellipse 60% 45% at 80% 20%, rgba(6,182,212,0.05) 0%, transparent 65%)',
+};
+const SPIN_CSS = `@keyframes spin { to { transform: rotate(360deg); } }`;
+
+function Spinner({ label = 'Loading…' }) {
+  return (
+    <div style={PAGE_BG}>
+      <div style={{ textAlign: 'center', color: '#64748B' }}>
+        <div style={{ width: 40, height: 40, border: '3px solid rgba(37,99,235,0.18)', borderTopColor: '#2563EB', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px' }} />
+        <p style={{ fontSize: 14 }}>{label}</p>
+      </div>
+      <style>{SPIN_CSS}</style>
+    </div>
+  );
+}
+
 // ─── Root: resolves role then renders the correct shell ──────────────────────
 function Root() {
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, signOut } = useAuth();
+  // If profile is still null 8 s after loading finished, let the user escape.
+  const [profileTimeout, setProfileTimeout] = useState(false);
 
-  if (loading) {
-    return (
-      <div style={{
-        minHeight: '100vh', display: 'flex',
-        alignItems: 'center', justifyContent: 'center',
-        background: '#F8FAFC',
-        backgroundImage: 'radial-gradient(ellipse 70% 55% at 20% 40%, rgba(37,99,235,0.07) 0%, transparent 65%), radial-gradient(ellipse 60% 45% at 80% 20%, rgba(6,182,212,0.05) 0%, transparent 65%)',
-      }}>
-        <div style={{ textAlign: 'center', color: '#64748B' }}>
-          <div style={{
-            width: 40, height: 40,
-            border: '3px solid rgba(37,99,235,0.18)',
-            borderTopColor: '#2563EB', borderRadius: '50%',
-            animation: 'spin 0.8s linear infinite',
-            margin: '0 auto 16px',
-          }} />
-          <p style={{ fontSize: 14 }}>Loading…</p>
-        </div>
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      </div>
-    );
-  }
+  useEffect(() => {
+    if (!loading && user && !profile) {
+      const t = setTimeout(() => setProfileTimeout(true), 8000);
+      return () => clearTimeout(t);
+    }
+    setProfileTimeout(false);
+  }, [loading, user, profile]);
 
-  if (!user) return <AuthPage />;
+  if (loading) return <Spinner label="Loading…" />;
+  if (!user)   return <AuthPage />;
 
-  // profile is null briefly while resolveProfile() runs after sign-in
+  // Profile is being resolved (INITIAL_SESSION handler is running).
+  // Show a spinner for up to 8 s, then offer a sign-out escape hatch.
   if (!profile) {
-    return (
-      <div style={{
-        minHeight: '100vh', display: 'flex',
-        alignItems: 'center', justifyContent: 'center',
-        background: '#F8FAFC',
-        backgroundImage: 'radial-gradient(ellipse 70% 55% at 20% 40%, rgba(37,99,235,0.07) 0%, transparent 65%), radial-gradient(ellipse 60% 45% at 80% 20%, rgba(6,182,212,0.05) 0%, transparent 65%)',
-      }}>
-        <div style={{ textAlign: 'center', color: '#64748B' }}>
-          <div style={{
-            width: 40, height: 40,
-            border: '3px solid rgba(37,99,235,0.18)',
-            borderTopColor: '#2563EB', borderRadius: '50%',
-            animation: 'spin 0.8s linear infinite',
-            margin: '0 auto 16px',
-          }} />
-          <p style={{ fontSize: 14 }}>Setting up your account…</p>
+    if (profileTimeout) {
+      return (
+        <div style={PAGE_BG}>
+          <div style={{ textAlign: 'center', color: '#64748B', maxWidth: 320 }}>
+            <p style={{ fontSize: 15, fontWeight: 600, color: '#1e293b', marginBottom: 8 }}>Could not load your account</p>
+            <p style={{ fontSize: 13, marginBottom: 20 }}>
+              Your session exists but your profile could not be read. This is usually a database permissions issue — ask your admin to check the Supabase RLS policies.
+            </p>
+            <button
+              onClick={() => signOut().catch(() => {})}
+              style={{ background: '#2563EB', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 24px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+            >
+              Sign out and try again
+            </button>
+          </div>
+          <style>{SPIN_CSS}</style>
         </div>
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      </div>
-    );
+      );
+    }
+    return <Spinner label="Setting up your account…" />;
   }
 
   return profile.role === 'employee' ? <EmployeeShell /> : <AppShell />;
