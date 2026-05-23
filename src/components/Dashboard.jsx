@@ -25,20 +25,20 @@ export default function Dashboard({ onNavigate }) {
     .sort((a, b) => b.period.localeCompare(a.period))
     .slice(0, 5);
 
+  const getMonthName = (month) =>
+    ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month - 1];
+
   const trendRuns = [...generatedRuns]
     .sort((a, b) => a.period.localeCompare(b.period))
     .slice(-6)
     .map(p => {
-      const active = p.entries.filter(e => !e.excluded);
+      const active = (p.entries ?? []).filter(e => !e.excluded);
       const total = active.reduce((s, e) =>
         s + (parseFloat(e.basicSalary) || 0) + (parseFloat(e.variableAllowance) || 0), 0);
       const [y, m] = p.period.split('-').map(Number);
       return { period: p.period, label: `${getMonthName(m)} ${y}`, total, count: active.length };
     });
   const trendMax = Math.max(...trendRuns.map(r => r.total), 1);
-
-  const getMonthName = (month) =>
-    ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month - 1];
 
   // ── WPS 30-day deadline tracker (UAE Labour Law Article 56) ─────────────────
   const today = new Date();
