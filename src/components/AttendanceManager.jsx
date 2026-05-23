@@ -145,6 +145,7 @@ export default function AttendanceManager() {
   const { user } = useAuth();
   const [tab, setTab]               = useState('dashboard');
   const [loading, setLoading]       = useState(true);
+  const initialLoadDone = useRef(false);
   const [employees, setEmployees]   = useState([]);
   const [shifts, setShifts]         = useState([]);
   const [settings, setSettings]     = useState(null);
@@ -169,8 +170,8 @@ export default function AttendanceManager() {
   const [approvalModal, setApprovalModal] = useState(null);
   const [approvalReason, setApprovalReason] = useState('');
 
-  const loadAll = useCallback(async () => {
-    setLoading(true);
+  const loadAll = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [emps, sh, sett, leaveSett, leaves, hols, recs, pers, regs] = await Promise.all([
         getEmployees(),
@@ -206,16 +207,17 @@ export default function AttendanceManager() {
       console.error('AttendanceManager loadAll:', err);
     } finally {
       setLoading(false);
+      initialLoadDone.current = true;
     }
   }, [selectedMonth]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Initial load + reload when month changes
-  useEffect(() => { loadAll(); }, [loadAll]);
+  // Initial load + reload when month changes (full loading screen)
+  useEffect(() => { initialLoadDone.current = false; loadAll(); }, [loadAll]);
 
-  // Auto-refresh every 30 s so employee clock-ins appear without manual reload
+  // Auto-refresh every 30 s — silent (no loading flash) so the page stays usable
   const pollRef = useRef(null);
   useEffect(() => {
-    pollRef.current = setInterval(() => { loadAll(); }, 30000);
+    pollRef.current = setInterval(() => { loadAll(true); }, 30000);
     return () => clearInterval(pollRef.current);
   }, [loadAll]);
 

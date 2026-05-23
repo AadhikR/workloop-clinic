@@ -255,14 +255,23 @@ function dbToClockEvent(row) {
 export async function getAttendanceRecords(filters = {}) {
   let query = supabase.from('attendance_records').select('*').order('date', { ascending: false });
 
-  // When filtering by employeeId (employee self-service path) we rely solely on
-  // the employee SELECT RLS policy. When there is no employeeId filter (admin
-  // path) we also add an explicit user_id constraint as defense-in-depth.
   if (filters.employeeId) {
+    // Employee self-service: filter by employee ID (uses employee SELECT RLS policy)
     query = query.eq('employee_id', filters.employeeId);
   } else {
+    // Admin path: scope to this admin's employees by employee_id.
+    // This is more robust than filtering by user_id because the RPC writes records
+    // with user_id = admin's uuid from the employees table, but if the fallback
+    // direct-insert path runs it may use a different user_id.
     const { data: authData } = await supabase.auth.getUser();
-    if (authData?.user) query = query.eq('user_id', authData.user.id);
+    if (!authData?.user) return [];
+    const { data: empsData } = await supabase
+      .from('employees')
+      .select('id')
+      .eq('user_id', authData.user.id);
+    const empIds = (empsData || []).map(e => e.id);
+    if (empIds.length === 0) return [];
+    query = query.in('employee_id', empIds);
   }
 
   if (filters.dateFrom)   query = query.gte('date', filters.dateFrom);
