@@ -38,12 +38,14 @@ VITE_SUPABASE_ANON_KEY=...
 
 ### Auth flow
 
-`AuthContext.jsx` manages four auth actions:
+`AuthContext.jsx` manages four auth actions. All email inputs are normalised to lowercase before being passed to any auth function.
 
 - **`createCompany`** — Admin sign-up; detects existing accounts via `identities.length === 0` (Supabase silently returns the existing user on duplicate sign-up).
 - **`signInAsAdmin`** — Verifies a `companies` row exists (via RLS); writes `user_profiles`.
-- **`signUpAsEmployee`** — Employee first-time registration; calls `link_employee_account()` RPC to match `auth.email()` → `employees.work_email`, then upserts `user_profiles`.
+- **`signUpAsEmployee`** — Employee first-time registration; calls `link_employee_account()` RPC to match `LOWER(auth.email())` → `LOWER(employees.work_email)`, upserts `user_profiles`, then **returns without auto-logging in**. `AuthPage` shows a success banner and switches to the sign-in form; the employee signs in manually next.
 - **`signInAsEmployee`** — Checks for existing `user_profiles` row first (idempotent re-login); falls back to `link_employee_account()` only on first login.
+
+**Email case normalisation**: `AuthPage.jsx` calls `.toLowerCase()` on every email before any auth call. `employeeToDb` in `storage.js` also lowercases `work_email` on save. The `link_employee_account` RPC compares with `LOWER()` on both sides. New employee records entered by the admin are stored lowercase automatically.
 
 ### Data layer
 
@@ -63,18 +65,26 @@ All DB access goes through utility modules — components never call `supabase` 
 ### Supabase schema (key tables)
 
 - `companies` — one row per admin user (`user_id = auth.uid()`)
-- `employees` — all employees for a company; `auth_user_id` set when employee links their account; `user_id` = the admin's UUID
+- `employees` — all employees for a company; `auth_user_id` set when employee links their account; `user_id` = the admin's UUID; `work_email` is always stored lowercase
 - `user_profiles` — `role` ('admin'|'employee'), `company_user_id`, `employee_id`; RLS restricts each user to their own row
 - `payroll_runs` + `payroll_entries` — payroll run header + one row per employee
 - `payslips` — snapshot of each employee's pay per period; created when admin downloads SIF (`createPayslipRecords`)
 - `leave_types`, `leave_requests`, `leave_balances`, `public_holidays`
 - `clock_events` — raw clock-in/out events; `user_id` = admin's UUID (even for self-service entries via RPC)
 - `attendance_records` — derived daily record; unique on `(user_id, employee_id, date)`
+- `attendance_periods` — one row per `(user_id, period YYYY-MM)`; closed by admin before payroll run
 - `employee_job_history` — audit log of salary/title/department/status changes; written on every employee save
 
 ### RLS model
 
-**Admin tables** (`companies`, `employees`, `payroll_*`, `payslips`, `leave_*`, `clock_events`, `attendance_records`, `employee_job_history`) are scoped `user_id = auth.uid()` for admin reads/writes.
+**Admin tables** (`companies`, `employees`, `payroll_*`, `payslips`, `leave_*`, `clock_events`, `attendance_records`, `attendance_periods`, `employee_job_history`) require:
+
+| Operation | Policy |
+|-----------|--------|
+| Admin SELECT/INSERT/UPDATE | `user_id = auth.uid()` |
+| Admin UPDATE on `attendance_records` | separate UPDATE policy with same condition |
+| Admin ALL on `attendance_periods` | separate ALL policy with same condition |
+| Admin INSERT on `employee_job_history` | INSERT WITH CHECK `user_id = auth.uid()` |
 
 **Employee self-service** crosses the RLS boundary via `SECURITY DEFINER` RPCs and dedicated SELECT policies:
 
@@ -85,7 +95,6 @@ All DB access goes through utility modules — components never call `supabase` 
 | `leave_requests`, `leave_balances` | `employee_id` matched via linked employee |
 | `clock_events` | `employee_id IN (SELECT id FROM employees WHERE auth_user_id = auth.uid())` |
 | `attendance_records` | same pattern as clock_events |
-| `employee_job_history` | INSERT `WITH CHECK (user_id = auth.uid())` |
 
 ### Employee self-service RPCs (SECURITY DEFINER)
 
@@ -93,7 +102,7 @@ These must exist in Supabase. All look up the caller's employee via `employees.a
 
 | RPC | What it does |
 |-----|-------------|
-| `link_employee_account()` | Links employee email → auth user on first login |
+| `link_employee_account()` | Links employee email → auth user; compares `LOWER(work_email) = LOWER(auth.email())` |
 | `employee_submit_leave_request(...)` | Validates + inserts leave request |
 | `employee_cancel_leave_request(p_request_id)` | Cancels a pending request |
 | `employee_record_clock_event(p_event_type, p_notes)` | Inserts clock event with admin's `user_id`; upserts `attendance_records` with computed hours |
@@ -111,7 +120,11 @@ All RPCs require `GRANT EXECUTE ON FUNCTION <name> TO authenticated`.
 
 **Leave balance fallback**: `EmpLeave` and `EmpHome` compute balances locally when the DB `leave_balances` table is empty (admin never opened the Leave module). Falls back first to DB leave types, then to `DEFAULT_LEAVE_TYPES` from `leaveEngine.js`. `calculateAnnualLeaveAccrual` from `leaveEngine.js` computes accrued days from hire date.
 
-**Attendance clock optimistic update**: `EmpAttendance.clock()` applies a local state update *before* awaiting the RPC, so the Clock Out button enables immediately after Clock In. State is reverted only if both the RPC and the direct-insert fallback fail.
+**Attendance clock optimistic update**: `EmpAttendance.clock()` applies a local state update *before* awaiting the RPC, so the Clock Out button enables immediately after Clock In. State is reverted only if both the RPC and the direct-insert fallback fail. `EmpAttendance.loadData` falls back to querying `clock_events` directly when `attendance_records` is empty (employee's records may not be visible under the admin SELECT policy).
+
+**Attendance month reload**: `AttendanceManager` has `useEffect(() => { loadAll(); }, [selectedMonth])` — records reload automatically whenever the month picker changes. This means employee clock-ins appear without a manual page refresh.
+
+**Photo upload removed**: `EmployeeModal` has no photo upload UI. The `photoUrl` field is preserved in the DB shape (`employeeToDb` still maps it) so existing data is not lost, but the UI to change it has been removed.
 
 ### Business logic utilities
 
