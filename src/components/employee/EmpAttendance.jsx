@@ -56,36 +56,74 @@ export default function EmpAttendance() {
       getAttendanceRecords({ employeeId: profile.employeeId, dateFrom: from, dateTo: today }),
     ]);
 
-    if (todayRecs.length > 0 || histRecs.length > 0) {
-      setTodayRec(todayRecs[0] ?? null);
-      setHistory(histRecs.filter(r => r.date !== today));
+    // ── Today's record — independent fallback ─────────────────────────────────
+    // IMPORTANT: handled separately so a missing today-record never overwrites
+    // the optimistic clock-in state when the employee has past history records.
+    if (todayRecs.length > 0) {
+      setTodayRec(todayRecs[0]);
     } else {
-      // Fallback: derive records from clock_events (employee's own entries)
-      const { data: evts } = await supabase
+      // Fallback: build today's status from raw clock_events for today only
+      const { data: todayEvts } = await supabase
+        .from('clock_events')
+        .select('*')
+        .eq('employee_id', profile.employeeId)
+        .gte('event_time', `${today}T00:00:00+04:00`)
+        .lte('event_time', `${today}T23:59:59+04:00`)
+        .order('event_time', { ascending: true });
+
+      if (todayEvts?.length) {
+        const clockIn  = todayEvts.find(e => e.event_type === 'CLOCK_IN')?.event_time ?? null;
+        const clockOut = [...todayEvts].reverse().find(e => e.event_type === 'CLOCK_OUT')?.event_time ?? null;
+        setTodayRec({
+          date: today,
+          clockInTime:  clockIn,
+          clockOutTime: clockOut,
+          totalHours: clockIn && clockOut
+            ? Math.round((new Date(clockOut) - new Date(clockIn)) / 360000) / 10
+            : 0,
+          status:       ATTENDANCE_STATUS.PRESENT,
+          lateMinutes:  0,
+          overtimeHours: 0,
+        });
+      } else {
+        setTodayRec(null);
+      }
+    }
+
+    // ── History (past days only) — independent fallback ───────────────────────
+    const pastRecs = histRecs.filter(r => r.date !== today);
+    if (pastRecs.length > 0) {
+      setHistory(pastRecs);
+    } else {
+      // Fallback: build history from raw clock_events for past days
+      const { data: histEvts } = await supabase
         .from('clock_events')
         .select('*')
         .eq('employee_id', profile.employeeId)
         .gte('event_time', `${from}T00:00:00+04:00`)
+        .lt('event_time',  `${today}T00:00:00+04:00`)
         .order('event_time', { ascending: true });
 
-      if (evts?.length) {
+      if (histEvts?.length) {
         const byDate = {};
-        for (const ev of evts) {
+        for (const ev of histEvts) {
           const d = new Date(ev.event_time).toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' });
           if (!byDate[d]) byDate[d] = { date: d, clockInTime: null, clockOutTime: null, lateMinutes: 0, overtimeHours: 0, status: ATTENDANCE_STATUS.PRESENT };
           if (ev.event_type === 'CLOCK_IN' && !byDate[d].clockInTime) byDate[d].clockInTime = ev.event_time;
           if (ev.event_type === 'CLOCK_OUT') byDate[d].clockOutTime = ev.event_time;
         }
-        const allRecs = Object.values(byDate)
-          .sort((a, b) => b.date.localeCompare(a.date))
-          .map(r => ({
-            ...r,
-            totalHours: r.clockInTime && r.clockOutTime
-              ? (new Date(r.clockOutTime) - new Date(r.clockInTime)) / 3600000
-              : 0,
-          }));
-        setTodayRec(allRecs.find(r => r.date === today) ?? null);
-        setHistory(allRecs.filter(r => r.date !== today));
+        setHistory(
+          Object.values(byDate)
+            .sort((a, b) => b.date.localeCompare(a.date))
+            .map(r => ({
+              ...r,
+              totalHours: r.clockInTime && r.clockOutTime
+                ? (new Date(r.clockOutTime) - new Date(r.clockInTime)) / 3600000
+                : 0,
+            }))
+        );
+      } else {
+        setHistory([]);
       }
     }
 
