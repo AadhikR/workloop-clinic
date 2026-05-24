@@ -36,6 +36,8 @@ VITE_SUPABASE_ANON_KEY=...
 
 `App.jsx` renders either `AppShell` or `EmployeeShell` based on `profile.role` from `AuthContext`. Both shells use a fixed floating sidebar island (solid `#08122e`, `border-radius: 22px`, `top/left/bottom: var(--sidebar-gap)`) with an animated sliding pill for the active nav item driven by `useLayoutEffect` + `getBoundingClientRect`.
 
+`App.jsx` `Root` component: if `loading=false`, `user` exists, but `profile` is still null after 8 seconds, shows an error screen with a "Sign out and try again" button instead of spinning forever.
+
 ### Auth flow
 
 `AuthContext.jsx` manages four auth actions. All email inputs are normalised to lowercase before being passed to any auth function.
@@ -45,7 +47,11 @@ VITE_SUPABASE_ANON_KEY=...
 - **`signUpAsEmployee`** — Employee first-time registration; calls `link_employee_account()` RPC to match `LOWER(auth.email())` → `LOWER(employees.work_email)`, upserts `user_profiles`, then **returns without auto-logging in**. `AuthPage` shows a success banner and switches to the sign-in form; the employee signs in manually next.
 - **`signInAsEmployee`** — Checks for existing `user_profiles` row first (idempotent re-login); falls back to `link_employee_account()` only on first login.
 
-**Email case normalisation**: `AuthPage.jsx` calls `.toLowerCase()` on every email before any auth call. `employeeToDb` in `storage.js` also lowercases `work_email` on save. The `link_employee_account` RPC compares with `LOWER()` on both sides. New employee records entered by the admin are stored lowercase automatically.
+**Critical**: `setLoading` is ONLY called inside the `INITIAL_SESSION` / `TOKEN_REFRESHED` handler in `AuthContext`. Auth action functions (`signInAsAdmin`, `signInAsEmployee`, etc.) must never call `setLoading(true)` — doing so unmounts `AuthPage` (React re-renders `Root` to show a global spinner), destroying all local component state including error/success banners.
+
+**Profile recovery on INITIAL_SESSION**: If `getProfile()` returns null, the handler attempts auto-recovery — checks `companies` table (admin path: calls `createAdminProfile()`) or re-runs `linkEmployeeAccount()` (employee path) before falling back to null.
+
+**Email case normalisation**: `AuthPage.jsx` calls `.toLowerCase()` on every email before any auth call. `employeeToDb` in `storage.js` also lowercases `work_email` on save. The `link_employee_account` RPC compares with `LOWER()` on both sides.
 
 ### Data layer
 
@@ -70,21 +76,28 @@ All DB access goes through utility modules — components never call `supabase` 
 - `payroll_runs` + `payroll_entries` — payroll run header + one row per employee
 - `payslips` — snapshot of each employee's pay per period; created when admin downloads SIF (`createPayslipRecords`)
 - `leave_types`, `leave_requests`, `leave_balances`, `public_holidays`
-- `clock_events` — raw clock-in/out events; `user_id` = admin's UUID (even for self-service entries via RPC)
-- `attendance_records` — derived daily record; unique on `(user_id, employee_id, date)`
+- `clock_events` — raw clock-in/out events; `user_id` = admin's UUID (even for self-service entries via RPC); `event_type` stored as uppercase `CLOCK_IN` / `CLOCK_OUT`
+- `attendance_records` — derived daily record; columns: `clock_in_time`, `clock_out_time`, `total_hours` (not `clock_in`, `clock_out`, `hours_worked`)
 - `attendance_periods` — one row per `(user_id, period YYYY-MM)`; closed by admin before payroll run
 - `employee_job_history` — audit log of salary/title/department/status changes; written on every employee save
 
+### Supabase table permissions — critical
+
+Tables created manually via SQL (not the Supabase UI) do **not** get automatic `GRANT` to the `authenticated` role. You must run both:
+
+```sql
+GRANT ALL ON TABLE tablename TO authenticated;   -- required or "permission denied" is thrown
+ALTER TABLE tablename ENABLE ROW LEVEL SECURITY; -- then add RLS policies
+```
+
+**Diagnosing permission errors:**
+- `"permission denied for table X"` → missing `GRANT` — the role cannot even reach the table
+- Empty results with no error → `GRANT` exists but missing/wrong RLS policy
+- `getAttendanceRecords` and similar functions swallow errors and return `[]`, so a missing GRANT silently produces empty data in the UI
+
 ### RLS model
 
-**Admin tables** (`companies`, `employees`, `payroll_*`, `payslips`, `leave_*`, `clock_events`, `attendance_records`, `attendance_periods`, `employee_job_history`) require:
-
-| Operation | Policy |
-|-----------|--------|
-| Admin SELECT/INSERT/UPDATE | `user_id = auth.uid()` |
-| Admin UPDATE on `attendance_records` | separate UPDATE policy with same condition |
-| Admin ALL on `attendance_periods` | separate ALL policy with same condition |
-| Admin INSERT on `employee_job_history` | INSERT WITH CHECK `user_id = auth.uid()` |
+**Admin tables** (`companies`, `employees`, `payroll_*`, `payslips`, `leave_*`, `clock_events`, `attendance_records`, `attendance_periods`, `employee_job_history`) use `FOR ALL USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid())`.
 
 **Employee self-service** crosses the RLS boundary via `SECURITY DEFINER` RPCs and dedicated SELECT policies:
 
@@ -98,17 +111,15 @@ All DB access goes through utility modules — components never call `supabase` 
 
 ### Employee self-service RPCs (SECURITY DEFINER)
 
-These must exist in Supabase. All look up the caller's employee via `employees.auth_user_id = auth.uid()`.
+These must exist in Supabase. All look up the caller's employee via `employees.auth_user_id = auth.uid()`. All require `GRANT EXECUTE ON FUNCTION <name> TO authenticated`.
 
 | RPC | What it does |
 |-----|-------------|
 | `link_employee_account()` | Links employee email → auth user; compares `LOWER(work_email) = LOWER(auth.email())` |
 | `employee_submit_leave_request(...)` | Validates + inserts leave request |
 | `employee_cancel_leave_request(p_request_id)` | Cancels a pending request |
-| `employee_record_clock_event(p_event_type, p_notes)` | Inserts clock event with admin's `user_id`; upserts `attendance_records` with computed hours |
+| `employee_record_clock_event(p_event_type, p_notes)` | Inserts clock event with admin's `user_id`; upserts `attendance_records`. Normalises `p_event_type` with `UPPER()` internally. Uses SELECT + INSERT/UPDATE (not `ON CONFLICT`) to avoid dependency on a named unique index. |
 | `employee_submit_regularisation(...)` | Submits an attendance correction request |
-
-All RPCs require `GRANT EXECUTE ON FUNCTION <name> TO authenticated`.
 
 ### Key behavioral patterns
 
@@ -116,13 +127,17 @@ All RPCs require `GRANT EXECUTE ON FUNCTION <name> TO authenticated`.
 
 **Soft-delete employees**: `archiveEmployee()` in `storage.js` sets `active = false, employment_status = 'Terminated'` — never hard-deletes.
 
-**Auto job history**: `handleSaveEmployee` in `EmployeeManager` diffs `basicSalary`, `jobTitle`, `department`, `employmentStatus` before and after save, then calls `addJobHistoryEntry` for each changed field. This is wrapped in its own `try/catch` so a missing RLS policy silently warns instead of blocking the save.
+**Auto job history**: `handleSaveEmployee` in `EmployeeManager` diffs `basicSalary`, `jobTitle`, `department`, `employmentStatus` before and after save, then calls `addJobHistoryEntry` for each changed field. Wrapped in its own `try/catch` so a missing RLS policy silently warns instead of blocking the save.
 
 **Leave balance fallback**: `EmpLeave` and `EmpHome` compute balances locally when the DB `leave_balances` table is empty (admin never opened the Leave module). Falls back first to DB leave types, then to `DEFAULT_LEAVE_TYPES` from `leaveEngine.js`. `calculateAnnualLeaveAccrual` from `leaveEngine.js` computes accrued days from hire date.
 
-**Attendance clock optimistic update**: `EmpAttendance.clock()` applies a local state update *before* awaiting the RPC, so the Clock Out button enables immediately after Clock In. State is reverted only if both the RPC and the direct-insert fallback fail. `EmpAttendance.loadData` falls back to querying `clock_events` directly when `attendance_records` is empty (employee's records may not be visible under the admin SELECT policy).
+**Attendance clock optimistic update**: `EmpAttendance.clock()` applies a local state update *before* awaiting the RPC, so the Clock Out button enables immediately after Clock In. State is reverted only if both the RPC and the direct-insert fallback fail. `EmpAttendance.loadData` falls back to querying `clock_events` directly when `attendance_records` is empty.
 
-**Attendance month reload**: `AttendanceManager` has `useEffect(() => { loadAll(); }, [selectedMonth])` — records reload automatically whenever the month picker changes. This means employee clock-ins appear without a manual page refresh.
+**Attendance admin query**: `getAttendanceRecords` admin path queries by `employee_id IN (SELECT id FROM employees WHERE user_id = auth.uid())` rather than `user_id = auth.uid()`. This is more robust — it finds records regardless of what `user_id` the RPC wrote, and survives the fallback insert path.
+
+**Attendance auto-poll**: `AttendanceManager` polls `loadAll(true)` every 30 seconds silently (no loading flash — the `silent` flag skips `setLoading(true)`). Manual Refresh button also available. Month change triggers a full reload with loading screen (`loadAll()` without silent flag).
+
+**Dashboard `getMonthName`**: Must be declared *before* the `trendRuns` computation that calls it. Declaring it after with `const` causes a temporal dead zone crash once payroll data loads (the early `if (loading) return` hides the bug on first render).
 
 **Photo upload removed**: `EmployeeModal` has no photo upload UI. The `photoUrl` field is preserved in the DB shape (`employeeToDb` still maps it) so existing data is not lost, but the UI to change it has been removed.
 
