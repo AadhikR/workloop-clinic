@@ -131,7 +131,9 @@ These must exist in Supabase. All look up the caller's employee via `employees.a
 
 **Leave balance fallback**: `EmpLeave` and `EmpHome` compute balances locally when the DB `leave_balances` table is empty (admin never opened the Leave module). Falls back first to DB leave types, then to `DEFAULT_LEAVE_TYPES` from `leaveEngine.js`. `calculateAnnualLeaveAccrual` from `leaveEngine.js` computes accrued days from hire date.
 
-**Attendance clock optimistic update**: `EmpAttendance.clock()` applies a local state update *before* awaiting the RPC, so the Clock Out button enables immediately after Clock In. State is reverted only if both the RPC and the direct-insert fallback fail. `EmpAttendance.loadData` falls back to querying `clock_events` directly when `attendance_records` is empty.
+**Attendance clock optimistic update**: `EmpAttendance.clock()` applies a local state update *before* awaiting the RPC, so the Clock Out button enables immediately after Clock In. State is reverted only if both the RPC and the direct-insert fallback fail.
+
+**`EmpAttendance.loadData` — today and history are handled independently**: Today's record and history (past days) each have their own `attendance_records` query and their own `clock_events` fallback. They must never share a single `if (todayRecs.length > 0 || histRecs.length > 0)` branch — if they did, an empty `todayRecs` (record not yet written) combined with a non-empty `histRecs` (employee has past records) would run `setTodayRec(todayRecs[0] ?? null)` and wipe the optimistic clock-in state, showing "Not started" right after a successful clock-in.
 
 **Attendance admin query**: `getAttendanceRecords` admin path queries by `employee_id IN (SELECT id FROM employees WHERE user_id = auth.uid())` rather than `user_id = auth.uid()`. This is more robust — it finds records regardless of what `user_id` the RPC wrote, and survives the fallback insert path.
 
