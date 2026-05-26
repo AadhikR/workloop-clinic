@@ -396,7 +396,12 @@ export default function AttendanceManager() {
   const absentToday  = todayRecords.filter(r => r.status === ATTENDANCE_STATUS.UNEXPLAINED_ABSENCE || r.status === ATTENDANCE_STATUS.ABSENT);
   const lateToday    = todayRecords.filter(r => r.lateMinutes > 0);
   const onLeaveToday = approvedLeaves.filter(l => l.startDate <= todayStr && l.endDate >= todayStr);
-  const missingClockOut = records.filter(r => r.missingClockOut && !r.clockOutTime);
+  // Derive missing clock-out dynamically: any record with a clock-in but no clock-out
+  // on a past day. The DB field r.missingClockOut is not set by the employee RPC,
+  // so relying on it would always produce an empty list.
+  const missingClockOut = records.filter(r =>
+    r.clockInTime && !r.clockOutTime && r.date < todayStr
+  );
   const unexplainedAbsences = records.filter(r => r.status === ATTENDANCE_STATUS.UNEXPLAINED_ABSENCE && !r.resolutionType);
   const pendingOT    = records.filter(r => r.overtimeHours > 0 && !r.overtimeApproved);
   const pendingRegs  = regularisations.filter(r => r.status === 'Pending');
@@ -437,7 +442,7 @@ export default function AttendanceManager() {
               return <option key={val} value={val}>{d.toLocaleString('en-AE', { month:'long', year:'numeric' })}</option>;
             })}
           </select>
-          <button className="btn btn-outline btn-sm" onClick={loadAll} disabled={loading} title="Refresh">
+          <button className="btn btn-outline btn-sm" onClick={() => loadAll()} disabled={loading} title="Refresh">
             <RefreshCw size={14}/> Refresh
           </button>
           {!periodClosed ? (
