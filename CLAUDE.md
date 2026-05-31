@@ -77,7 +77,7 @@ All DB access goes through utility modules — components never call `supabase` 
 - `payslips` — snapshot of each employee's pay per period; created when admin downloads SIF (`createPayslipRecords`)
 - `leave_types`, `leave_requests`, `leave_balances`, `public_holidays`
 - `clock_events` — raw clock-in/out events; `user_id` = admin's UUID (even for self-service entries via RPC); `event_type` stored as uppercase `CLOCK_IN` / `CLOCK_OUT`
-- `attendance_records` — derived daily record; columns: `clock_in_time`, `clock_out_time`, `total_hours` (not `clock_in`, `clock_out`, `hours_worked`)
+- `attendance_records` — derived daily record; columns: `clock_in_time`, `clock_out_time`, `total_hours` (not `clock_in`, `clock_out`, `hours_worked`); `status` must be uppercase (e.g. `'PRESENT'`) — the JS constants in `attendanceEngine.js` (`ATTENDANCE_STATUS.PRESENT = 'PRESENT'`) are all uppercase and the DB values must match exactly
 - `attendance_periods` — one row per `(user_id, period YYYY-MM)`; closed by admin before payroll run
 - `employee_job_history` — audit log of salary/title/department/status changes; written on every employee save
 
@@ -118,7 +118,7 @@ These must exist in Supabase. All look up the caller's employee via `employees.a
 | `link_employee_account()` | Links employee email → auth user; compares `LOWER(work_email) = LOWER(auth.email())` |
 | `employee_submit_leave_request(...)` | Validates + inserts leave request |
 | `employee_cancel_leave_request(p_request_id)` | Cancels a pending request |
-| `employee_record_clock_event(p_event_type, p_notes)` | Inserts clock event with admin's `user_id`; upserts `attendance_records`. Normalises `p_event_type` with `UPPER()` internally. Uses SELECT + INSERT/UPDATE (not `ON CONFLICT`) to avoid dependency on a named unique index. |
+| `employee_record_clock_event(p_event_type, p_notes)` | Inserts clock event with admin's `user_id`; upserts `attendance_records`. Normalises `p_event_type` with `UPPER()` internally. Uses SELECT + INSERT/UPDATE (not `ON CONFLICT`) to avoid dependency on a named unique index. Stores `status = 'PRESENT'` (uppercase) to match `ATTENDANCE_STATUS.PRESENT`. |
 | `employee_submit_regularisation(...)` | Submits an attendance correction request |
 
 ### Key behavioral patterns
@@ -137,7 +137,9 @@ These must exist in Supabase. All look up the caller's employee via `employees.a
 
 **Attendance admin query**: `getAttendanceRecords` admin path queries by `employee_id IN (SELECT id FROM employees WHERE user_id = auth.uid())` rather than `user_id = auth.uid()`. This is more robust — it finds records regardless of what `user_id` the RPC wrote, and survives the fallback insert path.
 
-**Attendance auto-poll**: `AttendanceManager` polls `loadAll(true)` every 30 seconds silently (no loading flash — the `silent` flag skips `setLoading(true)`). Manual Refresh button also available. Month change triggers a full reload with loading screen (`loadAll()` without silent flag).
+**Attendance auto-poll**: `AttendanceManager` polls `loadAll(true)` every 30 seconds silently (no loading flash — the `silent` flag skips `setLoading(true)`). Manual Refresh button calls `loadAll()` (no argument) via `onClick={() => loadAll()}` — **never** `onClick={loadAll}` directly, which would pass the React synthetic event as the first argument, making `silent` truthy and silently suppressing the loading indicator. Month change triggers a full reload with loading screen.
+
+**Missing clock-out derived dynamically**: `AttendanceManager` computes `missingClockOut` as `records.filter(r => r.clockInTime && !r.clockOutTime && r.date < todayStr)`. The DB field `r.missingClockOut` is never set by the employee RPC, so relying on it always returns an empty list.
 
 **Dashboard `getMonthName`**: Must be declared *before* the `trendRuns` computation that calls it. Declaring it after with `const` causes a temporal dead zone crash once payroll data loads (the early `if (loading) return` hides the bug on first render).
 
