@@ -195,7 +195,8 @@ export default async function globalSetup() {
   await empPage.locator('input[type="email"]').fill(TEST_EMPLOYEE_EMAIL);
   await empPage.locator('input[type="password"]').fill(TEST_EMPLOYEE_PASSWORD);
   await empPage.locator('button[type="submit"]').click();
-  await empPage.waitForSelector('.sidebar-logo', { timeout: 25000 });
+  // Employee shell uses .emp-sidebar-logo, not .sidebar-logo (that's the admin shell)
+  await empPage.waitForSelector('.emp-sidebar-logo', { timeout: 25000 });
   await empCtx.storageState({ path: '.playwright/employee-session.json' });
   await empCtx.close();
 

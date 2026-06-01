@@ -10,7 +10,8 @@ test.describe('Auth', () => {
     await page.getByRole('button', { name: /sign in as admin/i }).click();
     await page.locator('input[type="email"]').fill(process.env.TEST_ADMIN_EMAIL);
     await page.locator('input[type="password"]').fill(process.env.TEST_ADMIN_PASSWORD);
-    await page.getByRole('button', { name: /^sign in$/i }).click();
+    // Button text is "Sign in as Admin" — use type=submit to avoid matching portal-switcher buttons
+    await page.locator('button[type="submit"]').click();
     await expect(page.locator('.sidebar-logo')).toBeVisible({ timeout: 15000 });
     await expect(page.locator('h2')).toContainText('Dashboard');
   });
@@ -20,11 +21,11 @@ test.describe('Auth', () => {
     await page.getByRole('button', { name: /sign in as admin/i }).click();
     await page.locator('input[type="email"]').fill(process.env.TEST_ADMIN_EMAIL);
     await page.locator('input[type="password"]').fill('WrongPassword999!');
-    await page.getByRole('button', { name: /^sign in$/i }).click();
+    await page.locator('button[type="submit"]').click();
     // Error banner should appear — page must not go white
     await expect(page.locator('.alert-danger, [class*="alert"]')).toBeVisible({ timeout: 8000 });
-    // Auth page still visible (not dashboard)
-    await expect(page.locator('.sidebar-logo')).not.toBeVisible();
+    // Auth page still visible (not dashboard) — check neither admin nor employee shell is showing
+    await expect(page.locator('.sidebar-logo, .emp-sidebar-logo')).not.toBeVisible();
   });
 
   test('duplicate company registration shows helpful message', async ({ page }) => {
@@ -35,10 +36,10 @@ test.describe('Auth', () => {
       await createBtn.click();
       await page.locator('input[type="email"]').fill(process.env.TEST_ADMIN_EMAIL);
       await page.locator('input[placeholder*="password" i]').first().fill('SomePassword123!');
-      await page.getByRole('button', { name: /create|register/i }).last().click();
+      await page.locator('button[type="submit"]').click();
       // Should get "already registered" message, not a blank page
       await expect(page.locator('text=/already registered|already exists/i')).toBeVisible({ timeout: 8000 });
-      await expect(page.locator('.sidebar-logo')).not.toBeVisible();
+      await expect(page.locator('.sidebar-logo, .emp-sidebar-logo')).not.toBeVisible();
     } else {
       test.skip(true, 'Create Company button not visible on auth page');
     }
@@ -49,8 +50,10 @@ test.describe('Auth', () => {
     await page.getByRole('button', { name: /sign in as employee/i }).click();
     await page.locator('input[type="email"]').fill(process.env.TEST_EMPLOYEE_EMAIL);
     await page.locator('input[type="password"]').fill(process.env.TEST_EMPLOYEE_PASSWORD);
-    await page.getByRole('button', { name: /^sign in$/i }).click();
-    await expect(page.locator('.sidebar-logo')).toBeVisible({ timeout: 15000 });
+    // Button text is "Sign in as Employee" — use type=submit
+    await page.locator('button[type="submit"]').click();
+    // Employee shell renders .emp-sidebar-logo (not .sidebar-logo which is admin-only)
+    await expect(page.locator('.emp-sidebar-logo')).toBeVisible({ timeout: 15000 });
     // Employee portal shows employee-specific content (not HR admin nav items)
     await expect(page.locator('text=Payroll Module')).not.toBeVisible();
   });
@@ -60,7 +63,7 @@ test.describe('Auth', () => {
     await page.getByRole('button', { name: /sign in as admin/i }).click();
     await page.locator('input[type="email"]').fill(process.env.TEST_ADMIN_EMAIL);
     await page.locator('input[type="password"]').fill(process.env.TEST_ADMIN_PASSWORD);
-    await page.getByRole('button', { name: /^sign in$/i }).click();
+    await page.locator('button[type="submit"]').click();
     await expect(page.locator('.sidebar-logo')).toBeVisible({ timeout: 15000 });
     // Reload
     await page.reload();
@@ -73,10 +76,10 @@ test.describe('Auth', () => {
     await page.getByRole('button', { name: /sign in as admin/i }).click();
     await page.locator('input[type="email"]').fill(process.env.TEST_ADMIN_EMAIL);
     await page.locator('input[type="password"]').fill(process.env.TEST_ADMIN_PASSWORD);
-    await page.getByRole('button', { name: /^sign in$/i }).click();
+    await page.locator('button[type="submit"]').click();
     await expect(page.locator('.sidebar-logo')).toBeVisible({ timeout: 15000 });
     await page.getByRole('button', { name: /sign out/i }).click();
-    // Should return to auth page
-    await expect(page.locator('.sidebar-logo')).not.toBeVisible({ timeout: 8000 });
+    // Should return to auth page — neither shell should be visible
+    await expect(page.locator('.sidebar-logo, .emp-sidebar-logo')).not.toBeVisible({ timeout: 8000 });
   });
 });

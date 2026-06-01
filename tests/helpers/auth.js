@@ -9,8 +9,9 @@ export async function loginAsAdmin(page) {
   await page.getByRole('button', { name: /sign in as admin/i }).click();
   await page.locator('input[type="email"]').fill(process.env.TEST_ADMIN_EMAIL);
   await page.locator('input[type="password"]').fill(process.env.TEST_ADMIN_PASSWORD);
-  await page.getByRole('button', { name: /^sign in$/i }).click();
-  // Wait for sidebar to confirm we're in the admin portal
+  // Use button[type="submit"] — the button text is "Sign in as Admin", not just "Sign in"
+  await page.locator('button[type="submit"]').click();
+  // Admin shell uses .sidebar-logo
   await page.waitForSelector('.sidebar-logo', { timeout: 15000 });
 }
 
@@ -20,9 +21,10 @@ export async function loginAsEmployee(page) {
   await page.getByRole('button', { name: /sign in as employee/i }).click();
   await page.locator('input[type="email"]').fill(process.env.TEST_EMPLOYEE_EMAIL);
   await page.locator('input[type="password"]').fill(process.env.TEST_EMPLOYEE_PASSWORD);
-  await page.getByRole('button', { name: /^sign in$/i }).click();
-  // Employee portal has emp-page-body or a sidebar with the employee name
-  await page.waitForSelector('.sidebar-logo', { timeout: 15000 });
+  // Use button[type="submit"] — the button text is "Sign in as Employee", not just "Sign in"
+  await page.locator('button[type="submit"]').click();
+  // Employee shell uses .emp-sidebar-logo (different from the admin .sidebar-logo)
+  await page.waitForSelector('.emp-sidebar-logo', { timeout: 15000 });
 }
 
 /** Navigate to a named admin section via the sidebar. */

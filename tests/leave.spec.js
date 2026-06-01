@@ -7,7 +7,8 @@ test.describe('Leave — employee submits, admin approves', () => {
     const empPage = await empCtx.newPage();
 
     await empPage.goto('/');
-    await expect(empPage.locator('.sidebar-logo')).toBeVisible({ timeout: 10000 });
+    // Employee shell renders .emp-sidebar-logo (admin shell uses .sidebar-logo)
+    await expect(empPage.locator('.emp-sidebar-logo')).toBeVisible({ timeout: 10000 });
     await empPage.getByRole('button', { name: /leave/i }).click();
     await empPage.waitForLoadState('networkidle');
 
