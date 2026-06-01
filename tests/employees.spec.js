@@ -50,19 +50,21 @@ test.describe('Employees', () => {
     await expect(page.locator('.alert-danger')).not.toBeVisible({ timeout: 5000 });
   });
 
-  test('archive employee removes from active list', async ({ page }) => {
+  test('archive employee marks them as Terminated', async ({ page }) => {
     const row = page.locator(`tr:has-text("${UNIQUE}")`);
     if (!await row.isVisible()) {
       test.skip(true, 'Test employee not found — run add test first');
     }
-    // The delete/archive button in the row is an icon-only button with title="Delete employee"
-    // (not "archive" or "terminate") — clicking it opens a confirmation modal
+    // The row has an icon-only button with title="Delete employee" — clicking it opens a confirm modal
     await row.locator('button[title="Delete employee"]').click();
-    // Confirmation modal appears — click "Archive Employee" to confirm
     await expect(page.locator('h3:text("Archive Employee")')).toBeVisible({ timeout: 5000 });
     await page.getByRole('button', { name: 'Archive Employee' }).click();
-    // Employee should no longer be in active list
-    await expect(page.locator(`text=${UNIQUE}`)).not.toBeVisible({ timeout: 8000 });
+
+    // EmployeeManager's default filter is "All Statuses" — archived employees remain visible
+    // but their status changes to "Terminated". Verify the status badge updated.
+    // (To hide from the list the user would need to filter by "Active" — that's expected behavior)
+    await expect(page.locator('h3:text("Archive Employee")')).toBeHidden({ timeout: 5000 });
+    await expect(row.locator('text=Terminated')).toBeVisible({ timeout: 8000 });
   });
 
   test('no console errors on employees page', async ({ page }) => {

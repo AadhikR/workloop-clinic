@@ -119,19 +119,17 @@ test.describe('Attendance — admin page (saved session)', () => {
 
   test('attendance page renders stat cards after load', async ({ page }) => {
     // AttendanceManager renders a loading spinner until all data is fetched.
-    // Check that the page fully loads (stat cards visible) rather than checking
-    // console errors, which are unreliable due to auth-init race conditions in
-    // the test environment (leave/employee requests can race Supabase token setup).
+    // Stat cards (.stat-card) only exist in the DOM after loading=false (they're
+    // behind the `if (loading) return <spinner>` guard). Waiting directly for
+    // the stat card avoids the race where `waitFor(text, hidden)` passes before
+    // the text ever appeared.
     await page.goto('/');
     await expect(page.locator('.sidebar-logo')).toBeVisible({ timeout: 10000 });
     await page.getByRole('button', { name: 'Attendance' }).click();
-
-    // Wait for the loading spinner to disappear (AttendanceManager sets loading=false in finally)
-    await expect(page.locator('text=Loading attendance module')).toBeHidden({ timeout: 20000 });
-
-    // Page header and stat cards should now be visible
-    await expect(page.locator('h2').filter({ hasText: /attendance/i })).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('.stat-card').first()).toBeVisible({ timeout: 5000 });
+    // Stat cards only render after loadAll() completes — wait up to 20s
+    await expect(page.locator('.stat-card').first()).toBeVisible({ timeout: 20000 });
+    // Sanity: header should say "Attendance"
+    await expect(page.locator('.page-header h2')).toContainText('Attendance');
   });
 
   test('month change reloads records', async ({ page }) => {
@@ -155,30 +153,26 @@ test.describe('Attendance — admin page (saved session)', () => {
     await expect(page.locator('.sidebar-logo')).toBeVisible({ timeout: 10000 });
     await page.getByRole('button', { name: 'Attendance' }).click();
 
-    // Wait for the initial loading spinner to disappear before interacting with the page.
-    // loadAll() renders "Loading attendance module…" until all data fetches complete.
-    await expect(page.locator('text=Loading attendance module')).toBeHidden({ timeout: 20000 });
-
+    // The Refresh button is in .page-header-actions which only renders after loading=false.
+    // Wait directly for the button rather than chaining after the loading spinner check.
     const refreshBtn = page.getByRole('button', { name: /refresh/i });
-    await expect(refreshBtn).toBeVisible({ timeout: 5000 });
-    await expect(refreshBtn).toBeEnabled({ timeout: 5000 });
+    await expect(refreshBtn).toBeVisible({ timeout: 20000 });
+    await expect(refreshBtn).toBeEnabled();
     await refreshBtn.click();
-    // Loading spinner reappears briefly (loadAll() called with silent=false)
-    await expect(page.locator('text=Loading attendance module')).toBeVisible({ timeout: 3000 });
+    // Clicking Refresh calls loadAll() (no silent arg) → setLoading(true) → spinner appears
+    await expect(page.locator('text=Loading attendance module')).toBeVisible({ timeout: 5000 });
   });
 
   test('missing clock-out stat card renders a number', async ({ page }) => {
-    // Verifies the dynamic missing-clock-out detection renders without crashing.
-    // We check the stat card exists and shows a finite number (even if 0).
+    // .stat-card elements only render after loadAll() completes (loading=false guard).
+    // Waiting directly for the stat card is more reliable than waiting for the
+    // loading spinner to hide (which races against React's state update timing).
     await page.goto('/');
     await expect(page.locator('.sidebar-logo')).toBeVisible({ timeout: 10000 });
     await page.getByRole('button', { name: 'Attendance' }).click();
 
-    // Wait for loadAll() to complete — loading spinner must disappear first
-    await expect(page.locator('text=Loading attendance module')).toBeHidden({ timeout: 20000 });
-
     const missingCard = page.locator('.stat-card').filter({ hasText: /missing clock.out/i });
-    await expect(missingCard).toBeVisible({ timeout: 8000 });
+    await expect(missingCard).toBeVisible({ timeout: 20000 });
     const count = await missingCard.locator('.stat-value').textContent();
     expect(Number.isFinite(parseInt(count))).toBe(true);
   });
@@ -188,22 +182,19 @@ test.describe('Attendance — admin page (saved session)', () => {
     await expect(page.locator('.sidebar-logo')).toBeVisible({ timeout: 10000 });
     await page.getByRole('button', { name: 'Attendance' }).click();
 
-    // Wait for loadAll() to complete
-    await expect(page.locator('text=Loading attendance module')).toBeHidden({ timeout: 20000 });
+    // .page-header-actions only renders after loadAll() completes — wait for it
+    await page.locator('.page-header-actions').waitFor({ timeout: 20000 });
 
     const closePeriodBtn = page.getByRole('button', { name: /close period/i });
-    if (await closePeriodBtn.isVisible({ timeout: 3000 })) {
+    if (await closePeriodBtn.isVisible()) {
       await closePeriodBtn.click();
       // Should NOT show a permission-denied error
-      await expect(
-        page.locator('text=/permission denied/i')
-      ).not.toBeVisible({ timeout: 5000 });
-      // Period closed badge should appear, OR a success message
-      const success = page.locator('text=/period closed|closed successfully/i');
-      await expect(success).toBeVisible({ timeout: 8000 });
+      await expect(page.locator('text=/permission denied/i')).not.toBeVisible({ timeout: 5000 });
+      // Period closed badge or success message should appear
+      await expect(page.locator('text=/period closed|closed successfully/i')).toBeVisible({ timeout: 8000 });
     } else {
-      // Period already closed — badge should be visible
-      await expect(page.locator('text=/period closed/i')).toBeVisible({ timeout: 5000 });
+      // Period already closed — green "Period Closed" badge is in .page-header-actions
+      await expect(page.locator('text=Period Closed')).toBeVisible({ timeout: 5000 });
     }
   });
 });

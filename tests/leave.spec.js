@@ -20,36 +20,36 @@ test.describe('Leave — employee submits, admin approves', () => {
     }
     await applyBtn.click();
 
-    // LeaveRequestModal opens — must select a leave type before Submit is enabled
-    await expect(empPage.locator('.modal')).toBeVisible({ timeout: 5000 });
+    // EmpLeave renders an inline form inside .emp-card — NOT a .modal component.
+    // The "New Leave Request" card appears when showForm=true.
+    await expect(empPage.locator('.emp-card').filter({ hasText: 'New Leave Request' })).toBeVisible({ timeout: 5000 });
 
-    // Select the first available leave type (skip the blank placeholder option)
-    const leaveTypeSelect = empPage.locator('.modal select').first();
+    // Select the first available leave type — the select is inside the form card
+    const leaveTypeSelect = empPage.locator('.emp-card select').first();
     const optionCount = await leaveTypeSelect.locator('option[value!=""]').count();
     if (optionCount === 0) {
       await empCtx.close();
       test.skip(true, 'No leave types available for test employee company');
     }
-    await leaveTypeSelect.selectOption({ index: 1 }); // index 0 is the placeholder "Select leave type…"
+    // index 0 is the placeholder "Select type…" — pick the first real option
+    await leaveTypeSelect.selectOption({ index: 1 });
 
     // Fill in dates — pick a future date
     const futureDate = new Date();
     futureDate.setDate(futureDate.getDate() + 7);
     const dateStr = futureDate.toISOString().split('T')[0];
 
-    const startInput = empPage.locator('input[type="date"]').first();
-    await startInput.fill(dateStr);
-    const endInput = empPage.locator('input[type="date"]').nth(1);
-    await endInput.fill(dateStr);
+    await empPage.locator('.emp-card input[type="date"]').first().fill(dateStr);
+    await empPage.locator('.emp-card input[type="date"]').nth(1).fill(dateStr);
 
-    // Submit button should now be enabled
-    const submitBtn = empPage.getByRole('button', { name: /submit.*request|submit/i }).last();
+    // Submit button (type="submit" inside the form, text "Submit Request")
+    const submitBtn = empPage.locator('.emp-card button[type="submit"]');
     await expect(submitBtn).toBeEnabled({ timeout: 5000 });
     await submitBtn.click();
 
-    // Success message or request appears as pending
+    // Success toast or the form closes and request appears
     await expect(
-      empPage.locator('text=/submitted|pending|success/i').first()
+      empPage.locator('.alert-success, text=/submitted|pending|success/i').first()
     ).toBeVisible({ timeout: 10000 });
 
     await empCtx.close();
