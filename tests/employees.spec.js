@@ -17,10 +17,18 @@ test.describe('Employees', () => {
 
   test('add new employee appears in list', async ({ page }) => {
     await page.getByRole('button', { name: /add employee/i }).click();
-    await page.locator('input[placeholder*="Full name" i]').fill(UNIQUE);
-    await page.locator('input[placeholder*="work email" i], input[type="email"]').first().fill(EMP_EMAIL);
-    await page.locator('input[placeholder*="basic salary" i], input[placeholder*="salary" i]').first().fill('6000');
-    await page.getByRole('button', { name: /save/i }).last().click();
+
+    // Personal tab is shown by default — fill name (placeholder: "e.g. John Smith")
+    await page.locator('input[placeholder="e.g. John Smith"]').fill(UNIQUE);
+    // Work email (placeholder: "work@company.com") — Personal Email is "personal@email.com"
+    await page.locator('input[placeholder="work@company.com"]').fill(EMP_EMAIL);
+
+    // Switch to Salary & Bank tab to fill basic salary
+    await page.getByRole('button', { name: /salary/i }).first().click();
+    await page.locator('input[placeholder="e.g. 5000"]').fill('6000');
+
+    // Save — modal footer primary button says "Add Employee" for new records
+    await page.locator('.modal-footer .btn-primary').click();
     await expect(page.locator(`text=${UNIQUE}`)).toBeVisible({ timeout: 10000 });
   });
 
@@ -29,10 +37,15 @@ test.describe('Employees', () => {
     const row = page.locator(`tr:has-text("${UNIQUE}")`);
     await expect(row).toBeVisible({ timeout: 8000 });
     await row.getByRole('button', { name: /edit/i }).click();
-    const salaryInput = page.locator('input[placeholder*="salary" i]').first();
+
+    // Navigate to Salary & Bank tab before editing salary
+    await page.getByRole('button', { name: /salary/i }).first().click();
+    const salaryInput = page.locator('input[placeholder="e.g. 5000"]');
     await salaryInput.clear();
     await salaryInput.fill('7500');
-    await page.getByRole('button', { name: /save/i }).last().click();
+
+    // Save — modal footer primary button says "Save Changes" for existing records
+    await page.locator('.modal-footer .btn-primary').click();
     // Confirm save succeeded (no error alert)
     await expect(page.locator('.alert-danger')).not.toBeVisible({ timeout: 5000 });
   });

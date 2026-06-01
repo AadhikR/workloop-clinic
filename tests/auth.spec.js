@@ -30,15 +30,18 @@ test.describe('Auth', () => {
 
   test('duplicate company registration shows helpful message', async ({ page }) => {
     await page.goto('/');
-    // Find the "Create Company" option
-    const createBtn = page.getByRole('button', { name: /create.*company|new company/i });
+    // Find the "Create Company" option (Landing page button)
+    const createBtn = page.getByRole('button', { name: /create.*company/i });
     if (await createBtn.isVisible()) {
       await createBtn.click();
+      // CreateCompanyForm has 4 required fields: company name, email, password, confirm password
+      await page.locator('input[placeholder="Acme LLC"]').fill('Existing Company Test');
       await page.locator('input[type="email"]').fill(process.env.TEST_ADMIN_EMAIL);
-      await page.locator('input[placeholder*="password" i]').first().fill('SomePassword123!');
+      await page.locator('input[type="password"]').first().fill('SomePassword123!');
+      await page.locator('input[type="password"]').nth(1).fill('SomePassword123!');
       await page.locator('button[type="submit"]').click();
-      // Should get "already registered" message, not a blank page
-      await expect(page.locator('text=/already registered|already exists/i')).toBeVisible({ timeout: 8000 });
+      // Supabase returns identities=[] for already-registered email → app shows error
+      await expect(page.locator('text=/already registered/i')).toBeVisible({ timeout: 8000 });
       await expect(page.locator('.sidebar-logo, .emp-sidebar-logo')).not.toBeVisible();
     } else {
       test.skip(true, 'Create Company button not visible on auth page');
