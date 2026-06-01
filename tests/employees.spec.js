@@ -55,10 +55,12 @@ test.describe('Employees', () => {
     if (!await row.isVisible()) {
       test.skip(true, 'Test employee not found — run add test first');
     }
-    await row.getByRole('button', { name: /archive|terminate/i }).click();
-    // Confirm dialog if one appears
-    const confirmBtn = page.getByRole('button', { name: /confirm|yes/i });
-    if (await confirmBtn.isVisible({ timeout: 2000 })) await confirmBtn.click();
+    // The delete/archive button in the row is an icon-only button with title="Delete employee"
+    // (not "archive" or "terminate") — clicking it opens a confirmation modal
+    await row.locator('button[title="Delete employee"]').click();
+    // Confirmation modal appears — click "Archive Employee" to confirm
+    await expect(page.locator('h3:text("Archive Employee")')).toBeVisible({ timeout: 5000 });
+    await page.getByRole('button', { name: 'Archive Employee' }).click();
     // Employee should no longer be in active list
     await expect(page.locator(`text=${UNIQUE}`)).not.toBeVisible({ timeout: 8000 });
   });

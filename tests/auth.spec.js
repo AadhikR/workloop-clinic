@@ -22,8 +22,9 @@ test.describe('Auth', () => {
     await page.locator('input[type="email"]').fill(process.env.TEST_ADMIN_EMAIL);
     await page.locator('input[type="password"]').fill('WrongPassword999!');
     await page.locator('button[type="submit"]').click();
-    // Error banner should appear — page must not go white
-    await expect(page.locator('.alert-danger, [class*="alert"]')).toBeVisible({ timeout: 8000 });
+    // Error banner should appear — use .alert-danger specifically (not [class*="alert"] which
+    // also matches the SVG lucide-circle-alert icon inside the banner, causing strict mode failure)
+    await expect(page.locator('.alert-danger')).toBeVisible({ timeout: 8000 });
     // Auth page still visible (not dashboard) — check neither admin nor employee shell is showing
     await expect(page.locator('.sidebar-logo, .emp-sidebar-logo')).not.toBeVisible();
   });
