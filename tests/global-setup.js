@@ -102,21 +102,32 @@ export default async function globalSetup() {
   const empUser = await ensureUser(db, TEST_EMPLOYEE_EMAIL, TEST_EMPLOYEE_PASSWORD, 'employee');
   console.log(`  employee auth id: ${empUser.id}`);
 
-  const { data: empRow, error: empErr } = await db.from('employees').upsert(
-    {
-      user_id:           adminUser.id,
-      auth_user_id:      empUser.id,
-      name:              TEST_EMPLOYEE_NAME,
-      work_email:        TEST_EMPLOYEE_EMAIL.toLowerCase(),
-      basic_salary:      5000,
-      employment_status: 'Full-Time',
-      active:            true,
-    },
-    { onConflict: 'user_id,work_email' }
-  ).select().single();
+  // employees has no unique constraint on (user_id, work_email) so we
+  // select-then-insert/update rather than upsert with onConflict.
+  const { data: existingEmp } = await db
+    .from('employees')
+    .select('id')
+    .eq('user_id', adminUser.id)
+    .eq('work_email', TEST_EMPLOYEE_EMAIL.toLowerCase())
+    .maybeSingle();
 
-  if (empErr) console.warn('  employees upsert warning:', empErr.message);
-  const employeeId = empRow?.id;
+  let employeeId = existingEmp?.id;
+
+  if (existingEmp) {
+    console.log(`  found existing employee row: ${existingEmp.id}`);
+    await db.from('employees').update({
+      auth_user_id: empUser.id, name: TEST_EMPLOYEE_NAME,
+      basic_salary: 5000, employment_status: 'Full-Time', active: true,
+    }).eq('id', existingEmp.id);
+  } else {
+    const { data: newEmp, error: insertErr } = await db.from('employees').insert({
+      user_id: adminUser.id, auth_user_id: empUser.id,
+      name: TEST_EMPLOYEE_NAME, work_email: TEST_EMPLOYEE_EMAIL.toLowerCase(),
+      basic_salary: 5000, employment_status: 'Full-Time', active: true,
+    }).select().single();
+    if (insertErr) console.warn('  employees insert warning:', insertErr.message);
+    employeeId = newEmp?.id;
+  }
   console.log(`  employee row id: ${employeeId}`);
 
   if (employeeId) {
