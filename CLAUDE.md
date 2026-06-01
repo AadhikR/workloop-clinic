@@ -59,11 +59,21 @@ await expect(page.locator('.stat-card').first()).toBeVisible({ timeout: 5000 });
 await expect(page.locator('.stat-card').first()).toBeVisible({ timeout: 20000 });
 ```
 
-**EmpLeave form is inline, not a modal**: Clicking "Apply" in the employee Leave page sets `showForm=true`, revealing a form inside `div.emp-card` (not a `div.modal`). Selectors: `.emp-card select` for leave type, `.emp-card input[type="date"]` for dates, `.emp-card button[type="submit"]` to submit.
+**EmpLeave form is inline, not a modal**: Clicking "Apply" in the employee Leave page sets `showForm=true`, revealing a form inside `div.emp-card` (not a `div.modal`). Selectors: `.emp-card select` for leave type, `.emp-card input[type="date"]` for dates, `.emp-card button[type="submit"]` to submit. On success `showToast('success', …)` renders `<div className="alert alert-success">` and `setShowForm(false)` hides the form.
 
 **EmployeeManager archive**: The "delete" icon button in each row has `title="Delete employee"` (no text). Clicking it opens a confirmation dialog with an "Archive Employee" button. After archiving, the employee's `employmentStatus` becomes `'Terminated'` but they remain visible in the default "All Statuses" view — they do NOT disappear. Test for the "Terminated" badge on the row, not for row absence.
 
 **`supabase.auth.getUser()` race**: This call validates the JWT server-side. In Playwright tests, the sidebar may be visible (React auth state is set) while `getUser()` still returns null — a brief window during Supabase's auth initialization. Components that call `getUser()` on mount (e.g., `initialiseLeaveModule`) may throw "Not authenticated" and log to console even though the UI loads correctly. Console-error tests should filter `Failed to load resource` lines or target specific JS runtime errors rather than expecting zero console output.
+
+**Refresh token rotation across shared storageState**: Supabase rotates refresh tokens on every use. When multiple `test.describe` blocks all load the SAME `storageState` file (e.g. `admin-session.json`), the first block to run rotates the refresh token; later blocks load the stale RT from disk and get `SIGNED_OUT` when their access token expires. Symptom: tests see the sidebar briefly (INITIAL_SESSION fires with the still-valid JWT), then the page switches to the login page once a real API call returns 401. Fix: the LAST describe block that uses that storageState should drop `test.use({ storageState })` entirely and call `loginAsAdmin(page)` (or equivalent) in `beforeEach` to create a guaranteed-fresh session.
+
+**`locator.isVisible()` is non-waiting**: Playwright's `isVisible()` returns `false` immediately if the element is not in the DOM — it does NOT retry or wait. Calling it right after `page.goto()` will return `false` while the app is still on its initial loading spinner. Use `.waitFor()` or `expect(locator).toBeVisible({ timeout: N })` when you need to wait for the element to appear.
+
+**Combined CSS + Playwright text selector is invalid**: `page.locator('.foo, text=/bar/i')` — Playwright treats the whole string as CSS and rejects the `text=` part. Use `.or()`: `page.locator('.foo').or(page.getByText(/bar/i))`.
+
+**`option[value!=""]` is not valid CSS**: jQuery inequality attribute selector. Use `locator('option').count()` and treat a count of `<= 1` as "only the placeholder exists".
+
+**React 18 batching of transient loading states**: When data loads very quickly, React 18 may batch `setLoading(true)` and `setLoading(false)` in the same microtask, so the loading spinner is never painted to the DOM. Do not write tests that assert the spinner IS visible — assert only the end state (e.g., stat cards visible after load). The month-change and Refresh-click tests are the specific cases where this applies in this codebase.
 
 ## Environment
 
