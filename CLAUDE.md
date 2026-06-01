@@ -6,14 +6,38 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # Development
-npm run dev          # Start Vite dev server (localhost:5173)
-npm run build        # Standard Vite build
-npm run build:dist   # Single-file bundle for offline distribution (vite.singlefile.config.js + fix-dist.js)
-npm run lint         # ESLint
-npm run preview      # Preview the production build
+npm run dev           # Start Vite dev server (localhost:5173)
+npm run build         # Standard Vite build
+npm run build:dist    # Single-file bundle for offline distribution (vite.singlefile.config.js + fix-dist.js)
+npm run lint          # ESLint
+npm run preview       # Preview the production build
+
+# Testing (Playwright E2E — requires dev server running in a separate terminal)
+npm test              # Full test suite, headless
+npm run test:ui       # Playwright UI mode — visual step-by-step, best for debugging
+npm run test:auth     # Auth flows only
+npm run test:attendance  # Attendance flows only (most critical)
+npm run test:employees   # Employee CRUD only
+npm run test:payroll     # Payroll flows only
+npm run test:report   # Open HTML report from last run
 ```
 
-No test suite exists in this project.
+### Test suite setup
+
+Copy `.env.test.example` → `.env.test` and fill in:
+- `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` — same as `.env`
+- `SUPABASE_SERVICE_ROLE_KEY` — Supabase Dashboard → Project Settings → API → `service_role` key
+
+The service role key is used only in `tests/global-setup.js` (Node.js, never the browser) to create test users and seed data. Before running tests for the first time, also run this in Supabase SQL Editor to grant the service role access to all tables:
+
+```sql
+GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO service_role;
+```
+
+`global-setup.js` runs once before all tests: creates `test.admin@workloop-test.local` and `test.employee@workloop-test.local` auth users, seeds company/employee rows, then saves browser sessions to `.playwright/admin-session.json` and `.playwright/employee-session.json` so tests start pre-logged-in. `global-teardown.js` cleans attendance and payroll test data afterward.
+
+Test files in `tests/` use `storageState` to load saved sessions. Attendance tests open two browser contexts simultaneously (admin + employee) to verify cross-portal clock-in visibility.
 
 ## Environment
 
@@ -71,7 +95,7 @@ All DB access goes through utility modules — components never call `supabase` 
 ### Supabase schema (key tables)
 
 - `companies` — one row per admin user (`user_id = auth.uid()`)
-- `employees` — all employees for a company; `auth_user_id` set when employee links their account; `user_id` = the admin's UUID; `work_email` is always stored lowercase
+- `employees` — all employees for a company; `auth_user_id` set when employee links their account; `user_id` = the admin's UUID; `work_email` is always stored lowercase. Several columns are NOT NULL (including `mol_id`, `emp_no`, `name`, `bank_name`, `bank_routing_code`, `iban`) — always pass `''` as default, never omit them in raw inserts
 - `user_profiles` — `role` ('admin'|'employee'), `company_user_id`, `employee_id`; RLS restricts each user to their own row
 - `payroll_runs` + `payroll_entries` — payroll run header + one row per employee
 - `payslips` — snapshot of each employee's pay per period; created when admin downloads SIF (`createPayslipRecords`)
