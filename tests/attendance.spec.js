@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { loginAsAdmin } from './helpers/auth.js';
 
 // Attendance is the most complex feature — tests use two browser contexts
 // simultaneously (admin + employee) to verify cross-portal visibility.
@@ -113,36 +114,18 @@ test.describe('Attendance — employee clock-in visibility', () => {
 
 });
 
-// Admin-only tests — all require saved admin session
+// Admin-only tests — always do a fresh login rather than using storageState.
+//
+// WHY NOT storageState: the stored session shares a refresh token with the
+// employees describe block (which runs earlier with the same storageState file).
+// Supabase rotates refresh tokens on each use, so by the time these tests run
+// the RT in the file is already stale.  A fresh Supabase signInWithPassword()
+// creates a brand-new session that is guaranteed to be valid.
 test.describe('Attendance — admin page (saved session)', () => {
-  test.use({ storageState: '.playwright/admin-session.json' });
-
-  // The stored admin session may be invalidated mid-run by auth tests that
-  // sign in/out as the same admin user (Supabase single-session mode or
-  // refresh-token rotation across parallel workers).  Detect and recover:
-  // if .sidebar-logo isn't visible within 5 s, do a fresh login, then
-  // navigate to the Attendance page and wait for stat cards to confirm
-  // loadAll() has completed before the test body runs.
+  // No test.use({ storageState }) — page starts with empty localStorage so
+  // loginAsAdmin() always sees the auth page and can sign in cleanly.
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
-    // locator.isVisible() is non-waiting — calling it right after goto() returns
-    // false while the app is still on its initial loading spinner.  Instead, race
-    // between the two end-states (admin shell visible, or auth page visible) so
-    // we only proceed once the spinner has resolved one way or the other.
-    await Promise.race([
-      page.locator('.sidebar-logo').waitFor({ timeout: 15000 }),
-      page.getByRole('button', { name: /sign in as admin/i }).waitFor({ timeout: 15000 }),
-    ]).catch(() => {}); // if both time out, the checks below will handle it
-
-    const loggedIn = await page.locator('.sidebar-logo').isVisible();
-    if (!loggedIn) {
-      // Session was invalidated — re-authenticate with fresh credentials.
-      await page.getByRole('button', { name: /sign in as admin/i }).click();
-      await page.locator('input[type="email"]').fill(process.env.TEST_ADMIN_EMAIL);
-      await page.locator('input[type="password"]').fill(process.env.TEST_ADMIN_PASSWORD);
-      await page.locator('button[type="submit"]').click();
-      await expect(page.locator('.sidebar-logo')).toBeVisible({ timeout: 15000 });
-    }
+    await loginAsAdmin(page);
     await page.getByRole('button', { name: 'Attendance' }).click();
     // Stat cards only appear after loadAll() completes (behind the loading guard).
     // Waiting here ensures every test body starts on a fully-loaded page.
