@@ -8,10 +8,16 @@
     "build": "vite build",
     "build:dist": "vite build --config vite.singlefile.config.js && node fix-dist.js",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:auth": "playwright test tests/auth.spec.js",
+    "test:attendance": "playwright test tests/attendance.spec.js",
+    "test:employees": "playwright test tests/employees.spec.js",
+    "test:payroll": "playwright test tests/payroll.spec.js",
+    "test:report": "playwright show-report"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.105.3",
     "jspdf": "^4.2.1",
     "lucide-react": "^1.14.0",
     "papaparse": "^5.5.3",
@@ -20,9 +26,12 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.60.0",
+    "@supabase/supabase-js": "^2.106.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "dotenv": "^17.4.2",
     "eslint": "^10.2.1",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
