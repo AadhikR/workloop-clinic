@@ -39,6 +39,32 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO service_role;
 
 Test files in `tests/` use `storageState` to load saved sessions. Attendance tests open two browser contexts simultaneously (admin + employee) to verify cross-portal clock-in visibility.
 
+### Playwright selector patterns (hard-won)
+
+**Shell selectors**: Admin shell renders `<div className="sidebar-logo">` → use `.sidebar-logo`. Employee shell renders `<div className="emp-sidebar-logo">` → use `.emp-sidebar-logo`. Never use `.sidebar-logo` for an employee-session page.
+
+**Auth submit buttons**: The auth page buttons say "Sign in as Admin" / "Sign in as Employee" (not "Sign in"). Always use `locator('button[type="submit"]')` for form submission — never `getByRole('button', { name: /^sign in$/i })`.
+
+**Components with loading guards**: Several components start with `useState(true)` and render ONLY a spinner until data loads:
+- `AttendanceManager`: `if (loading) return <div>Loading attendance module…</div>` — stat cards, Refresh button, Close Period button, and ALL page content are absent from the DOM while loading.
+- `EmpLeave`: `if (loading) return <div>Loading…</div>`
+
+**Critical test pattern**: Do NOT chain `waitFor(text, {state:'hidden'})` then check for content — this races React. If Playwright evaluates the `hidden` check before React has rendered the component at all, the text was never there so `hidden` is immediately true, but the content isn't there either. Instead, wait directly for the target element you care about:
+```js
+// Wrong — races React render:
+await expect(page.locator('text=Loading attendance module')).toBeHidden({ timeout: 20000 });
+await expect(page.locator('.stat-card').first()).toBeVisible({ timeout: 5000 }); // can fail
+
+// Correct — Playwright retries until element exists:
+await expect(page.locator('.stat-card').first()).toBeVisible({ timeout: 20000 });
+```
+
+**EmpLeave form is inline, not a modal**: Clicking "Apply" in the employee Leave page sets `showForm=true`, revealing a form inside `div.emp-card` (not a `div.modal`). Selectors: `.emp-card select` for leave type, `.emp-card input[type="date"]` for dates, `.emp-card button[type="submit"]` to submit.
+
+**EmployeeManager archive**: The "delete" icon button in each row has `title="Delete employee"` (no text). Clicking it opens a confirmation dialog with an "Archive Employee" button. After archiving, the employee's `employmentStatus` becomes `'Terminated'` but they remain visible in the default "All Statuses" view — they do NOT disappear. Test for the "Terminated" badge on the row, not for row absence.
+
+**`supabase.auth.getUser()` race**: This call validates the JWT server-side. In Playwright tests, the sidebar may be visible (React auth state is set) while `getUser()` still returns null — a brief window during Supabase's auth initialization. Components that call `getUser()` on mount (e.g., `initialiseLeaveModule`) may throw "Not authenticated" and log to console even though the UI loads correctly. Console-error tests should filter `Failed to load resource` lines or target specific JS runtime errors rather than expecting zero console output.
+
 ## Environment
 
 Create `sif-app/.env` with:
@@ -168,6 +194,12 @@ These must exist in Supabase. All look up the caller's employee via `employees.a
 **Dashboard `getMonthName`**: Must be declared *before* the `trendRuns` computation that calls it. Declaring it after with `const` causes a temporal dead zone crash once payroll data loads (the early `if (loading) return` hides the bug on first render).
 
 **Photo upload removed**: `EmployeeModal` has no photo upload UI. The `photoUrl` field is preserved in the DB shape (`employeeToDb` still maps it) so existing data is not lost, but the UI to change it has been removed.
+
+**EmployeeModal tab layout**: The modal has four tabs — Personal, Job & Contract, Salary & Bank, UAE Compliance. Key field locations:
+- Name: Personal tab, `placeholder="e.g. John Smith"` (not "Full name")
+- Work email: Personal tab, `placeholder="work@company.com"` (personal email is `placeholder="personal@email.com"`)
+- Basic salary: **Salary & Bank tab**, `placeholder="e.g. 5000"` — must switch tabs to reach it
+- Save button: `.modal-footer .btn-primary` (text varies: "Add Employee" for new, "Save Changes" for edit)
 
 ### Business logic utilities
 
