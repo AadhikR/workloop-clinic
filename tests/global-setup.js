@@ -24,73 +24,103 @@ const {
   TEST_EMPLOYEE_NAME,
 } = process.env;
 
+/** Create a user or return the existing one by email. Logs the real error if both fail. */
+async function ensureUser(db, email, password, label) {
+  // Try creating first
+  const { data: created, error: createErr } = await db.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+  });
+
+  if (created?.user) return created.user;
+
+  // User may already exist — try to find them
+  console.log(`  [${label}] create returned: ${createErr?.message ?? 'no user'} — searching existing users…`);
+
+  // listUsers is paginated; iterate all pages
+  let page = 1;
+  while (true) {
+    const { data, error: listErr } = await db.auth.admin.listUsers({ page, perPage: 50 });
+    if (listErr) {
+      console.error(`  [${label}] listUsers error:`, listErr.message);
+      console.error('  → Is your SUPABASE_SERVICE_ROLE_KEY correct? Check Supabase Dashboard → Project Settings → API');
+      throw new Error(`listUsers failed for ${label}: ${listErr.message}`);
+    }
+    const found = data.users.find(u => u.email?.toLowerCase() === email.toLowerCase());
+    if (found) return found;
+    if (data.users.length < 50) break; // last page
+    page++;
+  }
+
+  throw new Error(
+    `Could not create or find ${label} user (${email}).\n` +
+    `  Make sure SUPABASE_SERVICE_ROLE_KEY is the service_role key (not the anon key).\n` +
+    `  Find it at: Supabase Dashboard → Project Settings → API → service_role`
+  );
+}
+
 export default async function globalSetup() {
-  if (!SUPABASE_SERVICE_ROLE_KEY) {
+  if (!SUPABASE_SERVICE_ROLE_KEY || SUPABASE_SERVICE_ROLE_KEY === 'PASTE_YOUR_SERVICE_ROLE_KEY_HERE') {
     throw new Error(
-      'SUPABASE_SERVICE_ROLE_KEY missing. Copy .env.test.example → .env.test and fill in values.'
+      '\n  SUPABASE_SERVICE_ROLE_KEY is missing or not filled in.\n' +
+      '  1. Go to Supabase Dashboard → Project Settings → API\n' +
+      '  2. Copy the "service_role" key (the secret one)\n' +
+      '  3. Paste it into .env.test as SUPABASE_SERVICE_ROLE_KEY=eyJ...\n'
     );
   }
+
+  if (!VITE_SUPABASE_URL) {
+    throw new Error('VITE_SUPABASE_URL missing from .env.test');
+  }
+
+  console.log('\n[setup] Connecting to Supabase:', VITE_SUPABASE_URL);
 
   const db = createClient(VITE_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  console.log('\n[setup] Creating test admin user…');
-  const { data: adminData } = await db.auth.admin.createUser({
-    email: TEST_ADMIN_EMAIL,
-    password: TEST_ADMIN_PASSWORD,
-    email_confirm: true,
-  });
-  // If user already exists, look them up
-  let adminUser = adminData?.user;
-  if (!adminUser) {
-    const { data: { users } } = await db.auth.admin.listUsers();
-    adminUser = users.find(u => u.email === TEST_ADMIN_EMAIL);
-  }
-  if (!adminUser) throw new Error('Could not create or find test admin user');
+  // ── Admin user ───────────────────────────────────────────────────────────────
+  console.log('[setup] Ensuring test admin user exists…');
+  const adminUser = await ensureUser(db, TEST_ADMIN_EMAIL, TEST_ADMIN_PASSWORD, 'admin');
+  console.log(`  admin id: ${adminUser.id}`);
 
-  console.log('[setup] Creating test company row…');
-  await db.from('companies').upsert(
+  const { error: coErr } = await db.from('companies').upsert(
     { user_id: adminUser.id, name: TEST_ADMIN_COMPANY },
     { onConflict: 'user_id' }
   );
+  if (coErr) console.warn('  companies upsert warning:', coErr.message);
 
-  await db.from('user_profiles').upsert(
+  const { error: profErr } = await db.from('user_profiles').upsert(
     { user_id: adminUser.id, role: 'admin', company_user_id: adminUser.id, employee_id: null },
     { onConflict: 'user_id' }
   );
+  if (profErr) console.warn('  user_profiles (admin) warning:', profErr.message);
 
-  console.log('[setup] Creating test employee user…');
-  const { data: empData } = await db.auth.admin.createUser({
-    email: TEST_EMPLOYEE_EMAIL,
-    password: TEST_EMPLOYEE_PASSWORD,
-    email_confirm: true,
-  });
-  let empUser = empData?.user;
-  if (!empUser) {
-    const { data: { users } } = await db.auth.admin.listUsers();
-    empUser = users.find(u => u.email === TEST_EMPLOYEE_EMAIL);
-  }
-  if (!empUser) throw new Error('Could not create or find test employee user');
+  // ── Employee user ────────────────────────────────────────────────────────────
+  console.log('[setup] Ensuring test employee user exists…');
+  const empUser = await ensureUser(db, TEST_EMPLOYEE_EMAIL, TEST_EMPLOYEE_PASSWORD, 'employee');
+  console.log(`  employee auth id: ${empUser.id}`);
 
-  console.log('[setup] Creating test employee row…');
-  const empRow = await db.from('employees').upsert(
+  const { data: empRow, error: empErr } = await db.from('employees').upsert(
     {
-      user_id:            adminUser.id,
-      auth_user_id:       empUser.id,
-      name:               TEST_EMPLOYEE_NAME,
-      work_email:         TEST_EMPLOYEE_EMAIL.toLowerCase(),
-      basic_salary:       5000,
-      employment_status:  'Full-Time',
-      active:             true,
+      user_id:           adminUser.id,
+      auth_user_id:      empUser.id,
+      name:              TEST_EMPLOYEE_NAME,
+      work_email:        TEST_EMPLOYEE_EMAIL.toLowerCase(),
+      basic_salary:      5000,
+      employment_status: 'Full-Time',
+      active:            true,
     },
     { onConflict: 'user_id,work_email' }
   ).select().single();
 
-  const employeeId = empRow.data?.id;
+  if (empErr) console.warn('  employees upsert warning:', empErr.message);
+  const employeeId = empRow?.id;
+  console.log(`  employee row id: ${employeeId}`);
 
   if (employeeId) {
-    await db.from('user_profiles').upsert(
+    const { error: epErr } = await db.from('user_profiles').upsert(
       {
         user_id:         empUser.id,
         role:            'employee',
@@ -99,44 +129,39 @@ export default async function globalSetup() {
       },
       { onConflict: 'user_id' }
     );
+    if (epErr) console.warn('  user_profiles (employee) warning:', epErr.message);
   }
 
-  // ── Save browser sessions so tests don't need to log in every time ──────────
+  // ── Save browser sessions ────────────────────────────────────────────────────
   mkdirSync('.playwright', { recursive: true });
-
   const browser = await chromium.launch();
 
-  console.log('[setup] Saving admin session state…');
-  const adminCtx = await browser.newContext({ baseURL: 'http://localhost:5173' });
+  console.log('[setup] Saving admin browser session…');
+  const adminCtx = await browser.newContext();
   const adminPage = await adminCtx.newPage();
   await adminPage.goto('http://localhost:5173');
   await adminPage.getByRole('button', { name: /sign in as admin/i }).click();
   await adminPage.locator('input[type="email"]').fill(TEST_ADMIN_EMAIL);
   await adminPage.locator('input[type="password"]').fill(TEST_ADMIN_PASSWORD);
   await adminPage.getByRole('button', { name: /^sign in$/i }).click();
-  await adminPage.waitForSelector('.sidebar-logo', { timeout: 15000 });
+  await adminPage.waitForSelector('.sidebar-logo', { timeout: 20000 });
   await adminCtx.storageState({ path: '.playwright/admin-session.json' });
   await adminCtx.close();
 
-  console.log('[setup] Saving employee session state…');
-  const empCtx = await browser.newContext({ baseURL: 'http://localhost:5173' });
+  console.log('[setup] Saving employee browser session…');
+  const empCtx = await browser.newContext();
   const empPage = await empCtx.newPage();
   await empPage.goto('http://localhost:5173');
   await empPage.getByRole('button', { name: /sign in as employee/i }).click();
   await empPage.locator('input[type="email"]').fill(TEST_EMPLOYEE_EMAIL);
   await empPage.locator('input[type="password"]').fill(TEST_EMPLOYEE_PASSWORD);
   await empPage.getByRole('button', { name: /^sign in$/i }).click();
-  await empPage.waitForSelector('.sidebar-logo', { timeout: 15000 });
+  await empPage.waitForSelector('.sidebar-logo', { timeout: 20000 });
   await empCtx.storageState({ path: '.playwright/employee-session.json' });
   await empCtx.close();
 
   await browser.close();
 
-  // Write env values for test files to read
-  writeFileSync('.playwright/env.json', JSON.stringify({
-    adminId: adminUser.id,
-    employeeId,
-  }));
-
+  writeFileSync('.playwright/env.json', JSON.stringify({ adminId: adminUser.id, employeeId }));
   console.log('[setup] Done.\n');
 }

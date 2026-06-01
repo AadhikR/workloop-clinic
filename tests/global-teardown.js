@@ -10,11 +10,13 @@ import { readFileSync, existsSync } from 'fs';
 config({ path: '.env.test' });
 
 export default async function globalTeardown() {
-  const db = createClient(
-    process.env.VITE_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
+  const url = process.env.VITE_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key || key === 'PASTE_YOUR_SERVICE_ROLE_KEY_HERE') {
+    console.log('[teardown] Skipping — no service role key.');
+    return;
+  }
+  const db = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
 
   const envPath = '.playwright/env.json';
   if (!existsSync(envPath)) return;
