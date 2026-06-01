@@ -49,10 +49,11 @@ test.describe('Leave — employee submits, admin approves', () => {
     await expect(submitBtn).toBeEnabled({ timeout: 5000 });
     await submitBtn.click();
 
-    // Success toast or the form closes and request appears
-    await expect(
-      empPage.locator('.alert-success, text=/submitted|pending|success/i').first()
-    ).toBeVisible({ timeout: 10000 });
+    // On success EmpLeave calls showToast('success', …) which renders
+    // <div className="alert alert-success"> — wait for that toast.
+    // (Do NOT use `.alert-success, text=/…/i` — Playwright treats the
+    // whole string as CSS and rejects the `text=` part as invalid syntax.)
+    await expect(empPage.locator('.alert-success')).toBeVisible({ timeout: 10000 });
 
     await empCtx.close();
   });

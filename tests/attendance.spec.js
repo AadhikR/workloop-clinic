@@ -125,7 +125,16 @@ test.describe('Attendance — admin page (saved session)', () => {
   // loadAll() has completed before the test body runs.
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    const loggedIn = await page.locator('.sidebar-logo').isVisible({ timeout: 5000 }).catch(() => false);
+    // locator.isVisible() is non-waiting — calling it right after goto() returns
+    // false while the app is still on its initial loading spinner.  Instead, race
+    // between the two end-states (admin shell visible, or auth page visible) so
+    // we only proceed once the spinner has resolved one way or the other.
+    await Promise.race([
+      page.locator('.sidebar-logo').waitFor({ timeout: 15000 }),
+      page.getByRole('button', { name: /sign in as admin/i }).waitFor({ timeout: 15000 }),
+    ]).catch(() => {}); // if both time out, the checks below will handle it
+
+    const loggedIn = await page.locator('.sidebar-logo').isVisible();
     if (!loggedIn) {
       // Session was invalidated — re-authenticate with fresh credentials.
       await page.getByRole('button', { name: /sign in as admin/i }).click();
