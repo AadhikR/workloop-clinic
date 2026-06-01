@@ -113,18 +113,42 @@ export default async function globalSetup() {
 
   let employeeId = existingEmp?.id;
 
+  // Full row matching all NOT NULL columns in the employees table
+  const empRowData = {
+    user_id:            adminUser.id,
+    auth_user_id:       empUser.id,
+    name:               TEST_EMPLOYEE_NAME,
+    work_email:         TEST_EMPLOYEE_EMAIL.toLowerCase(),
+    emp_no:             'TEST-001',
+    mol_id:             '',
+    bank_name:          '',
+    bank_routing_code:  '',
+    iban:               '',
+    basic_salary:       5000,
+    allowance:          0,
+    employment_status:  'Full-Time',
+    contract_type:      'Unlimited',
+    active:             true,
+    personal_email:     '',
+    phone:              '',
+    gender:             '',
+    marital_status:     '',
+    home_country_address: '',
+    photo_url:          '',
+    emergency_contact_name:         '',
+    emergency_contact_relationship: '',
+    emergency_contact_phone:        '',
+    job_title:          'Test Employee',
+    department:         'Test',
+  };
+
   if (existingEmp) {
     console.log(`  found existing employee row: ${existingEmp.id}`);
-    await db.from('employees').update({
-      auth_user_id: empUser.id, name: TEST_EMPLOYEE_NAME,
-      basic_salary: 5000, employment_status: 'Full-Time', active: true,
-    }).eq('id', existingEmp.id);
+    await db.from('employees').update({ auth_user_id: empUser.id, active: true })
+      .eq('id', existingEmp.id);
   } else {
-    const { data: newEmp, error: insertErr } = await db.from('employees').insert({
-      user_id: adminUser.id, auth_user_id: empUser.id,
-      name: TEST_EMPLOYEE_NAME, work_email: TEST_EMPLOYEE_EMAIL.toLowerCase(),
-      basic_salary: 5000, employment_status: 'Full-Time', active: true,
-    }).select().single();
+    const { data: newEmp, error: insertErr } = await db.from('employees')
+      .insert(empRowData).select().single();
     if (insertErr) console.warn('  employees insert warning:', insertErr.message);
     employeeId = newEmp?.id;
   }
