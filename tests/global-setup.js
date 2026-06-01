@@ -151,11 +151,14 @@ export default async function globalSetup() {
   const adminCtx = await browser.newContext();
   const adminPage = await adminCtx.newPage();
   await adminPage.goto('http://localhost:5173');
+  // Click the "Sign in as Admin" tab/button to switch to the admin form
   await adminPage.getByRole('button', { name: /sign in as admin/i }).click();
+  await adminPage.waitForTimeout(500);
   await adminPage.locator('input[type="email"]').fill(TEST_ADMIN_EMAIL);
   await adminPage.locator('input[type="password"]').fill(TEST_ADMIN_PASSWORD);
-  await adminPage.getByRole('button', { name: /^sign in$/i }).click();
-  await adminPage.waitForSelector('.sidebar-logo', { timeout: 20000 });
+  // Use type=submit to avoid matching the portal-switcher buttons
+  await adminPage.locator('button[type="submit"]').click();
+  await adminPage.waitForSelector('.sidebar-logo', { timeout: 25000 });
   await adminCtx.storageState({ path: '.playwright/admin-session.json' });
   await adminCtx.close();
 
@@ -164,10 +167,11 @@ export default async function globalSetup() {
   const empPage = await empCtx.newPage();
   await empPage.goto('http://localhost:5173');
   await empPage.getByRole('button', { name: /sign in as employee/i }).click();
+  await empPage.waitForTimeout(500);
   await empPage.locator('input[type="email"]').fill(TEST_EMPLOYEE_EMAIL);
   await empPage.locator('input[type="password"]').fill(TEST_EMPLOYEE_PASSWORD);
-  await empPage.getByRole('button', { name: /^sign in$/i }).click();
-  await empPage.waitForSelector('.sidebar-logo', { timeout: 20000 });
+  await empPage.locator('button[type="submit"]').click();
+  await empPage.waitForSelector('.sidebar-logo', { timeout: 25000 });
   await empCtx.storageState({ path: '.playwright/employee-session.json' });
   await empCtx.close();
 
