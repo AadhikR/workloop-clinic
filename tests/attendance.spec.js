@@ -117,74 +117,67 @@ test.describe('Attendance — employee clock-in visibility', () => {
 test.describe('Attendance — admin page (saved session)', () => {
   test.use({ storageState: '.playwright/admin-session.json' });
 
-  test('attendance page renders stat cards after load', async ({ page }) => {
-    // AttendanceManager renders a loading spinner until all data is fetched.
-    // Stat cards (.stat-card) only exist in the DOM after loading=false (they're
-    // behind the `if (loading) return <spinner>` guard). Waiting directly for
-    // the stat card avoids the race where `waitFor(text, hidden)` passes before
-    // the text ever appeared.
+  // The stored admin session may be invalidated mid-run by auth tests that
+  // sign in/out as the same admin user (Supabase single-session mode or
+  // refresh-token rotation across parallel workers).  Detect and recover:
+  // if .sidebar-logo isn't visible within 5 s, do a fresh login, then
+  // navigate to the Attendance page and wait for stat cards to confirm
+  // loadAll() has completed before the test body runs.
+  test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    await expect(page.locator('.sidebar-logo')).toBeVisible({ timeout: 10000 });
+    const loggedIn = await page.locator('.sidebar-logo').isVisible({ timeout: 5000 }).catch(() => false);
+    if (!loggedIn) {
+      // Session was invalidated — re-authenticate with fresh credentials.
+      await page.getByRole('button', { name: /sign in as admin/i }).click();
+      await page.locator('input[type="email"]').fill(process.env.TEST_ADMIN_EMAIL);
+      await page.locator('input[type="password"]').fill(process.env.TEST_ADMIN_PASSWORD);
+      await page.locator('button[type="submit"]').click();
+      await expect(page.locator('.sidebar-logo')).toBeVisible({ timeout: 15000 });
+    }
     await page.getByRole('button', { name: 'Attendance' }).click();
-    // Stat cards only render after loadAll() completes — wait up to 20s
-    await expect(page.locator('.stat-card').first()).toBeVisible({ timeout: 20000 });
-    // Sanity: header should say "Attendance"
+    // Stat cards only appear after loadAll() completes (behind the loading guard).
+    // Waiting here ensures every test body starts on a fully-loaded page.
+    await expect(page.locator('.stat-card').first()).toBeVisible({ timeout: 25000 });
+  });
+
+  test('attendance page renders stat cards after load', async ({ page }) => {
+    // beforeEach already confirmed stat cards are visible — just sanity-check header.
     await expect(page.locator('.page-header h2')).toContainText('Attendance');
   });
 
   test('month change reloads records', async ({ page }) => {
-    await page.goto('/');
-    await page.getByRole('button', { name: 'Attendance' }).click();
-    await page.waitForLoadState('networkidle');
-
-    // Change month selector
+    // beforeEach already on a fully-loaded Attendance page.
     const monthSelect = page.locator('select').first();
     const options = await monthSelect.locator('option').allTextContents();
     if (options.length > 1) {
       await monthSelect.selectOption({ index: 1 });
-      // Loading should appear
+      // Changing the month triggers a full reload (setLoading(true))
       await expect(page.locator('text=/loading attendance/i')).toBeVisible({ timeout: 5000 });
       await page.waitForLoadState('networkidle');
     }
   });
 
   test('admin Refresh button shows loading indicator', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.locator('.sidebar-logo')).toBeVisible({ timeout: 10000 });
-    await page.getByRole('button', { name: 'Attendance' }).click();
-
-    // The Refresh button is in .page-header-actions which only renders after loading=false.
-    // Wait directly for the button rather than chaining after the loading spinner check.
+    // beforeEach already on a fully-loaded Attendance page — Refresh is visible.
     const refreshBtn = page.getByRole('button', { name: /refresh/i });
-    await expect(refreshBtn).toBeVisible({ timeout: 20000 });
+    await expect(refreshBtn).toBeVisible({ timeout: 10000 });
     await expect(refreshBtn).toBeEnabled();
     await refreshBtn.click();
-    // Clicking Refresh calls loadAll() (no silent arg) → setLoading(true) → spinner appears
+    // Clicking Refresh calls loadAll() without silent=true → setLoading(true) → spinner
     await expect(page.locator('text=Loading attendance module')).toBeVisible({ timeout: 5000 });
   });
 
   test('missing clock-out stat card renders a number', async ({ page }) => {
-    // .stat-card elements only render after loadAll() completes (loading=false guard).
-    // Waiting directly for the stat card is more reliable than waiting for the
-    // loading spinner to hide (which races against React's state update timing).
-    await page.goto('/');
-    await expect(page.locator('.sidebar-logo')).toBeVisible({ timeout: 10000 });
-    await page.getByRole('button', { name: 'Attendance' }).click();
-
+    // beforeEach already on a fully-loaded Attendance page.
     const missingCard = page.locator('.stat-card').filter({ hasText: /missing clock.out/i });
-    await expect(missingCard).toBeVisible({ timeout: 20000 });
+    await expect(missingCard).toBeVisible({ timeout: 10000 });
     const count = await missingCard.locator('.stat-value').textContent();
     expect(Number.isFinite(parseInt(count))).toBe(true);
   });
 
   test('close period succeeds without permission error', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.locator('.sidebar-logo')).toBeVisible({ timeout: 10000 });
-    await page.getByRole('button', { name: 'Attendance' }).click();
-
-    // .page-header-actions only renders after loadAll() completes — wait for it
-    await page.locator('.page-header-actions').waitFor({ timeout: 20000 });
-
+    // beforeEach already on a fully-loaded Attendance page;
+    // .page-header-actions is rendered (stat cards confirmed above).
     const closePeriodBtn = page.getByRole('button', { name: /close period/i });
     if (await closePeriodBtn.isVisible()) {
       await closePeriodBtn.click();

@@ -24,10 +24,12 @@ test.describe('Leave — employee submits, admin approves', () => {
     // The "New Leave Request" card appears when showForm=true.
     await expect(empPage.locator('.emp-card').filter({ hasText: 'New Leave Request' })).toBeVisible({ timeout: 5000 });
 
-    // Select the first available leave type — the select is inside the form card
+    // Select the first available leave type — the select is inside the form card.
+    // `option[value!=""]` is jQuery syntax (invalid CSS); count all options instead
+    // and skip if only the placeholder exists.
     const leaveTypeSelect = empPage.locator('.emp-card select').first();
-    const optionCount = await leaveTypeSelect.locator('option[value!=""]').count();
-    if (optionCount === 0) {
+    const optionCount = await leaveTypeSelect.locator('option').count();
+    if (optionCount <= 1) {
       await empCtx.close();
       test.skip(true, 'No leave types available for test employee company');
     }
