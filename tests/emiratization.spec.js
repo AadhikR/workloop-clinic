@@ -20,7 +20,9 @@ test.describe('Emiratization — Company Settings', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('.sidebar-logo')).toBeVisible({ timeout: 10000 });
-    await page.getByRole('button', { name: 'Company Settings' }).click();
+    // Scope to .sidebar-nav — a "Company Settings" button also appears in the
+    // Dashboard's MOL Employer ID warning alert when molEmployerId is not set.
+    await page.locator('.sidebar-nav').getByRole('button', { name: 'Company Settings' }).click();
     await page.waitForLoadState('networkidle');
   });
 
