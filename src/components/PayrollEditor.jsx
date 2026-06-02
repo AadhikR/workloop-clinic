@@ -10,6 +10,7 @@ import { downloadPayslip, downloadAllPayslips } from '../utils/payslipGenerator'
 import { calculatePayrollLeaveDeductions } from '../utils/leaveEngine';
 import { getLeaveRequests } from '../utils/leaveStorage';
 import { getAttendancePayrollData } from '../utils/attendanceStorage';
+import { getAdvances } from '../utils/storage';
 import { getPayrollSummaryFromAttendance, formatHours } from '../utils/attendanceEngine';
 
 function getMonthName(month) {
@@ -57,6 +58,7 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
   const [autoSaved, setAutoSaved] = useState(false);
   const [leaveDeductions, setLeaveDeductions] = useState({}); // { [employeeId]: deductionResult }
   const [attendanceData, setAttendanceData]   = useState(null); // { periodClosed, payrollReady, byEmployee }
+  const [advanceData, setAdvanceData]         = useState({}); // { [employeeId]: advance[] }
   const [attendanceWarning, setAttendanceWarning] = useState(false);
   const autoSaveTimer = useRef(null);
   const fileRef = useRef();
@@ -92,6 +94,19 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
       }));
     }).catch(() => {}); // leave module may not be set up yet — fail silently
   }, [payroll.period, employees]);
+
+  // Load active advances for all employees — shown as an informational panel
+  useEffect(() => {
+    getAdvances().then(all => {
+      const active = all.filter(a => a.status === 'active');
+      const byEmp = {};
+      for (const adv of active) {
+        if (!byEmp[adv.employeeId]) byEmp[adv.employeeId] = [];
+        byEmp[adv.employeeId].push(adv);
+      }
+      setAdvanceData(byEmp);
+    }).catch(() => {}); // salary_advances table may not exist yet — fail silently
+  }, []);
 
   // Load attendance data for this payroll period (Connection C)
   // Art. 56: Payroll must not run against unclosed attendance period
@@ -465,6 +480,70 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
               <Info size={12} style={{ marginRight:4 }}/>
               Absence deductions (Art. 56), overtime earnings (Art. 19), and late deductions are pulled from the Attendance module.
               Apply them as named deductions/additions via the Allowances &amp; Deductions panel below.
+            </div>
+          </div>
+        )}
+
+        {/* ── Salary Advance Repayments Panel ── */}
+        {Object.keys(advanceData).length > 0 && (
+          <div className="card mb-4">
+            <div className="card-header">
+              <h3><Info size={15} style={{ marginRight:6, color:'var(--primary)' }}/>Active Salary Advance Repayments</h3>
+              <span className="badge badge-blue">
+                {Object.keys(advanceData).length} employee{Object.keys(advanceData).length !== 1 ? 's' : ''} with active advances
+              </span>
+            </div>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Employee</th>
+                    <th>Advance Reason</th>
+                    <th className="text-right">Original Amount</th>
+                    <th className="text-right">Outstanding Balance</th>
+                    <th className="text-right">Monthly Deduction</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(advanceData).map(([empId, advs]) => {
+                    const emp = employees.find(e => e.id === empId);
+                    return advs.map((adv, i) => (
+                      <tr key={adv.id}>
+                        <td style={{ fontWeight: i === 0 ? 500 : 400, color: i === 0 ? 'var(--gray-800)' : 'var(--gray-400)' }}>
+                          {i === 0 ? emp?.name : ''}
+                        </td>
+                        <td className="text-sm">{adv.reason}</td>
+                        <td className="text-right text-sm">
+                          {adv.amount.toLocaleString('en-AE', { minimumFractionDigits:2 })}
+                        </td>
+                        <td className="text-right" style={{ color:'var(--primary)', fontWeight:600 }}>
+                          {adv.outstandingBalance.toLocaleString('en-AE', { minimumFractionDigits:2 })}
+                        </td>
+                        <td className="text-right" style={{ color:'var(--danger)', fontWeight:600 }}>
+                          -{adv.monthlyDeduction.toLocaleString('en-AE', { minimumFractionDigits:2 })}
+                        </td>
+                      </tr>
+                    ));
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr style={{ background:'var(--danger-light)', fontWeight:700 }}>
+                    <td colSpan={4} style={{ textAlign:'right', paddingRight:12, color:'var(--danger)' }}>
+                      Total Advance Deductions This Month
+                    </td>
+                    <td className="text-right" style={{ color:'var(--danger)' }}>
+                      -{Object.values(advanceData)
+                          .flat()
+                          .reduce((s, a) => s + a.monthlyDeduction, 0)
+                          .toLocaleString('en-AE', { minimumFractionDigits:2 })} AED
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+            <div style={{ padding:'10px 20px', fontSize:12, color:'var(--gray-500)', borderTop:'1px solid var(--gray-100)' }}>
+              <Info size={12} style={{ marginRight:4 }}/>
+              Add these deductions to employee entries via the <strong>Allowances &amp; Deductions</strong> panel, using label "Advance Repayment".
             </div>
           </div>
         )}

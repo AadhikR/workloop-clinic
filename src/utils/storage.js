@@ -659,6 +659,141 @@ function dbToInsuranceDependant(row) {
   };
 }
 
+// ─── SALARY ADVANCES ─────────────────────────────────────────────────────────
+
+/**
+ * Returns advances for the current user's company.
+ * Pass employeeId to filter to a single employee; omit to get all.
+ */
+export async function getAdvances(employeeId) {
+  let q = supabase
+    .from('salary_advances')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (employeeId) q = q.eq('employee_id', employeeId);
+
+  const { data, error } = await q;
+  if (error) { console.error('getAdvances:', error); return []; }
+  return (data || []).map(dbToAdvance);
+}
+
+/**
+ * Saves (inserts or updates) a salary advance.
+ * Pass the full camelCase advance object; auto-computes monthly_deduction if not set.
+ * Returns the saved advance.
+ */
+export async function saveAdvance(advance) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const monthlyDeduction = advance.monthlyDeduction ||
+    (advance.repaymentMonths > 0
+      ? parseFloat((advance.amount / advance.repaymentMonths).toFixed(2))
+      : parseFloat(advance.amount));
+
+  const row = {
+    user_id:             user.id,
+    employee_id:         advance.employeeId,
+    amount:              parseFloat(advance.amount) || 0,
+    disbursed_date:      advance.disbursedDate || null,
+    reason:              advance.reason ?? '',
+    repayment_months:    parseInt(advance.repaymentMonths) || 1,
+    monthly_deduction:   monthlyDeduction,
+    outstanding_balance: advance.outstandingBalance !== undefined
+      ? parseFloat(advance.outstandingBalance)
+      : parseFloat(advance.amount) || 0,
+    status:              advance.status ?? 'active',
+  };
+
+  if (advance.id) {
+    const { data, error } = await supabase
+      .from('salary_advances').update(row).eq('id', advance.id).select().single();
+    if (error) throw error;
+    return dbToAdvance(data);
+  } else {
+    const { data, error } = await supabase
+      .from('salary_advances').insert(row).select().single();
+    if (error) throw error;
+    return dbToAdvance(data);
+  }
+}
+
+/**
+ * Updates the outstanding balance on an advance after a repayment.
+ * Automatically transitions status to 'settled' when balance reaches 0.
+ */
+export async function updateAdvanceBalance(id, newBalance) {
+  const status = newBalance <= 0 ? 'settled' : 'active';
+  const { error } = await supabase
+    .from('salary_advances')
+    .update({ outstanding_balance: Math.max(0, newBalance), status })
+    .eq('id', id);
+  if (error) throw error;
+}
+
+/**
+ * Returns all repayment records for a given advance.
+ */
+export async function getAdvanceRepayments(advanceId) {
+  const { data, error } = await supabase
+    .from('advance_repayments')
+    .select('*')
+    .eq('advance_id', advanceId)
+    .order('paid_date', { ascending: false });
+  if (error) { console.error('getAdvanceRepayments:', error); return []; }
+  return (data || []).map(dbToAdvanceRepayment);
+}
+
+/**
+ * Records a repayment for an advance and updates the outstanding balance.
+ */
+export async function saveAdvanceRepayment(repayment) {
+  const { error: repErr } = await supabase
+    .from('advance_repayments')
+    .insert({
+      advance_id:     repayment.advanceId,
+      payroll_run_id: repayment.payrollRunId || null,
+      amount:         parseFloat(repayment.amount),
+      paid_date:      repayment.paidDate || new Date().toISOString().split('T')[0],
+    });
+  if (repErr) throw repErr;
+
+  // Reduce outstanding balance on the parent advance
+  const { data: adv } = await supabase
+    .from('salary_advances').select('outstanding_balance').eq('id', repayment.advanceId).single();
+  if (adv) {
+    const newBalance = Math.max(0, (parseFloat(adv.outstanding_balance) || 0) - parseFloat(repayment.amount));
+    await updateAdvanceBalance(repayment.advanceId, newBalance);
+  }
+}
+
+function dbToAdvance(row) {
+  return {
+    id:                 row.id,
+    employeeId:         row.employee_id,
+    amount:             parseFloat(row.amount) || 0,
+    disbursedDate:      row.disbursed_date || '',
+    reason:             row.reason || '',
+    repaymentMonths:    parseInt(row.repayment_months) || 1,
+    monthlyDeduction:   parseFloat(row.monthly_deduction) || 0,
+    outstandingBalance: parseFloat(row.outstanding_balance) || 0,
+    status:             row.status || 'active',
+    createdAt:          row.created_at,
+  };
+}
+
+function dbToAdvanceRepayment(row) {
+  return {
+    id:           row.id,
+    advanceId:    row.advance_id,
+    payrollRunId: row.payroll_run_id || '',
+    amount:       parseFloat(row.amount) || 0,
+    paidDate:     row.paid_date || '',
+    createdAt:    row.created_at,
+  };
+}
+
 // ─── NAFIS / EMIRATIZATION REPORTS ──────────────────────────────────────────
 
 /**

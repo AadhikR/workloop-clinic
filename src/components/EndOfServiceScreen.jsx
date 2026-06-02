@@ -10,22 +10,40 @@
  *   - Cap: 24 months basic salary
  *   - Last working day is included in service period
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Calculator, Download } from 'lucide-react';
 import { calculateEndOfService } from '../utils/gratuityCalculator';
 import { calculateLeaveEncashment } from '../utils/leaveEngine';
 import { formatAED, formatDateUAE } from '../utils/uaeValidators';
+import { getAdvances } from '../utils/storage';
 
 export default function EndOfServiceScreen({ employee, onClose }) {
   const today = new Date().toISOString().split('T')[0];
 
   const [terminationDate, setTerminationDate]   = useState(employee.terminationDate || today);
   const [outstandingAdvances, setOutstandingAdvances] = useState('0');
+  const [advancesLoaded, setAdvancesLoaded]           = useState(false);
   const [unusedLeaveDays, setUnusedLeaveDays]   = useState('0');
   const [reason, setReason]                     = useState(
     employee.terminationReason?.toLowerCase().includes('resign') ? 'Resignation' : 'Termination'
   );
   const [result, setResult] = useState(null);
+
+  // Auto-load outstanding advance balance from the Advances module
+  useEffect(() => {
+    if (!employee?.id) return;
+    getAdvances(employee.id)
+      .then(advances => {
+        const total = advances
+          .filter(a => a.status === 'active')
+          .reduce((s, a) => s + a.outstandingBalance, 0);
+        if (total > 0) {
+          setOutstandingAdvances(total.toFixed(2));
+        }
+        setAdvancesLoaded(true);
+      })
+      .catch(() => setAdvancesLoaded(true)); // fail silently — table may not exist yet
+  }, [employee?.id]);
 
   const calculate = () => {
     const startDate = employee.startDate || employee.employmentStartDate;
@@ -195,7 +213,11 @@ export default function EndOfServiceScreen({ employee, onClose }) {
                     onChange={e => { setOutstandingAdvances(e.target.value); setResult(null); }}
                     placeholder="0.00"
                   />
-                  <span className="hint">Will be deducted from total settlement</span>
+                  <span className="hint">
+                    {advancesLoaded
+                      ? 'Auto-loaded from Advances module. Edit to override.'
+                      : 'Will be deducted from total settlement'}
+                  </span>
                 </div>
               </div>
               <div style={{ marginTop:16 }}>

@@ -1,5 +1,5 @@
 import { useState, useRef, useLayoutEffect, useEffect } from 'react';
-import { LayoutDashboard, Building2, Users, FileText, LogOut, User, CalendarDays, Clock } from 'lucide-react';
+import { LayoutDashboard, Building2, Users, FileText, LogOut, User, CalendarDays, Clock, DollarSign } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import AuthPage from './components/AuthPage';
 import { getCompany } from './utils/storage';
@@ -10,6 +10,7 @@ import EmployeeManager from './components/EmployeeManager';
 import PayrollManager from './components/PayrollManager';
 import LeaveManager from './components/LeaveManager';
 import AttendanceManager from './components/AttendanceManager';
+import AdvancesManager from './components/AdvancesManager';
 import EmployeeShell from './components/employee/EmployeeShell';
 import './index.css';
 
@@ -18,6 +19,7 @@ const NAV_ITEMS = [
   { id: 'company',    label: 'Company Settings', icon: Building2 },
   { id: 'employees',  label: 'Employees',         icon: Users },
   { id: 'payroll',    label: 'Payroll Module',    icon: FileText },
+  { id: 'advances',   label: 'Advances',          icon: DollarSign },
   { id: 'leave',      label: 'Leave',             icon: CalendarDays },
   { id: 'attendance', label: 'Attendance',        icon: Clock },
 ];
@@ -59,6 +61,7 @@ function AppShell() {
       case 'company':    return <CompanySettings />;
       case 'employees':  return <EmployeeManager />;
       case 'payroll':    return <PayrollManager />;
+      case 'advances':   return <AdvancesManager />;
       case 'leave':      return <LeaveManager />;
       case 'attendance': return <AttendanceManager />;
       default:           return <Dashboard onNavigate={setPage} />;
