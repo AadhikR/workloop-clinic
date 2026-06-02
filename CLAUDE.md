@@ -83,9 +83,27 @@ VITE_SUPABASE_URL=...
 VITE_SUPABASE_ANON_KEY=...
 ```
 
+## SQL Migrations
+
+New DB schema changes live in `sql/` as numbered files (`001_emiratization.sql`, `002_document_storage.sql`, …). Run each file manually in **Supabase Dashboard → SQL Editor → New Query**. There is no automated migration runner — files are applied in order by number. Each file is idempotent (`IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`).
+
+When adding a new table, always include in the same migration file:
+1. `CREATE TABLE IF NOT EXISTS`
+2. `ALTER TABLE … ENABLE ROW LEVEL SECURITY`
+3. `GRANT ALL ON TABLE … TO authenticated`
+4. `CREATE POLICY` statements
+
+After adding any new migration, also run:
+```sql
+GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
+```
+…to keep the test suite's service role in sync.
+
 ## Architecture
 
 **Workloop** is a UAE HR/payroll SaaS. It generates **SIF files** (Salary Information File — UAE WPS/MOL bank format) and manages employees, payroll, leave, and attendance. There are two completely separate UIs sharing one Supabase project.
+
+See `FEATURES_ROADMAP.md` for the 22-feature implementation plan and current completion status.
 
 ### Dual-portal structure
 
@@ -119,19 +137,19 @@ All DB access goes through utility modules — components never call `supabase` 
 
 | File | Scope |
 |------|-------|
-| `utils/storage.js` | Admin CRUD: companies, employees, payroll runs/entries, payslip record creation |
+| `utils/storage.js` | Admin CRUD: companies, employees, payroll runs/entries, payslip records, employee documents, Nafis reports |
 | `utils/profileStorage.js` | Role resolution (`user_profiles`), employee self-service data (own record, own payslips, own company) |
 | `utils/leaveStorage.js` | Leave types, requests, balances, public holidays |
 | `utils/attendanceStorage.js` | Attendance records, clock events, shifts, regularisation |
 
-**Shape converters**: `storage.js` has `dbToXxx` / `xxxToDb` functions that translate between snake_case DB columns and camelCase JS objects. All components consume camelCase objects.
+**Shape converters**: `storage.js` has `dbToXxx` / `xxxToDb` functions that translate between snake_case DB columns and camelCase JS objects. All components consume camelCase objects. `dbToDocument` is a module-private converter (not exported) — it is used internally by `getEmployeeDocuments` and `uploadEmployeeDocument`.
 
 **Column repurpose**: `payroll_entries.du_cost` stores `leaveDeduction` (per-employee leave deduction in a payroll run) — there was no schema migration; this column was repurposed in-place.
 
 ### Supabase schema (key tables)
 
-- `companies` — one row per admin user (`user_id = auth.uid()`)
-- `employees` — all employees for a company; `auth_user_id` set when employee links their account; `user_id` = the admin's UUID; `work_email` is always stored lowercase. Several columns are NOT NULL (including `mol_id`, `emp_no`, `name`, `bank_name`, `bank_routing_code`, `iban`) — always pass `''` as default, never omit them in raw inserts
+- `companies` — one row per admin user (`user_id = auth.uid()`). New columns: `sector TEXT`, `nafis_quota_percent DECIMAL(5,2)` (Emiratization tracking).
+- `employees` — all employees for a company; `auth_user_id` set when employee links their account; `user_id` = the admin's UUID; `work_email` is always stored lowercase. Several columns are NOT NULL (including `mol_id`, `emp_no`, `name`, `bank_name`, `bank_routing_code`, `iban`) — always pass `''` as default, never omit them in raw inserts. New column: `nafis_registration_no TEXT` (UAE nationals only).
 - `user_profiles` — `role` ('admin'|'employee'), `company_user_id`, `employee_id`; RLS restricts each user to their own row
 - `payroll_runs` + `payroll_entries` — payroll run header + one row per employee
 - `payslips` — snapshot of each employee's pay per period; created when admin downloads SIF (`createPayslipRecords`)
@@ -140,6 +158,16 @@ All DB access goes through utility modules — components never call `supabase` 
 - `attendance_records` — derived daily record; columns: `clock_in_time`, `clock_out_time`, `total_hours` (not `clock_in`, `clock_out`, `hours_worked`); `status` must be uppercase (e.g. `'PRESENT'`) — the JS constants in `attendanceEngine.js` (`ATTENDANCE_STATUS.PRESENT = 'PRESENT'`) are all uppercase and the DB values must match exactly
 - `attendance_periods` — one row per `(user_id, period YYYY-MM)`; closed by admin before payroll run
 - `employee_job_history` — audit log of salary/title/department/status changes; written on every employee save
+- `nafis_reports` — one snapshot per `(user_id, period YYYY-MM)`; upserted by `saveNafisReport()`. Stores headcount, Emirati count, ratio, compliance flag, and a JSON snapshot of UAE national employees at time of generation.
+- `employee_documents` — one row per uploaded file per employee. Key columns: `document_type`, `file_name`, `file_size`, `storage_path` (path within the `employee-documents` Supabase Storage bucket), `expiry_date`, `notes`. The `storage_path` is used to generate signed URLs and to delete from Storage on record delete.
+
+### Supabase Storage
+
+One private bucket: **`employee-documents`**. Files are stored at path `{admin_user_id}/{employee_id}/{timestamp}_{sanitised_filename}`. The path prefix `{admin_user_id}` is enforced by Storage RLS policies so admins can only access their own files.
+
+**Signed URLs**: `getEmployeeDocuments()` calls `createSignedUrl(path, 3600)` for each document after fetching the DB rows — URLs expire after 1 hour. `uploadEmployeeDocument()` also generates a signed URL immediately after upload so the new document is usable without a second load call. Never store public URLs for this bucket — it is private.
+
+**Bucket must be created manually** in Supabase Dashboard → Storage before the Documents tab will work. See `sql/002_document_storage.sql` for the required Storage RLS policy expressions.
 
 ### Supabase table permissions — critical
 
@@ -157,7 +185,7 @@ ALTER TABLE tablename ENABLE ROW LEVEL SECURITY; -- then add RLS policies
 
 ### RLS model
 
-**Admin tables** (`companies`, `employees`, `payroll_*`, `payslips`, `leave_*`, `clock_events`, `attendance_records`, `attendance_periods`, `employee_job_history`) use `FOR ALL USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid())`.
+**Admin tables** (`companies`, `employees`, `payroll_*`, `payslips`, `leave_*`, `clock_events`, `attendance_records`, `attendance_periods`, `employee_job_history`, `nafis_reports`, `employee_documents`) use `FOR ALL USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid())`.
 
 **Employee self-service** crosses the RLS boundary via `SECURITY DEFINER` RPCs and dedicated SELECT policies:
 
@@ -168,6 +196,7 @@ ALTER TABLE tablename ENABLE ROW LEVEL SECURITY; -- then add RLS policies
 | `leave_requests`, `leave_balances` | `employee_id` matched via linked employee |
 | `clock_events` | `employee_id IN (SELECT id FROM employees WHERE auth_user_id = auth.uid())` |
 | `attendance_records` | same pattern as clock_events |
+| `employee_documents` | `employee_id IN (SELECT id FROM employees WHERE auth_user_id = auth.uid())` |
 
 ### Employee self-service RPCs (SECURITY DEFINER)
 
@@ -205,15 +234,22 @@ These must exist in Supabase. All look up the caller's employee via `employees.a
 
 **Photo upload removed**: `EmployeeModal` has no photo upload UI. The `photoUrl` field is preserved in the DB shape (`employeeToDb` still maps it) so existing data is not lost, but the UI to change it has been removed.
 
-**EmployeeModal tab layout**: The modal has four tabs — Personal, Job & Contract, Salary & Bank, UAE Compliance. Key field locations:
-- Name: Personal tab, `placeholder="e.g. John Smith"` (not "Full name")
-- Work email: Personal tab, `placeholder="work@company.com"` (personal email is `placeholder="personal@email.com"`)
-- Basic salary: **Salary & Bank tab**, `placeholder="e.g. 5000"` — must switch tabs to reach it
-- Save button: `.modal-footer .btn-primary` (text varies: "Add Employee" for new, "Save Changes" for edit)
+**EmployeeModal tab layout**: The modal has **five tabs for existing employees**, four for new employees (the Documents tab is hidden when `employee?.id` is absent):
+- Personal — name (`placeholder="e.g. John Smith"`), contact info, emergency contact
+- Job & Contract — title, department, reporting manager, shift, dates
+- Salary & Bank — MOL ID, salary breakdown, bank details. Basic salary: `placeholder="e.g. 5000"`
+- UAE Compliance — nationality, visa, passport, Emirates ID, labour card, Nafis registration number (enabled only when `nationality === 'United Arab Emirates'`)
+- Documents *(existing employees only)* — file upload form (type, expiry, notes, file picker) + document list with signed-URL links, expiry status badges, and delete. The Save button is hidden on this tab — documents persist on upload, not on form submit.
+
+**Emiratization compliance**: `Dashboard.jsx` computes `emiratiEmps` by filtering active employees where `nationality === 'United Arab Emirates'`. The required ratio comes from `company.nafisQuotaPercent` (set in Company Settings). `NafisReportModal.jsx` generates a full compliance report with CSV export and DB snapshot save via `saveNafisReport()`. The `nafis_reports` table has a `UNIQUE (user_id, period)` constraint — `saveNafisReport` upserts by period.
+
+**Company Settings sector auto-fill**: When the admin selects an industry sector in Company Settings, the `nafisQuotaPercent` field is automatically pre-filled with that sector's default quota (defined in the `SECTORS` constant in `CompanySettings.jsx`). The admin can then override it manually.
+
+**Document signed URL expiry**: Signed URLs from `getEmployeeDocuments()` expire after 1 hour. If a user leaves the Documents tab open for a long time and then clicks a link, it may 403. Regenerate by switching away from the tab and back — the `useEffect` in `EmployeeModal` re-fetches documents whenever `tab === 'documents'` changes.
 
 ### Business logic utilities
 
-- **`utils/sifGenerator.js`** — Generates the UAE WPS SIF file format (SCR header + EDR per employee). Amounts are integer AED (not fils). Filename format: `{MOL_ID}{YYMMDD}{seq}.sif`.
+- **`utils/sifGenerator.js`** — Generates the UAE WPS SIF file format (SCR header + EDR per employee). Amounts are integer AED (not fils). Filename format: `{MOL_ID}{YYMMDD}{HHMMSS}.sif`.
 - **`utils/payslipGenerator.js`** — jsPDF payslip PDF. `generatePayslipPDF` is async (loads company logo). Always call `downloadPayslip(company, emp, run, entry)` from components, not `generatePayslipPDF` directly.
 - **`utils/leaveEngine.js`** — UAE Federal Labour Law No. 33 of 2021 leave rules. Exports `DEFAULT_LEAVE_TYPES` (seed data), `calculateAnnualLeaveAccrual`, `countLeaveDays`, `validateLeaveRequest`.
 - **`utils/gratuityCalculator.js`** — End-of-service gratuity per UAE law.
