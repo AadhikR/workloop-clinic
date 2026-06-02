@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
-import { Building2, Users, FileText, CheckCircle, AlertCircle, ArrowRight, Clock, ShieldAlert } from 'lucide-react';
+import { Building2, Users, FileText, CheckCircle, AlertCircle, ArrowRight, Clock, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { getCompany, getEmployees, getPayrolls } from '../utils/storage';
+import NafisReportModal from './NafisReportModal';
 
 export default function Dashboard({ onNavigate }) {
   const [company, setCompany]     = useState(null);
   const [employees, setEmployees] = useState([]);
   const [payrolls, setPayrolls]   = useState([]);
   const [loading, setLoading]     = useState(true);
+  const [showNafisReport, setShowNafisReport] = useState(false);
 
   useEffect(() => {
     Promise.all([getCompany(), getEmployees(), getPayrolls()]).then(([co, emps, pays]) => {
@@ -19,6 +21,16 @@ export default function Dashboard({ onNavigate }) {
 
   const activeEmps    = employees.filter(e => e.active !== false && e.employmentStatus !== 'Terminated');
   const generatedRuns = payrolls.filter(p => p.status === 'generated');
+
+  // ── Emiratization / Nafis compliance (Cabinet Resolution No. 27 of 2023) ──
+  const emiratiEmps     = activeEmps.filter(e => e.nationality === 'United Arab Emirates');
+  const emiratiCount    = emiratiEmps.length;
+  const totalHeadcount  = activeEmps.length;
+  const nafisRequired   = parseFloat(company?.nafisQuotaPercent) || 2;
+  const nafisRatio      = totalHeadcount > 0 ? (emiratiCount / totalHeadcount) * 100 : 0;
+  const nafisCompliant  = nafisRatio >= nafisRequired;
+  const nafisGap        = Math.max(0, Math.ceil((nafisRequired / 100) * totalHeadcount) - emiratiCount);
+  const nafisFine       = nafisGap * 6000;
   const draftRuns     = payrolls.filter(p => p.status !== 'generated');
 
   const recentPayrolls = [...payrolls]
@@ -169,6 +181,28 @@ export default function Dashboard({ onNavigate }) {
           </div>
         )}
 
+        {/* Emiratization non-compliance alert */}
+        {company?.sector && totalHeadcount > 0 && !nafisCompliant && (
+          <div className="alert alert-danger mb-4">
+            <ShieldAlert size={16} />
+            <div>
+              <strong>Emiratization Target Not Met (Cabinet Res. 27/2023):</strong>{' '}
+              Current rate <strong>{nafisRatio.toFixed(1)}%</strong> ({emiratiCount} UAE national{emiratiCount !== 1 ? 's' : ''}) is below the required{' '}
+              <strong>{nafisRequired}%</strong> for {company.sector}.
+              {nafisGap > 0 && (
+                <> You need <strong>{nafisGap} more UAE national{nafisGap !== 1 ? 's' : ''}</strong>.
+                  Potential fine: <strong>AED {nafisFine.toLocaleString('en-AE')} / month</strong>.
+                </>
+              )}
+              {' '}
+              <button className="btn btn-ghost btn-sm" style={{ padding:'0 4px', textDecoration:'underline' }}
+                onClick={() => setShowNafisReport(true)}>
+                View Report
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Setup checklist */}
         <div className="card mb-4">
           <div className="card-header">
@@ -237,6 +271,75 @@ export default function Dashboard({ onNavigate }) {
               {criticalDocs.length}
             </div>
             <div className="stat-sub">{docWarnings.length} within 60 days</div>
+          </div>
+        </div>
+
+        {/* Emiratization / Nafis compliance panel */}
+        <div className="card mb-4">
+          <div className="card-header">
+            <h3><ShieldCheck size={15} style={{ marginRight:6, display:'inline' }} />Emiratization / Nafis Compliance</h3>
+            <button className="btn btn-ghost btn-sm" onClick={() => setShowNafisReport(true)}>
+              View Report <ArrowRight size={13} />
+            </button>
+          </div>
+          <div className="card-body">
+            {!company?.sector ? (
+              <div style={{ fontSize:13.5, color:'var(--gray-500)', display:'flex', alignItems:'center', gap:10 }}>
+                <AlertCircle size={15} color="var(--warning)" />
+                Emiratization tracking not configured.{' '}
+                <button className="btn btn-ghost btn-sm" style={{ padding:'0 4px', textDecoration:'underline' }}
+                  onClick={() => onNavigate('company')}>
+                  Set your sector in Company Settings
+                </button>{' '}
+                to enable the compliance dashboard.
+              </div>
+            ) : totalHeadcount === 0 ? (
+              <div style={{ fontSize:13.5, color:'var(--gray-500)' }}>
+                No active employees on record.
+              </div>
+            ) : (
+              <div style={{ display:'flex', alignItems:'center', gap:32, flexWrap:'wrap' }}>
+                {/* Ratio number */}
+                <div style={{ textAlign:'center', minWidth:80 }}>
+                  <div style={{ fontSize:34, fontWeight:800, lineHeight:1, color: nafisCompliant ? 'var(--success)' : 'var(--danger)' }}>
+                    {nafisRatio.toFixed(1)}%
+                  </div>
+                  <div style={{ fontSize:11, color:'var(--gray-500)', marginTop:4 }}>Current Rate</div>
+                </div>
+
+                {/* Bar */}
+                <div style={{ flex:1, minWidth:160 }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, color:'var(--gray-400)', marginBottom:5 }}>
+                    <span>0%</span>
+                    <span style={{ color:'var(--gray-600)', fontWeight:600 }}>Target: {nafisRequired}%</span>
+                  </div>
+                  <div style={{ height:10, background:'var(--gray-200)', borderRadius:6, overflow:'hidden', position:'relative' }}>
+                    {/* Target marker */}
+                    <div style={{ position:'absolute', top:0, bottom:0, left:`${Math.min(nafisRequired, 100)}%`, width:2, background:'var(--gray-500)', zIndex:2 }} />
+                    {/* Fill */}
+                    <div style={{ height:'100%', width:`${Math.min(nafisRatio, 100)}%`, background: nafisCompliant ? 'var(--success)' : 'var(--danger)', borderRadius:6, transition:'width 0.4s' }} />
+                  </div>
+                  <div style={{ marginTop:6, fontSize:12.5, color:'var(--gray-700)' }}>
+                    <strong>{emiratiCount}</strong> UAE national{emiratiCount !== 1 ? 's' : ''} of <strong>{totalHeadcount}</strong> active employees
+                    {company.sector && <span style={{ color:'var(--gray-400)', marginLeft:8 }}>· {company.sector}</span>}
+                  </div>
+                  {!nafisCompliant && nafisGap > 0 && (
+                    <div style={{ marginTop:5, fontSize:12, color:'var(--danger)', fontWeight:600 }}>
+                      {nafisGap} more UAE national{nafisGap !== 1 ? 's' : ''} needed
+                      · Potential fine: AED {nafisFine.toLocaleString('en-AE')} / month
+                    </div>
+                  )}
+                </div>
+
+                {/* Status badge */}
+                <div style={{ textAlign:'center', minWidth:80 }}>
+                  <div style={{ fontSize:11, color:'var(--gray-500)', marginBottom:6 }}>Status</div>
+                  <span className={`badge ${nafisCompliant ? 'badge-green' : 'badge-red'}`} style={{ fontSize:12, padding:'5px 12px' }}>
+                    {nafisCompliant ? 'Compliant' : 'Non-Compliant'}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -350,6 +453,14 @@ export default function Dashboard({ onNavigate }) {
           </div>
         )}
       </div>
+
+      {showNafisReport && (
+        <NafisReportModal
+          employees={employees}
+          company={company}
+          onClose={() => setShowNafisReport(false)}
+        />
+      )}
     </div>
   );
 }

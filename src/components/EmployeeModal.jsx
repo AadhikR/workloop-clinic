@@ -32,6 +32,7 @@ const EMPTY_EMP = {
   emiratesId:'', emiratesIdExpiry:'',
   labourCardNumber:'', labourCardExpiry:'',
   sponsoringEntity:'', workLocationType:'Mainland', freeZoneName:'',
+  nafisRegistrationNo:'',
 };
 
 export default function EmployeeModal({ employee, allEmployees, onSave, onClose }) {
@@ -387,6 +388,11 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
                   <option value="">Select country…</option>
                   {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
+                {form.nationality === 'United Arab Emirates' && (
+                  <div style={{ marginTop:6, display:'inline-flex', alignItems:'center', gap:6, background:'#ecfdf5', border:'1px solid #a7f3d0', borderRadius:6, padding:'4px 10px', fontSize:12, color:'#065f46', fontWeight:600 }}>
+                    <Shield size={12} /> UAE National — counts toward Emiratization quota
+                  </div>
+                )}
               </div>
               <div className="form-group">
                 <label>Visa Type</label>
@@ -454,6 +460,24 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
                   </select>
                 </div>
               )}
+              <div className="form-group" style={{ gridColumn:'1/-1', marginTop:8 }}>
+                <label style={{ display:'flex', alignItems:'center', gap:6 }}>
+                  <Shield size={13} style={{ color:'var(--primary)' }} />
+                  Nafis Registration Number (UAE Nationals only)
+                </label>
+                <input
+                  className="form-control font-mono"
+                  value={form.nafisRegistrationNo}
+                  onChange={e => f('nafisRegistrationNo', e.target.value.trim())}
+                  placeholder="e.g. NFS-2024-XXXXXXX"
+                  disabled={form.nationality !== 'United Arab Emirates'}
+                />
+                <span className="hint">
+                  {form.nationality === 'United Arab Emirates'
+                    ? 'Nafis registration number from the Nafis portal (nafis.gov.ae). Required for Emiratization reporting.'
+                    : 'Only applicable to UAE national employees.'}
+                </span>
+              </div>
             </div>
           )}
 

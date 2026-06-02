@@ -358,6 +358,54 @@ export async function createPayslipRecords(payroll) {
   if (error) console.error('createPayslipRecords:', error);
 }
 
+// ─── NAFIS / EMIRATIZATION REPORTS ──────────────────────────────────────────
+
+/**
+ * Returns all saved Nafis compliance reports for the current user.
+ */
+export async function getNafisReports() {
+  const { data, error } = await supabase
+    .from('nafis_reports')
+    .select('*')
+    .order('generated_at', { ascending: false });
+
+  if (error) { console.error('getNafisReports:', error); return []; }
+  return (data || []).map(r => ({
+    id:               r.id,
+    period:           r.period,
+    totalHeadcount:   r.total_headcount,
+    emiratiCount:     r.emirati_count,
+    ratioPercent:     parseFloat(r.ratio_percent) || 0,
+    requiredPercent:  parseFloat(r.required_percent) || 0,
+    compliant:        r.compliant,
+    snapshot:         r.snapshot ?? [],
+    generatedAt:      r.generated_at,
+  }));
+}
+
+/**
+ * Saves (upserts) a Nafis compliance report snapshot for a given period.
+ */
+export async function saveNafisReport(report) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { error } = await supabase
+    .from('nafis_reports')
+    .upsert({
+      user_id:          user.id,
+      period:           report.period,
+      total_headcount:  report.totalHeadcount,
+      emirati_count:    report.emiratiCount,
+      ratio_percent:    report.ratioPercent,
+      required_percent: report.requiredPercent,
+      compliant:        report.compliant,
+      snapshot:         report.snapshot ?? [],
+    }, { onConflict: 'user_id,period' });
+
+  if (error) { console.error('saveNafisReport:', error); throw error; }
+}
+
 // ─── shape converters ───────────────────────────────────────────────────────
 
 function dbToCompany(data) {
@@ -372,6 +420,8 @@ function dbToCompany(data) {
     workLocationType:       data.work_location_type ?? 'Mainland',
     freeZoneName:           data.free_zone_name ?? '',
     logoUrl:                data.logo_url ?? '',
+    sector:                 data.sector ?? '',
+    nafisQuotaPercent:      parseFloat(data.nafis_quota_percent) || 2,
   };
 }
 
@@ -387,6 +437,8 @@ function companyToDb(company, userId) {
     work_location_type:         company.workLocationType ?? 'Mainland',
     free_zone_name:             company.freeZoneName ?? '',
     logo_url:                   company.logoUrl ?? '',
+    sector:                     company.sector ?? '',
+    nafis_quota_percent:        parseFloat(company.nafisQuotaPercent) || 2,
   };
 }
 
@@ -455,6 +507,7 @@ function dbToEmployee(row) {
     sponsoringEntity:       row.sponsoring_entity ?? '',
     workLocationType:       row.work_location_type ?? 'Mainland',
     freeZoneName:           row.free_zone_name ?? '',
+    nafisRegistrationNo:    row.nafis_registration_no ?? '',
   };
 }
 
@@ -522,6 +575,7 @@ function employeeToDb(emp, userId) {
     sponsoring_entity:     emp.sponsoringEntity ?? '',
     work_location_type:    emp.workLocationType ?? 'Mainland',
     free_zone_name:        emp.freeZoneName ?? '',
+    nafis_registration_no: emp.nafisRegistrationNo ?? '',
   };
 }
 

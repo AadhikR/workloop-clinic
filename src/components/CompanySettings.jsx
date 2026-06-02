@@ -1,6 +1,26 @@
 import { useState, useEffect } from 'react';
-import { Building2, Info, CheckCircle, Save, AlertCircle, Loader, MapPin, Calendar } from 'lucide-react';
+import { Building2, Info, CheckCircle, Save, AlertCircle, Loader, MapPin, Calendar, ShieldCheck } from 'lucide-react';
 import { getCompany, saveCompany } from '../utils/storage';
+
+// UAE sectors with their approximate 2024 Emiratization quota targets (Cabinet Res. 27/2023)
+const SECTORS = [
+  { name: 'Banking & Financial Services',  defaultQuota: 8  },
+  { name: 'Insurance',                     defaultQuota: 5  },
+  { name: 'Telecommunications',            defaultQuota: 8  },
+  { name: 'Healthcare & Pharmaceuticals',  defaultQuota: 5  },
+  { name: 'Retail & Trade',               defaultQuota: 4  },
+  { name: 'Information Technology',        defaultQuota: 4  },
+  { name: 'Real Estate',                   defaultQuota: 4  },
+  { name: 'Education',                     defaultQuota: 5  },
+  { name: 'Manufacturing & Industry',      defaultQuota: 2  },
+  { name: 'Construction',                  defaultQuota: 2  },
+  { name: 'Hospitality & Tourism',         defaultQuota: 2  },
+  { name: 'Transportation & Logistics',    defaultQuota: 2  },
+  { name: 'Oil, Gas & Energy',            defaultQuota: 2  },
+  { name: 'Media & Marketing',             defaultQuota: 2  },
+  { name: 'Legal & Consultancy',           defaultQuota: 2  },
+  { name: 'Other',                         defaultQuota: 2  },
+];
 
 const FREE_ZONES = [
   'DIFC', 'ADGM', 'JAFZA', 'DMCC', 'DAFZA', 'TECOM', 'Dubai Internet City',
@@ -18,6 +38,8 @@ const DEFAULT_COMPANY = {
   workLocationType: 'Mainland',
   freeZoneName: '',
   logoUrl: '',
+  sector: '',
+  nafisQuotaPercent: 2,
 };
 
 export default function CompanySettings() {
@@ -243,6 +265,70 @@ export default function CompanySettings() {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+
+        {/* ── Emiratization / Nafis Compliance ── */}
+        <div className="card mb-4">
+          <div className="card-header">
+            <h3><ShieldCheck size={16} style={{ display:'inline', marginRight:6 }} />Emiratization / Nafis Compliance</h3>
+          </div>
+          <div className="card-body">
+            <div className="alert alert-info mb-4" style={{ marginBottom:16 }}>
+              <Info size={15} />
+              <div style={{ fontSize:13 }}>
+                UAE Cabinet Resolution No. 27 of 2023 mandates Emiratization quotas in the private sector.
+                Set your industry sector below — the required percentage is pre-filled based on current MOHRE targets
+                and can be adjusted to match your company's specific obligation.
+                Non-compliance carries fines of <strong>AED 6,000 per month per unfilled Emirati slot</strong>.
+              </div>
+            </div>
+            <div className="form-grid form-grid-2">
+              <div className="form-group">
+                <label>Industry Sector</label>
+                <select
+                  className="form-control"
+                  value={company.sector}
+                  onChange={e => {
+                    const selected = SECTORS.find(s => s.name === e.target.value);
+                    handleChange('sector', e.target.value);
+                    if (selected) handleChange('nafisQuotaPercent', selected.defaultQuota);
+                  }}
+                >
+                  <option value="">Select your sector…</option>
+                  {SECTORS.map(s => (
+                    <option key={s.name} value={s.name}>{s.name}</option>
+                  ))}
+                </select>
+                <span className="hint">Used to pre-fill the Emiratization quota target for your industry</span>
+              </div>
+              <div className="form-group">
+                <label>Required Emiratization Rate (%)</label>
+                <input
+                  className="form-control"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.5"
+                  value={company.nafisQuotaPercent}
+                  onChange={e => handleChange('nafisQuotaPercent', parseFloat(e.target.value) || 0)}
+                  placeholder="e.g. 4"
+                />
+                <span className="hint">
+                  Percentage of UAE nationals required among active headcount.
+                  {company.sector && (() => {
+                    const s = SECTORS.find(sec => sec.name === company.sector);
+                    return s ? ` Suggested for ${s.name}: ${s.defaultQuota}%` : '';
+                  })()}
+                </span>
+              </div>
+            </div>
+            {company.sector && (
+              <div style={{ marginTop:4, padding:'10px 14px', background:'var(--gray-50)', borderRadius:8, border:'1px solid var(--gray-200)', fontSize:13, color:'var(--gray-600)' }}>
+                <strong>Current setup:</strong> {company.sector} · Target {company.nafisQuotaPercent}% UAE nationals.
+                The Emiratization panel on the Dashboard will show your live compliance status.
+              </div>
+            )}
           </div>
         </div>
 
