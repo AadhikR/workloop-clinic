@@ -35,11 +35,8 @@ test.describe('Emiratization — Company Settings', () => {
       page.locator('select option[value=""]').filter({ hasText: /sector/i }).first()
     ).toBeAttached({ timeout: 6000 });
 
-    // Required % input exists
-    await expect(
-      page.locator('input[type="number"]').filter({ hasNearby: page.locator('text=/Emiratization Rate/i') })
-        .or(page.locator('label:has-text("Required Emiratization Rate") + * input[type="number"]'))
-    ).toBeAttached({ timeout: 6000 });
+    // Required % input exists — identified by its unique placeholder "e.g. 4"
+    await expect(page.locator('input[placeholder="e.g. 4"]')).toBeAttached({ timeout: 6000 });
   });
 
   test('selecting Banking sector auto-fills quota to 8%', async ({ page }) => {
@@ -106,8 +103,9 @@ test.describe('Emiratization — Dashboard panel', () => {
     await page.goto('/');
     await expect(page.locator('.stat-card').first()).toBeVisible({ timeout: 15000 });
 
-    // Either a "View Report" button (when sector configured) or a "Set your sector" prompt
-    const viewReport  = page.getByRole('button', { name: /view report/i });
+    // Either a "View Report" button (when sector configured) or a "Set your sector" prompt.
+    // Two "View Report" buttons can exist (panel header + non-compliance alert) — .first() handles both.
+    const viewReport   = page.getByRole('button', { name: /view report/i }).first();
     const sectorPrompt = page.locator('text=/set your sector/i');
     await expect(viewReport.or(sectorPrompt)).toBeVisible({ timeout: 8000 });
   });
@@ -164,8 +162,10 @@ test.describe('Emiratization — Employee modal', () => {
     const natSelect = page.locator('select').filter({ has: page.locator('option[value="United Arab Emirates"]') });
     await natSelect.selectOption('United Arab Emirates');
 
-    // UAE National badge appears
-    await expect(page.locator('text=/UAE National/i')).toBeVisible({ timeout: 4000 });
+    // UAE National badge appears — match the full badge text to avoid matching the Nafis label
+    await expect(
+      page.getByText('UAE National — counts toward Emiratization quota')
+    ).toBeVisible({ timeout: 4000 });
 
     // Nafis field becomes enabled
     await expect(page.locator('input[placeholder*="NFS"]')).toBeEnabled({ timeout: 4000 });

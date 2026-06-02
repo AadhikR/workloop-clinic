@@ -175,9 +175,11 @@ test.describe('Insurance — Employee modal', () => {
     await expect(page.locator('input[placeholder*="member ID"]').or(page.locator('input[placeholder*="Member"]')))
       .toBeVisible({ timeout: 5000 });
 
-    // Card number input
-    await expect(page.locator('input[placeholder*="card"]').or(page.locator('input[placeholder*="certificate"]')))
-      .toBeVisible({ timeout: 5000 });
+    // Card number input — scope to Coverage Assignment card to avoid matching dependant card number field
+    const coverageCard = page.locator('.card').filter({ hasText: 'Coverage Assignment' }).first();
+    await expect(
+      coverageCard.locator('input[placeholder*="certificate"]')
+    ).toBeVisible({ timeout: 5000 });
 
     // Assign/Update Coverage button
     await expect(
@@ -197,12 +199,13 @@ test.describe('Insurance — Employee modal', () => {
     // Dependants card
     await expect(page.locator('h3').filter({ hasText: /Dependants/i })).toBeVisible({ timeout: 6000 });
 
-    // Add Dependant sub-form
-    await expect(page.locator('text=Add Dependant')).toBeVisible({ timeout: 5000 });
+    // Add Dependant sub-form heading — use the div, not the button (both contain "Add Dependant")
+    await expect(
+      page.locator('div').filter({ hasText: /^Add Dependant$/ }).first()
+    ).toBeVisible({ timeout: 5000 });
 
-    // Name input inside dependant form
-    await expect(page.locator('input[placeholder*="full name"]').or(page.locator('input[placeholder*="Dependant"]')))
-      .toBeVisible({ timeout: 5000 });
+    // Name input inside dependant form — exact placeholder avoids matching "Dependant's card number"
+    await expect(page.getByPlaceholder("Dependant's full name")).toBeVisible({ timeout: 5000 });
 
     // Relationship selector
     await expect(page.locator('select').filter({ has: page.locator('option[value="Spouse"]') }))
