@@ -191,7 +191,7 @@ export default function AdvancesManager() {
             <div className="stat-value" style={{ color: 'var(--primary)' }}>
               {totalOut.toLocaleString('en-AE', { minimumFractionDigits: 2 })}
             </div>
-            <div className="stat-sub">AED — active advances</div>
+            <div className="stat-sub">AED — outstanding balance</div>
           </div>
         </div>
 
