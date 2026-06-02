@@ -36,5 +36,17 @@ export default async function globalTeardown() {
     await db.from('payroll_runs').delete().eq('user_id', adminId);
   }
 
+  console.log('[teardown] Cleaning up Feature 1–4 test data…');
+  // Nafis reports created during Feature 1 tests
+  await db.from('nafis_reports').delete().eq('user_id', adminId);
+  // Insurance policies + dependant data from Feature 3 tests
+  await db.from('insurance_dependants').delete().eq('user_id', adminId);
+  await db.from('employee_insurance').delete().eq('user_id', adminId);
+  await db.from('insurance_policies').delete().eq('user_id', adminId);
+  // Notifications seeded or auto-generated during Feature 4 tests
+  await db.from('notifications').delete().eq('user_id', adminId);
+  // Employee documents from Feature 2 tests (DB rows; storage objects are not cleaned here)
+  await db.from('employee_documents').delete().eq('user_id', adminId);
+
   console.log('[teardown] Done.\n');
 }
