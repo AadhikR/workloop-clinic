@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Home, CalendarDays, Clock, FileText, User, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import NotificationBell from '../NotificationBell';
 import { getMyEmployeeRecord, getMyCompany } from '../../utils/profileStorage';
 import EmpHome from './EmpHome';
 import EmpLeave from './EmpLeave';
@@ -132,7 +133,7 @@ export default function EmployeeShell() {
               }}>
                 <User size={13} color="rgba(255,255,255,0.9)" />
               </div>
-              <div style={{ overflow: 'hidden' }}>
+              <div style={{ overflow: 'hidden', flex: 1 }}>
                 <div style={{
                   fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.88)',
                   whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
@@ -140,9 +141,10 @@ export default function EmployeeShell() {
                   {emp.name}
                 </div>
                 <div style={{ fontSize: 10, color: 'rgba(148,163,184,0.70)', marginTop: 1 }}>
-                  {emp.job_title || 'Employee'}
+                  {emp.jobTitle || 'Employee'}
                 </div>
               </div>
+              <NotificationBell />
             </div>
           )}
 

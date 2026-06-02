@@ -794,6 +794,9 @@ function dbToEmployee(row) {
     otherAllowancesLabel:   row.other_allowances_label ?? '',
     bankAccountHolder:      row.bank_account_holder ?? '',
 
+    // Auth link (set when employee registers on the employee portal)
+    authUserId:             row.auth_user_id || null,
+
     // UAE compliance
     nationality:            row.nationality ?? '',
     visaType:               row.visa_type ?? '',

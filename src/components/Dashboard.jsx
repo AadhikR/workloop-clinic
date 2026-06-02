@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Building2, Users, FileText, CheckCircle, AlertCircle, ArrowRight, Clock, ShieldAlert, ShieldCheck, Heart } from 'lucide-react';
 import { getCompany, getEmployees, getPayrolls, getInsurancePolicies, getAllEmployeeInsurance } from '../utils/storage';
+import { generateExpiryNotifications } from '../utils/notificationStorage';
 import NafisReportModal from './NafisReportModal';
 
 export default function Dashboard({ onNavigate }) {
@@ -23,6 +24,8 @@ export default function Dashboard({ onNavigate }) {
       setInsurancePolicies(pols);
       setAllEmpInsurance(empIns);
       setLoading(false);
+      // Silently generate persistent expiry notifications (ON CONFLICT DO NOTHING)
+      generateExpiryNotifications(emps, co, pols, empIns).catch(() => {});
     });
   }, []);
 

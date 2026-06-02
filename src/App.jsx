@@ -3,6 +3,7 @@ import { LayoutDashboard, Building2, Users, FileText, LogOut, User, CalendarDays
 import { AuthProvider, useAuth } from './context/AuthContext';
 import AuthPage from './components/AuthPage';
 import { getCompany } from './utils/storage';
+import NotificationBell from './components/NotificationBell';
 import Dashboard from './components/Dashboard';
 import CompanySettings from './components/CompanySettings';
 import EmployeeManager from './components/EmployeeManager';
@@ -127,6 +128,7 @@ function AppShell() {
                 HR Admin
               </div>
             </div>
+            <NotificationBell />
           </div>
 
           <button

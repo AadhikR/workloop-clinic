@@ -3,6 +3,7 @@ import { Download, Eye, Upload, AlertCircle, Plus, ChevronDown, CheckCircle, Fil
 import { generateSIF, generateSIFFilename } from '../utils/sifGenerator';
 import { parseCSV, readFileAsText } from '../utils/csvImport';
 import { savePayroll, createPayslipRecords } from '../utils/storage';
+import { createNotifications } from '../utils/notificationStorage';
 import AllowDeductPanel, { computeFinalAllowance } from './AllowDeductPanel';
 import SIFPreviewModal from './SIFPreviewModal';
 import { downloadPayslip, downloadAllPayslips } from '../utils/payslipGenerator';
@@ -193,6 +194,27 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
       const finalised = { ...p, status: 'generated' };
       onSave(finalised);
       await createPayslipRecords(finalised);
+
+      // Notify employees with linked portal accounts that their payslip is ready
+      const payslipNotifs = (finalised.entries || [])
+        .filter(e => !e.excluded)
+        .map(e => {
+          const emp = employees.find(em => em.id === e.employeeId);
+          if (!emp?.authUserId) return null;
+          const net = (parseFloat(e.basicSalary) || 0) + (parseFloat(e.variableAllowance) || 0);
+          return {
+            recipientUserId:   emp.authUserId,
+            type:              'payslip_available',
+            title:             'Payslip available',
+            body:              `Your payslip for ${finalised.period} is ready. Net pay: AED ${net.toLocaleString('en-AE', { minimumFractionDigits: 2 })}.`,
+            relatedEntityType: 'payroll_run',
+            relatedEntityId:   `${finalised.id}_${e.employeeId}`,
+          };
+        })
+        .filter(Boolean);
+      if (payslipNotifs.length > 0) {
+        createNotifications(payslipNotifs).catch(() => {});
+      }
     } finally {
       setSubmitting(false);
       setConfirmSubmit(false);

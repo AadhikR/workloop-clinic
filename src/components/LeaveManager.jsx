@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getEmployees } from '../utils/storage';
+import { createNotification } from '../utils/notificationStorage';
 import {
   getLeaveTypes, getLeaveRequests, submitLeaveRequest, updateLeaveRequestStatus,
   cancelLeaveRequest, getLeaveBalances, getAllLeaveBalances, upsertLeaveBalance,
@@ -186,6 +187,26 @@ export default function LeaveManager() {
     setSaving(true);
     try {
       await updateLeaveRequestStatus(requestId, action, user?.email || 'HR', reason);
+
+      // Notify the employee if they have a linked portal account
+      if (action === 'Approved' || action === 'Rejected') {
+        const req = requests.find(r => r.id === requestId);
+        if (req) {
+          const emp = employees.find(e => e.id === req.employeeId);
+          if (emp?.authUserId) {
+            const typeStr = action === 'Approved' ? 'leave_approved' : 'leave_rejected';
+            createNotification({
+              recipientUserId:   emp.authUserId,
+              type:              typeStr,
+              title:             `Leave request ${action.toLowerCase()}`,
+              body:              `Your ${req.leaveTypeCode || 'leave'} request (${req.startDate} – ${req.endDate}) has been ${action.toLowerCase()}${reason ? ': ' + reason : '.'}`,
+              relatedEntityType: 'leave_request',
+              relatedEntityId:   requestId,
+            }).catch(() => {});
+          }
+        }
+      }
+
       await loadAll();
       setApprovalModal(null);
       setApprovalReason('');
