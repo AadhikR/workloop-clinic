@@ -13,13 +13,25 @@ npm run lint          # ESLint
 npm run preview       # Preview the production build
 
 # Testing (Playwright E2E — requires dev server running in a separate terminal)
-npm test              # Full test suite, headless
-npm run test:ui       # Playwright UI mode — visual step-by-step, best for debugging
-npm run test:auth     # Auth flows only
-npm run test:attendance  # Attendance flows only (most critical)
-npm run test:employees   # Employee CRUD only
-npm run test:payroll     # Payroll flows only
-npm run test:report   # Open HTML report from last run
+npm test                        # Full test suite, headless
+npm run test:ui                 # Playwright UI mode — visual step-by-step, best for debugging
+npm run test:auth               # Auth flows only
+npm run test:attendance         # Attendance flows only (most critical)
+npm run test:employees          # Employee CRUD only
+npm run test:payroll            # Payroll flows only
+npm run test:report             # Open HTML report from last run
+
+# Run only the Feature 1–4 spec files
+npx playwright test emiratization documents insurance notifications
+
+# Run a single feature spec
+npx playwright test emiratization          # Feature 1 — Emiratization / Nafis
+npx playwright test documents             # Feature 2 — Document Storage
+npx playwright test insurance             # Feature 3 — Medical Insurance
+npx playwright test notifications         # Feature 4 — Notification System
+
+# Run tests matching a name pattern across all files
+npx playwright test --grep "bell icon"
 ```
 
 ### Test suite setup
@@ -35,7 +47,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO service_role;
 ```
 
-`global-setup.js` runs once before all tests: creates `test.admin@workloop-test.local` and `test.employee@workloop-test.local` auth users, seeds company/employee rows, then saves browser sessions to `.playwright/admin-session.json` and `.playwright/employee-session.json` so tests start pre-logged-in. `global-teardown.js` cleans attendance and payroll test data afterward.
+`global-setup.js` runs once before all tests: creates `test.admin@workloop-test.local` and `test.employee@workloop-test.local` auth users, seeds company/employee rows, then saves browser sessions to `.playwright/admin-session.json` and `.playwright/employee-session.json` so tests start pre-logged-in. `global-teardown.js` cleans test data from: attendance, payroll, nafis_reports, insurance_policies/dependants/employee_insurance, notifications, and employee_documents.
 
 Test files in `tests/` use `storageState` to load saved sessions. Attendance tests open two browser contexts simultaneously (admin + employee) to verify cross-portal clock-in visibility.
 
@@ -74,6 +86,16 @@ await expect(page.locator('.stat-card').first()).toBeVisible({ timeout: 20000 })
 **`option[value!=""]` is not valid CSS**: jQuery inequality attribute selector. Use `locator('option').count()` and treat a count of `<= 1` as "only the placeholder exists".
 
 **React 18 batching of transient loading states**: When data loads very quickly, React 18 may batch `setLoading(true)` and `setLoading(false)` in the same microtask, so the loading spinner is never painted to the DOM. Do not write tests that assert the spinner IS visible — assert only the end state (e.g., stat cards visible after load). The month-change and Refresh-click tests are the specific cases where this applies in this codebase.
+
+**Strict mode — duplicate navigation buttons**: The Dashboard renders secondary buttons that duplicate sidebar nav labels (e.g., a "Company Settings" button inside the MOL Employer ID warning alert). `getByRole('button', { name: 'Company Settings' })` will match both and throw a strict mode violation. Always scope sidebar navigation clicks to `.sidebar-nav`:
+```js
+// ❌ Ambiguous — matches sidebar nav AND any inline alert/prompt buttons
+await page.getByRole('button', { name: 'Company Settings' }).click();
+
+// ✅ Scoped to sidebar only
+await page.locator('.sidebar-nav').getByRole('button', { name: 'Company Settings' }).click();
+```
+The same risk applies to any nav label that also appears as an inline link inside a page alert or prompt.
 
 ## Environment
 
@@ -137,12 +159,15 @@ All DB access goes through utility modules — components never call `supabase` 
 
 | File | Scope |
 |------|-------|
-| `utils/storage.js` | Admin CRUD: companies, employees, payroll runs/entries, payslip records, employee documents, Nafis reports |
+| `utils/storage.js` | Admin CRUD: companies, employees, payroll runs/entries, payslip records, employee documents, Nafis reports, insurance policies/assignments/dependants |
+| `utils/notificationStorage.js` | In-app notifications: `getNotifications`, `getUnreadCount`, `markNotificationRead`, `markAllNotificationsRead`, `createNotification`, `createNotifications` (batch), `generateExpiryNotifications` |
 | `utils/profileStorage.js` | Role resolution (`user_profiles`), employee self-service data (own record, own payslips, own company) |
 | `utils/leaveStorage.js` | Leave types, requests, balances, public holidays |
 | `utils/attendanceStorage.js` | Attendance records, clock events, shifts, regularisation |
 
-**Shape converters**: `storage.js` has `dbToXxx` / `xxxToDb` functions that translate between snake_case DB columns and camelCase JS objects. All components consume camelCase objects. `dbToDocument` is a module-private converter (not exported) — it is used internally by `getEmployeeDocuments` and `uploadEmployeeDocument`.
+**Shape converters**: `storage.js` has `dbToXxx` / `xxxToDb` functions that translate between snake_case DB columns and camelCase JS objects. All components consume camelCase objects. `dbToDocument`, `dbToInsurancePolicy`, `dbToEmployeeInsurance`, and `dbToInsuranceDependant` are all module-private converters (not exported).
+
+**`authUserId` in dbToEmployee**: `dbToEmployee` now maps `row.auth_user_id → emp.authUserId`. This field is `null` until the employee registers on the employee portal. It is used by `LeaveManager` and `PayrollEditor` to target notifications at the correct employee auth account.
 
 **Column repurpose**: `payroll_entries.du_cost` stores `leaveDeduction` (per-employee leave deduction in a payroll run) — there was no schema migration; this column was repurposed in-place.
 
@@ -160,6 +185,10 @@ All DB access goes through utility modules — components never call `supabase` 
 - `employee_job_history` — audit log of salary/title/department/status changes; written on every employee save
 - `nafis_reports` — one snapshot per `(user_id, period YYYY-MM)`; upserted by `saveNafisReport()`. Stores headcount, Emirati count, ratio, compliance flag, and a JSON snapshot of UAE national employees at time of generation.
 - `employee_documents` — one row per uploaded file per employee. Key columns: `document_type`, `file_name`, `file_size`, `storage_path` (path within the `employee-documents` Supabase Storage bucket), `expiry_date`, `notes`. The `storage_path` is used to generate signed URLs and to delete from Storage on record delete.
+- `insurance_policies` — company-level insurance plan records (insurer name, policy number, tier, annual premium, renewal date, broker). One admin can have multiple policies.
+- `employee_insurance` — one coverage record per employee (`UNIQUE (user_id, employee_id)`); links to a policy, stores member ID, card number, effective/expiry dates. Upserted via `saveEmployeeInsurance()` using `onConflict: 'user_id,employee_id'`.
+- `insurance_dependants` — family members covered under an employee's policy (name, relationship, DOB, card number). No uniqueness constraint — multiple rows per employee allowed.
+- `notifications` — in-app notifications with `UNIQUE (recipient_user_id, type, related_entity_id)` for deduplication. `user_id` = who created it (admin), `recipient_user_id` = who sees it (admin or employee). Four separate RLS policies: SELECT/INSERT/UPDATE/DELETE with different conditions (see `sql/004_notifications.sql`). Expiry alerts embed a threshold suffix in `related_entity_id` (e.g. `{employeeId}_visa_30d`) so 60-day and 30-day alerts are separate rows.
 
 ### Supabase Storage
 
@@ -185,7 +214,7 @@ ALTER TABLE tablename ENABLE ROW LEVEL SECURITY; -- then add RLS policies
 
 ### RLS model
 
-**Admin tables** (`companies`, `employees`, `payroll_*`, `payslips`, `leave_*`, `clock_events`, `attendance_records`, `attendance_periods`, `employee_job_history`, `nafis_reports`, `employee_documents`) use `FOR ALL USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid())`.
+**Admin tables** (`companies`, `employees`, `payroll_*`, `payslips`, `leave_*`, `clock_events`, `attendance_records`, `attendance_periods`, `employee_job_history`, `nafis_reports`, `employee_documents`, `insurance_policies`, `employee_insurance`, `insurance_dependants`) use `FOR ALL USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid())`.
 
 **Employee self-service** crosses the RLS boundary via `SECURITY DEFINER` RPCs and dedicated SELECT policies:
 
@@ -197,6 +226,9 @@ ALTER TABLE tablename ENABLE ROW LEVEL SECURITY; -- then add RLS policies
 | `clock_events` | `employee_id IN (SELECT id FROM employees WHERE auth_user_id = auth.uid())` |
 | `attendance_records` | same pattern as clock_events |
 | `employee_documents` | `employee_id IN (SELECT id FROM employees WHERE auth_user_id = auth.uid())` |
+| `employee_insurance` | `employee_id IN (SELECT id FROM employees WHERE auth_user_id = auth.uid())` |
+
+**Notifications RLS** is split across four separate policies (not a single `FOR ALL`): SELECT and UPDATE use `recipient_user_id = auth.uid()`; INSERT uses `user_id = auth.uid()` (admin creates for anyone); DELETE uses `user_id = auth.uid()` (admin deletes their own). This lets the employee portal read and mark-read its own notifications without being able to insert or delete.
 
 ### Employee self-service RPCs (SECURITY DEFINER)
 
@@ -234,18 +266,33 @@ These must exist in Supabase. All look up the caller's employee via `employees.a
 
 **Photo upload removed**: `EmployeeModal` has no photo upload UI. The `photoUrl` field is preserved in the DB shape (`employeeToDb` still maps it) so existing data is not lost, but the UI to change it has been removed.
 
-**EmployeeModal tab layout**: The modal has **five tabs for existing employees**, four for new employees (the Documents tab is hidden when `employee?.id` is absent):
+**EmployeeModal tab layout**: The modal has **six tabs for existing employees**, four for new employees (Documents and Insurance tabs are hidden when `employee?.id` is absent):
 - Personal — name (`placeholder="e.g. John Smith"`), contact info, emergency contact
 - Job & Contract — title, department, reporting manager, shift, dates
 - Salary & Bank — MOL ID, salary breakdown, bank details. Basic salary: `placeholder="e.g. 5000"`
 - UAE Compliance — nationality, visa, passport, Emirates ID, labour card, Nafis registration number (enabled only when `nationality === 'United Arab Emirates'`)
-- Documents *(existing employees only)* — file upload form (type, expiry, notes, file picker) + document list with signed-URL links, expiry status badges, and delete. The Save button is hidden on this tab — documents persist on upload, not on form submit.
+- Documents *(existing employees only)* — file upload form (type, expiry, notes, file picker) + document list with signed-URL links, expiry status badges, and delete.
+- Insurance *(existing employees only)* — coverage assignment (policy selector, member ID, card number, effective/expiry dates) with its own "Assign/Update Coverage" button, plus dependants add/delete table.
+
+The **Save button is hidden** on both the Documents and Insurance tabs — each section has its own dedicated save action. This is enforced via `tab !== 'documents' && tab !== 'insurance'` in the modal footer.
 
 **Emiratization compliance**: `Dashboard.jsx` computes `emiratiEmps` by filtering active employees where `nationality === 'United Arab Emirates'`. The required ratio comes from `company.nafisQuotaPercent` (set in Company Settings). `NafisReportModal.jsx` generates a full compliance report with CSV export and DB snapshot save via `saveNafisReport()`. The `nafis_reports` table has a `UNIQUE (user_id, period)` constraint — `saveNafisReport` upserts by period.
 
 **Company Settings sector auto-fill**: When the admin selects an industry sector in Company Settings, the `nafisQuotaPercent` field is automatically pre-filled with that sector's default quota (defined in the `SECTORS` constant in `CompanySettings.jsx`). The admin can then override it manually.
 
 **Document signed URL expiry**: Signed URLs from `getEmployeeDocuments()` expire after 1 hour. If a user leaves the Documents tab open for a long time and then clicks a link, it may 403. Regenerate by switching away from the tab and back — the `useEffect` in `EmployeeModal` re-fetches documents whenever `tab === 'documents'` changes.
+
+**Insurance policies in Company Settings**: The Insurance Policies card manages `insurance_policies` rows independently of the main company save button — it has its own `handleSavePolicy` / `handleDeletePolicy` handlers with local state. The `policyRenewalStatus()` helper (module-level in `CompanySettings.jsx`, not exported) computes the badge class (green/amber/red) from `renewalDate`.
+
+**Employee Insurance tab load**: When the Insurance tab becomes active, a `useEffect` in `EmployeeModal` fires a `Promise.all([getInsurancePolicies(), getEmployeeInsurance(employee.id), getInsuranceDependants(employee.id)])` — three parallel queries. The coverage form is pre-populated from the existing `employee_insurance` row if one exists. `saveEmployeeInsurance` upserts on `user_id,employee_id` so it always produces exactly one record per employee.
+
+**Notification bell**: `NotificationBell.jsx` is a single shared component used in both `AppShell` (admin sidebar) and `EmployeeShell` (employee sidebar). It renders `<button title="Notifications">` — use this selector in tests. The panel opens as a `position: fixed` right-side drawer (right: 12px, top: 12px, bottom: 12px, width: 380px). The bell polls `getUnreadCount()` every 60 seconds via `setInterval` in a `useEffect`; the full list is only fetched when the panel opens. Clicking a notification calls `markNotificationRead(id)` — the row's `read_at` is set to the current timestamp.
+
+**Notification deduplication**: `createNotifications()` uses `upsert` with `onConflict: 'recipient_user_id,type,related_entity_id'` and `ignoreDuplicates: true` — this generates `ON CONFLICT DO NOTHING`. The `related_entity_id` for expiry alerts embeds a threshold band (e.g. `{empId}_visa_60d`, `{empId}_visa_30d`) so a separate notification is created at each threshold even though the same document expiry is being tracked.
+
+**`generateExpiryNotifications`** is called once at the end of the Dashboard's `Promise.all` data load (not in a `useEffect`) — it runs async after `setLoading(false)` and silently ignores errors so a missing notifications table never breaks the Dashboard. It generates document, insurance, and policy renewal notifications for the admin (recipient = admin uid).
+
+**Notification hooks in feature code**: `LeaveManager.handleApproval` creates a `leave_approved`/`leave_rejected` notification targeted at `emp.authUserId` — only fires if the employee has linked their portal account. `PayrollEditor.handleSubmitPayroll` batch-creates `payslip_available` notifications for all linked employees after `createPayslipRecords`. Both calls use `.catch(() => {})` to silently ignore failures if the notifications table doesn't exist yet.
 
 ### Business logic utilities
 
