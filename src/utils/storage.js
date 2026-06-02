@@ -358,6 +358,105 @@ export async function createPayslipRecords(payroll) {
   if (error) console.error('createPayslipRecords:', error);
 }
 
+// ─── EMPLOYEE DOCUMENTS ─────────────────────────────────────────────────────
+
+/**
+ * Returns all documents for a specific employee, each with a 1-hour signed URL.
+ */
+export async function getEmployeeDocuments(employeeId) {
+  const { data, error } = await supabase
+    .from('employee_documents')
+    .select('*')
+    .eq('employee_id', employeeId)
+    .order('uploaded_at', { ascending: false });
+
+  if (error) { console.error('getEmployeeDocuments:', error); return []; }
+
+  // Generate a signed URL for each file so the browser can open/download it.
+  const docs = await Promise.all((data || []).map(async row => {
+    const doc = dbToDocument(row);
+    if (row.storage_path) {
+      const { data: signed } = await supabase.storage
+        .from('employee-documents')
+        .createSignedUrl(row.storage_path, 3600); // valid for 1 hour
+      doc.signedUrl = signed?.signedUrl ?? '';
+    }
+    return doc;
+  }));
+
+  return docs;
+}
+
+/**
+ * Uploads a file to Supabase Storage and saves its metadata to employee_documents.
+ * Returns the saved document record (with signedUrl populated).
+ */
+export async function uploadEmployeeDocument(employeeId, file, documentType, expiryDate, notes) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  // Sanitise filename and build a unique storage path scoped to this admin's user_id.
+  const safeName    = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const storagePath = `${user.id}/${employeeId}/${Date.now()}_${safeName}`;
+
+  const { error: uploadErr } = await supabase.storage
+    .from('employee-documents')
+    .upload(storagePath, file, { cacheControl: '3600', upsert: false });
+
+  if (uploadErr) throw uploadErr;
+
+  const { data, error } = await supabase
+    .from('employee_documents')
+    .insert({
+      user_id:       user.id,
+      employee_id:   employeeId,
+      document_type: documentType,
+      file_name:     file.name,
+      file_size:     file.size,
+      storage_path:  storagePath,
+      expiry_date:   expiryDate || null,
+      notes:         notes || '',
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  const doc = dbToDocument(data);
+  const { data: signed } = await supabase.storage
+    .from('employee-documents')
+    .createSignedUrl(storagePath, 3600);
+  doc.signedUrl = signed?.signedUrl ?? '';
+
+  return doc;
+}
+
+/**
+ * Deletes a document from both Supabase Storage and the employee_documents table.
+ */
+export async function deleteEmployeeDocument(id, storagePath) {
+  if (storagePath) {
+    await supabase.storage.from('employee-documents').remove([storagePath]);
+  }
+  const { error } = await supabase.from('employee_documents').delete().eq('id', id);
+  if (error) throw error;
+}
+
+function dbToDocument(row) {
+  return {
+    id:           row.id,
+    employeeId:   row.employee_id,
+    documentType: row.document_type,
+    fileName:     row.file_name,
+    fileSize:     row.file_size || 0,
+    storagePath:  row.storage_path || '',
+    expiryDate:   row.expiry_date || '',
+    notes:        row.notes || '',
+    uploadedAt:   row.uploaded_at,
+    signedUrl:    '',
+  };
+}
+
 // ─── NAFIS / EMIRATIZATION REPORTS ──────────────────────────────────────────
 
 /**

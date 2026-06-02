@@ -3,12 +3,34 @@
  * Tabs: Personal | Job & Contract | Salary & Bank | UAE Compliance
  */
 import { useState, useEffect } from 'react';
-import { X, UserCheck, Briefcase, CreditCard, Shield } from 'lucide-react';
+import { X, UserCheck, Briefcase, CreditCard, Shield, FolderOpen, Upload, AlertCircle, Trash2 } from 'lucide-react';
 import { validateIBAN, validateEmiratesID, validateMolId, formatAED, formatDateUAE } from '../utils/uaeValidators';
 import { calculateGratuity } from '../utils/gratuityCalculator';
 import { getShifts } from '../utils/attendanceStorage';
+import { getEmployeeDocuments, uploadEmployeeDocument, deleteEmployeeDocument } from '../utils/storage';
 
 const FREE_ZONES = ['DIFC','ADGM','JAFZA','DMCC','DAFZA','TECOM','Dubai Internet City','Dubai Media City','Dubai Healthcare City','Meydan Free Zone','RAKEZ','SAIF Zone','KIZAD','Abu Dhabi Free Zone','Hamriyah Free Zone','Other'];
+
+const DOC_TYPES = [
+  'Visa', 'Passport', 'Emirates ID', 'Labour Card', 'Work Permit',
+  'Medical Fitness Certificate', 'Educational Certificate',
+  'Professional License', 'NOC / Reference Letter', 'Other',
+];
+
+function formatFileSize(bytes) {
+  if (!bytes) return '';
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function docExpiryStatus(expiryDate) {
+  if (!expiryDate) return { label: 'No Expiry', cls: 'badge-gray' };
+  const days = Math.ceil((new Date(expiryDate) - new Date()) / (1000 * 60 * 60 * 24));
+  if (days < 0)   return { label: `Expired ${Math.abs(days)}d ago`, cls: 'badge-red' };
+  if (days <= 30) return { label: `${days}d left`, cls: 'badge-red' };
+  if (days <= 60) return { label: `${days}d left`, cls: 'badge-amber' };
+  return { label: `Valid (${days}d)`, cls: 'badge-green' };
+}
 const VISA_TYPES = ['Employment Visa','Investor Visa','Dependent Visa','Tourist (Temp)','Exempt'];
 const CONTRACT_TYPES = ['Unlimited','Limited'];
 const EMP_STATUSES = ['Active','Probation','On Leave','Terminated'];
@@ -40,11 +62,62 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
   const [errors, setErrors]     = useState({});
   const [saving, setSaving]     = useState(false);
   const [tab, setTab]           = useState('personal');
-  const [shifts, setShifts]     = useState([]);
+  const [shifts, setShifts]         = useState([]);
+  const [docs, setDocs]             = useState([]);
+  const [docsLoading, setDocsLoading] = useState(false);
+  const [uploadForm, setUploadForm] = useState({ type: 'Visa', expiryDate: '', notes: '', file: null });
+  const [uploading, setUploading]   = useState(false);
+  const [uploadErr, setUploadErr]   = useState('');
 
   useEffect(() => {
     getShifts().then(setShifts).catch(() => {});
   }, []);
+
+  // Load documents whenever the Documents tab becomes active (existing employees only)
+  useEffect(() => {
+    if (tab === 'documents' && employee?.id) {
+      setDocsLoading(true);
+      getEmployeeDocuments(employee.id)
+        .then(setDocs)
+        .catch(() => setDocs([]))
+        .finally(() => setDocsLoading(false));
+    }
+  }, [tab, employee?.id]);
+
+  const handleUpload = async () => {
+    if (!uploadForm.file || !employee?.id) return;
+    if (uploadForm.file.size > 10 * 1024 * 1024) {
+      setUploadErr('File exceeds 10 MB limit. Please compress or choose a smaller file.');
+      return;
+    }
+    setUploading(true);
+    setUploadErr('');
+    try {
+      const doc = await uploadEmployeeDocument(
+        employee.id,
+        uploadForm.file,
+        uploadForm.type,
+        uploadForm.expiryDate || null,
+        uploadForm.notes
+      );
+      setDocs(prev => [doc, ...prev]);
+      setUploadForm(prev => ({ ...prev, file: null, notes: '', expiryDate: '' }));
+    } catch (err) {
+      setUploadErr(err.message || 'Upload failed. Ensure the employee-documents bucket exists in Supabase Storage.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDeleteDoc = async (doc) => {
+    if (!window.confirm(`Delete "${doc.fileName}"? This cannot be undone.`)) return;
+    try {
+      await deleteEmployeeDocument(doc.id, doc.storagePath);
+      setDocs(prev => prev.filter(d => d.id !== doc.id));
+    } catch (err) {
+      alert('Delete failed: ' + err.message);
+    }
+  };
 
   const f = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -79,6 +152,7 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
     job:        [],
     salary:     ['basicSalary', 'iban', 'bankRoutingCode'],
     compliance: ['molId', 'emiratesId'],
+    documents:  [],
   };
   const tabsWithErrors = (errs) =>
     Object.entries(TAB_FIELDS)
@@ -118,6 +192,7 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
     { id:'job',        label:'Job & Contract', icon:Briefcase },
     { id:'salary',     label:'Salary & Bank',  icon:CreditCard },
     { id:'compliance', label:'UAE Compliance', icon:Shield },
+    ...(employee?.id ? [{ id:'documents', label:'Documents', icon:FolderOpen }] : []),
   ];
 
   return (
@@ -481,13 +556,139 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
             </div>
           )}
 
+          {/* ── DOCUMENTS ── */}
+          {tab === 'documents' && (
+            <div>
+              {/* Upload form */}
+              <div className="card mb-4">
+                <div className="card-header"><h3>Upload New Document</h3></div>
+                <div className="card-body">
+                  <div className="form-grid form-grid-2" style={{ gap:12 }}>
+                    <div className="form-group">
+                      <label>Document Type</label>
+                      <select className="form-control" value={uploadForm.type} onChange={e => setUploadForm(p => ({ ...p, type: e.target.value }))}>
+                        {DOC_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Expiry Date <span style={{ color:'var(--gray-400)', fontWeight:400 }}>(optional)</span></label>
+                      <input type="date" className="form-control" value={uploadForm.expiryDate} onChange={e => setUploadForm(p => ({ ...p, expiryDate: e.target.value }))} />
+                    </div>
+                    <div className="form-group" style={{ gridColumn:'1/-1' }}>
+                      <label>Notes <span style={{ color:'var(--gray-400)', fontWeight:400 }}>(optional)</span></label>
+                      <input className="form-control" value={uploadForm.notes} onChange={e => setUploadForm(p => ({ ...p, notes: e.target.value }))} placeholder="e.g. Original submitted to PRO office" />
+                    </div>
+                    <div className="form-group" style={{ gridColumn:'1/-1' }}>
+                      <label>File <span style={{ color:'var(--gray-400)', fontWeight:400 }}>PDF, JPG, PNG — max 10 MB</span></label>
+                      <div
+                        style={{ border:'2px dashed var(--gray-300)', borderRadius:8, padding:'14px 18px', textAlign:'center', cursor:'pointer', background:'var(--gray-50)', fontSize:13, color:'var(--gray-500)' }}
+                        onClick={() => document.getElementById('doc-file-input').click()}
+                      >
+                        {uploadForm.file
+                          ? <><strong style={{ color:'var(--gray-800)' }}>{uploadForm.file.name}</strong> <span style={{ color:'var(--gray-400)' }}>({formatFileSize(uploadForm.file.size)})</span></>
+                          : <><Upload size={14} style={{ display:'inline', marginRight:6 }} />Click to choose file</>
+                        }
+                      </div>
+                      <input
+                        id="doc-file-input"
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        style={{ display:'none' }}
+                        onChange={e => {
+                          const file = e.target.files[0];
+                          if (file) setUploadForm(p => ({ ...p, file }));
+                          e.target.value = '';
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {uploadErr && (
+                    <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:10, padding:'8px 12px', background:'#fef2f2', border:'1px solid #fecaca', borderRadius:6, fontSize:13, color:'#991b1b' }}>
+                      <AlertCircle size={14} /> {uploadErr}
+                    </div>
+                  )}
+
+                  <div style={{ marginTop:12 }}>
+                    <button className="btn btn-primary" onClick={handleUpload} disabled={!uploadForm.file || uploading}>
+                      {uploading
+                        ? 'Uploading…'
+                        : <><Upload size={14} style={{ marginRight:5 }} />Upload Document</>
+                      }
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Document list */}
+              <div className="card">
+                <div className="card-header">
+                  <h3>Uploaded Documents {!docsLoading && `(${docs.length})`}</h3>
+                </div>
+                {docsLoading ? (
+                  <div style={{ padding:'20px', textAlign:'center', color:'var(--gray-400)', fontSize:13 }}>Loading documents…</div>
+                ) : docs.length === 0 ? (
+                  <div style={{ padding:'24px 20px', textAlign:'center', color:'var(--gray-500)', fontSize:13 }}>
+                    No documents uploaded yet. Use the form above to attach visa copies, passport scans, Emirates ID, and other compliance documents.
+                  </div>
+                ) : (
+                  <div className="table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Type</th>
+                          <th>File</th>
+                          <th>Size</th>
+                          <th>Uploaded</th>
+                          <th>Expiry Status</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {docs.map(doc => {
+                          const expiry = docExpiryStatus(doc.expiryDate);
+                          return (
+                            <tr key={doc.id}>
+                              <td><span className="badge badge-blue" style={{ fontSize:11 }}>{doc.documentType}</span></td>
+                              <td>
+                                {doc.signedUrl
+                                  ? <a href={doc.signedUrl} target="_blank" rel="noreferrer" style={{ color:'var(--primary)', textDecoration:'none', fontWeight:500, fontSize:13 }}>{doc.fileName}</a>
+                                  : <span style={{ fontSize:13 }}>{doc.fileName}</span>
+                                }
+                                {doc.notes && <div style={{ fontSize:11, color:'var(--gray-400)', marginTop:1 }}>{doc.notes}</div>}
+                              </td>
+                              <td style={{ fontSize:12, color:'var(--gray-500)' }}>{formatFileSize(doc.fileSize)}</td>
+                              <td style={{ fontSize:12, color:'var(--gray-500)' }}>{doc.uploadedAt?.split('T')[0] || '—'}</td>
+                              <td>
+                                <span className={`badge ${expiry.cls}`} style={{ fontSize:11 }}>
+                                  {doc.expiryDate ? `${formatDateUAE(doc.expiryDate)} · ${expiry.label}` : expiry.label}
+                                </span>
+                              </td>
+                              <td>
+                                <button className="btn btn-ghost btn-icon btn-sm text-danger" title="Delete document" onClick={() => handleDeleteDoc(doc)}>
+                                  <Trash2 size={13} />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
         </div>
 
         <div className="modal-footer">
           <button className="btn btn-outline" onClick={onClose} disabled={saving}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving…' : (employee?.id ? 'Save Changes' : 'Add Employee')}
-          </button>
+          {tab !== 'documents' && (
+            <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+              {saving ? 'Saving…' : (employee?.id ? 'Save Changes' : 'Add Employee')}
+            </button>
+          )}
         </div>
       </div>
     </div>
