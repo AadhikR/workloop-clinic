@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Building2, Info, CheckCircle, Save, AlertCircle, Loader, MapPin, Calendar, ShieldCheck } from 'lucide-react';
-import { getCompany, saveCompany } from '../utils/storage';
+import { Building2, Info, CheckCircle, Save, AlertCircle, Loader, MapPin, Calendar, ShieldCheck, Heart, Plus, Trash2, Edit2 } from 'lucide-react';
+import { getCompany, saveCompany, getInsurancePolicies, saveInsurancePolicy, deleteInsurancePolicy } from '../utils/storage';
+import { formatDateUAE } from '../utils/uaeValidators';
 
 // UAE sectors with their approximate 2024 Emiratization quota targets (Cabinet Res. 27/2023)
 const SECTORS = [
@@ -42,6 +43,17 @@ const DEFAULT_COMPANY = {
   nafisQuotaPercent: 2,
 };
 
+const EMPTY_POLICY = { insurerName:'', policyNumber:'', tierName:'', annualPremium:'', renewalDate:'', brokerName:'', brokerContact:'', notes:'' };
+
+function policyRenewalStatus(renewalDate) {
+  if (!renewalDate) return { label: 'No Date', cls: 'badge-gray' };
+  const days = Math.ceil((new Date(renewalDate) - new Date()) / (1000 * 60 * 60 * 24));
+  if (days < 0)    return { label: `Expired ${Math.abs(days)}d ago`, cls: 'badge-red' };
+  if (days <= 30)  return { label: `${days}d to renewal`, cls: 'badge-red' };
+  if (days <= 60)  return { label: `${days}d to renewal`, cls: 'badge-amber' };
+  return { label: `${days}d to renewal`, cls: 'badge-green' };
+}
+
 export default function CompanySettings() {
   const [company, setCompany] = useState(DEFAULT_COMPANY);
   const [saved, setSaved]     = useState(false);
@@ -49,15 +61,76 @@ export default function CompanySettings() {
   const [error, setError]     = useState('');
   const [loading, setLoading] = useState(true);
 
+  // ── Insurance Policies state ──
+  const [policies, setPolicies]       = useState([]);
+  const [showPolicyForm, setShowPolicyForm] = useState(false);
+  const [editingPolicy, setEditingPolicy]   = useState(null); // policy object being edited
+  const [policyForm, setPolicyForm]     = useState(EMPTY_POLICY);
+  const [policySaving, setPolicySaving] = useState(false);
+  const [policyError, setPolicyError]   = useState('');
+
   useEffect(() => {
-    getCompany().then(stored => {
+    Promise.all([getCompany(), getInsurancePolicies()]).then(([stored, pols]) => {
       if (stored) setCompany({ ...DEFAULT_COMPANY, ...stored });
+      setPolicies(pols);
       setLoading(false);
     }).catch(err => {
-      console.error('getCompany:', err);
+      console.error('CompanySettings load:', err);
       setLoading(false);
     });
   }, []);
+
+  const openAddPolicy = () => {
+    setEditingPolicy(null);
+    setPolicyForm(EMPTY_POLICY);
+    setPolicyError('');
+    setShowPolicyForm(true);
+  };
+
+  const openEditPolicy = (policy) => {
+    setEditingPolicy(policy);
+    setPolicyForm({
+      insurerName:   policy.insurerName,
+      policyNumber:  policy.policyNumber,
+      tierName:      policy.tierName,
+      annualPremium: policy.annualPremium || '',
+      renewalDate:   policy.renewalDate || '',
+      brokerName:    policy.brokerName,
+      brokerContact: policy.brokerContact,
+      notes:         policy.notes,
+    });
+    setPolicyError('');
+    setShowPolicyForm(true);
+  };
+
+  const handleSavePolicy = async () => {
+    if (!policyForm.insurerName.trim()) { setPolicyError('Insurer name is required.'); return; }
+    setPolicySaving(true);
+    setPolicyError('');
+    try {
+      const saved = await saveInsurancePolicy({ ...policyForm, ...(editingPolicy ? { id: editingPolicy.id } : {}) });
+      setPolicies(prev => editingPolicy
+        ? prev.map(p => p.id === editingPolicy.id ? saved : p)
+        : [...prev, saved]
+      );
+      setShowPolicyForm(false);
+      setEditingPolicy(null);
+    } catch (err) {
+      setPolicyError(err.message || 'Save failed. Please try again.');
+    } finally {
+      setPolicySaving(false);
+    }
+  };
+
+  const handleDeletePolicy = async (policy) => {
+    if (!window.confirm(`Delete "${policy.insurerName}" policy? Employee assignments will be cleared.`)) return;
+    try {
+      await deleteInsurancePolicy(policy.id);
+      setPolicies(prev => prev.filter(p => p.id !== policy.id));
+    } catch (err) {
+      alert('Delete failed: ' + err.message);
+    }
+  };
 
   const handleChange = (field, value) => {
     setCompany(prev => ({ ...prev, [field]: value }));
@@ -327,6 +400,156 @@ export default function CompanySettings() {
               <div style={{ marginTop:4, padding:'10px 14px', background:'var(--gray-50)', borderRadius:8, border:'1px solid var(--gray-200)', fontSize:13, color:'var(--gray-600)' }}>
                 <strong>Current setup:</strong> {company.sector} · Target {company.nafisQuotaPercent}% UAE nationals.
                 The Emiratization panel on the Dashboard will show your live compliance status.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── Medical Insurance Policies ── */}
+        <div className="card mb-4">
+          <div className="card-header">
+            <h3><Heart size={16} style={{ display:'inline', marginRight:6, color:'var(--danger)' }} />Medical Insurance Policies</h3>
+            <button className="btn btn-primary btn-sm" onClick={openAddPolicy} style={{ display:'flex', alignItems:'center', gap:5 }}>
+              <Plus size={13} />Add Policy
+            </button>
+          </div>
+          <div className="card-body">
+            <div className="alert alert-info mb-4">
+              <Info size={15} />
+              <div style={{ fontSize:13 }}>
+                Dubai Law No. 11 of 2013 and Abu Dhabi Circular No. 23/2014 mandate employer-provided health insurance for all employees.
+                Add your company's insurance policies here, then assign each employee to a policy via their profile's <strong>Insurance</strong> tab.
+                Renewal alerts appear on the Dashboard 60 days before expiry.
+              </div>
+            </div>
+
+            {/* Add / Edit form */}
+            {showPolicyForm && (
+              <div style={{ background:'var(--gray-50)', borderRadius:8, padding:'14px 16px', marginBottom:16, border:'1px solid var(--gray-200)' }}>
+                <div style={{ fontWeight:600, fontSize:13, marginBottom:12, color:'var(--gray-700)' }}>
+                  {editingPolicy ? `Edit: ${editingPolicy.insurerName}` : 'New Insurance Policy'}
+                </div>
+                <div className="form-grid form-grid-2" style={{ gap:12 }}>
+                  <div className="form-group">
+                    <label>Insurer Name *</label>
+                    <input className="form-control" value={policyForm.insurerName}
+                      onChange={e => setPolicyForm(p => ({ ...p, insurerName: e.target.value }))}
+                      placeholder="e.g. Daman, AXA Gulf, Oman Insurance" />
+                  </div>
+                  <div className="form-group">
+                    <label>Policy / Certificate Number</label>
+                    <input className="form-control font-mono" value={policyForm.policyNumber}
+                      onChange={e => setPolicyForm(p => ({ ...p, policyNumber: e.target.value }))}
+                      placeholder="Group certificate or policy number" />
+                  </div>
+                  <div className="form-group">
+                    <label>Coverage Tier Name</label>
+                    <input className="form-control" value={policyForm.tierName}
+                      onChange={e => setPolicyForm(p => ({ ...p, tierName: e.target.value }))}
+                      placeholder="e.g. Gold, Silver, Enhanced Basic" />
+                  </div>
+                  <div className="form-group">
+                    <label>Annual Premium (AED)</label>
+                    <input className="form-control" type="number" min="0" step="0.01" value={policyForm.annualPremium}
+                      onChange={e => setPolicyForm(p => ({ ...p, annualPremium: e.target.value }))}
+                      placeholder="e.g. 50000" />
+                  </div>
+                  <div className="form-group">
+                    <label>Renewal Date</label>
+                    <input type="date" className="form-control" value={policyForm.renewalDate}
+                      onChange={e => setPolicyForm(p => ({ ...p, renewalDate: e.target.value }))} />
+                    <span className="hint">Dashboard alert fires 60 days before this date</span>
+                  </div>
+                  <div className="form-group">
+                    <label>Broker / Agent Name</label>
+                    <input className="form-control" value={policyForm.brokerName}
+                      onChange={e => setPolicyForm(p => ({ ...p, brokerName: e.target.value }))}
+                      placeholder="Broker name" />
+                  </div>
+                  <div className="form-group">
+                    <label>Broker Contact</label>
+                    <input className="form-control" value={policyForm.brokerContact}
+                      onChange={e => setPolicyForm(p => ({ ...p, brokerContact: e.target.value }))}
+                      placeholder="Phone or email" />
+                  </div>
+                  <div className="form-group" style={{ gridColumn:'1/-1' }}>
+                    <label>Notes</label>
+                    <input className="form-control" value={policyForm.notes}
+                      onChange={e => setPolicyForm(p => ({ ...p, notes: e.target.value }))}
+                      placeholder="e.g. Covers inpatient, outpatient, dental — Dubai Plan E" />
+                  </div>
+                </div>
+                {policyError && (
+                  <div style={{ color:'var(--danger)', fontSize:13, marginTop:8 }}>{policyError}</div>
+                )}
+                <div style={{ display:'flex', gap:8, marginTop:12 }}>
+                  <button className="btn btn-primary btn-sm" onClick={handleSavePolicy}
+                    disabled={policySaving || !policyForm.insurerName.trim()}>
+                    {policySaving ? 'Saving…' : (editingPolicy ? 'Update Policy' : 'Add Policy')}
+                  </button>
+                  <button className="btn btn-outline btn-sm"
+                    onClick={() => { setShowPolicyForm(false); setEditingPolicy(null); setPolicyError(''); }}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Policies list */}
+            {policies.length === 0 ? (
+              <div style={{ textAlign:'center', color:'var(--gray-400)', fontSize:13, padding:'12px 0' }}>
+                No insurance policies configured. Click <strong>Add Policy</strong> to add your company's health insurance plan.
+              </div>
+            ) : (
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Insurer</th>
+                      <th>Policy No.</th>
+                      <th>Tier</th>
+                      <th>Annual Premium</th>
+                      <th>Renewal Date</th>
+                      <th>Broker</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {policies.map(policy => {
+                      const rs = policyRenewalStatus(policy.renewalDate);
+                      return (
+                        <tr key={policy.id}>
+                          <td style={{ fontWeight:500 }}>{policy.insurerName}</td>
+                          <td style={{ fontFamily:'monospace', fontSize:12 }}>{policy.policyNumber || '—'}</td>
+                          <td>{policy.tierName || '—'}</td>
+                          <td style={{ fontSize:12 }}>
+                            {policy.annualPremium ? `AED ${policy.annualPremium.toLocaleString('en-AE')}` : '—'}
+                          </td>
+                          <td>
+                            {policy.renewalDate ? (
+                              <span className={`badge ${rs.cls}`} style={{ fontSize:11 }}>
+                                {formatDateUAE(policy.renewalDate)} · {rs.label}
+                              </span>
+                            ) : '—'}
+                          </td>
+                          <td style={{ fontSize:12 }}>{policy.brokerName || '—'}</td>
+                          <td>
+                            <div style={{ display:'flex', gap:4 }}>
+                              <button className="btn btn-ghost btn-icon btn-sm" title="Edit policy"
+                                onClick={() => openEditPolicy(policy)}>
+                                <Edit2 size={13} />
+                              </button>
+                              <button className="btn btn-ghost btn-icon btn-sm text-danger" title="Delete policy"
+                                onClick={() => handleDeletePolicy(policy)}>
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>

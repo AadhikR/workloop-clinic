@@ -457,6 +457,208 @@ function dbToDocument(row) {
   };
 }
 
+// ─── INSURANCE POLICIES ─────────────────────────────────────────────────────
+
+/**
+ * Returns all insurance policies for the current user.
+ */
+export async function getInsurancePolicies() {
+  const { data, error } = await supabase
+    .from('insurance_policies')
+    .select('*')
+    .order('created_at', { ascending: true });
+  if (error) { console.error('getInsurancePolicies:', error); return []; }
+  return (data || []).map(dbToInsurancePolicy);
+}
+
+/**
+ * Saves (upserts) an insurance policy. Returns the saved record.
+ */
+export async function saveInsurancePolicy(policy) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const row = {
+    user_id:        user.id,
+    insurer_name:   policy.insurerName ?? '',
+    policy_number:  policy.policyNumber ?? '',
+    tier_name:      policy.tierName ?? '',
+    annual_premium: parseFloat(policy.annualPremium) || 0,
+    renewal_date:   policy.renewalDate || null,
+    broker_name:    policy.brokerName ?? '',
+    broker_contact: policy.brokerContact ?? '',
+    notes:          policy.notes ?? '',
+  };
+
+  if (policy.id) {
+    const { data, error } = await supabase
+      .from('insurance_policies').update(row).eq('id', policy.id).select().single();
+    if (error) throw error;
+    return dbToInsurancePolicy(data);
+  } else {
+    const { data, error } = await supabase
+      .from('insurance_policies').insert(row).select().single();
+    if (error) throw error;
+    return dbToInsurancePolicy(data);
+  }
+}
+
+/**
+ * Deletes an insurance policy by id.
+ */
+export async function deleteInsurancePolicy(id) {
+  const { error } = await supabase.from('insurance_policies').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ─── EMPLOYEE INSURANCE ──────────────────────────────────────────────────────
+
+/**
+ * Returns ALL employee_insurance records for the current admin (for dashboard alerts).
+ */
+export async function getAllEmployeeInsurance() {
+  const { data, error } = await supabase
+    .from('employee_insurance')
+    .select('*')
+    .order('expiry_date', { ascending: true });
+  if (error) { console.error('getAllEmployeeInsurance:', error); return []; }
+  return (data || []).map(dbToEmployeeInsurance);
+}
+
+/**
+ * Returns the insurance record for a specific employee (or null if not assigned).
+ */
+export async function getEmployeeInsurance(employeeId) {
+  const { data, error } = await supabase
+    .from('employee_insurance')
+    .select('*')
+    .eq('employee_id', employeeId)
+    .maybeSingle();
+  if (error) { console.error('getEmployeeInsurance:', error); return null; }
+  return data ? dbToEmployeeInsurance(data) : null;
+}
+
+/**
+ * Saves (upserts) an employee's insurance assignment.
+ * Uses UNIQUE (user_id, employee_id) — one record per employee.
+ */
+export async function saveEmployeeInsurance(insurance) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const row = {
+    user_id:        user.id,
+    employee_id:    insurance.employeeId,
+    policy_id:      insurance.policyId || null,
+    member_id:      insurance.memberId ?? '',
+    card_number:    insurance.cardNumber ?? '',
+    effective_date: insurance.effectiveDate || null,
+    expiry_date:    insurance.expiryDate || null,
+    tier_name:      insurance.tierName ?? '',
+  };
+
+  const { data, error } = await supabase
+    .from('employee_insurance')
+    .upsert(row, { onConflict: 'user_id,employee_id' })
+    .select()
+    .single();
+  if (error) throw error;
+  return dbToEmployeeInsurance(data);
+}
+
+// ─── INSURANCE DEPENDANTS ────────────────────────────────────────────────────
+
+/**
+ * Returns all dependants for a specific employee.
+ */
+export async function getInsuranceDependants(employeeId) {
+  const { data, error } = await supabase
+    .from('insurance_dependants')
+    .select('*')
+    .eq('employee_id', employeeId)
+    .order('created_at', { ascending: true });
+  if (error) { console.error('getInsuranceDependants:', error); return []; }
+  return (data || []).map(dbToInsuranceDependant);
+}
+
+/**
+ * Saves (inserts or updates) an insurance dependant.
+ */
+export async function saveInsuranceDependant(dependant) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const row = {
+    user_id:       user.id,
+    employee_id:   dependant.employeeId,
+    name:          dependant.name ?? '',
+    relationship:  dependant.relationship ?? '',
+    date_of_birth: dependant.dateOfBirth || null,
+    card_number:   dependant.cardNumber ?? '',
+  };
+
+  if (dependant.id) {
+    const { data, error } = await supabase
+      .from('insurance_dependants').update(row).eq('id', dependant.id).select().single();
+    if (error) throw error;
+    return dbToInsuranceDependant(data);
+  } else {
+    const { data, error } = await supabase
+      .from('insurance_dependants').insert(row).select().single();
+    if (error) throw error;
+    return dbToInsuranceDependant(data);
+  }
+}
+
+/**
+ * Deletes an insurance dependant by id.
+ */
+export async function deleteInsuranceDependant(id) {
+  const { error } = await supabase.from('insurance_dependants').delete().eq('id', id);
+  if (error) throw error;
+}
+
+function dbToInsurancePolicy(row) {
+  return {
+    id:            row.id,
+    insurerName:   row.insurer_name,
+    policyNumber:  row.policy_number,
+    tierName:      row.tier_name,
+    annualPremium: parseFloat(row.annual_premium) || 0,
+    renewalDate:   row.renewal_date || '',
+    brokerName:    row.broker_name,
+    brokerContact: row.broker_contact,
+    notes:         row.notes,
+    createdAt:     row.created_at,
+  };
+}
+
+function dbToEmployeeInsurance(row) {
+  return {
+    id:            row.id,
+    employeeId:    row.employee_id,
+    policyId:      row.policy_id || '',
+    memberId:      row.member_id,
+    cardNumber:    row.card_number,
+    effectiveDate: row.effective_date || '',
+    expiryDate:    row.expiry_date || '',
+    tierName:      row.tier_name,
+    createdAt:     row.created_at,
+  };
+}
+
+function dbToInsuranceDependant(row) {
+  return {
+    id:           row.id,
+    employeeId:   row.employee_id,
+    name:         row.name,
+    relationship: row.relationship,
+    dateOfBirth:  row.date_of_birth || '',
+    cardNumber:   row.card_number,
+    createdAt:    row.created_at,
+  };
+}
+
 // ─── NAFIS / EMIRATIZATION REPORTS ──────────────────────────────────────────
 
 /**

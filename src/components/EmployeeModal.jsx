@@ -3,11 +3,15 @@
  * Tabs: Personal | Job & Contract | Salary & Bank | UAE Compliance
  */
 import { useState, useEffect } from 'react';
-import { X, UserCheck, Briefcase, CreditCard, Shield, FolderOpen, Upload, AlertCircle, Trash2 } from 'lucide-react';
+import { X, UserCheck, Briefcase, CreditCard, Shield, FolderOpen, Upload, AlertCircle, Trash2, Heart, Plus } from 'lucide-react';
 import { validateIBAN, validateEmiratesID, validateMolId, formatAED, formatDateUAE } from '../utils/uaeValidators';
 import { calculateGratuity } from '../utils/gratuityCalculator';
 import { getShifts } from '../utils/attendanceStorage';
-import { getEmployeeDocuments, uploadEmployeeDocument, deleteEmployeeDocument } from '../utils/storage';
+import {
+  getEmployeeDocuments, uploadEmployeeDocument, deleteEmployeeDocument,
+  getInsurancePolicies, getEmployeeInsurance, saveEmployeeInsurance,
+  getInsuranceDependants, saveInsuranceDependant, deleteInsuranceDependant,
+} from '../utils/storage';
 
 const FREE_ZONES = ['DIFC','ADGM','JAFZA','DMCC','DAFZA','TECOM','Dubai Internet City','Dubai Media City','Dubai Healthcare City','Meydan Free Zone','RAKEZ','SAIF Zone','KIZAD','Abu Dhabi Free Zone','Hamriyah Free Zone','Other'];
 
@@ -69,6 +73,16 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
   const [uploading, setUploading]   = useState(false);
   const [uploadErr, setUploadErr]   = useState('');
 
+  // Insurance tab state
+  const [insuranceRecord, setInsuranceRecord]     = useState(null);
+  const [insurancePolicies, setInsurancePolicies] = useState([]);
+  const [insuranceLoading, setInsuranceLoading]   = useState(false);
+  const [insuranceSaving, setInsuranceSaving]     = useState(false);
+  const [insuranceForm, setInsuranceForm] = useState({ policyId:'', memberId:'', cardNumber:'', effectiveDate:'', expiryDate:'', tierName:'' });
+  const [dependants, setDependants]       = useState([]);
+  const [depForm, setDepForm]             = useState({ name:'', relationship:'', dateOfBirth:'', cardNumber:'' });
+  const [depSaving, setDepSaving]         = useState(false);
+
   useEffect(() => {
     getShifts().then(setShifts).catch(() => {});
   }, []);
@@ -81,6 +95,35 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
         .then(setDocs)
         .catch(() => setDocs([]))
         .finally(() => setDocsLoading(false));
+    }
+  }, [tab, employee?.id]);
+
+  // Load insurance data whenever the Insurance tab becomes active
+  useEffect(() => {
+    if (tab === 'insurance' && employee?.id) {
+      setInsuranceLoading(true);
+      Promise.all([
+        getInsurancePolicies(),
+        getEmployeeInsurance(employee.id),
+        getInsuranceDependants(employee.id),
+      ]).then(([pols, ins, deps]) => {
+        setInsurancePolicies(pols);
+        setDependants(deps);
+        if (ins) {
+          setInsuranceRecord(ins);
+          setInsuranceForm({
+            policyId:      ins.policyId || '',
+            memberId:      ins.memberId || '',
+            cardNumber:    ins.cardNumber || '',
+            effectiveDate: ins.effectiveDate || '',
+            expiryDate:    ins.expiryDate || '',
+            tierName:      ins.tierName || '',
+          });
+        } else {
+          setInsuranceRecord(null);
+          setInsuranceForm({ policyId:'', memberId:'', cardNumber:'', effectiveDate:'', expiryDate:'', tierName:'' });
+        }
+      }).catch(() => {}).finally(() => setInsuranceLoading(false));
     }
   }, [tab, employee?.id]);
 
@@ -114,6 +157,43 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
     try {
       await deleteEmployeeDocument(doc.id, doc.storagePath);
       setDocs(prev => prev.filter(d => d.id !== doc.id));
+    } catch (err) {
+      alert('Delete failed: ' + err.message);
+    }
+  };
+
+  const handleSaveInsurance = async () => {
+    if (!employee?.id) return;
+    setInsuranceSaving(true);
+    try {
+      const saved = await saveEmployeeInsurance({ ...insuranceForm, employeeId: employee.id });
+      setInsuranceRecord(saved);
+    } catch (err) {
+      alert('Failed to save insurance: ' + err.message);
+    } finally {
+      setInsuranceSaving(false);
+    }
+  };
+
+  const handleAddDependant = async () => {
+    if (!depForm.name.trim() || !employee?.id) return;
+    setDepSaving(true);
+    try {
+      const saved = await saveInsuranceDependant({ ...depForm, employeeId: employee.id });
+      setDependants(prev => [...prev, saved]);
+      setDepForm({ name:'', relationship:'', dateOfBirth:'', cardNumber:'' });
+    } catch (err) {
+      alert('Failed to add dependant: ' + err.message);
+    } finally {
+      setDepSaving(false);
+    }
+  };
+
+  const handleDeleteDependant = async (dep) => {
+    if (!window.confirm(`Remove ${dep.name} from insurance?`)) return;
+    try {
+      await deleteInsuranceDependant(dep.id);
+      setDependants(prev => prev.filter(d => d.id !== dep.id));
     } catch (err) {
       alert('Delete failed: ' + err.message);
     }
@@ -153,6 +233,7 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
     salary:     ['basicSalary', 'iban', 'bankRoutingCode'],
     compliance: ['molId', 'emiratesId'],
     documents:  [],
+    insurance:  [],
   };
   const tabsWithErrors = (errs) =>
     Object.entries(TAB_FIELDS)
@@ -192,7 +273,10 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
     { id:'job',        label:'Job & Contract', icon:Briefcase },
     { id:'salary',     label:'Salary & Bank',  icon:CreditCard },
     { id:'compliance', label:'UAE Compliance', icon:Shield },
-    ...(employee?.id ? [{ id:'documents', label:'Documents', icon:FolderOpen }] : []),
+    ...(employee?.id ? [
+      { id:'documents', label:'Documents',  icon:FolderOpen },
+      { id:'insurance', label:'Insurance',  icon:Heart },
+    ] : []),
   ];
 
   return (
@@ -556,6 +640,167 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
             </div>
           )}
 
+          {/* ── INSURANCE ── */}
+          {tab === 'insurance' && (
+            <div>
+              {insuranceLoading ? (
+                <div style={{ padding:'20px', textAlign:'center', color:'var(--gray-400)', fontSize:13 }}>Loading insurance data…</div>
+              ) : (
+                <>
+                  {/* Coverage Assignment */}
+                  <div className="card mb-4">
+                    <div className="card-header">
+                      <h3>Coverage Assignment</h3>
+                      {insuranceRecord && (
+                        <span className="badge badge-green" style={{ fontSize:11 }}>Assigned</span>
+                      )}
+                    </div>
+                    <div className="card-body">
+                      {insurancePolicies.length === 0 && (
+                        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14, padding:'8px 12px', background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:6, fontSize:13, color:'#1e40af' }}>
+                          <AlertCircle size={14} />
+                          No policies set up yet. Go to <strong>Company Settings → Medical Insurance Policies</strong> to add a policy first.
+                        </div>
+                      )}
+                      <div className="form-grid form-grid-2" style={{ gap:12 }}>
+                        <div className="form-group">
+                          <label>Insurance Policy</label>
+                          <select className="form-control" value={insuranceForm.policyId}
+                            onChange={e => setInsuranceForm(p => ({ ...p, policyId: e.target.value }))}>
+                            <option value="">Select policy…</option>
+                            {insurancePolicies.map(pol => (
+                              <option key={pol.id} value={pol.id}>
+                                {pol.insurerName}{pol.tierName ? ` — ${pol.tierName}` : ''}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="form-group">
+                          <label>Coverage Tier</label>
+                          <input className="form-control" value={insuranceForm.tierName}
+                            onChange={e => setInsuranceForm(p => ({ ...p, tierName: e.target.value }))}
+                            placeholder="e.g. Gold, Silver, Basic" />
+                          <span className="hint">Overrides the policy-level tier for this employee</span>
+                        </div>
+                        <div className="form-group">
+                          <label>Member ID</label>
+                          <input className="form-control font-mono" value={insuranceForm.memberId}
+                            onChange={e => setInsuranceForm(p => ({ ...p, memberId: e.target.value }))}
+                            placeholder="Insurer-assigned member ID" />
+                        </div>
+                        <div className="form-group">
+                          <label>Insurance Card Number</label>
+                          <input className="form-control font-mono" value={insuranceForm.cardNumber}
+                            onChange={e => setInsuranceForm(p => ({ ...p, cardNumber: e.target.value }))}
+                            placeholder="Physical card or certificate number" />
+                        </div>
+                        <div className="form-group">
+                          <label>Effective Date</label>
+                          <input type="date" className="form-control" value={insuranceForm.effectiveDate}
+                            onChange={e => setInsuranceForm(p => ({ ...p, effectiveDate: e.target.value }))} />
+                        </div>
+                        <div className="form-group">
+                          <label>Expiry Date</label>
+                          <input type="date" className="form-control" value={insuranceForm.expiryDate}
+                            onChange={e => setInsuranceForm(p => ({ ...p, expiryDate: e.target.value }))} />
+                          <span className="hint">Dashboard alert fires 60 days before expiry</span>
+                        </div>
+                      </div>
+                      <div style={{ marginTop:14 }}>
+                        <button className="btn btn-primary" onClick={handleSaveInsurance} disabled={insuranceSaving}>
+                          {insuranceSaving ? 'Saving…' : (insuranceRecord ? 'Update Coverage' : 'Assign Coverage')}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Dependants */}
+                  <div className="card">
+                    <div className="card-header">
+                      <h3>Dependants <span style={{ color:'var(--gray-400)', fontWeight:400, fontSize:13 }}>({dependants.length})</span></h3>
+                    </div>
+                    <div className="card-body">
+                      {/* Add dependant form */}
+                      <div style={{ background:'var(--gray-50)', borderRadius:8, padding:'12px 14px', marginBottom:16, border:'1px solid var(--gray-200)' }}>
+                        <div style={{ fontWeight:600, fontSize:13, marginBottom:10, color:'var(--gray-700)' }}>Add Dependant</div>
+                        <div className="form-grid form-grid-2" style={{ gap:10 }}>
+                          <div className="form-group">
+                            <label>Full Name</label>
+                            <input className="form-control" value={depForm.name}
+                              onChange={e => setDepForm(p => ({ ...p, name: e.target.value }))}
+                              placeholder="Dependant's full name" />
+                          </div>
+                          <div className="form-group">
+                            <label>Relationship</label>
+                            <select className="form-control" value={depForm.relationship}
+                              onChange={e => setDepForm(p => ({ ...p, relationship: e.target.value }))}>
+                              <option value="">Select…</option>
+                              {['Spouse','Child','Parent','Sibling','Other'].map(r => (
+                                <option key={r} value={r}>{r}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="form-group">
+                            <label>Date of Birth</label>
+                            <input type="date" className="form-control" value={depForm.dateOfBirth}
+                              onChange={e => setDepForm(p => ({ ...p, dateOfBirth: e.target.value }))} />
+                          </div>
+                          <div className="form-group">
+                            <label>Insurance Card No.</label>
+                            <input className="form-control font-mono" value={depForm.cardNumber}
+                              onChange={e => setDepForm(p => ({ ...p, cardNumber: e.target.value }))}
+                              placeholder="Dependant's card number" />
+                          </div>
+                        </div>
+                        <button className="btn btn-primary btn-sm" style={{ marginTop:8 }}
+                          onClick={handleAddDependant} disabled={!depForm.name.trim() || depSaving}>
+                          {depSaving ? 'Adding…' : <><Plus size={13} style={{ marginRight:5 }} />Add Dependant</>}
+                        </button>
+                      </div>
+
+                      {/* Dependants list */}
+                      {dependants.length === 0 ? (
+                        <div style={{ textAlign:'center', color:'var(--gray-400)', fontSize:13, padding:'8px 0' }}>
+                          No dependants registered. Add family members covered under this employee's insurance.
+                        </div>
+                      ) : (
+                        <div className="table-wrap">
+                          <table>
+                            <thead>
+                              <tr>
+                                <th>Name</th>
+                                <th>Relationship</th>
+                                <th>Date of Birth</th>
+                                <th>Card No.</th>
+                                <th></th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {dependants.map(dep => (
+                                <tr key={dep.id}>
+                                  <td style={{ fontWeight:500 }}>{dep.name}</td>
+                                  <td>{dep.relationship || '—'}</td>
+                                  <td style={{ fontSize:12, color:'var(--gray-500)' }}>{dep.dateOfBirth || '—'}</td>
+                                  <td style={{ fontSize:12, fontFamily:'monospace' }}>{dep.cardNumber || '—'}</td>
+                                  <td>
+                                    <button className="btn btn-ghost btn-icon btn-sm text-danger"
+                                      title="Remove dependant" onClick={() => handleDeleteDependant(dep)}>
+                                      <Trash2 size={13} />
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           {/* ── DOCUMENTS ── */}
           {tab === 'documents' && (
             <div>
@@ -684,7 +929,7 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
 
         <div className="modal-footer">
           <button className="btn btn-outline" onClick={onClose} disabled={saving}>Cancel</button>
-          {tab !== 'documents' && (
+          {tab !== 'documents' && tab !== 'insurance' && (
             <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
               {saving ? 'Saving…' : (employee?.id ? 'Save Changes' : 'Add Employee')}
             </button>

@@ -1,20 +1,27 @@
 import { useState, useEffect } from 'react';
-import { Building2, Users, FileText, CheckCircle, AlertCircle, ArrowRight, Clock, ShieldAlert, ShieldCheck } from 'lucide-react';
-import { getCompany, getEmployees, getPayrolls } from '../utils/storage';
+import { Building2, Users, FileText, CheckCircle, AlertCircle, ArrowRight, Clock, ShieldAlert, ShieldCheck, Heart } from 'lucide-react';
+import { getCompany, getEmployees, getPayrolls, getInsurancePolicies, getAllEmployeeInsurance } from '../utils/storage';
 import NafisReportModal from './NafisReportModal';
 
 export default function Dashboard({ onNavigate }) {
-  const [company, setCompany]     = useState(null);
-  const [employees, setEmployees] = useState([]);
-  const [payrolls, setPayrolls]   = useState([]);
-  const [loading, setLoading]     = useState(true);
+  const [company, setCompany]         = useState(null);
+  const [employees, setEmployees]     = useState([]);
+  const [payrolls, setPayrolls]       = useState([]);
+  const [loading, setLoading]         = useState(true);
   const [showNafisReport, setShowNafisReport] = useState(false);
+  const [insurancePolicies, setInsurancePolicies] = useState([]);
+  const [allEmpInsurance, setAllEmpInsurance]     = useState([]);
 
   useEffect(() => {
-    Promise.all([getCompany(), getEmployees(), getPayrolls()]).then(([co, emps, pays]) => {
+    Promise.all([
+      getCompany(), getEmployees(), getPayrolls(),
+      getInsurancePolicies(), getAllEmployeeInsurance(),
+    ]).then(([co, emps, pays, pols, empIns]) => {
       setCompany(co);
       setEmployees(emps);
       setPayrolls(pays);
+      setInsurancePolicies(pols);
+      setAllEmpInsurance(empIns);
       setLoading(false);
     });
   }, []);
@@ -90,6 +97,28 @@ export default function Dashboard({ onNavigate }) {
     });
   });
   const criticalDocs = docWarnings.filter(d => d.daysLeft < 30);
+
+  // ── Insurance expiry alerts ──────────────────────────────────────────────────
+  // Employee-level: coverage expiring within 60 days
+  const insuranceCovWarnings = [];
+  allEmpInsurance.forEach(ins => {
+    if (!ins.expiryDate) return;
+    const emp = employees.find(e => e.id === ins.employeeId);
+    if (!emp || emp.employmentStatus === 'Terminated') return;
+    const days = Math.ceil((new Date(ins.expiryDate) - today) / (1000 * 60 * 60 * 24));
+    if (days <= 60 && days >= 0) {
+      insuranceCovWarnings.push({ empName: emp.name, daysLeft: days });
+    }
+  });
+  // Policy-level: renewal date within 60 days
+  const policyRenewalWarnings = insurancePolicies.filter(p => {
+    if (!p.renewalDate) return false;
+    const days = Math.ceil((new Date(p.renewalDate) - today) / (1000 * 60 * 60 * 24));
+    return days <= 60 && days >= 0;
+  }).map(p => ({
+    name:     `${p.insurerName}${p.tierName ? ` (${p.tierName})` : ''}`,
+    daysLeft: Math.ceil((new Date(p.renewalDate) - today) / (1000 * 60 * 60 * 24)),
+  }));
 
   const steps = [
     {
@@ -203,6 +232,43 @@ export default function Dashboard({ onNavigate }) {
           </div>
         )}
 
+        {/* Insurance coverage expiry alerts */}
+        {insuranceCovWarnings.length > 0 && (
+          <div className="alert alert-warning mb-4">
+            <Heart size={16} />
+            <div>
+              <strong>{insuranceCovWarnings.length} employee insurance coverage{insuranceCovWarnings.length !== 1 ? 's' : ''} expiring within 60 days:</strong>{' '}
+              {insuranceCovWarnings.slice(0, 3).map((w, i) => (
+                <span key={i}>{w.empName} ({w.daysLeft}d){i < Math.min(insuranceCovWarnings.length, 3) - 1 ? ', ' : ''}</span>
+              ))}
+              {insuranceCovWarnings.length > 3 && ` and ${insuranceCovWarnings.length - 3} more.`}
+              {' '}
+              <button className="btn btn-ghost btn-sm" style={{ padding:'0 4px', textDecoration:'underline' }}
+                onClick={() => onNavigate('employees')}>
+                Update in Employee Profiles
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Insurance policy renewal alerts */}
+        {policyRenewalWarnings.length > 0 && (
+          <div className="alert alert-warning mb-4">
+            <Heart size={16} />
+            <div>
+              <strong>{policyRenewalWarnings.length} insurance polic{policyRenewalWarnings.length !== 1 ? 'ies' : 'y'} renewing within 60 days:</strong>{' '}
+              {policyRenewalWarnings.map((w, i) => (
+                <span key={i}>{w.name} ({w.daysLeft}d){i < policyRenewalWarnings.length - 1 ? ', ' : ''}</span>
+              ))}
+              {' '}
+              <button className="btn btn-ghost btn-sm" style={{ padding:'0 4px', textDecoration:'underline' }}
+                onClick={() => onNavigate('company')}>
+                View in Company Settings
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Setup checklist */}
         <div className="card mb-4">
           <div className="card-header">
@@ -271,6 +337,13 @@ export default function Dashboard({ onNavigate }) {
               {criticalDocs.length}
             </div>
             <div className="stat-sub">{docWarnings.length} within 60 days</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label">Insurance Alerts</div>
+            <div className="stat-value" style={{ color: (insuranceCovWarnings.length + policyRenewalWarnings.length) > 0 ? 'var(--warning)' : 'var(--success)' }}>
+              {insuranceCovWarnings.length + policyRenewalWarnings.length}
+            </div>
+            <div className="stat-sub">{insurancePolicies.length} polic{insurancePolicies.length !== 1 ? 'ies' : 'y'} on file</div>
           </div>
         </div>
 
