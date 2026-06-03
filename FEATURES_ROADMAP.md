@@ -151,7 +151,7 @@ All leave currently routes directly to HR admin. UAE SMEs need line manager firs
 
 ---
 
-### 7. Leave Calendar & Team Planner
+### 7. ✓ COMPLETED — Leave Calendar & Team Planner
 
 **What it is:**
 There is no visual calendar showing who is on leave on which dates. HR and managers cannot plan around leave coverage.

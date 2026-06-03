@@ -1,5 +1,5 @@
 import { useState, useRef, useLayoutEffect, useEffect } from 'react';
-import { LayoutDashboard, Building2, Users, FileText, LogOut, User, CalendarDays, Clock, DollarSign } from 'lucide-react';
+import { LayoutDashboard, Building2, Users, FileText, LogOut, User, CalendarDays, Clock, DollarSign, LayoutGrid } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import AuthPage from './components/AuthPage';
 import { getCompany } from './utils/storage';
@@ -11,6 +11,7 @@ import PayrollManager from './components/PayrollManager';
 import LeaveManager from './components/LeaveManager';
 import AttendanceManager from './components/AttendanceManager';
 import AdvancesManager from './components/AdvancesManager';
+import RosterManager from './components/RosterManager';
 import EmployeeShell from './components/employee/EmployeeShell';
 import ManagerShell from './components/ManagerShell';
 import './index.css';
@@ -23,6 +24,7 @@ const NAV_ITEMS = [
   { id: 'advances',   label: 'Advances',          icon: DollarSign },
   { id: 'leave',      label: 'Leave',             icon: CalendarDays },
   { id: 'attendance', label: 'Attendance',        icon: Clock },
+  { id: 'roster',     label: 'Roster',            icon: LayoutGrid },
 ];
 
 // ─── Admin shell (HR users) ──────────────────────────────────────────────────
@@ -65,6 +67,7 @@ function AppShell() {
       case 'advances':   return <AdvancesManager />;
       case 'leave':      return <LeaveManager />;
       case 'attendance': return <AttendanceManager />;
+      case 'roster':     return <RosterManager />;
       default:           return <Dashboard onNavigate={setPage} />;
     }
   };

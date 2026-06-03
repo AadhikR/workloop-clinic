@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Home, CalendarDays, Clock, FileText, User, LogOut, DollarSign } from 'lucide-react';
+import { Home, CalendarDays, CalendarClock, Clock, FileText, User, LogOut, DollarSign } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import NotificationBell from '../NotificationBell';
 import { getMyEmployeeRecord, getMyCompany } from '../../utils/profileStorage';
@@ -9,10 +9,12 @@ import EmpAttendance from './EmpAttendance';
 import EmpPayslips from './EmpPayslips';
 import EmpProfile from './EmpProfile';
 import EmpAdvances from './EmpAdvances';
+import EmpSchedule from './EmpSchedule';
 
 const TABS = [
   { id: 'home',       label: 'Home',       icon: Home },
   { id: 'leave',      label: 'Leave',      icon: CalendarDays },
+  { id: 'schedule',   label: 'Schedule',   icon: CalendarClock },
   { id: 'attendance', label: 'Attendance', icon: Clock },
   { id: 'payslips',   label: 'Payslips',   icon: FileText },
   { id: 'advances',   label: 'Advances',   icon: DollarSign },
@@ -58,6 +60,7 @@ export default function EmployeeShell() {
     switch (tab) {
       case 'home':       return <EmpHome onNavigate={setTab} />;
       case 'leave':      return <EmpLeave />;
+      case 'schedule':   return <EmpSchedule />;
       case 'attendance': return <EmpAttendance />;
       case 'payslips':   return <EmpPayslips />;
       case 'advances':   return <EmpAdvances />;

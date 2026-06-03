@@ -12,12 +12,13 @@
  *   5. Profile        — profile & sign-out (reuses EmpProfile)
  */
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { CheckSquare, CalendarDays, Clock, FileText, User, LogOut } from 'lucide-react';
+import { CheckSquare, CalendarDays, CalendarClock, Clock, FileText, User, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import NotificationBell from './NotificationBell';
 import { getMyEmployeeRecord, getMyCompany } from '../utils/profileStorage';
 import ManagerLeaveQueue from './manager/ManagerLeaveQueue';
 import EmpLeave from './employee/EmpLeave';
+import EmpSchedule from './employee/EmpSchedule';
 import EmpAttendance from './employee/EmpAttendance';
 import EmpPayslips from './employee/EmpPayslips';
 import EmpProfile from './employee/EmpProfile';
@@ -25,6 +26,7 @@ import EmpProfile from './employee/EmpProfile';
 const TABS = [
   { id: 'queue',      label: 'Leave Queue',  icon: CheckSquare  },
   { id: 'leave',      label: 'My Leave',     icon: CalendarDays },
+  { id: 'schedule',   label: 'Schedule',     icon: CalendarClock },
   { id: 'attendance', label: 'Attendance',   icon: Clock        },
   { id: 'payslips',   label: 'Payslips',     icon: FileText     },
   { id: 'profile',    label: 'Profile',      icon: User         },
@@ -69,6 +71,7 @@ export default function ManagerShell() {
     switch (tab) {
       case 'queue':      return <ManagerLeaveQueue />;
       case 'leave':      return <EmpLeave />;
+      case 'schedule':   return <EmpSchedule />;
       case 'attendance': return <EmpAttendance />;
       case 'payslips':   return <EmpPayslips />;
       case 'profile':    return <EmpProfile onSignOut={handleSignOut} signingOut={signingOut} />;

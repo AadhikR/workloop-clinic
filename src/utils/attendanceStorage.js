@@ -120,6 +120,7 @@ export async function saveShift(shift) {
     is_overnight:     shift.isOvernight ?? false,
     min_hours_flexible: shift.minHoursFlexible || null,
     is_active:        shift.isActive ?? true,
+    color:            shift.color || '#6366f1',
   };
   if (shift.id) {
     const { data, error } = await supabase.from('shifts').update(row).eq('id', shift.id).select().single();
@@ -153,6 +154,7 @@ function dbToShift(row) {
     isOvernight:       row.is_overnight,
     minHoursFlexible:  row.min_hours_flexible,
     isActive:          row.is_active,
+    color:             row.color || '#6366f1',
   };
 }
 
@@ -577,4 +579,199 @@ export async function getAttendancePayrollData(period) {
     payrollReady:  periodData?.payrollReady ?? false,
     byEmployee,
   };
+}
+
+// ── ROSTER ASSIGNMENTS (Feature 8) ───────────────────────────────────────────
+
+/**
+ * Fetch all roster assignments for a calendar month.
+ * Joins shifts table to include shift name and color.
+ */
+export async function getRosterForMonth(year, month) {
+  const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
+  const lastDay    = new Date(year, month, 0).getDate();
+  const monthEnd   = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+  const { data, error } = await supabase
+    .from('roster_assignments')
+    .select('*, shifts(*)')
+    .gte('date', monthStart)
+    .lte('date', monthEnd)
+    .order('date', { ascending: true });
+
+  if (error) { console.error('getRosterForMonth:', error); return []; }
+  return (data || []).map(dbToRosterAssignment);
+}
+
+/**
+ * Upsert a single roster assignment (employee × date → shift).
+ * Uses ON CONFLICT on (employee_id, date) to update if already assigned.
+ */
+export async function saveRosterAssignment({ employeeId, shiftId, date, notes = '', published = false }) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase
+    .from('roster_assignments')
+    .upsert(
+      { user_id: user.id, employee_id: employeeId, shift_id: shiftId, date, notes, published },
+      { onConflict: 'employee_id,date' }
+    )
+    .select('*, shifts(*)')
+    .single();
+
+  if (error) throw error;
+  return dbToRosterAssignment(data);
+}
+
+/**
+ * Remove a roster assignment for a specific employee on a specific date.
+ */
+export async function deleteRosterAssignment(employeeId, date) {
+  const { error } = await supabase
+    .from('roster_assignments')
+    .delete()
+    .eq('employee_id', employeeId)
+    .eq('date', date);
+  if (error) throw error;
+}
+
+/**
+ * Mark all roster assignments for a given month as published.
+ * Once published, employees can see their schedule in the portal.
+ */
+export async function publishRoster(year, month) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
+  const lastDay    = new Date(year, month, 0).getDate();
+  const monthEnd   = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+  const { error } = await supabase
+    .from('roster_assignments')
+    .update({ published: true })
+    .eq('user_id', user.id)
+    .gte('date', monthStart)
+    .lte('date', monthEnd);
+
+  if (error) throw error;
+}
+
+function dbToRosterAssignment(row) {
+  return {
+    id:         row.id,
+    employeeId: row.employee_id,
+    shiftId:    row.shift_id,
+    date:       row.date,
+    published:  row.published,
+    notes:      row.notes || '',
+    shift:      row.shifts ? dbToShift(row.shifts) : null,
+    createdAt:  row.created_at,
+  };
+}
+
+// ── SHIFT SWAP REQUESTS (Feature 8) ──────────────────────────────────────────
+
+export async function getShiftSwapRequests(filters = {}) {
+  let query = supabase
+    .from('shift_swap_requests')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (filters.status) query = query.eq('status', filters.status);
+
+  const { data, error } = await query;
+  if (error) { console.error('getShiftSwapRequests:', error); return []; }
+  return (data || []).map(dbToShiftSwapRequest);
+}
+
+/**
+ * Admin approves or rejects a shift swap request.
+ */
+export async function updateShiftSwapRequest(id, status, rejectionReason = '') {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase
+    .from('shift_swap_requests')
+    .update({
+      status,
+      rejection_reason:  rejectionReason,
+      admin_approved_at: ['approved', 'rejected'].includes(status) ? new Date().toISOString() : null,
+      admin_approved_by: user.email || user.id,
+    })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return dbToShiftSwapRequest(data);
+}
+
+function dbToShiftSwapRequest(row) {
+  return {
+    id:                  row.id,
+    requesterEmployeeId: row.requester_employee_id,
+    targetEmployeeId:    row.target_employee_id,
+    requesterDate:       row.requester_date,
+    targetDate:          row.target_date,
+    reason:              row.reason || '',
+    status:              row.status,
+    adminApprovedAt:     row.admin_approved_at,
+    adminApprovedBy:     row.admin_approved_by || '',
+    rejectionReason:     row.rejection_reason || '',
+    createdAt:           row.created_at,
+  };
+}
+
+// ── EMPLOYEE PORTAL — ROSTER & SWAPS ─────────────────────────────────────────
+
+/**
+ * Employee reads their own published roster via RPC.
+ * Falls back to [] if the SQL migration hasn't been applied yet.
+ */
+export async function getMyRoster(dateFrom, dateTo) {
+  const { data, error } = await supabase.rpc('employee_get_my_roster', {
+    p_date_from: dateFrom,
+    p_date_to:   dateTo,
+  });
+  if (error) { console.error('getMyRoster:', error); return []; }
+  return (data || []).map(row => ({
+    id:            row.id,
+    shiftId:       row.shift_id,
+    date:          row.date,
+    published:     row.published,
+    notes:         row.notes,
+    shiftName:     row.shift_name  || '—',
+    shiftColor:    row.shift_color || '#6366f1',
+    startTime:     row.start_time  || null,
+    endTime:       row.end_time    || null,
+    expectedHours: parseFloat(row.expected_hours) || 8,
+  }));
+}
+
+/**
+ * Employee gets a name-only list of colleagues (same company, not terminated).
+ * Used to populate the "swap with" dropdown.
+ */
+export async function getMyColleagues() {
+  const { data, error } = await supabase.rpc('employee_get_colleagues');
+  if (error) { console.error('getMyColleagues:', error); return []; }
+  return (data || []).map(r => ({ id: r.id, name: r.name, jobTitle: r.job_title }));
+}
+
+/**
+ * Employee submits a shift swap request via SECURITY DEFINER RPC.
+ */
+export async function requestShiftSwap({ requesterDate, targetEmployeeId, targetDate, reason }) {
+  const { data, error } = await supabase.rpc('employee_request_shift_swap', {
+    p_target_employee_id: targetEmployeeId,
+    p_requester_date:     requesterDate,
+    p_target_date:        targetDate || null,
+    p_reason:             reason || '',
+  });
+  if (error) throw error;
+  if (!data?.success) throw new Error(data?.error || 'Swap request failed');
+  return data;
 }
