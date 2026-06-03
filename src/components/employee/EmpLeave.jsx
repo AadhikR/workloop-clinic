@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, X, ChevronDown, ChevronUp, AlertCircle, CheckCircle } from 'lucide-react';
+import { Plus, X, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Calendar, AlertCircle, CheckCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import {
   getLeaveTypes, getLeaveRequests, getLeaveBalances, getPublicHolidays,
@@ -62,8 +62,9 @@ export default function EmpLeave() {
   const [emp, setEmp]                 = useState(null);
   const [loading, setLoading]         = useState(true);
   const [showForm, setShowForm]       = useState(false);
-  const [activeTab, setActiveTab]     = useState('requests'); // 'requests' | 'balances'
+  const [activeTab, setActiveTab]     = useState('requests'); // 'requests' | 'balances' | 'calendar'
   const [expandedId, setExpandedId]   = useState(null);
+  const [empCalMonth, setEmpCalMonth] = useState(new Date());
   const [saving, setSaving]           = useState(false);
   const [toast, setToast]             = useState(null); // { type, msg }
 
@@ -127,6 +128,19 @@ export default function EmpLeave() {
     showToast('success', 'Leave request cancelled.');
   }
 
+  // ── Mini-calendar helpers ─────────────────────────────────────────────────
+  const empCalYear        = empCalMonth.getFullYear();
+  const empCalMonthNum    = empCalMonth.getMonth();
+  const empCalDaysInMonth = new Date(empCalYear, empCalMonthNum + 1, 0).getDate();
+  const empCalFirstDay    = new Date(empCalYear, empCalMonthNum, 1).getDay();
+  // Returns this employee's leave requests covering a given date
+  const getEmpDayLeaves   = (dateStr) =>
+    requests.filter(r =>
+      ['Approved', 'Pending', 'ManagerApproved'].includes(r.status) &&
+      r.startDate <= dateStr && r.endDate >= dateStr
+    );
+
+  // ── Form day computation ──────────────────────────────────────────────────
   // Compute days for current form selection
   const selectedType = leaveTypes.find(t => t.code === form.leaveTypeCode);
   const computedDays = selectedType && form.startDate && form.endDate
@@ -218,6 +232,9 @@ export default function EmpLeave() {
           </button>
           <button className={`tab-btn ${activeTab === 'balances' ? 'active' : ''}`} onClick={() => setActiveTab('balances')}>
             My Balances
+          </button>
+          <button className={`tab-btn ${activeTab === 'calendar' ? 'active' : ''}`} onClick={() => setActiveTab('calendar')}>
+            <Calendar size={12} style={{ marginRight: 4, verticalAlign: 'middle' }} /> Calendar
           </button>
         </div>
 
@@ -427,6 +444,147 @@ export default function EmpLeave() {
                   </div>
                 );
               })
+        )}
+
+        {/* ── CALENDAR TAB ── */}
+        {activeTab === 'calendar' && (
+          <div className="emp-card" style={{ padding: 16 }}>
+
+            {/* Month navigation */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <button
+                className="btn btn-ghost btn-icon btn-sm"
+                onClick={() => setEmpCalMonth(new Date(empCalYear, empCalMonthNum - 1, 1))}
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--gray-900)' }}>
+                {empCalMonth.toLocaleString('en-AE', { month: 'long', year: 'numeric' })}
+              </span>
+              <button
+                className="btn btn-ghost btn-icon btn-sm"
+                onClick={() => setEmpCalMonth(new Date(empCalYear, empCalMonthNum + 1, 1))}
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+
+            {/* Day-of-week headers (Mon first — UAE calendar convention) */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2, marginBottom: 4 }}>
+              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
+                <div key={d} style={{
+                  textAlign: 'center', fontSize: 10, fontWeight: 600,
+                  color: 'var(--gray-400)', padding: '2px 0',
+                }}>
+                  {d}
+                </div>
+              ))}
+            </div>
+
+            {/* Day grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2 }}>
+              {/* Empty cells to offset the first day of the month */}
+              {Array.from({ length: (empCalFirstDay + 6) % 7 }).map((_, i) => (
+                <div key={`ep-${i}`} style={{ height: 40 }} />
+              ))}
+
+              {/* Day cells */}
+              {Array.from({ length: empCalDaysInMonth }).map((_, i) => {
+                const day      = i + 1;
+                const dateStr  = `${empCalYear}-${String(empCalMonthNum + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const todayIso = new Date().toISOString().split('T')[0];
+                const isToday   = dateStr === todayIso;
+                const isHol     = holidays.includes(dateStr);
+                const isWeekend = (() => { const d = new Date(dateStr).getDay(); return d === 5 || d === 6; })();
+                const dayLeaves = getEmpDayLeaves(dateStr);
+                const mainLeave = dayLeaves[0];
+                const lt        = mainLeave ? leaveTypes.find(t => t.code === mainLeave.leaveTypeCode) : null;
+                const isApproved = mainLeave?.status === 'Approved';
+
+                return (
+                  <div
+                    key={day}
+                    title={
+                      mainLeave
+                        ? `${lt?.name || mainLeave.leaveTypeCode} — ${mainLeave.status}`
+                        : isHol ? 'Public Holiday' : undefined
+                    }
+                    style={{
+                      height: 40,
+                      borderRadius: 6,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 12,
+                      fontWeight: isToday ? 700 : 400,
+                      background: lt
+                        ? lt.color + (isApproved ? '55' : '33')
+                        : isToday   ? 'var(--primary-light)'
+                        : isHol     ? '#fef9c3'
+                        : isWeekend ? 'var(--gray-50)'
+                        : 'transparent',
+                      color: lt
+                        ? lt.color
+                        : isToday   ? 'var(--primary)'
+                        : isHol     ? '#92400e'
+                        : isWeekend ? 'var(--gray-400)'
+                        : 'var(--gray-700)',
+                      outline:       isToday && !mainLeave ? '2px solid var(--primary)' : 'none',
+                      outlineOffset: '-2px',
+                      cursor:        mainLeave ? 'help' : 'default',
+                    }}
+                  >
+                    {day}
+                    {/* Public holiday dot (only when not on leave) */}
+                    {isHol && !mainLeave && (
+                      <div style={{
+                        width: 4, height: 4, borderRadius: '50%',
+                        background: '#f59e0b', marginTop: 1,
+                      }} />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Legend */}
+            {(() => {
+              const usedCodes = [...new Set(
+                requests
+                  .filter(r => ['Approved', 'Pending', 'ManagerApproved'].includes(r.status))
+                  .map(r => r.leaveTypeCode)
+              )];
+              return usedCodes.length === 0 ? (
+                <p style={{ marginTop: 14, fontSize: 12, color: 'var(--gray-400)', textAlign: 'center' }}>
+                  No leave on record yet.
+                </p>
+              ) : (
+                <div style={{
+                  marginTop: 14, display: 'flex', flexWrap: 'wrap', gap: 10,
+                  borderTop: '1px solid var(--gray-100)', paddingTop: 12,
+                }}>
+                  {usedCodes.map(code => {
+                    const lt = leaveTypes.find(t => t.code === code);
+                    if (!lt) return null;
+                    return (
+                      <span key={code} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--gray-600)' }}>
+                        <span style={{ width: 10, height: 10, borderRadius: 2, background: lt.color, display: 'inline-block' }} />
+                        {lt.name}
+                      </span>
+                    );
+                  })}
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--gray-500)' }}>
+                    <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }} />
+                    Public Holiday
+                  </span>
+                  <span style={{ fontSize: 11, color: 'var(--gray-400)', marginLeft: 4 }}>
+                    Solid = Approved · Faded = Pending
+                  </span>
+                </div>
+              );
+            })()}
+          </div>
         )}
       </div>
     </div>

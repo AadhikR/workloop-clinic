@@ -701,3 +701,31 @@ export async function recalculateAllBalances(employees, leaveTypes, allRequests,
     .upsert(rows, { onConflict: 'user_id,employee_id,leave_type_code,leave_year' });
   if (error) throw error;
 }
+
+// ── CALENDAR DATA ─────────────────────────────────────────────────────────────
+
+/**
+ * Returns all approved leave requests that overlap a given calendar month.
+ * Useful for calendar views that lazy-load data when navigating months,
+ * or for components that don't already have the full requests list in memory.
+ *
+ * @param {number} year
+ * @param {number} month — 1-indexed (1 = January, 12 = December)
+ * @returns {Promise<object[]>} — array of leave request objects (camelCase)
+ */
+export async function getApprovedLeavesForMonth(year, month) {
+  const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
+  const lastDay    = new Date(year, month, 0).getDate();
+  const monthEnd   = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+  const { data, error } = await supabase
+    .from('leave_requests')
+    .select('*')
+    .eq('status', 'Approved')
+    .lte('start_date', monthEnd)   // leave starts on or before last day of month
+    .gte('end_date',   monthStart) // leave ends on or after first day of month
+    .order('start_date', { ascending: true });
+
+  if (error) { console.error('getApprovedLeavesForMonth:', error); return []; }
+  return (data || []).map(dbToLeaveRequest);
+}

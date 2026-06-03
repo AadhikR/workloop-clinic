@@ -126,7 +126,7 @@ Salary advances are common in UAE SMEs, especially for blue-collar and mid-level
 
 ---
 
-### 6. Multi-Level Leave Approval Workflow
+### 6. ✓ COMPLETED — Multi-Level Leave Approval Workflow
 
 **What it is:**
 All leave currently routes directly to HR admin. UAE SMEs need line manager first-level approval before HR sees the request.

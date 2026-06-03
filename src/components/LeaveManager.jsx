@@ -99,6 +99,7 @@ export default function LeaveManager() {
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [calendarMonth, setCalendarMonth] = useState(new Date());
+  const [calendarDeptFilter, setCalendarDeptFilter] = useState('');
   const [filterDept, setFilterDept] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterType, setFilterType] = useState('');
@@ -582,6 +583,17 @@ export default function LeaveManager() {
                 </button>
               </h3>
               <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
+                {departments.length > 0 && (
+                  <select
+                    className="form-control"
+                    style={{ width:150, height:32, fontSize:12, padding:'0 8px' }}
+                    value={calendarDeptFilter}
+                    onChange={e => setCalendarDeptFilter(e.target.value)}
+                  >
+                    <option value="">All Departments</option>
+                    {departments.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                )}
                 {leaveTypes.slice(0, 5).map(lt => (
                   <span key={lt.code} style={{ display:'flex', alignItems:'center', gap:4, fontSize:11 }}>
                     <span style={{ width:10, height:10, borderRadius:2, background:lt.color, display:'inline-block' }}/>
@@ -619,7 +631,11 @@ export default function LeaveManager() {
                   const isToday = dateStr === todayStr;
                   const isHoliday = publicHolidayDates.includes(dateStr);
                   const holiday = holidays.find(h => h.date === dateStr);
-                  const dayRequests = getRequestsForDate(dateStr);
+                  const dayRequests = getRequestsForDate(dateStr).filter(r => {
+                    if (!calendarDeptFilter) return true;
+                    const dEmp = employees.find(e => e.id === r.employeeId);
+                    return dEmp?.department === calendarDeptFilter;
+                  });
                   const isWeekendDay = (() => {
                     const d = new Date(dateStr).getDay();
                     return weekendDef === 'fri-sat' ? (d === 5 || d === 6) : (d === 0 || d === 6);
