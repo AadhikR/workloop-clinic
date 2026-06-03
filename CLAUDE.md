@@ -340,7 +340,7 @@ The **Save button is hidden** on both the Documents and Insurance tabs — each 
 
 ### Business logic utilities
 
-- **`utils/sifGenerator.js`** — Generates the UAE WPS SIF file format (SCR header + EDR per employee). Amounts are integer AED (not fils). Filename format: `{MOL_ID}{YYMMDD}{HHMMSS}.sif`.
+- **`utils/sifGenerator.js`** — Generates the UAE WPS SIF file format (SCR header + EDR per employee). Amounts are integer AED (not fils). Filename format: `{MOL_ID}{YYMMDD}{HHMMSS}.sif`. **Line endings must be `\r\n` (CRLF)** — banks reject files with LF-only endings (all lines appear as one row). `generateSIF()` uses `lines.join('\r\n')`. `parseSIFPreview()` uses `/\r?\n/` to tolerate both. The download Blob must use `type: 'application/octet-stream'` with a `Uint8Array` (via `TextEncoder`) — `text/plain` allows macOS browsers to strip the `\r` on download, reintroducing the same parse failure even after correct generation.
 - **`utils/payslipGenerator.js`** — jsPDF payslip PDF. `generatePayslipPDF` is async (loads company logo). Always call `downloadPayslip(company, emp, run, entry)` from components, not `generatePayslipPDF` directly.
 - **`utils/leaveEngine.js`** — UAE Federal Labour Law No. 33 of 2021 leave rules. Exports `DEFAULT_LEAVE_TYPES` (seed data), `calculateAnnualLeaveAccrual`, `countLeaveDays`, `validateLeaveRequest`.
 - **`utils/gratuityCalculator.js`** — End-of-service gratuity per UAE law.
