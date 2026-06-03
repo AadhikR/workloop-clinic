@@ -21,14 +21,15 @@ npm run test:employees          # Employee CRUD only
 npm run test:payroll            # Payroll flows only
 npm run test:report             # Open HTML report from last run
 
-# Run only the Feature 1–4 spec files
-npx playwright test emiratization documents insurance notifications
+# Run only the Feature 1–5 spec files
+npx playwright test emiratization documents insurance notifications advances
 
 # Run a single feature spec
 npx playwright test emiratization          # Feature 1 — Emiratization / Nafis
 npx playwright test documents             # Feature 2 — Document Storage
 npx playwright test insurance             # Feature 3 — Medical Insurance
 npx playwright test notifications         # Feature 4 — Notification System
+npx playwright test advances              # Feature 5 — Salary Advances
 
 # Run tests matching a name pattern across all files
 npx playwright test --grep "bell icon"
@@ -47,7 +48,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO service_role;
 ```
 
-`global-setup.js` runs once before all tests: creates `test.admin@workloop-test.local` and `test.employee@workloop-test.local` auth users, seeds company/employee rows, then saves browser sessions to `.playwright/admin-session.json` and `.playwright/employee-session.json` so tests start pre-logged-in. `global-teardown.js` cleans test data from: attendance, payroll, nafis_reports, insurance_policies/dependants/employee_insurance, notifications, and employee_documents.
+`global-setup.js` runs once before all tests: creates `test.admin@workloop-test.local` and `test.employee@workloop-test.local` auth users, seeds company/employee rows, then saves browser sessions to `.playwright/admin-session.json` and `.playwright/employee-session.json` so tests start pre-logged-in. `global-teardown.js` cleans test data from: attendance, payroll, nafis_reports, insurance_policies/dependants/employee_insurance, notifications, employee_documents, and salary_advances (repayments cascade-delete).
 
 Test files in `tests/` use `storageState` to load saved sessions. Attendance tests open two browser contexts simultaneously (admin + employee) to verify cross-portal clock-in visibility.
 
@@ -96,6 +97,10 @@ await page.getByRole('button', { name: 'Company Settings' }).click();
 await page.locator('.sidebar-nav').getByRole('button', { name: 'Company Settings' }).click();
 ```
 The same risk applies to any nav label that also appears as an inline link inside a page alert or prompt.
+
+**`test.use({ storageState })` must be scoped inside describe blocks — never at file level — when a spec file mixes admin and employee tests**: A file-level `test.use` applies to ALL describe blocks, including employee ones that call `loginAsEmployee(page)`. With the admin session loaded, `page.goto('/')` lands on the admin shell and `loginAsEmployee` can't find the "Sign in as Employee" button (times out). Fix: place `test.use({ storageState: '.playwright/admin-session.json' })` **inside** each admin describe block; the employee describe has no `test.use` so pages start unauthenticated. See `advances.spec.js` and `notifications.spec.js` for the correct pattern.
+
+**Stat card text collisions — avoid case-insensitive regex across card sub-labels**: `hasText: /Active Advances/i` matches ANY stat card whose full text content (label + value + sub-label) contains "active advances". If a sibling card's sub-label says "AED — active advances" it will match too (strict mode violation). Use case-sensitive regex (`/Active Advances/` without `i`), scope to `.stat-label`, or ensure sub-label text is distinct from other cards' labels.
 
 ## Environment
 
@@ -159,13 +164,13 @@ All DB access goes through utility modules — components never call `supabase` 
 
 | File | Scope |
 |------|-------|
-| `utils/storage.js` | Admin CRUD: companies, employees, payroll runs/entries, payslip records, employee documents, Nafis reports, insurance policies/assignments/dependants |
+| `utils/storage.js` | Admin CRUD: companies, employees, payroll runs/entries, payslip records, employee documents, Nafis reports, insurance policies/assignments/dependants, salary advances/repayments |
 | `utils/notificationStorage.js` | In-app notifications: `getNotifications`, `getUnreadCount`, `markNotificationRead`, `markAllNotificationsRead`, `createNotification`, `createNotifications` (batch), `generateExpiryNotifications` |
 | `utils/profileStorage.js` | Role resolution (`user_profiles`), employee self-service data (own record, own payslips, own company) |
 | `utils/leaveStorage.js` | Leave types, requests, balances, public holidays |
 | `utils/attendanceStorage.js` | Attendance records, clock events, shifts, regularisation |
 
-**Shape converters**: `storage.js` has `dbToXxx` / `xxxToDb` functions that translate between snake_case DB columns and camelCase JS objects. All components consume camelCase objects. `dbToDocument`, `dbToInsurancePolicy`, `dbToEmployeeInsurance`, and `dbToInsuranceDependant` are all module-private converters (not exported).
+**Shape converters**: `storage.js` has `dbToXxx` / `xxxToDb` functions that translate between snake_case DB columns and camelCase JS objects. All components consume camelCase objects. `dbToDocument`, `dbToInsurancePolicy`, `dbToEmployeeInsurance`, `dbToInsuranceDependant`, `dbToAdvance`, and `dbToAdvanceRepayment` are all module-private converters (not exported).
 
 **`authUserId` in dbToEmployee**: `dbToEmployee` now maps `row.auth_user_id → emp.authUserId`. This field is `null` until the employee registers on the employee portal. It is used by `LeaveManager` and `PayrollEditor` to target notifications at the correct employee auth account.
 
@@ -189,6 +194,8 @@ All DB access goes through utility modules — components never call `supabase` 
 - `employee_insurance` — one coverage record per employee (`UNIQUE (user_id, employee_id)`); links to a policy, stores member ID, card number, effective/expiry dates. Upserted via `saveEmployeeInsurance()` using `onConflict: 'user_id,employee_id'`.
 - `insurance_dependants` — family members covered under an employee's policy (name, relationship, DOB, card number). No uniqueness constraint — multiple rows per employee allowed.
 - `notifications` — in-app notifications with `UNIQUE (recipient_user_id, type, related_entity_id)` for deduplication. `user_id` = who created it (admin), `recipient_user_id` = who sees it (admin or employee). Four separate RLS policies: SELECT/INSERT/UPDATE/DELETE with different conditions (see `sql/004_notifications.sql`). Expiry alerts embed a threshold suffix in `related_entity_id` (e.g. `{employeeId}_visa_30d`) so 60-day and 30-day alerts are separate rows.
+- `salary_advances` — one row per advance/loan disbursement. `status` is `'pending'` (employee self-request awaiting approval) | `'active'` (approved, repayments ongoing) | `'settled'` (fully repaid) | `'cancelled'` (rejected or voided). Admin-created advances start as `'active'`; employee-requested advances start as `'pending'` via the `employee_request_advance` RPC. Stores `repayment_months`, `monthly_deduction` (= amount ÷ months), and `outstanding_balance` (decremented on each repayment).
+- `advance_repayments` — one row per monthly deduction; linked to `salary_advances` (CASCADE delete) and optionally to `payroll_runs`. Written by `saveAdvanceRepayment()` which also calls `updateAdvanceBalance()` to decrement the parent advance and auto-transition to `'settled'` when balance hits zero.
 
 ### Supabase Storage
 
@@ -227,6 +234,8 @@ ALTER TABLE tablename ENABLE ROW LEVEL SECURITY; -- then add RLS policies
 | `attendance_records` | same pattern as clock_events |
 | `employee_documents` | `employee_id IN (SELECT id FROM employees WHERE auth_user_id = auth.uid())` |
 | `employee_insurance` | `employee_id IN (SELECT id FROM employees WHERE auth_user_id = auth.uid())` |
+| `salary_advances` | `employee_id IN (SELECT id FROM employees WHERE auth_user_id = auth.uid())` |
+| `advance_repayments` | `advance_id IN (SELECT sa.id FROM salary_advances sa JOIN employees e ON e.id = sa.employee_id WHERE e.auth_user_id = auth.uid())` |
 
 **Notifications RLS** is split across four separate policies (not a single `FOR ALL`): SELECT and UPDATE use `recipient_user_id = auth.uid()`; INSERT uses `user_id = auth.uid()` (admin creates for anyone); DELETE uses `user_id = auth.uid()` (admin deletes their own). This lets the employee portal read and mark-read its own notifications without being able to insert or delete.
 
@@ -241,6 +250,7 @@ These must exist in Supabase. All look up the caller's employee via `employees.a
 | `employee_cancel_leave_request(p_request_id)` | Cancels a pending request |
 | `employee_record_clock_event(p_event_type, p_notes)` | Inserts clock event with admin's `user_id`; upserts `attendance_records`. Normalises `p_event_type` with `UPPER()` internally. Uses SELECT + INSERT/UPDATE (not `ON CONFLICT`) to avoid dependency on a named unique index. Stores `status = 'PRESENT'` (uppercase) to match `ATTENDANCE_STATUS.PRESENT`. |
 | `employee_submit_regularisation(...)` | Submits an attendance correction request |
+| `employee_request_advance(p_amount, p_reason)` | Creates a `'pending'` salary advance for the linked employee; returns the new advance UUID. Admin must approve (set to `'active'`) before repayments begin. |
 
 ### Key behavioral patterns
 
@@ -293,6 +303,14 @@ The **Save button is hidden** on both the Documents and Insurance tabs — each 
 **`generateExpiryNotifications`** is called once at the end of the Dashboard's `Promise.all` data load (not in a `useEffect`) — it runs async after `setLoading(false)` and silently ignores errors so a missing notifications table never breaks the Dashboard. It generates document, insurance, and policy renewal notifications for the admin (recipient = admin uid).
 
 **Notification hooks in feature code**: `LeaveManager.handleApproval` creates a `leave_approved`/`leave_rejected` notification targeted at `emp.authUserId` — only fires if the employee has linked their portal account. `PayrollEditor.handleSubmitPayroll` batch-creates `payslip_available` notifications for all linked employees after `createPayslipRecords`. Both calls use `.catch(() => {})` to silently ignore failures if the notifications table doesn't exist yet.
+
+**AdvancesManager (admin)**: Standalone page, nav item "Advances" sits between "Payroll Module" and "Leave" in `NAV_ITEMS`. Loads all advances + employees on mount. Approve/reject pending requests by calling `saveAdvance({ ...adv, status: 'active'/'cancelled' })`; settle/cancel active advances the same way. Repayment history per advance fetched lazily via `getAdvanceRepayments(advanceId)` when the row is expanded. `saveAdvance()` auto-computes `monthly_deduction = amount / repayment_months` if `monthlyDeduction` is not explicitly passed.
+
+**EmpAdvances (employee self-service)**: Tab "Advances" sits between "Payslips" and "Profile" in `EmployeeShell` TABS. Calls `getAdvances(emp.id)` (reads via employee self-read RLS policy, not admin scope). Advance request form calls `supabase.rpc('employee_request_advance', { p_amount, p_reason })` directly — the RPC resolves the employee from `auth.uid()`. Active advances show a progress bar: `(amount - outstandingBalance) / amount * 100`.
+
+**PayrollEditor advance info panel**: A `useEffect` loads all `active` advances via `getAdvances()` (no employeeId filter) and groups them by `employeeId` into `advanceData` state. The info panel renders only when `Object.keys(advanceData).length > 0` — it's purely informational; deductions must still be applied manually via the AllowDeductPanel. Silently swallows errors (table may not exist yet — `.catch(() => {})`).
+
+**EndOfServiceScreen advance auto-load**: A `useEffect` fires on `employee.id` and calls `getAdvances(employee.id)`, sums `outstandingBalance` across all `active` advances, and pre-populates the "Outstanding Salary Advances" input. The field hint changes to "Auto-loaded from Advances module. Edit to override." once loaded (`advancesLoaded` state). The field remains editable so the admin can manually correct the figure.
 
 ### Business logic utilities
 
