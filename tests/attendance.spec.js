@@ -65,7 +65,9 @@ test.describe('Attendance — employee clock-in visibility', () => {
     const empPage = await empCtx.newPage();
 
     await empPage.goto('/');
-    await empPage.getByRole('button', { name: 'Attendance' }).click();
+    // Use .nav-item selector to avoid strict-mode violation (desktop sidebar + mobile bar both
+    // have an "Attendance" button; getByRole would match both).
+    await empPage.locator('button.nav-item').filter({ hasText: /^Attendance$/ }).click();
     await empPage.waitForLoadState('networkidle');
 
     // Only clock in if not already clocked in
@@ -75,16 +77,18 @@ test.describe('Attendance — employee clock-in visibility', () => {
       await empPage.waitForTimeout(2000);
     }
 
-    // Reload the page
+    // Reload the page — it resets to the Home tab, so navigate back to Attendance
     await empPage.reload();
     await empPage.waitForLoadState('networkidle');
-    await empPage.waitForTimeout(2000);
+    await empPage.locator('button.nav-item').filter({ hasText: /^Attendance$/ }).click();
+    await empPage.waitForLoadState('networkidle');
+    await empPage.waitForTimeout(1500);
 
-    // Should NOT show "Not started" after reload
+    // Should NOT show "Not started" — should show a clock-in time or PRESENT status
     await expect(empPage.locator('text=/not started/i')).not.toBeVisible({ timeout: 8000 });
 
-    // Should show clock-in time
-    const statusText = empPage.locator('div').filter({ hasText: /present|clocked/i }).first();
+    // Should show clock-in time or PRESENT badge
+    const statusText = empPage.locator('.emp-main').filter({ hasText: /present|clocked/i }).first();
     await expect(statusText).toBeVisible({ timeout: 8000 });
 
     await empCtx.close();
@@ -95,7 +99,8 @@ test.describe('Attendance — employee clock-in visibility', () => {
     const empPage = await empCtx.newPage();
 
     await empPage.goto('/');
-    await empPage.getByRole('button', { name: 'Attendance' }).click();
+    // Use .nav-item selector to avoid strict-mode violation
+    await empPage.locator('button.nav-item').filter({ hasText: /^Attendance$/ }).click();
     await empPage.waitForLoadState('networkidle');
 
     const clockInBtn  = empPage.getByRole('button', { name: /clock in/i });
@@ -103,11 +108,11 @@ test.describe('Attendance — employee clock-in visibility', () => {
 
     if (await clockInBtn.isEnabled()) {
       await clockInBtn.click();
-      await empPage.waitForTimeout(1500);
+      await empPage.waitForTimeout(2000);
     }
 
-    // Clock Out should now be enabled
-    await expect(clockOutBtn).toBeEnabled({ timeout: 8000 });
+    // Clock Out should now be enabled (optimistic update fires immediately on clock-in)
+    await expect(clockOutBtn).toBeEnabled({ timeout: 10000 });
 
     await empCtx.close();
   });

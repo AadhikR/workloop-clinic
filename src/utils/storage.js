@@ -10,8 +10,18 @@ import { supabase } from '../lib/supabase';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
+/**
+ * Returns the current user from the local session without a server round-trip.
+ * Using getSession() instead of getUser() prevents the server-side JWT validation
+ * from triggering refresh-token rotation, which causes SIGNED_OUT in tests.
+ */
+async function getSessionUser() {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.user ?? null;
+}
+
 function getUserId() {
-  return supabase.auth.getUser().then(({ data }) => data?.user?.id);
+  return supabase.auth.getSession().then(({ data }) => data?.session?.user?.id);
 }
 
 // ─── COMPANY ────────────────────────────────────────────────────────────────
@@ -36,7 +46,7 @@ export async function getCompany() {
  * Upserts the company for the current user.
  */
 export async function saveCompany(company) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated — please sign out and sign in again');
 
   const row = companyToDb(company, user.id);
@@ -79,7 +89,7 @@ export async function getEmployees() {
  * Returns the saved employee with its DB id.
  */
 export async function saveEmployee(employee) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
 
   const row = employeeToDb(employee, user.id);
@@ -111,7 +121,7 @@ export async function saveEmployee(employee) {
  * Saves the full employees array (used by CSV import which replaces/merges many at once).
  */
 export async function saveEmployees(employees) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
 
   const existing = employees.filter(e => e.id && e.id.includes('-'));
@@ -189,7 +199,7 @@ export async function getJobHistory(employeeId) {
  * Appends a job history entry for an employee.
  */
 export async function addJobHistoryEntry(employeeId, changeType, oldValue, newValue, reason = '') {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
 
   const { error } = await supabase
@@ -252,7 +262,7 @@ export async function getPayrolls() {
  * Automatically records audit trail fields (runBy, totalDisbursed, employeeCount).
  */
 export async function savePayroll(payroll) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
 
   // Calculate totals for audit trail
@@ -319,7 +329,7 @@ export async function deletePayroll(id) {
  * Called by PayrollEditor when the admin clicks "Download SIF".
  */
 export async function createPayslipRecords(payroll) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) return;
 
   const activeEntries = (payroll.entries || []).filter(e => !e.excluded);
@@ -392,7 +402,7 @@ export async function getEmployeeDocuments(employeeId) {
  * Returns the saved document record (with signedUrl populated).
  */
 export async function uploadEmployeeDocument(employeeId, file, documentType, expiryDate, notes) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
 
   // Sanitise filename and build a unique storage path scoped to this admin's user_id.
@@ -475,7 +485,7 @@ export async function getInsurancePolicies() {
  * Saves (upserts) an insurance policy. Returns the saved record.
  */
 export async function saveInsurancePolicy(policy) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
 
   const row = {
@@ -543,7 +553,7 @@ export async function getEmployeeInsurance(employeeId) {
  * Uses UNIQUE (user_id, employee_id) — one record per employee.
  */
 export async function saveEmployeeInsurance(insurance) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
 
   const row = {
@@ -585,7 +595,7 @@ export async function getInsuranceDependants(employeeId) {
  * Saves (inserts or updates) an insurance dependant.
  */
 export async function saveInsuranceDependant(dependant) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
 
   const row = {
@@ -684,7 +694,7 @@ export async function getAdvances(employeeId) {
  * Returns the saved advance.
  */
 export async function saveAdvance(advance) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
 
   const monthlyDeduction = advance.monthlyDeduction ||
@@ -823,7 +833,7 @@ export async function getNafisReports() {
  * Saves (upserts) a Nafis compliance report snapshot for a given period.
  */
 export async function saveNafisReport(report) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
 
   const { error } = await supabase

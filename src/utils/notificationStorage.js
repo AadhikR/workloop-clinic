@@ -11,6 +11,11 @@
 
 import { supabase } from '../lib/supabase';
 
+async function getSessionUser() {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.user ?? null;
+}
+
 // ─── Read ─────────────────────────────────────────────────────────────────────
 
 /**
@@ -75,7 +80,7 @@ export async function markAllNotificationsRead() {
  * @param {string} [notif.relatedEntityId]
  */
 export async function createNotification(notif) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) return;
 
   const row = {
@@ -100,7 +105,7 @@ export async function createNotification(notif) {
  */
 export async function createNotifications(notifs) {
   if (!notifs?.length) return;
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) return;
 
   const rows = notifs.map(n => ({

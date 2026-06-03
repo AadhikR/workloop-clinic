@@ -11,6 +11,11 @@
 import { supabase } from '../lib/supabase';
 import { DEFAULT_LEAVE_TYPES, UAE_PUBLIC_HOLIDAYS_2025, UAE_PUBLIC_HOLIDAYS_2026, calculateAnnualLeaveAccrual } from './leaveEngine';
 
+async function getSessionUser() {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.user ?? null;
+}
+
 // ── LEAVE SETTINGS ────────────────────────────────────────────────────────────
 
 export async function getLeaveSettings() {
@@ -35,7 +40,7 @@ export async function getLeaveSettings() {
 }
 
 export async function saveLeaveSettings(settings) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
   const row = {
     user_id:               user.id,
@@ -72,7 +77,7 @@ export async function getLeaveTypes() {
 }
 
 export async function seedDefaultLeaveTypes() {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
 
   // Check if already seeded
@@ -160,7 +165,7 @@ export async function getPublicHolidays(year) {
 }
 
 export async function seedPublicHolidays() {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
 
   // Check if already seeded for 2025
@@ -194,7 +199,7 @@ export async function seedPublicHolidays() {
  * Returns true if any rows were inserted.
  */
 export async function seedPublicHolidaysForYear(year, holidays) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
 
   const { data: existing } = await supabase
@@ -218,7 +223,7 @@ export async function seedPublicHolidaysForYear(year, holidays) {
 }
 
 export async function savePublicHoliday(holiday) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
   const row = {
     user_id: user.id,
@@ -265,7 +270,7 @@ export async function getLeaveRequests(filters = {}) {
 }
 
 export async function submitLeaveRequest(request) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
 
   const row = {
@@ -305,7 +310,7 @@ export async function submitLeaveRequest(request) {
 }
 
 export async function updateLeaveRequestStatus(requestId, status, actorEmail, reason = '') {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
 
   // Get current status for audit log
@@ -341,7 +346,7 @@ export async function cancelLeaveRequest(requestId, actorEmail) {
 }
 
 async function addLeaveAuditLog(leaveRequestId, employeeId, action, actor, reason, oldStatus) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) return;
   await supabase.from('leave_audit_log').insert({
     user_id:          user.id,
@@ -485,7 +490,7 @@ export async function getLeaveApprovalDelegates() {
 }
 
 export async function saveLeaveApprovalDelegate(delegate) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
   const row = {
     user_id:              user.id,
@@ -536,7 +541,7 @@ export async function getAllLeaveBalances(year) {
 }
 
 export async function upsertLeaveBalance(balance) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
 
   const row = {
@@ -619,7 +624,7 @@ export async function initialiseLeaveModule() {
  * @param {string} leaveYearType — 'calendar' | 'anniversary'
  */
 export async function recalculateAllBalances(employees, leaveTypes, allRequests, year, leaveYearType = 'calendar') {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
 
   const currentYear = year || new Date().getFullYear();

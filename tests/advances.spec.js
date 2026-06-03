@@ -207,11 +207,12 @@ test.describe('Advances — Employee portal', () => {
     await loginAsEmployee(page);
     await page.locator('button.nav-item').filter({ hasText: /^Advances$/ }).click();
 
-    // Either empty state or a card/button — both valid
-    const emptyState = page.locator('text=No advance requests yet');
-    const requestBtn = page.getByRole('button', { name: /Request.*Advance/i });
+    // Either empty state or a card/button — both valid.
+    // Use .first() to avoid strict-mode violation when multiple elements match.
+    const emptyState = page.locator('p:has-text("No advance requests yet")');
+    const requestBtn = page.getByRole('button', { name: /Request.*Advance/i }).first();
     const advCard    = page.locator('.emp-card').first();
-    await expect(emptyState.or(requestBtn).or(advCard)).toBeVisible({ timeout: 8000 });
+    await expect(emptyState.or(requestBtn).or(advCard).first()).toBeVisible({ timeout: 8000 });
   });
 
   test('"Request Advance" button opens the request form', async ({ page }) => {

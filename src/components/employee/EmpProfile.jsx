@@ -89,7 +89,7 @@ export default function EmpProfile({ onSignOut, signingOut }) {
         emergency_contact_name:  emergencyName,
         emergency_contact_phone: emergencyPhone,
       })
-      .eq('auth_user_id', (await supabase.auth.getUser()).data.user.id);
+      .eq('auth_user_id', (await supabase.auth.getSession()).data.session?.user?.id);
 
     setSaving(false);
     if (error) {

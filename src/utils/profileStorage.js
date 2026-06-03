@@ -40,10 +40,10 @@ export async function getProfile() {
  * by the unique PK — Supabase returns a 23505 which we swallow).
  */
 export async function createAdminProfile(user) {
-  // Accept the already-resolved user to avoid a second auth.getUser() round-trip
+  // Accept the already-resolved user to avoid a second auth round-trip
   if (!user) {
-    const { data } = await supabase.auth.getUser();
-    user = data?.user;
+    const { data: { session } } = await supabase.auth.getSession();
+    user = session?.user ?? null;
   }
   if (!user) return null;
 
@@ -91,7 +91,8 @@ export async function linkEmployeeAccount() {
  * on any employee row).
  */
 export async function getMyEmployeeRecord() {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user ?? null;
   if (!user) return null;
 
   const { data, error } = await supabase

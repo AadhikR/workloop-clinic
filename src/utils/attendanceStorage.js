@@ -20,10 +20,15 @@ import {
   ATTENDANCE_STATUS,
 } from './attendanceEngine';
 
+async function getSessionUser() {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.user ?? null;
+}
+
 // ── ATTENDANCE SETTINGS ───────────────────────────────────────────────────────
 
 export async function getAttendanceSettings() {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) return null;
   const { data, error } = await supabase
     .from('attendance_settings')
@@ -37,7 +42,7 @@ export async function getAttendanceSettings() {
 }
 
 export async function saveAttendanceSettings(settings) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
   const row = {
     user_id:                    user.id,
@@ -90,7 +95,7 @@ function dbToAttendanceSettings(row) {
 // ── SHIFTS ────────────────────────────────────────────────────────────────────
 
 export async function getShifts() {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) return [];
   const { data, error } = await supabase
     .from('shifts')
@@ -103,7 +108,7 @@ export async function getShifts() {
 }
 
 export async function saveShift(shift) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
   const row = {
     user_id:          user.id,
@@ -175,7 +180,7 @@ export async function getShiftForEmployee(employeeId, date) {
 }
 
 export async function assignShift(employeeId, shiftId, effectiveFrom, effectiveTo = null) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
   const { error } = await supabase.from('shift_assignments').insert({
     user_id:        user.id,
@@ -205,7 +210,7 @@ export async function getClockEvents(employeeId, date) {
 }
 
 export async function recordClockEvent({ employeeId, eventType, method = 'WEB', notes = '', enteredBy = null, ipAddress = null }) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
   const { data, error } = await supabase.from('clock_events').insert({
     user_id:     user.id,
@@ -222,7 +227,7 @@ export async function recordClockEvent({ employeeId, eventType, method = 'WEB', 
 }
 
 export async function recordManualClockEvent({ employeeId, eventType, eventTime, notes, enteredBy }) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
   const { data, error } = await supabase.from('clock_events').insert({
     user_id:     user.id,
@@ -265,12 +270,12 @@ export async function getAttendanceRecords(filters = {}) {
     // This is more robust than filtering by user_id because the RPC writes records
     // with user_id = admin's uuid from the employees table, but if the fallback
     // direct-insert path runs it may use a different user_id.
-    const { data: authData } = await supabase.auth.getUser();
-    if (!authData?.user) return [];
+    const sessionUser = await getSessionUser();
+    if (!sessionUser) return [];
     const { data: empsData } = await supabase
       .from('employees')
       .select('id')
-      .eq('user_id', authData.user.id);
+      .eq('user_id', sessionUser.id);
     const empIds = (empsData || []).map(e => e.id);
     if (empIds.length === 0) return [];
     query = query.in('employee_id', empIds);
@@ -290,7 +295,7 @@ export async function getAttendanceRecords(filters = {}) {
 }
 
 export async function upsertAttendanceRecord(record) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
   const row = {
     user_id:                user.id,
@@ -428,7 +433,7 @@ export async function computeAndSaveAttendance({
 // ── ATTENDANCE PERIODS ────────────────────────────────────────────────────────
 
 export async function getAttendancePeriod(period) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) return null;
   const { data, error } = await supabase
     .from('attendance_periods')
@@ -441,7 +446,7 @@ export async function getAttendancePeriod(period) {
 }
 
 export async function getAttendancePeriods() {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) return [];
   const { data, error } = await supabase
     .from('attendance_periods')
@@ -453,7 +458,7 @@ export async function getAttendancePeriods() {
 }
 
 export async function closeAttendancePeriod(period, closedBy) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
   const { error } = await supabase.from('attendance_periods').upsert({
     user_id:       user.id,
@@ -476,7 +481,7 @@ export async function closeAttendancePeriod(period, closedBy) {
 // ── REGULARISATION REQUESTS ───────────────────────────────────────────────────
 
 export async function getRegularisationRequests(filters = {}) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) return [];
   let query = supabase.from('regularisation_requests').select('*').eq('user_id', user.id).order('submitted_at', { ascending: false });
   if (filters.employeeId) query = query.eq('employee_id', filters.employeeId);
@@ -501,7 +506,7 @@ export async function getRegularisationRequests(filters = {}) {
 }
 
 export async function submitRegularisationRequest({ employeeId, attendanceDate, correctClockIn, correctClockOut, reason, originalClockIn, originalClockOut }) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
   const { data, error } = await supabase.from('regularisation_requests').insert({
     user_id:           user.id,
@@ -519,7 +524,7 @@ export async function submitRegularisationRequest({ employeeId, attendanceDate, 
 }
 
 export async function approveRegularisationRequest(id, approvedBy) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
   const { data, error } = await supabase.from('regularisation_requests')
     .update({ status: 'Approved', approved_by: approvedBy || user.email, approved_at: new Date().toISOString() })
@@ -531,7 +536,7 @@ export async function approveRegularisationRequest(id, approvedBy) {
 }
 
 export async function rejectRegularisationRequest(id, rejectionReason, rejectedBy) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
   const { error } = await supabase.from('regularisation_requests')
     .update({ status: 'Rejected', rejection_reason: rejectionReason, approved_by: rejectedBy || user.email })
@@ -542,7 +547,7 @@ export async function rejectRegularisationRequest(id, rejectionReason, rejectedB
 // ── AUDIT LOG ─────────────────────────────────────────────────────────────────
 
 export async function addAttendanceAuditLog({ employeeId, attendanceDate, action, actor, oldValue, newValue, reason }) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) return;
   await supabase.from('attendance_audit_log').insert({
     user_id:         user.id,
@@ -608,7 +613,7 @@ export async function getRosterForMonth(year, month) {
  * Uses ON CONFLICT on (employee_id, date) to update if already assigned.
  */
 export async function saveRosterAssignment({ employeeId, shiftId, date, notes = '', published = false }) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
 
   const { data, error } = await supabase
@@ -641,7 +646,7 @@ export async function deleteRosterAssignment(employeeId, date) {
  * Once published, employees can see their schedule in the portal.
  */
 export async function publishRoster(year, month) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
 
   const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
@@ -690,7 +695,7 @@ export async function getShiftSwapRequests(filters = {}) {
  * Admin approves or rejects a shift swap request.
  */
 export async function updateShiftSwapRequest(id, status, rejectionReason = '') {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
 
   const { data, error } = await supabase
