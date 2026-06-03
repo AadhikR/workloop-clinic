@@ -97,7 +97,9 @@ export function generateSIF(company, employees, payroll) {
     `SCR,${company.molEmployerId},${payroll.scrBankRoutingCode || company.defaultBankRoutingCode},${paymentDate},${sequenceNo},${period},${employeeCount},${totalAmount},AED,${description}`
   );
 
-  return lines.join('\n');
+  // WPS banks require Windows line endings (CRLF).
+  // Using LF-only causes all lines to appear as a single row when the bank parses the file.
+  return lines.join('\r\n');
 }
 
 export function generateSIFFilename(company, payroll) {
@@ -131,8 +133,9 @@ export function generateSIFFilename(company, payroll) {
 }
 
 export function parseSIFPreview(sifContent) {
-  return sifContent.split('\n').filter(l => l.trim()).map(line => {
-    const parts = line.split(',');
+  // Normalise both CRLF and LF so the preview works on files generated before the fix too
+  return sifContent.split(/\r?\n/).filter(l => l.trim()).map(line => {
+    const parts = line.trim().split(',');
     if (parts[0] === 'EDR') {
       return {
         type: 'EDR',
