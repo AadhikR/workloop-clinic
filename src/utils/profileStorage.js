@@ -123,6 +123,30 @@ export async function getMyCompany() {
 }
 
 /**
+ * Admin: get the current portal role of an employee ('employee', 'manager', or null if not activated).
+ */
+export async function getEmployeePortalRole(employeeId) {
+  const { data, error } = await supabase.rpc('admin_get_employee_portal_role', {
+    p_employee_id: employeeId,
+  });
+  if (error) { console.error('getEmployeePortalRole:', error); return null; }
+  return data;
+}
+
+/**
+ * Admin: promote/demote an employee's portal role to 'manager' or 'employee'.
+ * Requires the employee to have activated their portal account (user_profiles row must exist).
+ * Uses SECURITY DEFINER RPC so the admin can write another user's profile row.
+ */
+export async function setEmployeePortalRole(employeeId, role) {
+  const { error } = await supabase.rpc('admin_set_employee_portal_role', {
+    p_employee_id: employeeId,
+    p_role:        role,
+  });
+  if (error) throw error;
+}
+
+/**
  * Fetch all payslips for the currently signed-in employee.
  * RLS restricts rows to employee_id = their linked employee row.
  * Returns newest period first.

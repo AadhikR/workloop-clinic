@@ -101,7 +101,7 @@ The entire app is silent — no proactive alerts reach anyone when the browser t
 
 ---
 
-### 5. Salary Advance & Loan Management
+### 5. ✓ COMPLETED — Salary Advance & Loan Management
 
 **What it is:**
 Salary advances are common in UAE SMEs, especially for blue-collar and mid-level staff. The End-of-Service screen already deducts outstanding advances but there is no module to create or track them.

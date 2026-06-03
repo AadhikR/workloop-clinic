@@ -12,6 +12,7 @@ import LeaveManager from './components/LeaveManager';
 import AttendanceManager from './components/AttendanceManager';
 import AdvancesManager from './components/AdvancesManager';
 import EmployeeShell from './components/employee/EmployeeShell';
+import ManagerShell from './components/ManagerShell';
 import './index.css';
 
 const NAV_ITEMS = [
@@ -230,7 +231,9 @@ function Root() {
     return <Spinner label="Setting up your account…" />;
   }
 
-  return profile.role === 'employee' ? <EmployeeShell /> : <AppShell />;
+  if (profile.role === 'employee') return <EmployeeShell />;
+  if (profile.role === 'manager')  return <ManagerShell />;
+  return <AppShell />;
 }
 
 export default function App() {

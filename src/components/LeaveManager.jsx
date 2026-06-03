@@ -21,7 +21,9 @@ import {
   cancelLeaveRequest, getLeaveBalances, getAllLeaveBalances, upsertLeaveBalance,
   getPublicHolidays, savePublicHoliday, deletePublicHoliday,
   getLeaveSettings, saveLeaveSettings, initialiseLeaveModule, recalculateAllBalances,
-  seedPublicHolidaysForYear
+  seedPublicHolidaysForYear,
+  // Feature 6: delegates
+  getLeaveApprovalDelegates, saveLeaveApprovalDelegate, deleteLeaveApprovalDelegate,
 } from '../utils/leaveStorage';
 import {
   calculateAnnualLeaveAccrual, countLeaveDays, getLeaveAdvancePayWarnings,
@@ -109,6 +111,11 @@ export default function LeaveManager() {
   const [settingsForm, setSettingsForm] = useState(null);
   const [newHoliday, setNewHoliday] = useState({ date: '', name: '', type: 'company' });
 
+  // Feature 6: Approval Delegates
+  const [delegates, setDelegates]       = useState([]);
+  const [delegateForm, setDelegateForm] = useState({ approverEmployeeId:'', delegateEmployeeId:'', fromDate:'', toDate:'' });
+  const [delegateSaving, setDelegateSaving] = useState(false);
+
   useEffect(() => {
     loadAll();
   }, []);
@@ -117,18 +124,20 @@ export default function LeaveManager() {
     setLoading(true);
     try {
       await initialiseLeaveModule();
-      const [emps, types, reqs, bals, hols, sett] = await Promise.all([
+      const [emps, types, reqs, bals, hols, sett, dels] = await Promise.all([
         getEmployees(),
         getLeaveTypes(),
         getLeaveRequests(),
         getAllLeaveBalances(),
         getPublicHolidays(),
         getLeaveSettings(),
+        getLeaveApprovalDelegates().catch(() => []),
       ]);
       setEmployees(emps);
       setLeaveTypes(types);
       setRequests(reqs);
       setHolidays(hols);
+      setDelegates(dels);
       const defaultSettings = {
         leaveYearType: 'calendar', weekendDefinition: 'fri-sat',
         carryForwardEnabled: true, carryForwardMaxDays: 15,
@@ -167,8 +176,9 @@ export default function LeaveManager() {
     r.status === 'Approved' && r.startDate <= todayStr && r.endDate >= todayStr
   );
 
-  // ── Pending requests ──────────────────────────────────────────────────────
-  const pendingRequests = requests.filter(r => r.status === 'Pending');
+  // ── Pending / awaiting HR action requests ─────────────────────────────────
+  // 'Pending' = needs action; 'ManagerApproved' = pre-approved by manager, needs HR final sign-off
+  const pendingRequests = requests.filter(r => r.status === 'Pending' || r.status === 'ManagerApproved');
 
   // ── Advance pay warnings ──────────────────────────────────────────────────
   const advancePayWarnings = getLeaveAdvancePayWarnings(requests);
@@ -503,14 +513,41 @@ export default function LeaveManager() {
                           </td>
                           <td><StatusBadge status={r.status}/></td>
                           <td className="text-muted text-sm">{formatDateUAE(r.submittedAt?.split('T')[0])}</td>
-                          <td className="text-muted text-sm">{r.approvedBy || '—'}</td>
+                          <td className="text-muted text-sm">
+                            {r.status === 'ManagerApproved' && r.managerApprovedBy
+                              ? <span title="Manager pre-approved">Mgr: {r.managerApprovedBy}</span>
+                              : r.status === 'ManagerRejected' && r.managerApprovedBy
+                              ? <span title={r.managerRejectionReason} style={{ color:'#ef4444' }}>Mgr rejected</span>
+                              : (r.approvedBy || '—')
+                            }
+                          </td>
                           <td>
+                            {/* HR can approve/reject Pending requests (1-level) */}
                             {r.status === 'Pending' && (
                               <div className="flex gap-2">
                                 <button className="btn btn-success btn-sm" onClick={() => handleApproval(r.id, 'Approved')}>
                                   <Check size={13}/>
                                 </button>
                                 <button className="btn btn-danger btn-sm" onClick={() => setApprovalModal({ request: r, action: 'Rejected' })}>
+                                  <X size={13}/>
+                                </button>
+                              </div>
+                            )}
+                            {/* HR gives final sign-off after manager pre-approved (2-level) */}
+                            {r.status === 'ManagerApproved' && (
+                              <div className="flex gap-2">
+                                <button
+                                  className="btn btn-success btn-sm"
+                                  title="Final HR approval"
+                                  onClick={() => handleApproval(r.id, 'Approved')}
+                                >
+                                  <Check size={13}/> Final OK
+                                </button>
+                                <button
+                                  className="btn btn-danger btn-sm"
+                                  title="HR override reject"
+                                  onClick={() => setApprovalModal({ request: r, action: 'Rejected' })}
+                                >
                                   <X size={13}/>
                                 </button>
                               </div>
@@ -845,6 +882,113 @@ export default function LeaveManager() {
                 </div>
               </div>
             </div>
+
+            {/* Approval Delegation (Feature 6) */}
+            <div className="card" style={{ marginTop: 16 }}>
+              <div className="card-header">
+                <h3>Approval Delegation</h3>
+                <span style={{ fontSize: 12, color: 'var(--gray-500)', fontWeight: 400 }}>
+                  Assign a deputy approver when a manager is on leave
+                </span>
+              </div>
+              <div className="card-body">
+                {/* Add delegate form */}
+                <div className="form-grid form-grid-2" style={{ marginBottom: 16 }}>
+                  <div className="form-group">
+                    <label>Approver (manager who is away)</label>
+                    <select className="form-control" value={delegateForm.approverEmployeeId}
+                      onChange={e => setDelegateForm(p => ({ ...p, approverEmployeeId: e.target.value }))}>
+                      <option value="">Select manager…</option>
+                      {employees.filter(e => e.employmentStatus !== 'Terminated').map(e => (
+                        <option key={e.id} value={e.id}>{e.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Delegate (will approve in their place)</label>
+                    <select className="form-control" value={delegateForm.delegateEmployeeId}
+                      onChange={e => setDelegateForm(p => ({ ...p, delegateEmployeeId: e.target.value }))}>
+                      <option value="">Select delegate…</option>
+                      {employees.filter(e => e.employmentStatus !== 'Terminated' && e.id !== delegateForm.approverEmployeeId).map(e => (
+                        <option key={e.id} value={e.id}>{e.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>From Date</label>
+                    <input className="form-control" type="date" value={delegateForm.fromDate}
+                      onChange={e => setDelegateForm(p => ({ ...p, fromDate: e.target.value }))}/>
+                  </div>
+                  <div className="form-group">
+                    <label>To Date</label>
+                    <input className="form-control" type="date" value={delegateForm.toDate}
+                      onChange={e => setDelegateForm(p => ({ ...p, toDate: e.target.value }))}/>
+                  </div>
+                </div>
+                <button
+                  className="btn btn-primary btn-sm"
+                  disabled={delegateSaving || !delegateForm.approverEmployeeId || !delegateForm.delegateEmployeeId || !delegateForm.fromDate || !delegateForm.toDate}
+                  onClick={async () => {
+                    setDelegateSaving(true);
+                    try {
+                      const saved = await saveLeaveApprovalDelegate(delegateForm);
+                      setDelegates(d => [saved, ...d]);
+                      setDelegateForm({ approverEmployeeId:'', delegateEmployeeId:'', fromDate:'', toDate:'' });
+                    } catch (err) {
+                      showMsg('danger', 'Failed to save delegate: ' + err.message);
+                    } finally {
+                      setDelegateSaving(false);
+                    }
+                  }}
+                >
+                  {delegateSaving ? 'Saving…' : 'Add Delegation'}
+                </button>
+
+                {delegates.length > 0 && (
+                  <div className="table-wrap" style={{ marginTop: 16 }}>
+                    <table>
+                      <thead><tr><th>Approver</th><th>Delegate</th><th>From</th><th>To</th><th>Active</th><th></th></tr></thead>
+                      <tbody>
+                        {delegates.map(d => {
+                          const today = new Date().toISOString().split('T')[0];
+                          const isActive = d.fromDate <= today && d.toDate >= today;
+                          const approver = employees.find(e => e.id === d.approverEmployeeId);
+                          const delegate = employees.find(e => e.id === d.delegateEmployeeId);
+                          return (
+                            <tr key={d.id}>
+                              <td style={{ fontWeight:500 }}>{approver?.name || '—'}</td>
+                              <td>{delegate?.name || '—'}</td>
+                              <td>{formatDateUAE(d.fromDate)}</td>
+                              <td>{formatDateUAE(d.toDate)}</td>
+                              <td><span className={`badge ${isActive ? 'badge-green' : 'badge-gray'}`}>{isActive ? 'Active' : 'Inactive'}</span></td>
+                              <td>
+                                <button className="btn btn-ghost btn-icon btn-sm text-danger"
+                                  onClick={async () => {
+                                    try {
+                                      await deleteLeaveApprovalDelegate(d.id);
+                                      setDelegates(ds => ds.filter(x => x.id !== d.id));
+                                    } catch (err) {
+                                      showMsg('danger', err.message);
+                                    }
+                                  }}>
+                                  <Trash2 size={13}/>
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {delegates.length === 0 && (
+                  <p style={{ fontSize: 13, color: 'var(--gray-500)', marginTop: 12 }}>
+                    No delegations configured.
+                  </p>
+                )}
+              </div>
+            </div>
+
           </div>
         )}
       </div>

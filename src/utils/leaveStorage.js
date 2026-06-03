@@ -269,27 +269,30 @@ export async function submitLeaveRequest(request) {
   if (!user) throw new Error('Not authenticated');
 
   const row = {
-    user_id:          user.id,
-    employee_id:      request.employeeId,
-    leave_type_id:    request.leaveTypeId,
-    leave_type_code:  request.leaveTypeCode,
-    start_date:       request.startDate,
-    end_date:         request.endDate,
-    is_half_day:      request.isHalfDay || false,
-    half_day_period:  request.halfDayPeriod || null,
-    days_requested:   request.daysRequested || 0,
-    status:           'Pending',
-    reason:           request.reason || '',
-    attachment_url:   request.attachmentUrl || '',
-    relationship:     request.relationship || '',
-    deceased_name:    request.deceasedName || '',
-    date_of_death:    request.dateOfDeath || null,
-    child_birth_date: request.childBirthDate || null,
-    child_name:       request.childName || '',
-    expected_due_date: request.expectedDueDate || null,
-    institution_name: request.institutionName || '',
-    exam_dates:       request.examDates || '',
-    submitted_at:     new Date().toISOString(),
+    user_id:                 user.id,
+    employee_id:             request.employeeId,
+    leave_type_id:           request.leaveTypeId,
+    leave_type_code:         request.leaveTypeCode,
+    start_date:              request.startDate,
+    end_date:                request.endDate,
+    is_half_day:             request.isHalfDay || false,
+    half_day_period:         request.halfDayPeriod || null,
+    days_requested:          request.daysRequested || 0,
+    status:                  'Pending',
+    reason:                  request.reason || '',
+    attachment_url:          request.attachmentUrl || '',
+    relationship:            request.relationship || '',
+    deceased_name:           request.deceasedName || '',
+    date_of_death:           request.dateOfDeath || null,
+    child_birth_date:        request.childBirthDate || null,
+    child_name:              request.childName || '',
+    expected_due_date:       request.expectedDueDate || null,
+    institution_name:        request.institutionName || '',
+    exam_dates:              request.examDates || '',
+    approval_level_required: request.approvalLevelRequired || 1,
+    substitute_employee_id:  request.substituteEmployeeId || null,
+    approval_comment:        request.approvalComment || '',
+    submitted_at:            new Date().toISOString(),
   };
 
   const { data, error } = await supabase.from('leave_requests').insert(row).select().single();
@@ -374,21 +377,29 @@ export async function getLeaveAuditLog(leaveRequestId) {
 
 function dbToLeaveRequest(row) {
   return {
-    id:              row.id,
-    employeeId:      row.employee_id,
-    leaveTypeId:     row.leave_type_id,
-    leaveTypeCode:   row.leave_type_code,
-    startDate:       row.start_date,
-    endDate:         row.end_date,
-    isHalfDay:       row.is_half_day,
-    halfDayPeriod:   row.half_day_period,
-    daysRequested:   parseFloat(row.days_requested) || 0,
-    status:          row.status,
-    reason:          row.reason,
-    attachmentUrl:   row.attachment_url,
-    rejectionReason: row.rejection_reason,
-    approvedBy:      row.approved_by,
-    approvedAt:      row.approved_at,
+    id:                     row.id,
+    employeeId:             row.employee_id,
+    leaveTypeId:            row.leave_type_id,
+    leaveTypeCode:          row.leave_type_code,
+    startDate:              row.start_date,
+    endDate:                row.end_date,
+    isHalfDay:              row.is_half_day,
+    halfDayPeriod:          row.half_day_period,
+    daysRequested:          parseFloat(row.days_requested) || 0,
+    status:                 row.status,
+    reason:                 row.reason,
+    attachmentUrl:          row.attachment_url,
+    rejectionReason:        row.rejection_reason,
+    approvedBy:             row.approved_by,
+    approvedAt:             row.approved_at,
+    // Feature 6: multi-level approval fields
+    managerApprovedAt:      row.manager_approved_at ?? null,
+    managerApprovedBy:      row.manager_approved_by ?? '',
+    managerRejectionReason: row.manager_rejection_reason ?? '',
+    substituteEmployeeId:   row.substitute_employee_id ?? null,
+    approvalLevelRequired:  row.approval_level_required ?? 1,
+    approvalComment:        row.approval_comment ?? '',
+    // leave-specific detail fields
     relationship:    row.relationship,
     deceasedName:    row.deceased_name,
     dateOfDeath:     row.date_of_death,
@@ -401,6 +412,103 @@ function dbToLeaveRequest(row) {
     createdAt:       row.created_at,
     warnings:        Array.isArray(row.warnings) ? row.warnings : (row.warnings ?? []),
   };
+}
+
+// ── MANAGER LEAVE QUEUE (Feature 6) ──────────────────────────────────────────
+
+/**
+ * Returns all Pending leave requests from employees who report directly
+ * to the given manager (by reporting_manager_id).
+ */
+export async function getLeaveQueueForManager(managerEmployeeId) {
+  if (!managerEmployeeId) return [];
+
+  // Get IDs of direct reports
+  const { data: reports, error: rErr } = await supabase
+    .from('employees')
+    .select('id')
+    .eq('reporting_manager_id', managerEmployeeId);
+
+  if (rErr) { console.error('getLeaveQueueForManager (reports):', rErr); return []; }
+  if (!reports?.length) return [];
+
+  const ids = reports.map(r => r.id);
+
+  const { data, error } = await supabase
+    .from('leave_requests')
+    .select('*')
+    .in('employee_id', ids)
+    .in('status', ['Pending', 'ManagerApproved', 'ManagerRejected'])
+    .order('submitted_at', { ascending: false });
+
+  if (error) { console.error('getLeaveQueueForManager:', error); return []; }
+  return (data || []).map(dbToLeaveRequest);
+}
+
+/**
+ * Manager approves a direct report's leave request.
+ * If approval_level_required = 1, the request moves straight to 'Approved'.
+ * If 2-level, it moves to 'ManagerApproved' and waits for HR.
+ */
+export async function approveLeaveAsManager(requestId) {
+  const { error } = await supabase.rpc('manager_approve_leave', { p_request_id: requestId });
+  if (error) throw error;
+}
+
+/**
+ * Manager rejects a direct report's leave request.
+ */
+export async function rejectLeaveAsManager(requestId, reason = '') {
+  const { error } = await supabase.rpc('manager_reject_leave', {
+    p_request_id: requestId,
+    p_reason:     reason,
+  });
+  if (error) throw error;
+}
+
+// ── LEAVE APPROVAL DELEGATES (Feature 6) ──────────────────────────────────────
+
+export async function getLeaveApprovalDelegates() {
+  const { data, error } = await supabase
+    .from('leave_approval_delegates')
+    .select('*')
+    .order('from_date', { ascending: false });
+  if (error) { console.error('getLeaveApprovalDelegates:', error); return []; }
+  return (data || []).map(row => ({
+    id:                  row.id,
+    approverEmployeeId:  row.approver_employee_id,
+    delegateEmployeeId:  row.delegate_employee_id,
+    fromDate:            row.from_date,
+    toDate:              row.to_date,
+    createdAt:           row.created_at,
+  }));
+}
+
+export async function saveLeaveApprovalDelegate(delegate) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+  const row = {
+    user_id:              user.id,
+    approver_employee_id: delegate.approverEmployeeId,
+    delegate_employee_id: delegate.delegateEmployeeId,
+    from_date:            delegate.fromDate,
+    to_date:              delegate.toDate,
+  };
+  if (delegate.id) {
+    const { error } = await supabase.from('leave_approval_delegates').update(row).eq('id', delegate.id);
+    if (error) throw error;
+    return delegate;
+  } else {
+    const { data, error } = await supabase
+      .from('leave_approval_delegates').insert(row).select().single();
+    if (error) throw error;
+    return { ...delegate, id: data.id, createdAt: data.created_at };
+  }
+}
+
+export async function deleteLeaveApprovalDelegate(id) {
+  const { error } = await supabase.from('leave_approval_delegates').delete().eq('id', id);
+  if (error) throw error;
 }
 
 // ── LEAVE BALANCES ────────────────────────────────────────────────────────────

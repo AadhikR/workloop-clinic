@@ -3,7 +3,7 @@
  * Tabs: Personal | Job & Contract | Salary & Bank | UAE Compliance
  */
 import { useState, useEffect } from 'react';
-import { X, UserCheck, Briefcase, CreditCard, Shield, FolderOpen, Upload, AlertCircle, Trash2, Heart, Plus } from 'lucide-react';
+import { X, UserCheck, Briefcase, CreditCard, Shield, FolderOpen, Upload, AlertCircle, Trash2, Heart, Plus, ShieldCheck } from 'lucide-react';
 import { validateIBAN, validateEmiratesID, validateMolId, formatAED, formatDateUAE } from '../utils/uaeValidators';
 import { calculateGratuity } from '../utils/gratuityCalculator';
 import { getShifts } from '../utils/attendanceStorage';
@@ -12,6 +12,7 @@ import {
   getInsurancePolicies, getEmployeeInsurance, saveEmployeeInsurance,
   getInsuranceDependants, saveInsuranceDependant, deleteInsuranceDependant,
 } from '../utils/storage';
+import { getEmployeePortalRole, setEmployeePortalRole } from '../utils/profileStorage';
 
 const FREE_ZONES = ['DIFC','ADGM','JAFZA','DMCC','DAFZA','TECOM','Dubai Internet City','Dubai Media City','Dubai Healthcare City','Meydan Free Zone','RAKEZ','SAIF Zone','KIZAD','Abu Dhabi Free Zone','Hamriyah Free Zone','Other'];
 
@@ -83,6 +84,12 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
   const [depForm, setDepForm]             = useState({ name:'', relationship:'', dateOfBirth:'', cardNumber:'' });
   const [depSaving, setDepSaving]         = useState(false);
 
+  // Portal role (Feature 6) — only relevant for existing employees with activated portal
+  const [portalRole, setPortalRole]         = useState(null);  // null = not loaded yet
+  const [portalRoleSaving, setPortalRoleSaving] = useState(false);
+  const [portalRoleErr, setPortalRoleErr]   = useState('');
+  const [portalRoleOk, setPortalRoleOk]     = useState('');
+
   useEffect(() => {
     getShifts().then(setShifts).catch(() => {});
   }, []);
@@ -97,6 +104,16 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
         .finally(() => setDocsLoading(false));
     }
   }, [tab, employee?.id]);
+
+  // Load portal role when the Job tab opens (only for existing activated employees)
+  useEffect(() => {
+    if (tab === 'job' && employee?.id && employee?.authUserId) {
+      setPortalRole(null);
+      getEmployeePortalRole(employee.id)
+        .then(r => setPortalRole(r || 'employee'))
+        .catch(() => setPortalRole('employee'));
+    }
+  }, [tab, employee?.id, employee?.authUserId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load insurance data whenever the Insurance tab becomes active
   useEffect(() => {
@@ -396,6 +413,47 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
                   ))}
                 </select>
               </div>
+              {/* Portal Role — only visible when employee has an activated portal account */}
+              {employee?.id && employee?.authUserId && (
+                <div className="form-group">
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <ShieldCheck size={14} style={{ color: '#2563eb' }} /> Portal Role
+                  </label>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                    <select
+                      className="form-control"
+                      value={portalRole || 'employee'}
+                      disabled={portalRole === null || portalRoleSaving}
+                      onChange={async (e) => {
+                        const newRole = e.target.value;
+                        setPortalRoleErr('');
+                        setPortalRoleOk('');
+                        setPortalRoleSaving(true);
+                        try {
+                          await setEmployeePortalRole(employee.id, newRole);
+                          setPortalRole(newRole);
+                          setPortalRoleOk(`Role updated to ${newRole}.`);
+                          setTimeout(() => setPortalRoleOk(''), 3000);
+                        } catch (err) {
+                          setPortalRoleErr(err.message || 'Failed to update role.');
+                        } finally {
+                          setPortalRoleSaving(false);
+                        }
+                      }}
+                    >
+                      <option value="employee">Employee</option>
+                      <option value="manager">Manager</option>
+                    </select>
+                    {portalRoleSaving && <span style={{ fontSize: 12, color: '#64748b' }}>Saving…</span>}
+                  </div>
+                  {portalRoleErr && <span className="hint" style={{ color: '#ef4444' }}>{portalRoleErr}</span>}
+                  {portalRoleOk  && <span className="hint" style={{ color: '#22c55e' }}>{portalRoleOk}</span>}
+                  <span className="hint">
+                    Manager role gives access to the Leave Approval Queue for their direct reports.
+                  </span>
+                </div>
+              )}
+
               <div className="form-group">
                 <label>Assigned Shift (Attendance)</label>
                 <select className="form-control" value={form.shiftId || ''} onChange={e => f('shiftId', e.target.value)}>

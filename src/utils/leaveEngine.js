@@ -756,11 +756,13 @@ export const LEAVE_STATUS = {
 };
 
 export const LEAVE_STATUS_COLORS = {
-  Pending:        'badge-amber',
-  Approved:       'badge-green',
-  Rejected:       'badge-red',
-  Cancelled:      'badge-gray',
+  Pending:          'badge-amber',
+  Approved:         'badge-green',
+  Rejected:         'badge-red',
+  Cancelled:        'badge-gray',
   'Info Requested': 'badge-blue',
+  ManagerApproved:  'badge-blue',
+  ManagerRejected:  'badge-red',
 };
 
 /**

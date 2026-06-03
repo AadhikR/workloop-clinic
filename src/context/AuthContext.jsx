@@ -157,9 +157,9 @@ export function AuthProvider({ children }) {
 
     const u = data.user;
 
-    // If a valid employee profile already exists (idempotent re-login), use it.
+    // If a valid employee/manager profile already exists (idempotent re-login), use it.
     const existingProf = await getProfile();
-    if (existingProf?.role === 'employee') {
+    if (existingProf?.role === 'employee' || existingProf?.role === 'manager') {
       setUser(u);
       setProfile(existingProf);
       return;
