@@ -21,8 +21,8 @@ npm run test:employees          # Employee CRUD only
 npm run test:payroll            # Payroll flows only
 npm run test:report             # Open HTML report from last run
 
-# Run only the Feature 1–5 spec files
-npx playwright test emiratization documents insurance notifications advances
+# Run only the Feature 1–6 spec files
+npx playwright test emiratization documents insurance notifications advances multi-level-leave
 
 # Run a single feature spec
 npx playwright test emiratization          # Feature 1 — Emiratization / Nafis
@@ -30,6 +30,7 @@ npx playwright test documents             # Feature 2 — Document Storage
 npx playwright test insurance             # Feature 3 — Medical Insurance
 npx playwright test notifications         # Feature 4 — Notification System
 npx playwright test advances              # Feature 5 — Salary Advances
+npx playwright test multi-level-leave     # Feature 6 — Multi-Level Leave Approval
 
 # Run tests matching a name pattern across all files
 npx playwright test --grep "bell icon"
@@ -48,7 +49,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO service_role;
 ```
 
-`global-setup.js` runs once before all tests: creates `test.admin@workloop-test.local` and `test.employee@workloop-test.local` auth users, seeds company/employee rows, then saves browser sessions to `.playwright/admin-session.json` and `.playwright/employee-session.json` so tests start pre-logged-in. `global-teardown.js` cleans test data from: attendance, payroll, nafis_reports, insurance_policies/dependants/employee_insurance, notifications, employee_documents, and salary_advances (repayments cascade-delete).
+`global-setup.js` runs once before all tests: creates `test.admin@workloop-test.local` and `test.employee@workloop-test.local` auth users, seeds company/employee rows, then saves browser sessions to `.playwright/admin-session.json` and `.playwright/employee-session.json` so tests start pre-logged-in. `global-teardown.js` cleans test data from: attendance, payroll, nafis_reports, insurance_policies/dependants/employee_insurance, notifications, employee_documents, salary_advances (repayments cascade-delete), and leave_approval_delegates — labelled "Feature 1–6 test data".
 
 Test files in `tests/` use `storageState` to load saved sessions. Attendance tests open two browser contexts simultaneously (admin + employee) to verify cross-portal clock-in visibility.
 
@@ -102,6 +103,10 @@ The same risk applies to any nav label that also appears as an inline link insid
 
 **Stat card text collisions — avoid case-insensitive regex across card sub-labels**: `hasText: /Active Advances/i` matches ANY stat card whose full text content (label + value + sub-label) contains "active advances". If a sibling card's sub-label says "AED — active advances" it will match too (strict mode violation). Use case-sensitive regex (`/Active Advances/` without `i`), scope to `.stat-label`, or ensure sub-label text is distinct from other cards' labels.
 
+**Tab buttons — avoid sidebar collisions**: `getByRole('button', { name: /settings/i })` matches BOTH the Leave module's "Settings" tab button AND the sidebar's "Company Settings" nav button. Always scope module tab clicks to `page.locator('button.tab-btn').filter({ hasText: /^Settings$/i })` (using the `.tab-btn` class) rather than `getByRole`. This pattern applies to any tab label that also appears as a sidebar nav item name.
+
+**`<option>` elements are "hidden" in Playwright**: Playwright's `toBeVisible()` returns `false` for `<option>` elements because they are not directly rendered — only the `<select>` parent is visible. To assert that a `<select>` contains specific placeholder text, check the `<select>` element itself: `page.locator('select').filter({ has: page.locator('option').filter({ hasText: /placeholder/i }) })`. Never call `.toBeVisible()` directly on an `<option>` locator.
+
 ## Environment
 
 Create `sif-app/.env` with:
@@ -137,9 +142,10 @@ See `FEATURES_ROADMAP.md` for the 22-feature implementation plan and current com
 | Portal | Entry point | Who uses it |
 |--------|-------------|-------------|
 | Admin (HR) | `App.jsx` → `AppShell` | Company owner/HR; `profile.role === 'admin'` |
+| Manager | `App.jsx` → `ManagerShell` | Managers; `profile.role === 'manager'` |
 | Employee self-service | `App.jsx` → `EmployeeShell` | Linked employees; `profile.role === 'employee'` |
 
-`App.jsx` renders either `AppShell` or `EmployeeShell` based on `profile.role` from `AuthContext`. Both shells use a fixed floating sidebar island (solid `#08122e`, `border-radius: 22px`, `top/left/bottom: var(--sidebar-gap)`) with an animated sliding pill for the active nav item driven by `useLayoutEffect` + `getBoundingClientRect`.
+`App.jsx` `Root` checks `profile.role` in order: `'employee'` → `EmployeeShell`, `'manager'` → `ManagerShell`, otherwise → `AppShell`. Both shells use a fixed floating sidebar island (solid `#08122e`, `border-radius: 22px`, `top/left/bottom: var(--sidebar-gap)`) with an animated sliding pill for the active nav item driven by `useLayoutEffect` + `getBoundingClientRect`.
 
 `App.jsx` `Root` component: if `loading=false`, `user` exists, but `profile` is still null after 8 seconds, shows an error screen with a "Sign out and try again" button instead of spinning forever.
 
@@ -150,7 +156,7 @@ See `FEATURES_ROADMAP.md` for the 22-feature implementation plan and current com
 - **`createCompany`** — Admin sign-up; detects existing accounts via `identities.length === 0` (Supabase silently returns the existing user on duplicate sign-up).
 - **`signInAsAdmin`** — Verifies a `companies` row exists (via RLS); writes `user_profiles`.
 - **`signUpAsEmployee`** — Employee first-time registration; calls `link_employee_account()` RPC to match `LOWER(auth.email())` → `LOWER(employees.work_email)`, upserts `user_profiles`, then **returns without auto-logging in**. `AuthPage` shows a success banner and switches to the sign-in form; the employee signs in manually next.
-- **`signInAsEmployee`** — Checks for existing `user_profiles` row first (idempotent re-login); falls back to `link_employee_account()` only on first login.
+- **`signInAsEmployee`** — Checks for existing `user_profiles` row first (idempotent re-login); accepts **both** `'employee'` and `'manager'` roles on re-login so managers aren't forced back through the link flow. Falls back to `link_employee_account()` only on first login.
 
 **Critical**: `setLoading` is ONLY called inside the `INITIAL_SESSION` / `TOKEN_REFRESHED` handler in `AuthContext`. Auth action functions (`signInAsAdmin`, `signInAsEmployee`, etc.) must never call `setLoading(true)` — doing so unmounts `AuthPage` (React re-renders `Root` to show a global spinner), destroying all local component state including error/success banners.
 
@@ -166,11 +172,11 @@ All DB access goes through utility modules — components never call `supabase` 
 |------|-------|
 | `utils/storage.js` | Admin CRUD: companies, employees, payroll runs/entries, payslip records, employee documents, Nafis reports, insurance policies/assignments/dependants, salary advances/repayments |
 | `utils/notificationStorage.js` | In-app notifications: `getNotifications`, `getUnreadCount`, `markNotificationRead`, `markAllNotificationsRead`, `createNotification`, `createNotifications` (batch), `generateExpiryNotifications` |
-| `utils/profileStorage.js` | Role resolution (`user_profiles`), employee self-service data (own record, own payslips, own company) |
-| `utils/leaveStorage.js` | Leave types, requests, balances, public holidays |
+| `utils/profileStorage.js` | Role resolution (`user_profiles`), employee self-service data (own record, own payslips, own company); `getEmployeePortalRole(employeeId)`, `setEmployeePortalRole(employeeId, role)` |
+| `utils/leaveStorage.js` | Leave types, requests, balances, public holidays, delegates; `getLeaveQueueForManager`, `approveLeaveAsManager`, `rejectLeaveAsManager`, `getLeaveApprovalDelegates`, `saveLeaveApprovalDelegate`, `deleteLeaveApprovalDelegate` |
 | `utils/attendanceStorage.js` | Attendance records, clock events, shifts, regularisation |
 
-**Shape converters**: `storage.js` has `dbToXxx` / `xxxToDb` functions that translate between snake_case DB columns and camelCase JS objects. All components consume camelCase objects. `dbToDocument`, `dbToInsurancePolicy`, `dbToEmployeeInsurance`, `dbToInsuranceDependant`, `dbToAdvance`, and `dbToAdvanceRepayment` are all module-private converters (not exported).
+**Shape converters**: `storage.js` has `dbToXxx` / `xxxToDb` functions that translate between snake_case DB columns and camelCase JS objects. All components consume camelCase objects. `dbToDocument`, `dbToInsurancePolicy`, `dbToEmployeeInsurance`, `dbToInsuranceDependant`, `dbToAdvance`, and `dbToAdvanceRepayment` are all module-private converters (not exported). `dbToLeaveRequest` in `leaveStorage.js` now also maps Feature 6 fields: `managerApprovedAt`, `managerApprovedBy`, `managerRejectionReason`, `substituteEmployeeId`, `approvalLevelRequired`, `approvalComment`.
 
 **`authUserId` in dbToEmployee**: `dbToEmployee` now maps `row.auth_user_id → emp.authUserId`. This field is `null` until the employee registers on the employee portal. It is used by `LeaveManager` and `PayrollEditor` to target notifications at the correct employee auth account.
 
@@ -180,7 +186,7 @@ All DB access goes through utility modules — components never call `supabase` 
 
 - `companies` — one row per admin user (`user_id = auth.uid()`). New columns: `sector TEXT`, `nafis_quota_percent DECIMAL(5,2)` (Emiratization tracking).
 - `employees` — all employees for a company; `auth_user_id` set when employee links their account; `user_id` = the admin's UUID; `work_email` is always stored lowercase. Several columns are NOT NULL (including `mol_id`, `emp_no`, `name`, `bank_name`, `bank_routing_code`, `iban`) — always pass `''` as default, never omit them in raw inserts. New column: `nafis_registration_no TEXT` (UAE nationals only).
-- `user_profiles` — `role` ('admin'|'employee'), `company_user_id`, `employee_id`; RLS restricts each user to their own row
+- `user_profiles` — `role` ('admin'|'employee'|'manager'), `company_user_id`, `employee_id`; RLS restricts each user to their own row. Admins can change an employee's role to 'manager' via `admin_set_employee_portal_role` RPC (requires the employee to have activated their portal first)
 - `payroll_runs` + `payroll_entries` — payroll run header + one row per employee
 - `payslips` — snapshot of each employee's pay per period; created when admin downloads SIF (`createPayslipRecords`)
 - `leave_types`, `leave_requests`, `leave_balances`, `public_holidays`
@@ -196,6 +202,8 @@ All DB access goes through utility modules — components never call `supabase` 
 - `notifications` — in-app notifications with `UNIQUE (recipient_user_id, type, related_entity_id)` for deduplication. `user_id` = who created it (admin), `recipient_user_id` = who sees it (admin or employee). Four separate RLS policies: SELECT/INSERT/UPDATE/DELETE with different conditions (see `sql/004_notifications.sql`). Expiry alerts embed a threshold suffix in `related_entity_id` (e.g. `{employeeId}_visa_30d`) so 60-day and 30-day alerts are separate rows.
 - `salary_advances` — one row per advance/loan disbursement. `status` is `'pending'` (employee self-request awaiting approval) | `'active'` (approved, repayments ongoing) | `'settled'` (fully repaid) | `'cancelled'` (rejected or voided). Admin-created advances start as `'active'`; employee-requested advances start as `'pending'` via the `employee_request_advance` RPC. Stores `repayment_months`, `monthly_deduction` (= amount ÷ months), and `outstanding_balance` (decremented on each repayment).
 - `advance_repayments` — one row per monthly deduction; linked to `salary_advances` (CASCADE delete) and optionally to `payroll_runs`. Written by `saveAdvanceRepayment()` which also calls `updateAdvanceBalance()` to decrement the parent advance and auto-transition to `'settled'` when balance hits zero.
+- `leave_requests` — extended with Feature 6 columns: `manager_approved_at`, `manager_approved_by TEXT`, `manager_rejection_reason TEXT`, `substitute_employee_id UUID`, `approval_level_required INT DEFAULT 1`, `approval_comment TEXT`. Status values now include `'ManagerApproved'` (manager pre-approved, awaiting HR final sign-off) and `'ManagerRejected'` (manager rejected — final). No CHECK constraint on status — the column is free TEXT.
+- `leave_approval_delegates` — admin configures a deputy approver when a manager is on leave. `approver_employee_id` = the absent manager, `delegate_employee_id` = the colleague covering them, `from_date`/`to_date` = coverage window. Both manager and delegate can read their own rows via `leave_approval_delegates_actor_read` policy.
 
 ### Supabase Storage
 
@@ -221,7 +229,7 @@ ALTER TABLE tablename ENABLE ROW LEVEL SECURITY; -- then add RLS policies
 
 ### RLS model
 
-**Admin tables** (`companies`, `employees`, `payroll_*`, `payslips`, `leave_*`, `clock_events`, `attendance_records`, `attendance_periods`, `employee_job_history`, `nafis_reports`, `employee_documents`, `insurance_policies`, `employee_insurance`, `insurance_dependants`) use `FOR ALL USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid())`.
+**Admin tables** (`companies`, `employees`, `payroll_*`, `payslips`, `leave_*`, `clock_events`, `attendance_records`, `attendance_periods`, `employee_job_history`, `nafis_reports`, `employee_documents`, `insurance_policies`, `employee_insurance`, `insurance_dependants`, `leave_approval_delegates`) use `FOR ALL USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid())`.
 
 **Employee self-service** crosses the RLS boundary via `SECURITY DEFINER` RPCs and dedicated SELECT policies:
 
@@ -236,6 +244,7 @@ ALTER TABLE tablename ENABLE ROW LEVEL SECURITY; -- then add RLS policies
 | `employee_insurance` | `employee_id IN (SELECT id FROM employees WHERE auth_user_id = auth.uid())` |
 | `salary_advances` | `employee_id IN (SELECT id FROM employees WHERE auth_user_id = auth.uid())` |
 | `advance_repayments` | `advance_id IN (SELECT sa.id FROM salary_advances sa JOIN employees e ON e.id = sa.employee_id WHERE e.auth_user_id = auth.uid())` |
+| `leave_approval_delegates` | `approver_employee_id IN (SELECT id FROM employees WHERE auth_user_id = auth.uid()) OR delegate_employee_id IN (...)` |
 
 **Notifications RLS** is split across four separate policies (not a single `FOR ALL`): SELECT and UPDATE use `recipient_user_id = auth.uid()`; INSERT uses `user_id = auth.uid()` (admin creates for anyone); DELETE uses `user_id = auth.uid()` (admin deletes their own). This lets the employee portal read and mark-read its own notifications without being able to insert or delete.
 
@@ -251,6 +260,10 @@ These must exist in Supabase. All look up the caller's employee via `employees.a
 | `employee_record_clock_event(p_event_type, p_notes)` | Inserts clock event with admin's `user_id`; upserts `attendance_records`. Normalises `p_event_type` with `UPPER()` internally. Uses SELECT + INSERT/UPDATE (not `ON CONFLICT`) to avoid dependency on a named unique index. Stores `status = 'PRESENT'` (uppercase) to match `ATTENDANCE_STATUS.PRESENT`. |
 | `employee_submit_regularisation(...)` | Submits an attendance correction request |
 | `employee_request_advance(p_amount, p_reason)` | Creates a `'pending'` salary advance for the linked employee; returns the new advance UUID. Admin must approve (set to `'active'`) before repayments begin. |
+| `manager_approve_leave(p_request_id)` | Manager approves a direct report's leave. If `approval_level_required ≤ 1` → status becomes `'Approved'` immediately. If 2-level → status becomes `'ManagerApproved'` (awaits HR final sign-off). Verifies caller is the reporting manager or an active delegate. |
+| `manager_reject_leave(p_request_id, p_reason)` | Manager rejects a `'Pending'` or `'ManagerApproved'` request. Sets status to `'ManagerRejected'`. |
+| `admin_set_employee_portal_role(p_employee_id, p_role)` | Admin sets an employee's portal role to `'employee'` or `'manager'`. Requires the employee to have activated their portal (user_profiles row must exist). |
+| `admin_get_employee_portal_role(p_employee_id)` | Returns current portal role string for an employee, or NULL if not activated. |
 
 ### Key behavioral patterns
 
@@ -309,6 +322,19 @@ The **Save button is hidden** on both the Documents and Insurance tabs — each 
 **EmpAdvances (employee self-service)**: Tab "Advances" sits between "Payslips" and "Profile" in `EmployeeShell` TABS. Calls `getAdvances(emp.id)` (reads via employee self-read RLS policy, not admin scope). Advance request form calls `supabase.rpc('employee_request_advance', { p_amount, p_reason })` directly — the RPC resolves the employee from `auth.uid()`. Active advances show a progress bar: `(amount - outstandingBalance) / amount * 100`.
 
 **PayrollEditor advance info panel**: A `useEffect` loads all `active` advances via `getAdvances()` (no employeeId filter) and groups them by `employeeId` into `advanceData` state. The info panel renders only when `Object.keys(advanceData).length > 0` — it's purely informational; deductions must still be applied manually via the AllowDeductPanel. Silently swallows errors (table may not exist yet — `.catch(() => {})`).
+
+**ManagerShell (Feature 6)**: Portal shell for `profile.role === 'manager'` users. Same visual design as `EmployeeShell`. Tabs: Leave Queue (`ManagerLeaveQueue`), My Leave (reuses `EmpLeave`), Attendance (`EmpAttendance`), Payslips (`EmpPayslips`), Profile (`EmpProfile`). Sidebar footer shows "Manager Portal" sub-label. Managers sign in via the Employee portal sign-in form — the `signInAsEmployee` flow recognises the existing 'manager' role on re-login.
+
+**ManagerLeaveQueue (Feature 6)**: Loaded in `ManagerShell`. On mount, calls `getMyEmployeeRecord()` to get the manager's employee ID, then `getLeaveQueueForManager(emp.id)` to fetch pending/history from direct reports. Approve calls `approveLeaveAsManager(id)` (RPC); reject opens an inline modal requiring a reason, then calls `rejectLeaveAsManager(id, reason)`. History section (ManagerApproved/ManagerRejected) toggles via a ChevronDown/Up button.
+
+**LeaveManager multi-level support (Feature 6)**:
+- `pendingRequests` count now includes `'ManagerApproved'` (pre-approved by manager, awaiting HR) as well as `'Pending'`.
+- In the Requests table, `'ManagerApproved'` status shows a "Final OK" + reject button pair for HR to give final sign-off via `updateLeaveRequestStatus`.
+- The `approvedBy` cell conditionally shows "Mgr: {managerApprovedBy}" for ManagerApproved, and "Mgr rejected" (red) for ManagerRejected.
+- Settings tab has an "Approval Delegation" card for admin to configure `leave_approval_delegates` rows (add by filling approver + delegate + date range; delete via trash icon). `getLeaveApprovalDelegates()` is loaded in `loadAll()` via `Promise.all` with `.catch(() => [])` so a missing table silently produces empty state.
+- `leaveEngine.LEAVE_STATUS_COLORS` now includes `ManagerApproved: 'badge-blue'` and `ManagerRejected: 'badge-red'`.
+
+**EmployeeModal Portal Role control (Feature 6)**: In the Job & Contract tab, a "Portal Role" `<select>` dropdown appears **only** when `employee?.id && employee?.authUserId` (existing employee with activated portal). Options: Employee / Manager. Changing the select immediately calls `setEmployeePortalRole(employee.id, newRole)` (RPC call — not part of the main Save flow). Current role is loaded via `getEmployeePortalRole(employee.id)` in a `useEffect` that fires when `tab === 'job' && employee?.authUserId` changes. Success/error feedback shown inline via `portalRoleOk` / `portalRoleErr` state.
 
 **EndOfServiceScreen advance auto-load**: A `useEffect` fires on `employee.id` and calls `getAdvances(employee.id)`, sums `outstandingBalance` across all `active` advances, and pre-populates the "Outstanding Salary Advances" input. The field hint changes to "Auto-loaded from Advances module. Edit to override." once loaded (`advancesLoaded` state). The field remains editable so the admin can manually correct the figure.
 
