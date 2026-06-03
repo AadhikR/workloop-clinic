@@ -182,7 +182,11 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
   const doDownload = (p) => {
     const content = generateSIF(company, employees, p);
     const filename = generateSIFFilename(company, p);
-    const blob = new Blob([content], { type: 'text/plain' });
+    // Use Uint8Array + application/octet-stream so the browser treats this as raw binary.
+    // text/plain allows some browsers (e.g. macOS Safari) to re-normalise CRLF → LF,
+    // which would put all lines back into a single row when the bank parses the file.
+    const bytes = new TextEncoder().encode(content);
+    const blob = new Blob([bytes], { type: 'application/octet-stream' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = filename; a.click();

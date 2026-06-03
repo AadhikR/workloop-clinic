@@ -204,7 +204,9 @@ export default function PayrollList({ onEdit }) {
   const handleQuickDownload = async (payroll) => {
     const content  = generateSIF(company, employees, payroll);
     const filename = generateSIFFilename(company, payroll);
-    const blob = new Blob([content], { type: 'text/plain' });
+    // Use Uint8Array + application/octet-stream — prevents browser line-ending normalisation
+    const bytes = new TextEncoder().encode(content);
+    const blob = new Blob([bytes], { type: 'application/octet-stream' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
     a.href = url; a.download = filename; a.click();
