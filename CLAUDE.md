@@ -21,8 +21,8 @@ npm run test:employees          # Employee CRUD only
 npm run test:payroll            # Payroll flows only
 npm run test:report             # Open HTML report from last run
 
-# Run only the Feature 1–6 spec files
-npx playwright test emiratization documents insurance notifications advances multi-level-leave
+# Run all feature specs
+npx playwright test emiratization documents insurance notifications advances multi-level-leave leave-calendar shift-roster
 
 # Run a single feature spec
 npx playwright test emiratization          # Feature 1 — Emiratization / Nafis
@@ -31,6 +31,8 @@ npx playwright test insurance             # Feature 3 — Medical Insurance
 npx playwright test notifications         # Feature 4 — Notification System
 npx playwright test advances              # Feature 5 — Salary Advances
 npx playwright test multi-level-leave     # Feature 6 — Multi-Level Leave Approval
+npx playwright test leave-calendar        # Feature 7 — Leave Calendar & Team Planner
+npx playwright test shift-roster          # Feature 8 — Shift Scheduling & Roster
 
 # Run tests matching a name pattern across all files
 npx playwright test --grep "bell icon"
@@ -77,9 +79,21 @@ await expect(page.locator('.stat-card').first()).toBeVisible({ timeout: 20000 })
 
 **EmployeeManager archive**: The "delete" icon button in each row has `title="Delete employee"` (no text). Clicking it opens a confirmation dialog with an "Archive Employee" button. After archiving, the employee's `employmentStatus` becomes `'Terminated'` but they remain visible in the default "All Statuses" view — they do NOT disappear. Test for the "Terminated" badge on the row, not for row absence.
 
-**`supabase.auth.getUser()` race**: This call validates the JWT server-side. In Playwright tests, the sidebar may be visible (React auth state is set) while `getUser()` still returns null — a brief window during Supabase's auth initialization. Components that call `getUser()` on mount (e.g., `initialiseLeaveModule`) may throw "Not authenticated" and log to console even though the UI loads correctly. Console-error tests should filter `Failed to load resource` lines or target specific JS runtime errors rather than expecting zero console output.
+**NEVER use `supabase.auth.getUser()` in storage utility functions** — use `supabase.auth.getSession()` instead. `getUser()` makes a server-side JWT validation round-trip. In a full Playwright test run, this call triggers a Supabase refresh-token rotation. Because all test contexts share the same `storageState` file, subsequent test pages hold a stale RT; when any function later calls `getUser()`, Supabase returns 401 → fires `SIGNED_OUT` → the entire React app unmounts to the login page, cascading failures across every admin test that follows. The correct pattern throughout all `utils/*.js` files:
+```js
+// ✅ Reads local session — no server round-trip, no token rotation
+const { data: { session } } = await supabase.auth.getSession();
+const user = session?.user ?? null;
+if (!user) throw new Error('Not authenticated');
 
-**Refresh token rotation across shared storageState**: Supabase rotates refresh tokens on every use. When multiple `test.describe` blocks all load the SAME `storageState` file (e.g. `admin-session.json`), the first block to run rotates the refresh token; later blocks load the stale RT from disk and get `SIGNED_OUT` when their access token expires. Symptom: tests see the sidebar briefly (INITIAL_SESSION fires with the still-valid JWT), then the page switches to the login page once a real API call returns 401. Fix: the LAST describe block that uses that storageState should drop `test.use({ storageState })` entirely and call `loginAsAdmin(page)` (or equivalent) in `beforeEach` to create a guaranteed-fresh session.
+// ❌ Server-side validation — rotates RT, causes SIGNED_OUT cascade in tests
+const { data: { user } } = await supabase.auth.getUser();
+```
+Each storage file already has a private `getSessionUser()` helper that wraps this pattern. Use it for any new write function that needs the user's ID.
+
+**`supabase.auth.getUser()` in AuthContext is the ONLY acceptable usage** — `AuthContext.jsx` is the single place that should call `getUser()`, because it runs before any storageState is involved (it authenticates directly with credentials). All other code must use `getSession()`.
+
+**Refresh token rotation — symptom and proof**: In tests, the symptom is a screenshot showing the Workloop login page mid-test. This means `SIGNED_OUT` fired. Cause: a prior test (in any spec file) called `getUser()`, rotating the RT stored in the shared `.playwright/admin-session.json`. The fix is already applied — all storage utils use `getSession()`. If you see this symptom again, search `src/` for `supabase.auth.getUser` (none should exist outside `AuthContext`) and replace with `getSession()`.
 
 **`locator.isVisible()` is non-waiting**: Playwright's `isVisible()` returns `false` immediately if the element is not in the DOM — it does NOT retry or wait. Calling it right after `page.goto()` will return `false` while the app is still on its initial loading spinner. Use `.waitFor()` or `expect(locator).toBeVisible({ timeout: N })` when you need to wait for the element to appear.
 
@@ -104,6 +118,16 @@ The same risk applies to any nav label that also appears as an inline link insid
 **Stat card text collisions — avoid case-insensitive regex across card sub-labels**: `hasText: /Active Advances/i` matches ANY stat card whose full text content (label + value + sub-label) contains "active advances". If a sibling card's sub-label says "AED — active advances" it will match too (strict mode violation). Use case-sensitive regex (`/Active Advances/` without `i`), scope to `.stat-label`, or ensure sub-label text is distinct from other cards' labels.
 
 **Tab buttons — avoid sidebar collisions**: `getByRole('button', { name: /settings/i })` matches BOTH the Leave module's "Settings" tab button AND the sidebar's "Company Settings" nav button. Always scope module tab clicks to `page.locator('button.tab-btn').filter({ hasText: /^Settings$/i })` (using the `.tab-btn` class) rather than `getByRole`. This pattern applies to any tab label that also appears as a sidebar nav item name.
+
+**Employee portal navigation — use `.nav-item` not `getByRole`**: `EmployeeShell` and `ManagerShell` render tab buttons in TWO places: the desktop sidebar (`button.nav-item`) and the mobile bottom bar (`button.emp-tab-btn`). `getByRole('button', { name: 'Attendance' })` matches both and throws a Playwright strict-mode violation. Always scope employee portal navigation to the sidebar class:
+```js
+// ✅ Desktop sidebar only
+await page.locator('button.nav-item').filter({ hasText: /^Attendance$/ }).click();
+
+// ❌ Matches sidebar + mobile bottom bar → strict-mode violation
+await page.getByRole('button', { name: 'Attendance' }).click();
+```
+After a `page.reload()` the employee portal resets to the `home` tab (initial React state). If a test navigates to a tab, reloads, and then checks content in that tab — it must navigate back to the tab after reload.
 
 **`<option>` elements are "hidden" in Playwright**: Playwright's `toBeVisible()` returns `false` for `<option>` elements because they are not directly rendered — only the `<select>` parent is visible. To assert that a `<select>` contains specific placeholder text, check the `<select>` element itself: `page.locator('select').filter({ has: page.locator('option').filter({ hasText: /placeholder/i }) })`. Never call `.toBeVisible()` directly on an `<option>` locator.
 
