@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Download, Eye, Upload, AlertCircle, Plus, ChevronDown, CheckCircle, FileText, Info, Send, Lock } from 'lucide-react';
-import { generateSIF, generateSIFFilename } from '../utils/sifGenerator';
+import { Download, Eye, Upload, AlertCircle, Plus, ChevronDown, CheckCircle, FileText, Info, Send, Lock, ShieldCheck, RefreshCw } from 'lucide-react';
+import { generateSIF, generateSIFFilename, generateCorrectedSIF } from '../utils/sifGenerator';
 import { parseCSV, readFileAsText } from '../utils/csvImport';
-import { savePayroll, createPayslipRecords } from '../utils/storage';
+import { savePayroll, createPayslipRecords, saveWpsTracking } from '../utils/storage';
 import { createNotifications } from '../utils/notificationStorage';
 import AllowDeductPanel, { computeFinalAllowance } from './AllowDeductPanel';
 import SIFPreviewModal from './SIFPreviewModal';
@@ -35,6 +35,26 @@ function normaliseEntry(e) {
   };
 }
 
+// ── WPS tracking helpers (Feature 9) ─────────────────────────────────────────
+const WPS_STATUS_LABELS = {
+  draft:             'Not Submitted',
+  sif_generated:     'SIF Generated',
+  submitted:         'Submitted to Bank',
+  confirmed:         'Confirmed',
+  partial_rejection: 'Partial Rejection',
+  failed:            'Failed',
+};
+const WPS_STATUS_BADGES = {
+  draft:             'badge-yellow',
+  sif_generated:     'badge-blue',
+  submitted:         'badge-amber',
+  confirmed:         'badge-green',
+  partial_rejection: 'badge-amber',
+  failed:            'badge-red',
+};
+const WPS_ENTRY_BADGES = { pending: 'badge-yellow', paid: 'badge-green', rejected: 'badge-red' };
+const WPS_ENTRY_LABELS = { pending: 'Pending', paid: 'Paid', rejected: 'Rejected' };
+
 // ── Payslip download handler ─────────────────────────────────────────────────
 function handleDownloadPayslip(company, employees, payroll, entry) {
   const emp = employees.find(e => e.id === entry.employeeId);
@@ -62,6 +82,24 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
   const [attendanceWarning, setAttendanceWarning] = useState(false);
   const autoSaveTimer = useRef(null);
   const fileRef = useRef();
+
+  // WPS tracking state (Feature 9) — initialised from payroll prop
+  const [wpsStatus,        setWpsStatus]        = useState(payroll.wpsStatus      ?? 'draft');
+  const [wpsSubmittedAt,   setWpsSubmittedAt]   = useState(payroll.wpsSubmittedAt ? payroll.wpsSubmittedAt.slice(0, 10) : '');
+  const [wpsConfirmedAt,   setWpsConfirmedAt]   = useState(payroll.wpsConfirmedAt ? payroll.wpsConfirmedAt.slice(0, 10) : '');
+  const [wpsReferenceNo,   setWpsReferenceNo]   = useState(payroll.wpsReferenceNo ?? '');
+  const [wpsEntryStatuses, setWpsEntryStatuses] = useState(() => {
+    const map = {};
+    for (const e of payroll.entries) {
+      map[e.employeeId] = {
+        status: e.wpsPaymentStatus   ?? 'pending',
+        reason: e.wpsRejectionReason ?? '',
+      };
+    }
+    return map;
+  });
+  const [wpsSaving, setWpsSaving] = useState(false);
+  const [wpsSaveOk, setWpsSaveOk] = useState(false);
 
   // Load leave deductions for this payroll period and pre-fill entry fields
   useEffect(() => {
@@ -201,9 +239,73 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
     setPreview({ content, filename, payroll: p });
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     const p = buildPayroll();
     doDownload(p);
+    // Auto-transition wps_status draft → sif_generated on first SIF download (Feature 9)
+    if (isLocked && wpsStatus === 'draft') {
+      const next = 'sif_generated';
+      setWpsStatus(next);
+      try {
+        await saveWpsTracking(p.id, {
+          wpsStatus: next,
+          wpsSubmittedAt: wpsSubmittedAt || null,
+          wpsConfirmedAt: wpsConfirmedAt || null,
+          wpsReferenceNo,
+        });
+        onSave({ ...p, wpsStatus: next });
+      } catch (err) {
+        console.error('WPS auto-transition failed:', err);
+      }
+    }
+  };
+
+  const handleDownloadCorrectedSIF = () => {
+    const rejectedIds = Object.entries(wpsEntryStatuses)
+      .filter(([, v]) => v.status === 'rejected')
+      .map(([k]) => k);
+    if (!rejectedIds.length) return;
+    const p = buildPayroll();
+    const content  = generateCorrectedSIF(company, employees, p, rejectedIds);
+    const filename = 'CORRECTED_' + generateSIFFilename(company, p);
+    const bytes = new TextEncoder().encode(content);
+    const blob  = new Blob([bytes], { type: 'application/octet-stream' });
+    const url   = URL.createObjectURL(blob);
+    const a     = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleWpsSave = async () => {
+    setWpsSaving(true);
+    try {
+      await saveWpsTracking(payroll.id, {
+        wpsStatus,
+        wpsSubmittedAt: wpsSubmittedAt || null,
+        wpsConfirmedAt: wpsConfirmedAt || null,
+        wpsReferenceNo,
+      });
+      // Also persist entry-level WPS statuses through the full save
+      const updatedEntries = entries.map(e => ({
+        ...e,
+        wpsPaymentStatus:   wpsEntryStatuses[e.employeeId]?.status ?? 'pending',
+        wpsRejectionReason: wpsEntryStatuses[e.employeeId]?.reason ?? '',
+      }));
+      onSave({
+        ...buildPayroll(),
+        entries: updatedEntries,
+        wpsStatus,
+        wpsSubmittedAt: wpsSubmittedAt || null,
+        wpsConfirmedAt: wpsConfirmedAt || null,
+        wpsReferenceNo,
+      });
+      setWpsSaveOk(true);
+      setTimeout(() => setWpsSaveOk(false), 3000);
+    } catch (err) {
+      console.error('WPS save failed:', err);
+    } finally {
+      setWpsSaving(false);
+    }
   };
 
   const handleSubmitPayroll = async () => {
@@ -343,6 +445,11 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
           <button className="btn btn-success btn-sm" onClick={handleDownload} disabled={!canGenerate}>
             <Download size={14} /> Download SIF
           </button>
+          {isLocked && Object.values(wpsEntryStatuses).some(v => v.status === 'rejected') && (
+            <button className="btn btn-outline btn-sm" onClick={handleDownloadCorrectedSIF} title="Download SIF for rejected employees only">
+              <RefreshCw size={14} /> Corrected SIF
+            </button>
+          )}
           {!isLocked && (
             <button className="btn btn-primary btn-sm" onClick={() => setConfirmSubmit(true)} disabled={!canGenerate}>
               <Send size={14} /> Submit Payroll
@@ -358,6 +465,133 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
             <div>
               <strong>Payroll finalised — locked.</strong> This run has been submitted and payslips have been distributed to employees.
               Download the SIF file or individual payslips using the buttons above.
+            </div>
+          </div>
+        )}
+
+        {/* ── WPS Payment Tracking (Feature 9) — visible only on locked payrolls ── */}
+        {isLocked && (
+          <div className="card mb-4">
+            <div className="card-header">
+              <h3>
+                <ShieldCheck size={15} style={{ marginRight: 6, color: 'var(--primary)' }} />
+                WPS Payment Tracking
+              </h3>
+              <span className={`badge ${WPS_STATUS_BADGES[wpsStatus] ?? 'badge-yellow'}`}>
+                {WPS_STATUS_LABELS[wpsStatus] ?? wpsStatus}
+              </span>
+            </div>
+            <div className="card-body">
+              <div className="form-grid form-grid-3">
+                <div className="form-group">
+                  <label>WPS Status</label>
+                  <select className="form-control" value={wpsStatus} onChange={e => setWpsStatus(e.target.value)}>
+                    <option value="draft">Not Submitted</option>
+                    <option value="sif_generated">SIF Generated</option>
+                    <option value="submitted">Submitted to Bank</option>
+                    <option value="confirmed">Confirmed</option>
+                    <option value="partial_rejection">Partial Rejection</option>
+                    <option value="failed">Failed</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Bank Reference No.</label>
+                  <input
+                    className="form-control font-mono"
+                    placeholder="e.g. WPS-2026-04-001"
+                    value={wpsReferenceNo}
+                    onChange={e => setWpsReferenceNo(e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Submitted to Bank On</label>
+                  <input
+                    className="form-control"
+                    type="date"
+                    value={wpsSubmittedAt}
+                    onChange={e => setWpsSubmittedAt(e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Bank Confirmation Date</label>
+                  <input
+                    className="form-control"
+                    type="date"
+                    value={wpsConfirmedAt}
+                    onChange={e => setWpsConfirmedAt(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Per-employee WPS payment status */}
+              {activeEntries.length > 0 && (
+                <div style={{ marginTop: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-600)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Per-Employee Payment Status
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {activeEntries.map(entry => {
+                      const emp     = getEmp(entry.employeeId);
+                      if (!emp) return null;
+                      const empWps  = wpsEntryStatuses[entry.employeeId] ?? { status: 'pending', reason: '' };
+                      return (
+                        <div key={entry.employeeId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 10px', background: 'var(--gray-50)', borderRadius: 8 }}>
+                          <div style={{ minWidth: 160, fontSize: 13, fontWeight: 500, color: 'var(--gray-800)' }}>{emp.name}</div>
+                          <select
+                            className="form-control"
+                            style={{ width: 160, fontSize: 12, padding: '4px 8px' }}
+                            value={empWps.status}
+                            onChange={e => setWpsEntryStatuses(prev => ({
+                              ...prev,
+                              [entry.employeeId]: { ...prev[entry.employeeId], status: e.target.value },
+                            }))}
+                          >
+                            <option value="pending">Pending</option>
+                            <option value="paid">Paid</option>
+                            <option value="rejected">Rejected</option>
+                          </select>
+                          {empWps.status === 'rejected' && (
+                            <input
+                              className="form-control"
+                              style={{ flex: 1, fontSize: 12, padding: '4px 8px' }}
+                              placeholder="Rejection reason (e.g. Invalid IBAN)"
+                              value={empWps.reason}
+                              onChange={e => setWpsEntryStatuses(prev => ({
+                                ...prev,
+                                [entry.employeeId]: { ...prev[entry.employeeId], reason: e.target.value },
+                              }))}
+                            />
+                          )}
+                          <span className={`badge ${WPS_ENTRY_BADGES[empWps.status] ?? 'badge-yellow'}`} style={{ fontSize: 11, minWidth: 64, textAlign: 'center' }}>
+                            {WPS_ENTRY_LABELS[empWps.status] ?? empWps.status}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 16 }}>
+                <button className="btn btn-primary btn-sm" onClick={handleWpsSave} disabled={wpsSaving}>
+                  <ShieldCheck size={13} /> {wpsSaving ? 'Saving…' : 'Save WPS Status'}
+                </button>
+                {wpsSaveOk && (
+                  <span style={{ fontSize: 13, color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <CheckCircle size={14} /> Saved
+                  </span>
+                )}
+                {Object.values(wpsEntryStatuses).some(v => v.status === 'rejected') && (
+                  <button className="btn btn-outline btn-sm" onClick={handleDownloadCorrectedSIF} style={{ marginLeft: 'auto' }}>
+                    <RefreshCw size={13} /> Download Corrected SIF ({Object.values(wpsEntryStatuses).filter(v => v.status === 'rejected').length} rejected)
+                  </button>
+                )}
+              </div>
+
+              <div style={{ marginTop: 10, fontSize: 12, color: 'var(--gray-500)' }}>
+                <Info size={11} style={{ marginRight: 4 }} />
+                WPS status updates are saved independently of payroll entries. The Corrected SIF contains only rejected employees and should be re-submitted after fixing the issue.
+              </div>
             </div>
           </div>
         )}

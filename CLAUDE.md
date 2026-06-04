@@ -33,6 +33,7 @@ npx playwright test advances              # Feature 5 — Salary Advances
 npx playwright test multi-level-leave     # Feature 6 — Multi-Level Leave Approval
 npx playwright test leave-calendar        # Feature 7 — Leave Calendar & Team Planner
 npx playwright test shift-roster          # Feature 8 — Shift Scheduling & Roster
+npx playwright test wps                   # Feature 9 — WPS Payment Confirmation
 
 # Run tests matching a name pattern across all files
 npx playwright test --grep "bell icon"
@@ -198,7 +199,7 @@ All DB access goes through utility modules — components never call `supabase` 
 | `utils/notificationStorage.js` | In-app notifications: `getNotifications`, `getUnreadCount`, `markNotificationRead`, `markAllNotificationsRead`, `createNotification`, `createNotifications` (batch), `generateExpiryNotifications` |
 | `utils/profileStorage.js` | Role resolution (`user_profiles`), employee self-service data (own record, own payslips, own company); `getEmployeePortalRole(employeeId)`, `setEmployeePortalRole(employeeId, role)` |
 | `utils/leaveStorage.js` | Leave types, requests, balances, public holidays, delegates; `getLeaveQueueForManager`, `approveLeaveAsManager`, `rejectLeaveAsManager`, `getLeaveApprovalDelegates`, `saveLeaveApprovalDelegate`, `deleteLeaveApprovalDelegate` |
-| `utils/attendanceStorage.js` | Attendance records, clock events, shifts, regularisation |
+| `utils/attendanceStorage.js` | Attendance records, clock events, shifts, regularisation; Feature 8 roster: `getRosterForMonth`, `saveRosterAssignment`, `deleteRosterAssignment`, `publishRoster`, `getShiftSwapRequests`, `updateShiftSwapRequest`; employee self-service: `getMyRoster`, `getMyColleagues`, `requestShiftSwap` |
 
 **Shape converters**: `storage.js` has `dbToXxx` / `xxxToDb` functions that translate between snake_case DB columns and camelCase JS objects. All components consume camelCase objects. `dbToDocument`, `dbToInsurancePolicy`, `dbToEmployeeInsurance`, `dbToInsuranceDependant`, `dbToAdvance`, and `dbToAdvanceRepayment` are all module-private converters (not exported). `dbToLeaveRequest` in `leaveStorage.js` now also maps Feature 6 fields: `managerApprovedAt`, `managerApprovedBy`, `managerRejectionReason`, `substituteEmployeeId`, `approvalLevelRequired`, `approvalComment`.
 
@@ -228,6 +229,8 @@ All DB access goes through utility modules — components never call `supabase` 
 - `advance_repayments` — one row per monthly deduction; linked to `salary_advances` (CASCADE delete) and optionally to `payroll_runs`. Written by `saveAdvanceRepayment()` which also calls `updateAdvanceBalance()` to decrement the parent advance and auto-transition to `'settled'` when balance hits zero.
 - `leave_requests` — extended with Feature 6 columns: `manager_approved_at`, `manager_approved_by TEXT`, `manager_rejection_reason TEXT`, `substitute_employee_id UUID`, `approval_level_required INT DEFAULT 1`, `approval_comment TEXT`. Status values now include `'ManagerApproved'` (manager pre-approved, awaiting HR final sign-off) and `'ManagerRejected'` (manager rejected — final). No CHECK constraint on status — the column is free TEXT.
 - `leave_approval_delegates` — admin configures a deputy approver when a manager is on leave. `approver_employee_id` = the absent manager, `delegate_employee_id` = the colleague covering them, `from_date`/`to_date` = coverage window. Both manager and delegate can read their own rows via `leave_approval_delegates_actor_read` policy.
+- `roster_assignments` — one shift per employee per calendar day (`UNIQUE (employee_id, date)`). `published BOOLEAN` controls whether the employee portal can see the row. Admin has full access via `user_id = auth.uid()`; employees read only their own `published = true` rows via the `roster_assignments_employee_read` policy. `shift_id` FK → `shifts` table (which gained a `color TEXT` column in migration 007).
+- `shift_swap_requests` — employee-initiated swap between two employees for a specific date. `status` CHECK `('pending'|'approved'|'rejected'|'cancelled')`. Both the `requester_employee_id` and `target_employee_id` can SELECT their own rows via `shift_swap_requests_employee_read` policy. Admin has full access.
 
 ### Supabase Storage
 
@@ -269,6 +272,8 @@ ALTER TABLE tablename ENABLE ROW LEVEL SECURITY; -- then add RLS policies
 | `salary_advances` | `employee_id IN (SELECT id FROM employees WHERE auth_user_id = auth.uid())` |
 | `advance_repayments` | `advance_id IN (SELECT sa.id FROM salary_advances sa JOIN employees e ON e.id = sa.employee_id WHERE e.auth_user_id = auth.uid())` |
 | `leave_approval_delegates` | `approver_employee_id IN (SELECT id FROM employees WHERE auth_user_id = auth.uid()) OR delegate_employee_id IN (...)` |
+| `roster_assignments` | `published = true AND employee_id IN (SELECT id FROM employees WHERE auth_user_id = auth.uid())` |
+| `shift_swap_requests` | requester or target employee: `requester_employee_id IN (...) OR target_employee_id IN (...)` |
 
 **Notifications RLS** is split across four separate policies (not a single `FOR ALL`): SELECT and UPDATE use `recipient_user_id = auth.uid()`; INSERT uses `user_id = auth.uid()` (admin creates for anyone); DELETE uses `user_id = auth.uid()` (admin deletes their own). This lets the employee portal read and mark-read its own notifications without being able to insert or delete.
 
@@ -288,6 +293,8 @@ These must exist in Supabase. All look up the caller's employee via `employees.a
 | `manager_reject_leave(p_request_id, p_reason)` | Manager rejects a `'Pending'` or `'ManagerApproved'` request. Sets status to `'ManagerRejected'`. |
 | `admin_set_employee_portal_role(p_employee_id, p_role)` | Admin sets an employee's portal role to `'employee'` or `'manager'`. Requires the employee to have activated their portal (user_profiles row must exist). |
 | `admin_get_employee_portal_role(p_employee_id)` | Returns current portal role string for an employee, or NULL if not activated. |
+| `employee_get_my_roster(p_date_from, p_date_to)` | Returns published roster assignments for the calling employee in the given date range, joined with the shift template (name, color, start/end times, expected hours). |
+| `employee_request_shift_swap(p_requester_date, p_target_employee_id, p_target_date, p_reason)` | Creates a `'pending'` shift swap request between two employees. Resolves the requester from `auth.uid()`. |
 
 ### Key behavioral patterns
 
@@ -343,11 +350,11 @@ The **Save button is hidden** on both the Documents and Insurance tabs — each 
 
 **AdvancesManager (admin)**: Standalone page, nav item "Advances" sits between "Payroll Module" and "Leave" in `NAV_ITEMS`. Loads all advances + employees on mount. Approve/reject pending requests by calling `saveAdvance({ ...adv, status: 'active'/'cancelled' })`; settle/cancel active advances the same way. Repayment history per advance fetched lazily via `getAdvanceRepayments(advanceId)` when the row is expanded. `saveAdvance()` auto-computes `monthly_deduction = amount / repayment_months` if `monthlyDeduction` is not explicitly passed.
 
-**EmpAdvances (employee self-service)**: Tab "Advances" sits between "Payslips" and "Profile" in `EmployeeShell` TABS. Calls `getAdvances(emp.id)` (reads via employee self-read RLS policy, not admin scope). Advance request form calls `supabase.rpc('employee_request_advance', { p_amount, p_reason })` directly — the RPC resolves the employee from `auth.uid()`. Active advances show a progress bar: `(amount - outstandingBalance) / amount * 100`.
+**EmpAdvances (employee self-service)**: Tab "Advances" sits between "Payslips" and "Profile" in `EmployeeShell` TABS. The full TABS order is: Home, Leave, Schedule, Attendance, Payslips, Advances, Profile. Calls `getAdvances(emp.id)` (reads via employee self-read RLS policy, not admin scope). Advance request form calls `supabase.rpc('employee_request_advance', { p_amount, p_reason })` directly — the RPC resolves the employee from `auth.uid()`. Active advances show a progress bar: `(amount - outstandingBalance) / amount * 100`.
 
 **PayrollEditor advance info panel**: A `useEffect` loads all `active` advances via `getAdvances()` (no employeeId filter) and groups them by `employeeId` into `advanceData` state. The info panel renders only when `Object.keys(advanceData).length > 0` — it's purely informational; deductions must still be applied manually via the AllowDeductPanel. Silently swallows errors (table may not exist yet — `.catch(() => {})`).
 
-**ManagerShell (Feature 6)**: Portal shell for `profile.role === 'manager'` users. Same visual design as `EmployeeShell`. Tabs: Leave Queue (`ManagerLeaveQueue`), My Leave (reuses `EmpLeave`), Attendance (`EmpAttendance`), Payslips (`EmpPayslips`), Profile (`EmpProfile`). Sidebar footer shows "Manager Portal" sub-label. Managers sign in via the Employee portal sign-in form — the `signInAsEmployee` flow recognises the existing 'manager' role on re-login.
+**ManagerShell (Feature 6)**: Portal shell for `profile.role === 'manager'` users. Same visual design as `EmployeeShell`. Tabs: Leave Queue (`ManagerLeaveQueue`), My Leave (reuses `EmpLeave`), Attendance (`EmpAttendance`), Schedule (`EmpSchedule`), Payslips (`EmpPayslips`), Profile (`EmpProfile`). Sidebar footer shows "Manager Portal" sub-label. Managers sign in via the Employee portal sign-in form — the `signInAsEmployee` flow recognises the existing 'manager' role on re-login.
 
 **ManagerLeaveQueue (Feature 6)**: Loaded in `ManagerShell`. On mount, calls `getMyEmployeeRecord()` to get the manager's employee ID, then `getLeaveQueueForManager(emp.id)` to fetch pending/history from direct reports. Approve calls `approveLeaveAsManager(id)` (RPC); reject opens an inline modal requiring a reason, then calls `rejectLeaveAsManager(id, reason)`. History section (ManagerApproved/ManagerRejected) toggles via a ChevronDown/Up button.
 
@@ -361,6 +368,17 @@ The **Save button is hidden** on both the Documents and Insurance tabs — each 
 **EmployeeModal Portal Role control (Feature 6)**: In the Job & Contract tab, a "Portal Role" `<select>` dropdown appears **only** when `employee?.id && employee?.authUserId` (existing employee with activated portal). Options: Employee / Manager. Changing the select immediately calls `setEmployeePortalRole(employee.id, newRole)` (RPC call — not part of the main Save flow). Current role is loaded via `getEmployeePortalRole(employee.id)` in a `useEffect` that fires when `tab === 'job' && employee?.authUserId` changes. Success/error feedback shown inline via `portalRoleOk` / `portalRoleErr` state.
 
 **EndOfServiceScreen advance auto-load**: A `useEffect` fires on `employee.id` and calls `getAdvances(employee.id)`, sums `outstandingBalance` across all `active` advances, and pre-populates the "Outstanding Salary Advances" input. The field hint changes to "Auto-loaded from Advances module. Edit to override." once loaded (`advancesLoaded` state). The field remains editable so the admin can manually correct the figure.
+
+**LeaveManager Calendar tab (Feature 7)**: `LeaveManager` has a third "Calendar" tab (after Requests and Balances/Settings). It renders a monthly grid showing all approved leave colour-coded by leave type. State: `calendarMonth` (Date), `calendarDeptFilter` (string). Navigation uses chevron buttons to step months; a department `<select>` filters which employees appear. A print button calls `window.print()` against a `#calendar-print-area` div. Data comes from the same `requests` array already loaded by `loadAll()` — no extra fetch. `getApprovedLeavesForMonth(year, month)` in `leaveStorage.js` is available but the Calendar tab reads from in-memory state, not a fresh query.
+
+**RosterManager (Feature 8)**: Standalone page, nav item "Roster" sits after "Attendance" in `NAV_ITEMS`. Three tabs:
+- **Templates** — CRUD for `shifts` table rows (name, color, start/end times, break minutes, expected hours, grace periods). The `PALETTE` constant in `RosterManager.jsx` provides 10 color choices. `autoExpectedHours()` helper pre-computes expected hours from start/end times when either changes.
+- **Roster** — Monthly grid: rows = employees (filtered by `rosterDeptFilter`), columns = calendar days. Each cell is a `<select>` of shift templates (plus blank). Changing a cell immediately calls `saveRosterAssignment()`. "Publish Roster" button calls `publishRoster(year, month)` which bulk-sets `published = true` for all assignments in that month.
+- **Swaps** — Shows all `shift_swap_requests` for the company. Admin approves (sets `published = true` on the swapped cells, updates both roster rows) or rejects (with optional reason) via `updateShiftSwapRequest(id, status, rejectionReason)`.
+
+**WPS Payment Tracking (Feature 9)**: After a payroll run is finalised (`status === 'generated'`), a "WPS Payment Tracking" card appears in `PayrollEditor`. WPS workflow: `draft` → `sif_generated` (auto on SIF download) → `submitted` → `confirmed` / `partial_rejection` / `failed`. Admin fills in WPS Reference No, submission date, confirmation date, and per-employee payment status (`pending` / `paid` / `rejected`). "Save WPS Status" calls `saveWpsTracking(payrollId, { wpsStatus, ... })` to update `payroll_runs` without re-saving all entries. When any entry is `rejected`, a "Download Corrected SIF" button calls `generateCorrectedSIF(company, employees, payroll, rejectedEmployeeIds)` — produces a SIF containing only the rejected employees. `PayrollList` and `Dashboard` both show a WPS status badge column on generated payroll runs. Schema: `payroll_runs` gains `wps_status TEXT DEFAULT 'draft'`, `wps_submitted_at`, `wps_confirmed_at`, `wps_reference_no`; `payroll_entries` gains `wps_payment_status TEXT DEFAULT 'pending'`, `wps_rejection_reason`.
+
+**EmpSchedule (Feature 8)**: "Schedule" tab in both `EmployeeShell` and `ManagerShell`. Calls `getMyRoster(dateFrom, dateTo)` (wraps `employee_get_my_roster` RPC) to load the current month's published assignments. Each assignment shows shift name, color pill, date, start/end times. A "Request Swap" button on any upcoming assignment opens `SwapModal`, which calls `requestShiftSwap({ requesterDate, targetEmployeeId, targetDate, reason })` — the RPC resolves the requester from `auth.uid()`. Colleagues list for the swap target selector comes from `getMyColleagues()` (reads `employees` via the employee self-read policy).
 
 ### Business logic utilities
 

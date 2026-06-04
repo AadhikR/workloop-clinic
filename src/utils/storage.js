@@ -251,6 +251,11 @@ export async function getPayrolls() {
     totalDisbursed:     parseFloat(run.total_disbursed) || 0,
     employeeCount:      run.employee_count || 0,
     createdAt:          run.created_at,
+    // WPS tracking (Feature 9)
+    wpsStatus:          run.wps_status      ?? 'draft',
+    wpsSubmittedAt:     run.wps_submitted_at ?? null,
+    wpsConfirmedAt:     run.wps_confirmed_at ?? null,
+    wpsReferenceNo:     run.wps_reference_no ?? '',
     entries: (entries || [])
       .filter(e => e.payroll_run_id === run.id)
       .map(dbToEntry),
@@ -283,6 +288,11 @@ export async function savePayroll(payroll) {
     run_by:               payroll.runBy || user.email || user.id,
     total_disbursed:      totalDisbursed,
     employee_count:       activeEntries.length,
+    // WPS tracking (Feature 9)
+    wps_status:           payroll.wpsStatus        ?? 'draft',
+    wps_submitted_at:     payroll.wpsSubmittedAt   ?? null,
+    wps_confirmed_at:     payroll.wpsConfirmedAt   ?? null,
+    wps_reference_no:     payroll.wpsReferenceNo   ?? '',
   };
 
   const { error: runErr } = await supabase
@@ -1046,6 +1056,9 @@ function dbToEntry(row) {
     additionalAllowances: row.additional_allowances ?? [],
     deductions:           row.deductions ?? [],
     excluded:             row.excluded ?? false,
+    // WPS tracking (Feature 9)
+    wpsPaymentStatus:     row.wps_payment_status    ?? 'pending',
+    wpsRejectionReason:   row.wps_rejection_reason  ?? '',
   };
 }
 
@@ -1067,5 +1080,27 @@ function entryToDb(entry, runId, userId) {
     additional_allowances: entry.additionalAllowances ?? [],
     deductions:            entry.deductions ?? [],
     excluded:              entry.excluded ?? false,
+    // WPS tracking (Feature 9)
+    wps_payment_status:    entry.wpsPaymentStatus   ?? 'pending',
+    wps_rejection_reason:  entry.wpsRejectionReason ?? '',
   };
+}
+
+// ─── WPS TRACKING ────────────────────────────────────────────────────────────
+
+/**
+ * Updates only the WPS tracking fields on a payroll run — avoids re-saving all
+ * entries (safe to call while PayrollEditor is open).
+ */
+export async function saveWpsTracking(payrollId, { wpsStatus, wpsSubmittedAt, wpsConfirmedAt, wpsReferenceNo }) {
+  const { error } = await supabase
+    .from('payroll_runs')
+    .update({
+      wps_status:        wpsStatus,
+      wps_submitted_at:  wpsSubmittedAt  ?? null,
+      wps_confirmed_at:  wpsConfirmedAt  ?? null,
+      wps_reference_no:  wpsReferenceNo  ?? '',
+    })
+    .eq('id', payrollId);
+  if (error) throw error;
 }

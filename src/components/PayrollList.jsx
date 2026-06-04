@@ -307,6 +307,7 @@ export default function PayrollList({ onEdit }) {
                     <th>Total (AED)</th>
                     <th>Description</th>
                     <th>Status</th>
+                    <th>WPS</th>
                     <th>Run By</th>
                     <th>SIF Filename</th>
                     <th></th>
@@ -333,6 +334,14 @@ export default function PayrollList({ onEdit }) {
                           <span className={`badge ${p.status === 'generated' ? 'badge-green' : 'badge-yellow'}`}>
                             {p.status === 'generated' ? 'Generated' : 'Draft'}
                           </span>
+                        </td>
+                        <td>
+                          {p.status === 'generated' && (() => {
+                            const wps = p.wpsStatus ?? 'draft';
+                            const badges = { draft:'badge-yellow', sif_generated:'badge-blue', submitted:'badge-amber', confirmed:'badge-green', partial_rejection:'badge-amber', failed:'badge-red' };
+                            const labels = { draft:'Not Submitted', sif_generated:'SIF Ready', submitted:'Submitted', confirmed:'Confirmed', partial_rejection:'Partial Reject', failed:'Failed' };
+                            return <span className={`badge ${badges[wps] ?? 'badge-yellow'}`} style={{ fontSize:11 }}>{labels[wps] ?? wps}</span>;
+                          })()}
                         </td>
                         <td className="text-muted text-sm">{p.runBy || '—'}</td>
                         <td className="font-mono text-sm text-muted">{filename}</td>

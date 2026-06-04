@@ -483,6 +483,7 @@ export default function Dashboard({ onNavigate }) {
                     <th>Employees</th>
                     <th>Total (AED)</th>
                     <th>Status</th>
+                    <th>WPS</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -504,6 +505,16 @@ export default function Dashboard({ onNavigate }) {
                           <span className={`badge ${p.status === 'generated' ? 'badge-green' : 'badge-yellow'}`}>
                             {p.status === 'generated' ? 'Generated' : 'Draft'}
                           </span>
+                        </td>
+                        <td>
+                          {p.status === 'generated' && (() => {
+                            const wps = p.wpsStatus ?? 'draft';
+                            const badges = { draft:'badge-yellow', sif_generated:'badge-blue', submitted:'badge-amber', confirmed:'badge-green', partial_rejection:'badge-amber', failed:'badge-red' };
+                            const labels = { draft:'—', sif_generated:'SIF Ready', submitted:'Submitted', confirmed:'Confirmed', partial_rejection:'Partial Reject', failed:'Failed' };
+                            return wps !== 'draft'
+                              ? <span className={`badge ${badges[wps]}`} style={{ fontSize:11 }}>{labels[wps]}</span>
+                              : <span style={{ color:'var(--gray-400)', fontSize:12 }}>—</span>;
+                          })()}
                         </td>
                       </tr>
                     );

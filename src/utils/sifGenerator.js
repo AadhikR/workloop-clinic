@@ -132,6 +132,29 @@ export function generateSIFFilename(company, payroll) {
   return `${molId}${dateStr}${timeStr}.sif`;
 }
 
+/**
+ * Generates a corrected SIF file containing ONLY the rejected employees.
+ * Used by the WPS Tracking panel (Feature 9) when some payments were rejected by
+ * the bank and need to be re-submitted.
+ *
+ * @param {object}   company             — company object (same shape as generateSIF)
+ * @param {object[]} employees           — full employee list
+ * @param {object}   payroll             — the original locked payroll run
+ * @param {string[]} rejectedEmployeeIds — array of employee.id values to include
+ */
+export function generateCorrectedSIF(company, employees, payroll, rejectedEmployeeIds) {
+  const rejectedSet = new Set(rejectedEmployeeIds);
+  const correctedPayroll = {
+    ...payroll,
+    entries: payroll.entries.map(e => ({
+      ...e,
+      // Exclude everyone NOT in the rejected list
+      excluded: e.excluded || !rejectedSet.has(e.employeeId),
+    })),
+  };
+  return generateSIF(company, employees, correctedPayroll);
+}
+
 export function parseSIFPreview(sifContent) {
   // Normalise both CRLF and LF so the preview works on files generated before the fix too
   return sifContent.split(/\r?\n/).filter(l => l.trim()).map(line => {

@@ -174,7 +174,7 @@ There is no visual calendar showing who is on leave on which dates. HR and manag
 
 ---
 
-### 8. Shift Scheduling & Roster
+### 8. ✓ COMPLETED — Shift Scheduling & Roster
 
 **What it is:**
 Attendance tracking exists but shift configuration is minimal. Retail, hospitality, healthcare, and logistics SMEs need visual roster management.
@@ -198,7 +198,7 @@ Attendance tracking exists but shift configuration is minimal. Retail, hospitali
 
 ---
 
-### 9. WPS Payment Confirmation & Reconciliation
+### 9. ✓ COMPLETED — WPS Payment Confirmation & Reconciliation
 
 **What it is:**
 The app generates SIF files and the workflow ends there. There is no tracking of whether the bank processed the payment or if any rejections came back from the WPS system.
