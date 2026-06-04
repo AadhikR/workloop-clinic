@@ -1,24 +1,14 @@
 /**
  * reports.spec.js — Playwright tests for Feature 10: HR Reporting & Analytics
  *
- * Covers:
- *   Navigation:
- *     - "Reports" nav item appears in the admin sidebar
- *     - Clicking it loads the Reports page
- *
- *   Report tabs — each tab renders without error:
- *     - Headcount tab: stat cards visible
- *     - Payroll Cost tab: either table or empty state
- *     - Leave Usage tab: year selector visible
- *     - Attendance tab: period selector visible
- *     - Doc Expiry tab: days filter selector visible
- *     - Salary History tab: date range inputs visible
- *     - Staff Turnover tab: date range inputs visible
- *
- *   Export buttons:
- *     - Each tab has Export CSV and Export PDF buttons
- *
- * All tests use storageState scoped inside the describe block.
+ * Selector pattern for tab buttons:
+ *   The tab buttons render as <button><Icon aria-hidden /> Label</button>.
+ *   The raw textContent is " Label" (leading space from SVG sibling), so
+ *   /^Label$/i anchored-regex selectors fail.  Instead we use:
+ *     page.locator('.page-body').getByRole('button', { name: label })
+ *   which uses the WAI-ARIA accessible name — excludes aria-hidden SVGs,
+ *   normalises whitespace — and is scoped to .page-body to avoid matching
+ *   sidebar nav buttons (e.g. sidebar "Attendance" vs tab "Attendance").
  */
 import { test, expect } from '@playwright/test';
 
@@ -30,8 +20,14 @@ test.describe('Reports — HR Reporting & Analytics', () => {
     await expect(page.locator('.sidebar-logo')).toBeVisible({ timeout: 10000 });
     await page.locator('.sidebar-nav').getByRole('button', { name: 'Reports' }).click();
     await page.waitForLoadState('networkidle');
-    // Wait for loading to finish
+    // Wait for data load — h2 only renders after loading === false
     await expect(page.locator('h2').filter({ hasText: /HR Reports/i })).toBeVisible({ timeout: 12000 });
+  }
+
+  // Helper: click a Reports tab button scoped to .page-body
+  async function clickTab(page, label) {
+    await page.locator('.page-body').getByRole('button', { name: label, exact: true }).click();
+    await page.waitForTimeout(300); // let React re-render the tab content
   }
 
   // ── Navigation ───────────────────────────────────────────────────────────────
@@ -49,17 +45,17 @@ test.describe('Reports — HR Reporting & Analytics', () => {
 
     const tabLabels = ['Headcount', 'Payroll Cost', 'Leave Usage', 'Attendance', 'Doc Expiry', 'Salary History', 'Staff Turnover'];
     for (const label of tabLabels) {
+      // Scoped to .page-body to avoid matching sidebar nav buttons
       await expect(
-        page.locator('button').filter({ hasText: new RegExp(`^${label}$`, 'i') }).first()
-      ).toBeVisible({ timeout: 5000 });
+        page.locator('.page-body').getByRole('button', { name: label, exact: true })
+      ).toBeVisible({ timeout: 6000 });
     }
   });
 
-  // ── Headcount tab ─────────────────────────────────────────────────────────────
+  // ── Headcount tab (default — no click needed) ─────────────────────────────
 
   test('Headcount tab shows stat cards with employee totals', async ({ page }) => {
     await goToReports(page);
-    // Headcount is the default tab
     await expect(
       page.locator('.stat-card').filter({ hasText: /Total Active Employees/i })
     ).toBeVisible({ timeout: 8000 });
@@ -78,24 +74,24 @@ test.describe('Reports — HR Reporting & Analytics', () => {
 
   test('Payroll Cost tab renders without error', async ({ page }) => {
     await goToReports(page);
-    await page.locator('button').filter({ hasText: /^Payroll Cost$/i }).first().click();
-    await page.waitForLoadState('networkidle');
+    await clickTab(page, 'Payroll Cost');
 
-    // Either a table or an empty state should appear
-    const table    = page.locator('table').first();
-    const empty    = page.locator('.empty-state').first();
-    await expect(table.or(empty)).toBeVisible({ timeout: 8000 });
+    // Either a table (if payrolls exist) or an empty state should appear
+    const table = page.locator('.card table').first();
+    const empty = page.locator('.empty-state').first();
+    await expect(table.or(empty).first()).toBeVisible({ timeout: 8000 });
   });
 
   // ── Leave Usage tab ───────────────────────────────────────────────────────────
 
   test('Leave Usage tab shows year selector', async ({ page }) => {
     await goToReports(page);
-    await page.locator('button').filter({ hasText: /^Leave Usage$/i }).first().click();
+    await clickTab(page, 'Leave Usage');
 
-    await expect(page.locator('select').first()).toBeVisible({ timeout: 6000 });
-    // Check the selector has year options
-    const opts = await page.locator('select').first().locator('option').allTextContents();
+    // The year <select> is the first select in .page-body after switching tab
+    const sel = page.locator('.page-body select').first();
+    await expect(sel).toBeVisible({ timeout: 6000 });
+    const opts = await sel.locator('option').allTextContents();
     expect(opts.length).toBeGreaterThanOrEqual(1);
   });
 
@@ -103,7 +99,8 @@ test.describe('Reports — HR Reporting & Analytics', () => {
 
   test('Attendance tab shows period month input', async ({ page }) => {
     await goToReports(page);
-    await page.locator('button').filter({ hasText: /^Attendance$/i }).first().click();
+    // Use scoped clickTab to avoid clicking the sidebar "Attendance" nav button
+    await clickTab(page, 'Attendance');
 
     await expect(page.locator('input[type="month"]')).toBeVisible({ timeout: 6000 });
   });
@@ -112,9 +109,9 @@ test.describe('Reports — HR Reporting & Analytics', () => {
 
   test('Doc Expiry tab shows days-threshold selector', async ({ page }) => {
     await goToReports(page);
-    await page.locator('button').filter({ hasText: /^Doc Expiry$/i }).first().click();
+    await clickTab(page, 'Doc Expiry');
 
-    const sel = page.locator('select').first();
+    const sel = page.locator('.page-body select').first();
     await expect(sel).toBeVisible({ timeout: 6000 });
     const opts = await sel.locator('option').allTextContents();
     expect(opts.some(o => /30 days/i.test(o))).toBe(true);
@@ -125,9 +122,9 @@ test.describe('Reports — HR Reporting & Analytics', () => {
 
   test('Salary History tab shows date range inputs', async ({ page }) => {
     await goToReports(page);
-    await page.locator('button').filter({ hasText: /^Salary History$/i }).first().click();
+    await clickTab(page, 'Salary History');
 
-    const dateInputs = page.locator('input[type="date"]');
+    const dateInputs = page.locator('.page-body input[type="date"]');
     await expect(dateInputs.first()).toBeVisible({ timeout: 6000 });
     expect(await dateInputs.count()).toBeGreaterThanOrEqual(2);
   });
@@ -136,11 +133,10 @@ test.describe('Reports — HR Reporting & Analytics', () => {
 
   test('Staff Turnover tab shows stat cards and date range inputs', async ({ page }) => {
     await goToReports(page);
-    await page.locator('button').filter({ hasText: /^Staff Turnover$/i }).first().click();
+    await clickTab(page, 'Staff Turnover');
 
     await expect(page.locator('.stat-card').filter({ hasText: /Joiners/i })).toBeVisible({ timeout: 6000 });
     await expect(page.locator('.stat-card').filter({ hasText: /Leavers/i })).toBeVisible({ timeout: 5000 });
-    const dateInputs = page.locator('input[type="date"]');
-    await expect(dateInputs.first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('.page-body input[type="date"]').first()).toBeVisible({ timeout: 5000 });
   });
 });
