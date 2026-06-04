@@ -135,8 +135,9 @@ test.describe('Reports — HR Reporting & Analytics', () => {
     await goToReports(page);
     await clickTab(page, 'Staff Turnover');
 
-    await expect(page.locator('.stat-card').filter({ hasText: /Joiners/i })).toBeVisible({ timeout: 6000 });
-    await expect(page.locator('.stat-card').filter({ hasText: /Leavers/i })).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('.stat-card').filter({ has: page.locator('.stat-label', { hasText: /^Joiners$/i }) })).toBeVisible({ timeout: 6000 });
+    // Use .stat-label scope to avoid matching "Avg. Tenure (Leavers)" card
+    await expect(page.locator('.stat-card').filter({ has: page.locator('.stat-label', { hasText: /^Leavers$/i }) })).toBeVisible({ timeout: 5000 });
     await expect(page.locator('.page-body input[type="date"]').first()).toBeVisible({ timeout: 5000 });
   });
 });
