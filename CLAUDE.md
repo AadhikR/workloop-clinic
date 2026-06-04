@@ -21,8 +21,8 @@ npm run test:employees          # Employee CRUD only
 npm run test:payroll            # Payroll flows only
 npm run test:report             # Open HTML report from last run
 
-# Run all feature specs
-npx playwright test emiratization documents insurance notifications advances multi-level-leave leave-calendar shift-roster
+# Run all feature specs (1–11)
+npx playwright test emiratization documents insurance notifications advances multi-level-leave leave-calendar shift-roster wps reports probation
 
 # Run a single feature spec
 npx playwright test emiratization          # Feature 1 — Emiratization / Nafis
@@ -132,6 +132,16 @@ await page.getByRole('button', { name: 'Attendance' }).click();
 ```
 After a `page.reload()` the employee portal resets to the `home` tab (initial React state). If a test navigates to a tab, reloads, and then checks content in that tab — it must navigate back to the tab after reload.
 
+**Tab buttons with icons — use `getByRole` not `hasText` regex with anchors**: Buttons that render `<Icon aria-hidden="true" /> {label}` have a raw `textContent` of `" Label"` (leading space from the JSX text node). The regex `/^Label$/i` requires the string to start with the label character, so it never matches. Use `getByRole('button', { name: label, exact: true })` instead — it computes the WAI-ARIA accessible name which excludes `aria-hidden` SVGs and normalises whitespace. Always scope to a container (e.g. `.page-body`) to avoid matching same-named sidebar nav buttons:
+```js
+// ✅ Accessible name — excludes aria-hidden icon, normalised text
+page.locator('.page-body').getByRole('button', { name: 'Payroll Cost', exact: true }).click();
+
+// ❌ Raw textContent has leading space — /^Payroll Cost$/i never matches
+page.locator('button').filter({ hasText: /^Payroll Cost$/i }).first().click();
+```
+This pattern is used in `reports.spec.js` for all Reports tab buttons. The same issue applies anywhere buttons contain a Lucide icon + text without a wrapping span.
+
 **`<option>` elements are "hidden" in Playwright**: Playwright's `toBeVisible()` returns `false` for `<option>` elements because they are not directly rendered — only the `<select>` parent is visible. To assert that a `<select>` contains specific placeholder text, check the `<select>` element itself: `page.locator('select').filter({ has: page.locator('option').filter({ hasText: /placeholder/i }) })`. Never call `.toBeVisible()` directly on an `<option>` locator.
 
 ## Environment
@@ -212,7 +222,7 @@ All DB access goes through utility modules — components never call `supabase` 
 ### Supabase schema (key tables)
 
 - `companies` — one row per admin user (`user_id = auth.uid()`). New columns: `sector TEXT`, `nafis_quota_percent DECIMAL(5,2)` (Emiratization tracking).
-- `employees` — all employees for a company; `auth_user_id` set when employee links their account; `user_id` = the admin's UUID; `work_email` is always stored lowercase. Several columns are NOT NULL (including `mol_id`, `emp_no`, `name`, `bank_name`, `bank_routing_code`, `iban`) — always pass `''` as default, never omit them in raw inserts. New column: `nafis_registration_no TEXT` (UAE nationals only).
+- `employees` — all employees for a company; `auth_user_id` set when employee links their account; `user_id` = the admin's UUID; `work_email` is always stored lowercase. Several columns are NOT NULL (including `mol_id`, `emp_no`, `name`, `bank_name`, `bank_routing_code`, `iban`) — always pass `''` as default, never omit them in raw inserts. New columns: `nafis_registration_no TEXT` (UAE nationals only); `probation_extended BOOLEAN DEFAULT false` (set to true when admin extends the probation period).
 - `user_profiles` — `role` ('admin'|'employee'|'manager'), `company_user_id`, `employee_id`; RLS restricts each user to their own row. Admins can change an employee's role to 'manager' via `admin_set_employee_portal_role` RPC (requires the employee to have activated their portal first)
 - `payroll_runs` + `payroll_entries` — payroll run header + one row per employee
 - `payslips` — snapshot of each employee's pay per period; created when admin downloads SIF (`createPayslipRecords`)
@@ -370,6 +380,8 @@ The **Save button is hidden** on both the Documents and Insurance tabs — each 
 **EmployeeModal Portal Role control (Feature 6)**: In the Job & Contract tab, a "Portal Role" `<select>` dropdown appears **only** when `employee?.id && employee?.authUserId` (existing employee with activated portal). Options: Employee / Manager. Changing the select immediately calls `setEmployeePortalRole(employee.id, newRole)` (RPC call — not part of the main Save flow). Current role is loaded via `getEmployeePortalRole(employee.id)` in a `useEffect` that fires when `tab === 'job' && employee?.authUserId` changes. Success/error feedback shown inline via `portalRoleOk` / `portalRoleErr` state.
 
 **EndOfServiceScreen advance auto-load**: A `useEffect` fires on `employee.id` and calls `getAdvances(employee.id)`, sums `outstandingBalance` across all `active` advances, and pre-populates the "Outstanding Salary Advances" input. The field hint changes to "Auto-loaded from Advances module. Edit to override." once loaded (`advancesLoaded` state). The field remains editable so the admin can manually correct the figure.
+
+**Probation Period Management (Feature 11)**: `EmployeeManager` shows a blue `UserCheck` icon button in the row actions for any employee with `employmentStatus === 'Probation'`. Clicking it opens `ProbationModal` (defined in `EmployeeManager.jsx`) with three modes: **Confirm Active** (sets status Active, clears `probationEndDate`, logs `probation_confirmed` job history), **Extend** (date picker → sets `probationExtended: true`, logs `probation_extended`), **Terminate** (shows UAE 14-day notice warning, calls `archiveEmployee`, logs `probation_terminated`). Modal shows days remaining/overdue from current end date. `Dashboard.jsx` computes `probationEnding` — employees in Probation status with `probationEndDate ≤ 14 days away` — and shows an amber alert card with a "Manage in Employees" link. `generateExpiryNotifications` in `notificationStorage.js` creates `probation_ending` in-app notifications at 14d and 7d thresholds using the same `ON CONFLICT DO NOTHING` deduplication pattern as other expiry alerts.
 
 **LeaveManager Calendar tab (Feature 7)**: `LeaveManager` has a third "Calendar" tab (after Requests and Balances/Settings). It renders a monthly grid showing all approved leave colour-coded by leave type. State: `calendarMonth` (Date), `calendarDeptFilter` (string). Navigation uses chevron buttons to step months; a department `<select>` filters which employees appear. A print button calls `window.print()` against a `#calendar-print-area` div. Data comes from the same `requests` array already loaded by `loadAll()` — no extra fetch. `getApprovedLeavesForMonth(year, month)` in `leaveStorage.js` is available but the Calendar tab reads from in-memory state, not a fresh query.
 
