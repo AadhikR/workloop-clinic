@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, Component } from 'react';
 import {
   Users, Plus, Trash2, X, Upload, AlertCircle, Search,
-  FileDown, Info, Download, History, AlertTriangle, Calculator
+  FileDown, Info, Download, History, AlertTriangle, Calculator,
+  UserCheck, CalendarClock
 } from 'lucide-react';
 import { getEmployees, saveEmployee, saveEmployees, archiveEmployee, getJobHistory, addJobHistoryEntry } from '../utils/storage';
 import { parseCSV, readFileAsText } from '../utils/csvImport';
@@ -293,6 +294,112 @@ class EmpErrorBoundary extends Component {
 }
 
 // ── Main EmployeeManager ─────────────────────────────────────────────────────
+// ── ProbationModal (Feature 11) ───────────────────────────────────────────────
+function ProbationModal({ employee, onClose, onConfirm, onExtend, onTerminate }) {
+  const [mode, setMode]         = useState(null); // null | 'extend' | 'terminate'
+  const [newEndDate, setNewEndDate] = useState('');
+  const [busy, setBusy]         = useState(false);
+
+  const today = new Date();
+  const days  = employee.probationEndDate
+    ? Math.ceil((new Date(employee.probationEndDate) - today) / 86400000)
+    : null;
+
+  const act = async (fn) => {
+    setBusy(true);
+    try { await fn(); } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal" style={{ maxWidth: 460 }}>
+        <div className="modal-header">
+          <h3><UserCheck size={16} style={{ marginRight: 6 }} />Probation Actions</h3>
+          <button className="btn btn-ghost btn-icon" onClick={onClose}><X size={18}/></button>
+        </div>
+        <div className="modal-body">
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--gray-900)' }}>{employee.name}</div>
+            <div style={{ fontSize: 13, color: 'var(--gray-500)', marginTop: 2 }}>{employee.jobTitle || 'Employee'}{employee.department ? ` · ${employee.department}` : ''}</div>
+            {employee.probationEndDate && (
+              <div style={{ marginTop: 10, padding: '8px 12px', background: days !== null && days <= 0 ? 'var(--danger-light)' : 'var(--warning-light, #fffbeb)', borderRadius: 8, fontSize: 13 }}>
+                <CalendarClock size={13} style={{ marginRight: 5, display: 'inline' }} />
+                Probation ends: <strong>{employee.probationEndDate}</strong>
+                {days !== null && (
+                  <span style={{ marginLeft: 8, fontWeight: 700, color: days <= 0 ? 'var(--danger)' : days <= 7 ? 'var(--warning)' : 'var(--gray-600)' }}>
+                    {days < 0 ? `(${Math.abs(days)}d overdue)` : days === 0 ? '(ends today)' : `(${days}d remaining)`}
+                  </span>
+                )}
+                {employee.probationExtended && <span className="badge badge-amber" style={{ marginLeft: 8, fontSize: 10 }}>Extended</span>}
+              </div>
+            )}
+          </div>
+
+          {mode === 'extend' && (
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label>New Probation End Date</label>
+              <input
+                className="form-control"
+                type="date"
+                value={newEndDate}
+                min={new Date().toISOString().slice(0, 10)}
+                onChange={e => setNewEndDate(e.target.value)}
+                autoFocus
+              />
+            </div>
+          )}
+
+          {mode === 'terminate' && (
+            <div className="alert alert-danger" style={{ borderRadius: 10 }}>
+              <AlertTriangle size={14} />
+              <div>
+                <strong>Terminate employment?</strong><br/>
+                <span style={{ fontSize: 13 }}>
+                  Under UAE Labour Law, employees on probation can be terminated with 14 days' notice. This will archive the employee record and cannot be undone.
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="modal-footer" style={{ justifyContent: 'space-between' }}>
+          {mode === null && (
+            <>
+              <button className="btn btn-outline btn-sm" onClick={onClose}>Cancel</button>
+              <div className="flex gap-2">
+                <button className="btn btn-outline btn-sm" style={{ color: 'var(--warning)' }} onClick={() => setMode('extend')}>
+                  <CalendarClock size={13} /> Extend
+                </button>
+                <button className="btn btn-outline btn-sm text-danger" onClick={() => setMode('terminate')}>
+                  <Trash2 size={13} /> Terminate
+                </button>
+                <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => act(onConfirm)}>
+                  <UserCheck size={13} /> {busy ? 'Saving…' : 'Confirm Active'}
+                </button>
+              </div>
+            </>
+          )}
+          {mode === 'extend' && (
+            <>
+              <button className="btn btn-outline btn-sm" onClick={() => setMode(null)}>Back</button>
+              <button className="btn btn-primary btn-sm" disabled={!newEndDate || busy} onClick={() => act(() => onExtend(newEndDate))}>
+                <CalendarClock size={13} /> {busy ? 'Saving…' : 'Save Extension'}
+              </button>
+            </>
+          )}
+          {mode === 'terminate' && (
+            <>
+              <button className="btn btn-outline btn-sm" onClick={() => setMode(null)}>Back</button>
+              <button className="btn btn-danger btn-sm" disabled={busy} onClick={() => act(onTerminate)}>
+                <Trash2 size={13} /> {busy ? 'Terminating…' : 'Confirm Terminate'}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EmployeeManagerInner() {
   const [employees, setEmployees]         = useState([]);
   const [loading, setLoading]             = useState(true);
@@ -307,6 +414,7 @@ function EmployeeManagerInner() {
   const [showFormatGuide, setShowFormatGuide] = useState(false);
   const [historyEmp, setHistoryEmp]       = useState(null);
   const [eosEmp, setEosEmp]               = useState(null); // end-of-service screen
+  const [probationEmp, setProbationEmp]   = useState(null); // probation actions modal
   const [activeTab, setActiveTab]         = useState('list'); // 'list' | 'expiry'
   const fileRef = useRef();
 
@@ -617,6 +725,16 @@ function EmployeeManagerInner() {
                                 >
                                   <Calculator size={13}/>
                                 </button>
+                                {emp.employmentStatus === 'Probation' && (
+                                  <button
+                                    className="btn btn-ghost btn-icon btn-sm"
+                                    title="Probation actions"
+                                    style={{ color: 'var(--primary)' }}
+                                    onClick={() => setProbationEmp(emp)}
+                                  >
+                                    <UserCheck size={13}/>
+                                  </button>
+                                )}
                                 <button
                                   className="btn btn-ghost btn-icon btn-sm text-danger"
                                   title="Delete employee"
@@ -669,6 +787,34 @@ function EmployeeManagerInner() {
         <EndOfServiceScreen
           employee={eosEmp}
           onClose={() => setEosEmp(null)}
+        />
+      )}
+
+      {/* Probation Actions Modal (Feature 11) */}
+      {probationEmp && (
+        <ProbationModal
+          employee={probationEmp}
+          onClose={() => setProbationEmp(null)}
+          onConfirm={async () => {
+            const updated = { ...probationEmp, employmentStatus: 'Active', probationEndDate: '' };
+            await saveEmployee(updated);
+            await addJobHistoryEntry(probationEmp.id, 'probation_confirmed', 'Probation', 'Active', 'Probation period confirmed — employee moved to Active');
+            setEmployees(prev => prev.map(e => e.id === probationEmp.id ? updated : e));
+            setProbationEmp(null);
+          }}
+          onExtend={async (newEndDate) => {
+            const updated = { ...probationEmp, probationEndDate: newEndDate, probationExtended: true };
+            await saveEmployee(updated);
+            await addJobHistoryEntry(probationEmp.id, 'probation_extended', probationEmp.probationEndDate || '—', newEndDate, 'Probation period extended');
+            setEmployees(prev => prev.map(e => e.id === probationEmp.id ? updated : e));
+            setProbationEmp(null);
+          }}
+          onTerminate={async () => {
+            await archiveEmployee(probationEmp.id);
+            await addJobHistoryEntry(probationEmp.id, 'probation_terminated', 'Probation', 'Terminated', 'Probation not passed — employment terminated');
+            setEmployees(prev => prev.map(e => e.id === probationEmp.id ? { ...e, active: false, employmentStatus: 'Terminated' } : e));
+            setProbationEmp(null);
+          }}
         />
       )}
 

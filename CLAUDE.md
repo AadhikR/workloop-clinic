@@ -35,6 +35,7 @@ npx playwright test leave-calendar        # Feature 7 — Leave Calendar & Team 
 npx playwright test shift-roster          # Feature 8 — Shift Scheduling & Roster
 npx playwright test wps                   # Feature 9 — WPS Payment Confirmation
 npx playwright test reports               # Feature 10 — HR Reports & Analytics
+npx playwright test probation             # Feature 11 — Probation Period Management
 
 # Run tests matching a name pattern across all files
 npx playwright test --grep "bell icon"

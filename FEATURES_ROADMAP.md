@@ -250,7 +250,7 @@ Reports module (new nav section) with the following reports, each exportable to 
 
 ---
 
-### 11. Probation Period Management
+### 11. ✓ COMPLETED — Probation Period Management
 
 **What it is:**
 `probationEndDate` exists on employees but is completely inert. UAE law allows 14-day notice termination during probation — and HR needs to act when probation ends.

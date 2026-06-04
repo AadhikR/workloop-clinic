@@ -80,6 +80,18 @@ export default function Dashboard({ onNavigate }) {
   const wpsDeadlineWarning  = !prevPayroll && daysPastDue >= 0  && activeEmps.length > 0;
   const wpsDeadlineCritical = !prevPayroll && daysPastDue >= 10 && activeEmps.length > 0;
 
+  // ── Probation ending alert (Feature 11) ────────────────────────────────────
+  const todayStr = today.toISOString().slice(0, 10);
+  const probationEnding = employees.filter(emp => {
+    if (emp.employmentStatus !== 'Probation') return false;
+    if (!emp.probationEndDate) return false;
+    const days = Math.ceil((new Date(emp.probationEndDate) - today) / 86400000);
+    return days <= 14; // includes already-expired
+  }).map(emp => ({
+    emp,
+    days: Math.ceil((new Date(emp.probationEndDate) - today) / 86400000),
+  })).sort((a, b) => a.days - b.days);
+
   // ── Document expiry summary (next 30 days) ──────────────────────────────────
   const docWarnings = [];
   employees.forEach(emp => {
@@ -189,6 +201,28 @@ export default function Dashboard({ onNavigate }) {
               <button className="btn btn-ghost btn-sm" style={{ padding: '0 4px', textDecoration: 'underline' }}
                 onClick={() => onNavigate('payroll')}>
                 Go to Payroll
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Probation ending alert (Feature 11) */}
+        {probationEnding.length > 0 && (
+          <div className="alert alert-warning mb-4">
+            <Clock size={16} />
+            <div>
+              <strong>{probationEnding.length} employee{probationEnding.length !== 1 ? 's' : ''} on probation ending soon:</strong>{' '}
+              {probationEnding.map(({ emp, days }, i) => (
+                <span key={emp.id}>
+                  {i > 0 && ', '}
+                  <strong>{emp.name}</strong>
+                  {' '}({days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? 'ends today' : `${days}d`})
+                </span>
+              ))}
+              {'. '}
+              <button className="btn btn-ghost btn-sm" style={{ padding: '0 4px', textDecoration: 'underline' }}
+                onClick={() => onNavigate('employees')}>
+                Manage in Employees
               </button>
             </div>
           </div>

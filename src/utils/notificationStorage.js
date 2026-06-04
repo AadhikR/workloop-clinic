@@ -182,6 +182,22 @@ export async function generateExpiryNotifications(employees, _company, insurance
     });
   });
 
+  // ── Probation ending soon (Feature 11) ──
+  (employees || [])
+    .filter(e => e.employmentStatus === 'Probation' && e.active !== false && e.probationEndDate)
+    .forEach(emp => {
+      const days = Math.ceil((new Date(emp.probationEndDate) - today) / (1000 * 60 * 60 * 24));
+      if (days < 0 || days > 14) return;
+      const thr = days <= 7 ? 7 : 14;
+      notifs.push({
+        type:               'probation_ending',
+        title:              `Probation ending soon — ${emp.name}`,
+        body:               `${emp.name}'s probation period ends in ${days} day${days !== 1 ? 's' : ''} (${emp.probationEndDate}). Confirm, extend, or terminate.`,
+        relatedEntityType:  'employee',
+        relatedEntityId:    `${emp.id}_probation_${thr}d`,
+      });
+    });
+
   // ── Insurance policy renewal ──
   (insurancePolicies || []).forEach(pol => {
     if (!pol.renewalDate) return;

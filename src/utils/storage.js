@@ -970,6 +970,7 @@ function dbToEmployee(row) {
     startDate:              row.employment_start_date ?? '',
     employmentStartDate:    row.employment_start_date ?? '',
     probationEndDate:       row.probation_end_date ?? '',
+    probationExtended:      row.probation_extended ?? false,
     contractType:           row.contract_type ?? 'Unlimited',
     contractEndDate:        row.contract_end_date ?? '',
     employmentStatus:       row.employment_status ?? 'Active',
@@ -1041,6 +1042,7 @@ function employeeToDb(emp, userId) {
     // Employment
     employment_start_date: emp.startDate || emp.employmentStartDate || null,
     probation_end_date:    emp.probationEndDate || null,
+    probation_extended:    emp.probationExtended ?? false,
     contract_type:         emp.contractType ?? 'Unlimited',
     contract_end_date:     emp.contractEndDate || null,
     employment_status:     emp.employmentStatus ?? 'Active',
