@@ -408,6 +408,40 @@ export async function getEmployeeDocuments(employeeId) {
 }
 
 /**
+ * Returns ALL employee documents across all employees — no signed URLs generated
+ * (used by the Document Expiry report where links aren't needed).
+ */
+export async function getAllEmployeeDocuments() {
+  const { data, error } = await supabase
+    .from('employee_documents')
+    .select('*')
+    .order('expiry_date', { ascending: true });
+  if (error) { console.error('getAllEmployeeDocuments:', error); return []; }
+  return (data || []).map(dbToDocument);
+}
+
+/**
+ * Returns job history entries for ALL employees (used by the Salary Movement report).
+ */
+export async function getAllJobHistory() {
+  const { data, error } = await supabase
+    .from('employee_job_history')
+    .select('*')
+    .order('changed_at', { ascending: false });
+  if (error) { console.error('getAllJobHistory:', error); return []; }
+  return (data || []).map(row => ({
+    id:         row.id,
+    employeeId: row.employee_id,
+    changedAt:  row.changed_at,
+    changedBy:  row.changed_by,
+    changeType: row.change_type,
+    oldValue:   row.old_value,
+    newValue:   row.new_value,
+    reason:     row.reason,
+  }));
+}
+
+/**
  * Uploads a file to Supabase Storage and saves its metadata to employee_documents.
  * Returns the saved document record (with signedUrl populated).
  */
