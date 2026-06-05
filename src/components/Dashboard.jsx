@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Building2, Users, FileText, CheckCircle, AlertCircle, ArrowRight, Clock, ShieldAlert, ShieldCheck, Heart } from 'lucide-react';
 import { getCompany, getEmployees, getPayrolls, getInsurancePolicies, getAllEmployeeInsurance } from '../utils/storage';
+import { getAllCertifications } from '../utils/trainingStorage';
 import { generateExpiryNotifications } from '../utils/notificationStorage';
 import NafisReportModal from './NafisReportModal';
 
@@ -12,20 +13,23 @@ export default function Dashboard({ onNavigate }) {
   const [showNafisReport, setShowNafisReport] = useState(false);
   const [insurancePolicies, setInsurancePolicies] = useState([]);
   const [allEmpInsurance, setAllEmpInsurance]     = useState([]);
+  const [allCertifications, setAllCertifications] = useState([]);
 
   useEffect(() => {
     Promise.all([
       getCompany(), getEmployees(), getPayrolls(),
       getInsurancePolicies(), getAllEmployeeInsurance(),
-    ]).then(([co, emps, pays, pols, empIns]) => {
+      getAllCertifications().catch(() => []),
+    ]).then(([co, emps, pays, pols, empIns, certs]) => {
       setCompany(co);
       setEmployees(emps);
       setPayrolls(pays);
       setInsurancePolicies(pols);
       setAllEmpInsurance(empIns);
+      setAllCertifications(certs || []);
       setLoading(false);
       // Silently generate persistent expiry notifications (ON CONFLICT DO NOTHING)
-      generateExpiryNotifications(emps, co, pols, empIns).catch(() => {});
+      generateExpiryNotifications(emps, co, pols, empIns, certs || []).catch(() => {});
     });
   }, []);
 
@@ -41,7 +45,9 @@ export default function Dashboard({ onNavigate }) {
   const nafisCompliant  = nafisRatio >= nafisRequired;
   const nafisGap        = Math.max(0, Math.ceil((nafisRequired / 100) * totalHeadcount) - emiratiCount);
   const nafisFine       = nafisGap * 6000;
-  const draftRuns     = payrolls.filter(p => p.status !== 'generated');
+  const draftRuns          = payrolls.filter(p => p.status !== 'generated');
+  // Payroll Approval (Feature 17)
+  const pendingApprovalRuns = payrolls.filter(p => p.approvalStatus === 'pending_approval');
 
   const recentPayrolls = [...payrolls]
     .sort((a, b) => b.period.localeCompare(a.period))
@@ -90,6 +96,28 @@ export default function Dashboard({ onNavigate }) {
   }).map(emp => ({
     emp,
     days: Math.ceil((new Date(emp.probationEndDate) - today) / 86400000),
+  })).sort((a, b) => a.days - b.days);
+
+  // ── Contract expiry alert (Feature 12) ────────────────────────────────────
+  const contractExpiring = employees.filter(emp => {
+    if (emp.employmentStatus === 'Terminated') return false;
+    if (emp.contractType !== 'Limited') return false;
+    if (!emp.contractEndDate) return false;
+    const days = Math.ceil((new Date(emp.contractEndDate) - today) / 86400000);
+    return days <= 60;
+  }).map(emp => ({
+    emp,
+    days: Math.ceil((new Date(emp.contractEndDate) - today) / 86400000),
+  })).sort((a, b) => a.days - b.days);
+
+  // ── Certification expiry alert (Feature 19) ───────────────────────────────
+  const certExpiring = allCertifications.filter(cert => {
+    if (!cert.expiryDate) return false;
+    const days = Math.ceil((new Date(cert.expiryDate) - today) / 86400000);
+    return days >= 0 && days <= 60;
+  }).map(cert => ({
+    cert,
+    days: Math.ceil((new Date(cert.expiryDate) - today) / 86400000),
   })).sort((a, b) => a.days - b.days);
 
   // ── Document expiry summary (next 30 days) ──────────────────────────────────
@@ -206,6 +234,25 @@ export default function Dashboard({ onNavigate }) {
           </div>
         )}
 
+        {/* Payroll pending approval alert (Feature 17) */}
+        {pendingApprovalRuns.length > 0 && (
+          <div className="alert alert-info mb-4">
+            <AlertCircle size={16} />
+            <div>
+              <strong>{pendingApprovalRuns.length} payroll run{pendingApprovalRuns.length !== 1 ? 's' : ''} pending approval: </strong>
+              {pendingApprovalRuns.map((p, i) => {
+                const [y, m] = p.period.split('-').map(Number);
+                const mn = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m-1];
+                return <span key={p.id}>{i > 0 && ', '}<strong>{mn} {y}</strong></span>;
+              })}.{' '}
+              <button className="btn btn-ghost btn-sm" style={{ padding: '0 4px', textDecoration: 'underline' }}
+                onClick={() => onNavigate('payroll')}>
+                Review in Payroll
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Probation ending alert (Feature 11) */}
         {probationEnding.length > 0 && (
           <div className="alert alert-warning mb-4">
@@ -223,6 +270,52 @@ export default function Dashboard({ onNavigate }) {
               <button className="btn btn-ghost btn-sm" style={{ padding: '0 4px', textDecoration: 'underline' }}
                 onClick={() => onNavigate('employees')}>
                 Manage in Employees
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Contract expiry alert (Feature 12) */}
+        {contractExpiring.length > 0 && (
+          <div className="alert alert-warning mb-4">
+            <Clock size={16} />
+            <div>
+              <strong>{contractExpiring.length} limited contract{contractExpiring.length !== 1 ? 's' : ''} expiring within 60 days:</strong>{' '}
+              {contractExpiring.slice(0, 3).map(({ emp, days }, i) => (
+                <span key={emp.id}>
+                  {i > 0 && ', '}
+                  <strong>{emp.name}</strong>
+                  {' '}({days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? 'today' : `${days}d`})
+                </span>
+              ))}
+              {contractExpiring.length > 3 && ` and ${contractExpiring.length - 3} more.`}
+              {'. '}
+              <button className="btn btn-ghost btn-sm" style={{ padding: '0 4px', textDecoration: 'underline' }}
+                onClick={() => onNavigate('employees')}>
+                Manage in Employees
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Certification expiry alert (Feature 19) */}
+        {certExpiring.length > 0 && (
+          <div className="alert alert-warning mb-4">
+            <AlertCircle size={16} />
+            <div>
+              <strong>{certExpiring.length} certification{certExpiring.length !== 1 ? 's' : ''} expiring within 60 days: </strong>
+              {certExpiring.slice(0, 3).map(({ cert, days }, i) => (
+                <span key={cert.id}>
+                  {i > 0 && ', '}
+                  <strong>{cert.employeeName}</strong>{' '}
+                  ({cert.certificationName} — {days === 0 ? 'today' : `${days}d`})
+                </span>
+              ))}
+              {certExpiring.length > 3 && ` and ${certExpiring.length - 3} more.`}
+              {'. '}
+              <button className="btn btn-ghost btn-sm" style={{ padding: '0 4px', textDecoration: 'underline' }}
+                onClick={() => onNavigate('training')}>
+                View in Training
               </button>
             </div>
           </div>

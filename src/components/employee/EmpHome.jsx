@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { CalendarDays, Clock, FileText, ChevronRight, AlertCircle } from 'lucide-react';
+import { CalendarDays, Clock, FileText, ChevronRight, AlertCircle, Package } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { getMyEmployeeRecord, getMyPayslips } from '../../utils/profileStorage';
 import { getLeaveBalances, getLeaveRequests, getLeaveTypes } from '../../utils/leaveStorage';
 import { calculateAnnualLeaveAccrual } from '../../utils/leaveEngine';
 import { getAttendanceRecords } from '../../utils/attendanceStorage';
+import { getEmployeeCurrentAssets } from '../../utils/assetStorage';
 import { ATTENDANCE_STATUS, STATUS_LABELS, STATUS_COLORS } from '../../utils/attendanceEngine';
 
 const UAE_TZ_OFFSET = 4 * 60; // GMT+4 in minutes
@@ -35,6 +36,7 @@ export default function EmpHome({ onNavigate }) {
   const [requests, setRequests]     = useState([]);
   const [lastPayslip, setLastPayslip] = useState(null);
   const [todayRec, setTodayRec]     = useState(null);
+  const [myAssets, setMyAssets]     = useState([]);
   const [loading, setLoading]       = useState(true);
 
   useEffect(() => {
@@ -49,7 +51,8 @@ export default function EmpHome({ onNavigate }) {
       getMyPayslips(),
       getAttendanceRecords({ employeeId: profile.employeeId, dateFrom: today, dateTo: today }),
       getLeaveTypes(),
-    ]).then(([empRec, bal, reqs, slips, attRecs, lts]) => {
+      getEmployeeCurrentAssets(profile.employeeId).catch(() => []),
+    ]).then(([empRec, bal, reqs, slips, attRecs, lts, assets]) => {
       setEmp(empRec);
 
       let resolvedBal = bal;
@@ -78,6 +81,7 @@ export default function EmpHome({ onNavigate }) {
       setRequests(reqs.filter(r => r.status === 'Pending' || r.status === 'Approved'));
       setLastPayslip(slips[0] ?? null); // already sorted newest-first
       setTodayRec(attRecs[0] ?? null);
+      setMyAssets(assets || []);
       setLoading(false);
     });
   }, [profile?.employeeId]);
@@ -249,6 +253,47 @@ export default function EmpHome({ onNavigate }) {
             </div>
           );
         })()}
+
+        {/* My assigned assets (Feature 16) */}
+        {myAssets.length > 0 && (
+          <div className="emp-card" style={{ marginBottom: 16 }}>
+            <div style={{
+              padding: '12px 16px', borderBottom: '1px solid rgba(100,116,139,0.10)',
+              display: 'flex', alignItems: 'center', gap: 8,
+            }}>
+              <Package size={14} color="var(--primary)" />
+              <span style={{ fontWeight: 600, fontSize: 14 }}>My Assigned Assets</span>
+            </div>
+            {myAssets.map(a => (
+              <div key={a.assignmentId} style={{
+                padding: '10px 16px', borderBottom: '1px solid rgba(100,116,139,0.07)',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--gray-800)' }}>
+                    {a.name}
+                    {a.assetCode && (
+                      <span style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--gray-400)', marginLeft: 6 }}>
+                        {a.assetCode}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 1 }}>
+                    {[a.brand, a.model].filter(Boolean).join(' · ') || a.category}
+                    {' · '}Since {a.assignedDate}
+                  </div>
+                </div>
+                <span style={{
+                  fontSize: 11, padding: '2px 8px', borderRadius: 999,
+                  background: 'rgba(37,99,235,0.10)', color: 'var(--primary)',
+                  fontWeight: 500,
+                }}>
+                  {a.category?.replace('_', ' ')}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Recent leave requests */}
         {requests.length > 0 && (

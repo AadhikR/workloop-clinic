@@ -137,7 +137,7 @@ export async function createNotifications(notifs) {
  *   30d → fires again when ≤30 days remain
  *   14d → fires again when ≤14 days remain
  */
-export async function generateExpiryNotifications(employees, _company, insurancePolicies, allEmpInsurance) {
+export async function generateExpiryNotifications(employees, _company, insurancePolicies, allEmpInsurance, allCertifications = []) {
   const today = new Date();
   const notifs = [];
 
@@ -197,6 +197,38 @@ export async function generateExpiryNotifications(employees, _company, insurance
         relatedEntityId:    `${emp.id}_probation_${thr}d`,
       });
     });
+
+  // ── Contract expiry (Feature 12) ──
+  (employees || [])
+    .filter(e => e.contractType === 'Limited' && e.active !== false && e.contractEndDate && e.employmentStatus !== 'Terminated')
+    .forEach(emp => {
+      const days = Math.ceil((new Date(emp.contractEndDate) - today) / (1000 * 60 * 60 * 24));
+      if (days < 0 || days > 60) return;
+      const thr = days <= 7 ? 7 : days <= 14 ? 14 : days <= 30 ? 30 : 60;
+      notifs.push({
+        type:               'contract_expiry',
+        title:              `Contract expiring — ${emp.name}`,
+        body:               `${emp.name}'s limited contract expires in ${days} day${days !== 1 ? 's' : ''} (${emp.contractEndDate}). Renew, convert to unlimited, or begin offboarding.`,
+        relatedEntityType:  'employee',
+        relatedEntityId:    `${emp.id}_contract_${thr}d`,
+      });
+    });
+
+  // ── Certification expiry (Feature 19) ──
+  (allCertifications || []).forEach(cert => {
+    if (!cert.expiryDate) return;
+    // Only alert for employees who are active (employeeName present = admin context)
+    const days = Math.ceil((new Date(cert.expiryDate) - today) / (1000 * 60 * 60 * 24));
+    if (days < 0 || days > 60) return;
+    const thr = days <= 14 ? 14 : days <= 30 ? 30 : 60;
+    notifs.push({
+      type:               'cert_expiry',
+      title:              `Certification expiring — ${cert.employeeName || 'Employee'}`,
+      body:               `"${cert.certificationName}" expires in ${days} day${days !== 1 ? 's' : ''} (${cert.expiryDate}).${cert.issuingBody ? ` Issued by ${cert.issuingBody}.` : ''} Renew in Training & Certifications.`,
+      relatedEntityType:  'certification',
+      relatedEntityId:    `${cert.id}_${thr}d`,
+    });
+  });
 
   // ── Insurance policy renewal ──
   (insurancePolicies || []).forEach(pol => {

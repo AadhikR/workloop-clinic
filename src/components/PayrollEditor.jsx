@@ -2,7 +2,8 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Download, Eye, Upload, AlertCircle, Plus, ChevronDown, CheckCircle, FileText, Info, Send, Lock, ShieldCheck, RefreshCw } from 'lucide-react';
 import { generateSIF, generateSIFFilename, generateCorrectedSIF } from '../utils/sifGenerator';
 import { parseCSV, readFileAsText } from '../utils/csvImport';
-import { savePayroll, createPayslipRecords, saveWpsTracking } from '../utils/storage';
+import { savePayroll, createPayslipRecords, saveWpsTracking,
+         submitPayrollForApproval, approvePayroll, rejectPayroll, recallPayrollApproval } from '../utils/storage';
 import { createNotifications } from '../utils/notificationStorage';
 import AllowDeductPanel, { computeFinalAllowance } from './AllowDeductPanel';
 import SIFPreviewModal from './SIFPreviewModal';
@@ -11,6 +12,7 @@ import { calculatePayrollLeaveDeductions } from '../utils/leaveEngine';
 import { getLeaveRequests } from '../utils/leaveStorage';
 import { getAttendancePayrollData } from '../utils/attendanceStorage';
 import { getAdvances } from '../utils/storage';
+import { getApprovedUnpaidExpenses, markExpensesPaid } from '../utils/expenseStorage';
 import { getPayrollSummaryFromAttendance, formatHours } from '../utils/attendanceEngine';
 
 function getMonthName(month) {
@@ -79,6 +81,7 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
   const [leaveDeductions, setLeaveDeductions] = useState({}); // { [employeeId]: deductionResult }
   const [attendanceData, setAttendanceData]   = useState(null); // { periodClosed, payrollReady, byEmployee }
   const [advanceData, setAdvanceData]         = useState({}); // { [employeeId]: advance[] }
+  const [expenseData, setExpenseData]         = useState({}); // { [employeeId]: expense[] } — approved+unpaid
   const [attendanceWarning, setAttendanceWarning] = useState(false);
   const autoSaveTimer = useRef(null);
   const fileRef = useRef();
@@ -100,6 +103,17 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
   });
   const [wpsSaving, setWpsSaving] = useState(false);
   const [wpsSaveOk, setWpsSaveOk] = useState(false);
+
+  // Payroll Approval state (Feature 17)
+  const [approvalStatus,  setApprovalStatus]  = useState(payroll.approvalStatus  ?? 'draft');
+  const [approvalBusy,    setApprovalBusy]    = useState(false);
+  const [approvalMsg,     setApprovalMsg]     = useState(null); // { type, text }
+  const [rejectOpen,      setRejectOpen]      = useState(false);
+  const [rejectReason,    setRejectReason]    = useState('');
+  const [approvedBy,      setApprovedBy]      = useState(payroll.approvedBy      ?? '');
+  const [approvedAt,      setApprovedAt]      = useState(payroll.approvedAt      ?? null);
+  const [submittedBy,     setSubmittedBy]     = useState(payroll.submittedBy     ?? '');
+  const [rejectionReason, setRejectionReason] = useState(payroll.rejectionReason ?? '');
 
   // Load leave deductions for this payroll period and pre-fill entry fields
   useEffect(() => {
@@ -146,6 +160,18 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
     }).catch(() => {}); // salary_advances table may not exist yet — fail silently
   }, []);
 
+  // Load approved+unpaid expenses — shown as informational panel; marked paid on submit (Feature 14)
+  useEffect(() => {
+    getApprovedUnpaidExpenses().then(all => {
+      const byEmp = {};
+      for (const exp of all) {
+        if (!byEmp[exp.employeeId]) byEmp[exp.employeeId] = [];
+        byEmp[exp.employeeId].push(exp);
+      }
+      setExpenseData(byEmp);
+    }).catch(() => {}); // expense_claims table may not exist yet — fail silently
+  }, []);
+
   // Load attendance data for this payroll period (Connection C)
   // Art. 56: Payroll must not run against unclosed attendance period
   useEffect(() => {
@@ -180,6 +206,9 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
   }, [payroll, onSave]);
 
   const isLocked = payroll.status === 'generated';
+  // approvalLocked: editing is frozen while pending review or after approval (but not yet generated)
+  const approvalLocked = !isLocked && (approvalStatus === 'pending_approval' || approvalStatus === 'approved');
+  const editingLocked  = isLocked || approvalLocked;
 
   const [year, month] = payroll.period.split('-').map(Number);
   const daysInMonth = getDaysInMonth(year, month);
@@ -336,6 +365,12 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
       if (payslipNotifs.length > 0) {
         createNotifications(payslipNotifs).catch(() => {});
       }
+
+      // Mark approved expenses as paid and link to this payroll run (Feature 14)
+      const allExpenseIds = Object.values(expenseData).flat().map(e => e.id);
+      if (allExpenseIds.length > 0) {
+        markExpensesPaid(allExpenseIds, finalised.id).catch(() => {});
+      }
     } finally {
       setSubmitting(false);
       setConfirmSubmit(false);
@@ -352,6 +387,72 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
 
   const handleSaveDraft = () => {
     onSave({ ...buildPayroll(), status: payroll.status === 'generated' ? 'generated' : 'draft' });
+  };
+
+  // ── Payroll Approval handlers (Feature 17) ──────────────────────────────────
+  const flashApproval = (type, text) => {
+    setApprovalMsg({ type, text });
+    setTimeout(() => setApprovalMsg(null), 5000);
+  };
+
+  const handleSubmitForApproval = async () => {
+    setApprovalBusy(true);
+    try {
+      await submitPayrollForApproval(payroll.id);
+      setApprovalStatus('pending_approval');
+      setRejectionReason('');
+      onSave({ ...buildPayroll(), approvalStatus: 'pending_approval' });
+    } catch (err) {
+      flashApproval('error', err.message);
+    } finally {
+      setApprovalBusy(false);
+    }
+  };
+
+  const handleApprovePayroll = async () => {
+    setApprovalBusy(true);
+    try {
+      await approvePayroll(payroll.id);
+      const now = new Date().toISOString();
+      setApprovalStatus('approved');
+      setApprovedAt(now);
+      onSave({ ...buildPayroll(), approvalStatus: 'approved' });
+    } catch (err) {
+      flashApproval('error', err.message);
+    } finally {
+      setApprovalBusy(false);
+    }
+  };
+
+  const handleRejectPayroll = async () => {
+    if (!rejectReason.trim()) return;
+    setApprovalBusy(true);
+    try {
+      await rejectPayroll(payroll.id, rejectReason.trim());
+      setApprovalStatus('draft');
+      setRejectionReason(rejectReason.trim());
+      setRejectOpen(false);
+      setRejectReason('');
+      onSave({ ...buildPayroll(), approvalStatus: 'draft', rejectionReason: rejectReason.trim() });
+    } catch (err) {
+      flashApproval('error', err.message);
+    } finally {
+      setApprovalBusy(false);
+    }
+  };
+
+  const handleRecallApproval = async () => {
+    setApprovalBusy(true);
+    try {
+      await recallPayrollApproval(payroll.id);
+      setApprovalStatus('draft');
+      setSubmittedBy('');
+      onSave({ ...buildPayroll(), approvalStatus: 'draft' });
+    } catch (err) {
+      flashApproval('error', err.message);
+    } finally {
+      setApprovalBusy(false);
+    }
   };
 
   const handleCSVImport = async (file) => {
@@ -419,13 +520,19 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
               <CheckCircle size={14} /> Auto-saved
             </span>
           )}
-          {!isLocked && (
+          {!editingLocked && (
             <>
               <button className="btn btn-outline btn-sm" onClick={() => fileRef.current.click()}>
                 <Upload size={14} /> Import CSV
               </button>
               <button className="btn btn-outline btn-sm" onClick={handleSaveDraft}>Save Draft</button>
             </>
+          )}
+          {/* Approval action buttons (Feature 17) */}
+          {approvalStatus === 'pending_approval' && (
+            <button className="btn btn-outline btn-sm" onClick={handleRecallApproval} disabled={approvalBusy}>
+              ← Recall
+            </button>
           )}
           <input
             ref={fileRef} type="file" accept=".csv" style={{ display: 'none' }}
@@ -450,9 +557,29 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
               <RefreshCw size={14} /> Corrected SIF
             </button>
           )}
-          {!isLocked && (
+          {/* Draft: submit for approval (Feature 17) */}
+          {!isLocked && approvalStatus === 'draft' && (
+            <button className="btn btn-primary btn-sm" onClick={handleSubmitForApproval} disabled={!canGenerate || approvalBusy}>
+              <Send size={14} /> {approvalBusy ? 'Submitting…' : 'Submit for Approval'}
+            </button>
+          )}
+          {/* Pending approval: approve/reject (Feature 17) */}
+          {approvalStatus === 'pending_approval' && (
+            <>
+              <button className="btn btn-sm" style={{ background:'var(--danger)', color:'#fff', border:'none' }}
+                onClick={() => setRejectOpen(true)} disabled={approvalBusy}>
+                Reject
+              </button>
+              <button className="btn btn-sm" style={{ background:'var(--success)', color:'#fff', border:'none' }}
+                onClick={handleApprovePayroll} disabled={approvalBusy}>
+                {approvalBusy ? 'Approving…' : '✓ Approve'}
+              </button>
+            </>
+          )}
+          {/* Approved: generate payroll (Feature 17) */}
+          {!isLocked && approvalStatus === 'approved' && (
             <button className="btn btn-primary btn-sm" onClick={() => setConfirmSubmit(true)} disabled={!canGenerate}>
-              <Send size={14} /> Submit Payroll
+              <Send size={14} /> Generate Payroll
             </button>
           )}
         </div>
@@ -465,6 +592,72 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
             <div>
               <strong>Payroll finalised — locked.</strong> This run has been submitted and payslips have been distributed to employees.
               Download the SIF file or individual payslips using the buttons above.
+            </div>
+          </div>
+        )}
+
+        {/* ── Approval status banners (Feature 17) ── */}
+        {approvalMsg && (
+          <div className={`alert alert-${approvalMsg.type === 'error' ? 'danger' : 'success'} mb-4`}>
+            <AlertCircle size={14} /> {approvalMsg.text}
+          </div>
+        )}
+
+        {/* Rejection notice — draft payroll that was previously rejected */}
+        {!isLocked && approvalStatus === 'draft' && rejectionReason && (
+          <div className="alert alert-warning mb-4">
+            <AlertCircle size={16} />
+            <div>
+              <strong>Returned for correction.</strong> Reason: {rejectionReason}
+            </div>
+          </div>
+        )}
+
+        {/* Pending approval notice */}
+        {approvalStatus === 'pending_approval' && (
+          <div className="alert alert-info mb-4" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600 }}>
+              <Info size={16} /> PENDING APPROVAL
+              {submittedBy && <span style={{ fontWeight: 400, fontSize: 13 }}>— submitted by {submittedBy}</span>}
+            </div>
+            <div style={{ fontSize: 13 }}>
+              Payroll is locked. Review all entries carefully, then use <strong>Approve</strong> or <strong>Reject</strong> above.
+              Use <strong>Recall</strong> to unlock for further editing.
+            </div>
+            {/* Reject reason form */}
+            {rejectOpen && (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', width: '100%', marginTop: 4 }}>
+                <input
+                  className="form-control"
+                  style={{ flex: 1 }}
+                  placeholder="Rejection reason (required)…"
+                  value={rejectReason}
+                  onChange={e => setRejectReason(e.target.value)}
+                  autoFocus
+                />
+                <button
+                  className="btn btn-sm"
+                  style={{ background: 'var(--danger)', color: '#fff', border: 'none', whiteSpace: 'nowrap' }}
+                  onClick={handleRejectPayroll}
+                  disabled={!rejectReason.trim() || approvalBusy}
+                >
+                  Confirm Reject
+                </button>
+                <button className="btn btn-sm btn-outline" onClick={() => setRejectOpen(false)} disabled={approvalBusy}>
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Approved notice */}
+        {!isLocked && approvalStatus === 'approved' && (
+          <div className="alert alert-success mb-4">
+            <CheckCircle size={16} />
+            <div>
+              <strong>Approved{approvedBy ? ` by ${approvedBy}` : ''}.</strong>{' '}
+              Payroll is ready. Click <strong>Generate Payroll</strong> above to create payslips and lock this run.
             </div>
           </div>
         )}
@@ -614,24 +807,24 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
             <div className="form-grid form-grid-3">
               <div className="form-group">
                 <label>Payment Date</label>
-                <input className="form-control" type="date" value={meta.paymentDate} disabled={isLocked}
+                <input className="form-control" type="date" value={meta.paymentDate} disabled={editingLocked}
                   onChange={e => handleMetaChange('paymentDate', e.target.value)} />
               </div>
               <div className="form-group">
                 <label>File Creation Time (HHMM)</label>
                 <input className="form-control font-mono" maxLength={4} value={meta.sequenceNo}
-                  placeholder="e.g. 1430" disabled={isLocked}
+                  placeholder="e.g. 1430" disabled={editingLocked}
                   onChange={e => handleMetaChange('sequenceNo', e.target.value.replace(/\D/g, '').slice(0, 4))} />
                 <span className="hint">4-digit time in HHMM format — used in SCR line &amp; filename</span>
               </div>
               <div className="form-group">
                 <label>SCR Bank Routing Code</label>
-                <input className="form-control font-mono" value={meta.scrBankRoutingCode} disabled={isLocked}
+                <input className="form-control font-mono" value={meta.scrBankRoutingCode} disabled={editingLocked}
                   onChange={e => handleMetaChange('scrBankRoutingCode', e.target.value.trim())} />
               </div>
               <div className="form-group" style={{ gridColumn: '1/-1' }}>
                 <label>Description</label>
-                <input className="form-control" value={meta.description} disabled={isLocked}
+                <input className="form-control" value={meta.description} disabled={editingLocked}
                   onChange={e => handleMetaChange('description', e.target.value)} />
               </div>
             </div>
@@ -786,6 +979,69 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
           </div>
         )}
 
+        {/* ── Expense Reimbursements Panel (Feature 14) ── */}
+        {Object.keys(expenseData).length > 0 && (
+          <div className="card mb-4">
+            <div className="card-header">
+              <h3><Info size={15} style={{ marginRight:6, color:'var(--success)' }}/>Approved Expense Reimbursements</h3>
+              <span className="badge badge-green">
+                {Object.keys(expenseData).length} employee{Object.keys(expenseData).length !== 1 ? 's' : ''} with pending reimbursements
+              </span>
+            </div>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Employee</th>
+                    <th>Category</th>
+                    <th>Date</th>
+                    <th>Description</th>
+                    <th className="text-right">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(expenseData).map(([empId, exps]) => {
+                    const emp = employees.find(e => e.id === empId);
+                    return exps.map((exp, i) => (
+                      <tr key={exp.id}>
+                        <td style={{ fontWeight: i === 0 ? 500 : 400, color: i === 0 ? 'var(--gray-800)' : 'var(--gray-400)' }}>
+                          {i === 0 ? emp?.name : ''}
+                        </td>
+                        <td style={{ textTransform:'capitalize' }}>{exp.category?.replace('_',' ')}</td>
+                        <td>{exp.expenseDate}</td>
+                        <td style={{ maxWidth:200, overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis' }}>
+                          {exp.description}
+                        </td>
+                        <td className="text-right" style={{ fontWeight:600, color:'var(--success)' }}>
+                          +{exp.amount.toLocaleString('en-AE', { minimumFractionDigits:2 })} AED
+                        </td>
+                      </tr>
+                    ));
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr style={{ background:'rgba(22,163,74,0.06)', fontWeight:700 }}>
+                    <td colSpan={4} style={{ textAlign:'right', paddingRight:12, color:'var(--success)' }}>
+                      Total Reimbursements
+                    </td>
+                    <td className="text-right" style={{ color:'var(--success)' }}>
+                      +{Object.values(expenseData)
+                          .flat()
+                          .reduce((s, e) => s + e.amount, 0)
+                          .toLocaleString('en-AE', { minimumFractionDigits:2 })} AED
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+            <div style={{ padding:'10px 20px', fontSize:12, color:'var(--gray-500)', borderTop:'1px solid var(--gray-100)' }}>
+              <Info size={12} style={{ marginRight:4 }}/>
+              These expenses will be automatically marked as <strong>Paid</strong> when payroll is submitted.
+              Add them to employee entries via <strong>Allowances &amp; Deductions</strong> (label: "Expense Reimbursement") so they appear in the SIF.
+            </div>
+          </div>
+        )}
+
         {/* ── Leave Deductions Panel ── */}
         {Object.keys(leaveDeductions).length > 0 && (
           <div className="card mb-4">
@@ -908,7 +1164,7 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                         <input
                           type="checkbox"
                           checked={!entry.excluded}
-                          disabled={isLocked}
+                          disabled={editingLocked}
                           onChange={() => updateEntry(idx, 'excluded', !entry.excluded)}
                         />
                       </td>

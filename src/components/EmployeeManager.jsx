@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, Component } from 'react';
 import {
   Users, Plus, Trash2, X, Upload, AlertCircle, Search,
   FileDown, Info, Download, History, AlertTriangle, Calculator,
-  UserCheck, CalendarClock
+  UserCheck, CalendarClock, ClipboardList
 } from 'lucide-react';
 import { getEmployees, saveEmployee, saveEmployees, archiveEmployee, getJobHistory, addJobHistoryEntry } from '../utils/storage';
 import { parseCSV, readFileAsText } from '../utils/csvImport';
@@ -10,6 +10,7 @@ import { formatDateUAE, formatAED, daysUntil, expiryBadgeClass } from '../utils/
 import { calculateGratuity } from '../utils/gratuityCalculator';
 import EmployeeModal from './EmployeeModal';
 import EndOfServiceScreen from './EndOfServiceScreen';
+import OffboardingModal from './OffboardingModal';
 
 // ── CSV column spec ──────────────────────────────────────────────────────────
 const CSV_COLUMNS = [
@@ -415,6 +416,7 @@ function EmployeeManagerInner() {
   const [historyEmp, setHistoryEmp]       = useState(null);
   const [eosEmp, setEosEmp]               = useState(null); // end-of-service screen
   const [probationEmp, setProbationEmp]   = useState(null); // probation actions modal
+  const [offboardingEmp, setOffboardingEmp] = useState(null); // offboarding checklist modal (Feature 13)
   const [activeTab, setActiveTab]         = useState('list'); // 'list' | 'expiry'
   const fileRef = useRef();
 
@@ -735,6 +737,16 @@ function EmployeeManagerInner() {
                                     <UserCheck size={13}/>
                                   </button>
                                 )}
+                                {emp.employmentStatus === 'Terminated' && (
+                                  <button
+                                    className="btn btn-ghost btn-icon btn-sm"
+                                    title="Offboarding checklist"
+                                    style={{ color: '#6366f1' }}
+                                    onClick={() => setOffboardingEmp(emp)}
+                                  >
+                                    <ClipboardList size={13}/>
+                                  </button>
+                                )}
                                 <button
                                   className="btn btn-ghost btn-icon btn-sm text-danger"
                                   title="Delete employee"
@@ -815,6 +827,14 @@ function EmployeeManagerInner() {
             setEmployees(prev => prev.map(e => e.id === probationEmp.id ? { ...e, active: false, employmentStatus: 'Terminated' } : e));
             setProbationEmp(null);
           }}
+        />
+      )}
+
+      {/* Offboarding Checklist Modal (Feature 13) */}
+      {offboardingEmp && (
+        <OffboardingModal
+          employee={offboardingEmp}
+          onClose={() => setOffboardingEmp(null)}
         />
       )}
 

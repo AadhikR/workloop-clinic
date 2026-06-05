@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Home, CalendarDays, CalendarClock, Clock, FileText, User, LogOut, DollarSign } from 'lucide-react';
+import { Home, CalendarDays, CalendarClock, Clock, FileText, User, LogOut, DollarSign, Receipt, GraduationCap } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import NotificationBell from '../NotificationBell';
 import { getMyEmployeeRecord, getMyCompany } from '../../utils/profileStorage';
@@ -10,6 +10,8 @@ import EmpPayslips from './EmpPayslips';
 import EmpProfile from './EmpProfile';
 import EmpAdvances from './EmpAdvances';
 import EmpSchedule from './EmpSchedule';
+import EmpExpenses from './EmpExpenses';
+import EmpTraining from './EmpTraining';
 
 const TABS = [
   { id: 'home',       label: 'Home',       icon: Home },
@@ -18,6 +20,8 @@ const TABS = [
   { id: 'attendance', label: 'Attendance', icon: Clock },
   { id: 'payslips',   label: 'Payslips',   icon: FileText },
   { id: 'advances',   label: 'Advances',   icon: DollarSign },
+  { id: 'expenses',   label: 'Expenses',   icon: Receipt },
+  { id: 'training',   label: 'Training',   icon: GraduationCap },
   { id: 'profile',    label: 'Profile',    icon: User },
 ];
 
@@ -64,6 +68,8 @@ export default function EmployeeShell() {
       case 'attendance': return <EmpAttendance />;
       case 'payslips':   return <EmpPayslips />;
       case 'advances':   return <EmpAdvances />;
+      case 'expenses':   return <EmpExpenses />;
+      case 'training':   return <EmpTraining />;
       case 'profile':    return <EmpProfile onSignOut={handleSignOut} signingOut={signingOut} />;
       default:           return <EmpHome onNavigate={setTab} />;
     }

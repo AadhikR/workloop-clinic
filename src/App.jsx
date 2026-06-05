@@ -1,5 +1,5 @@
 import { useState, useRef, useLayoutEffect, useEffect } from 'react';
-import { LayoutDashboard, Building2, Users, FileText, LogOut, User, CalendarDays, Clock, DollarSign, LayoutGrid, BarChart2 } from 'lucide-react';
+import { LayoutDashboard, Building2, Users, FileText, LogOut, User, CalendarDays, Clock, DollarSign, LayoutGrid, BarChart2, Receipt, Package, GraduationCap } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import AuthPage from './components/AuthPage';
 import { getCompany } from './utils/storage';
@@ -13,6 +13,9 @@ import AttendanceManager from './components/AttendanceManager';
 import AdvancesManager from './components/AdvancesManager';
 import RosterManager from './components/RosterManager';
 import Reports from './components/Reports';
+import ExpensesManager from './components/ExpensesManager';
+import AssetsManager from './components/AssetsManager';
+import TrainingManager from './components/TrainingManager';
 import EmployeeShell from './components/employee/EmployeeShell';
 import ManagerShell from './components/ManagerShell';
 import './index.css';
@@ -23,8 +26,11 @@ const NAV_ITEMS = [
   { id: 'employees',  label: 'Employees',         icon: Users },
   { id: 'payroll',    label: 'Payroll Module',    icon: FileText },
   { id: 'advances',   label: 'Advances',          icon: DollarSign },
+  { id: 'expenses',   label: 'Expenses',          icon: Receipt },
   { id: 'leave',      label: 'Leave',             icon: CalendarDays },
   { id: 'attendance', label: 'Attendance',        icon: Clock },
+  { id: 'assets',     label: 'Assets',            icon: Package },
+  { id: 'training',   label: 'Training',          icon: GraduationCap },
   { id: 'roster',     label: 'Roster',            icon: LayoutGrid },
   { id: 'reports',    label: 'Reports',           icon: BarChart2 },
 ];
@@ -67,8 +73,11 @@ function AppShell() {
       case 'employees':  return <EmployeeManager />;
       case 'payroll':    return <PayrollManager />;
       case 'advances':   return <AdvancesManager />;
+      case 'expenses':   return <ExpensesManager />;
       case 'leave':      return <LeaveManager />;
       case 'attendance': return <AttendanceManager />;
+      case 'assets':     return <AssetsManager />;
+      case 'training':   return <TrainingManager />;
       case 'roster':     return <RosterManager />;
       case 'reports':    return <Reports />;
       default:           return <Dashboard onNavigate={setPage} />;

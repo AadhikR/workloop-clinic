@@ -3,7 +3,7 @@
  * Tabs: Personal | Job & Contract | Salary & Bank | UAE Compliance
  */
 import { useState, useEffect } from 'react';
-import { X, UserCheck, Briefcase, CreditCard, Shield, FolderOpen, Upload, AlertCircle, Trash2, Heart, Plus, ShieldCheck } from 'lucide-react';
+import { X, UserCheck, Briefcase, CreditCard, Shield, FolderOpen, Upload, AlertCircle, Trash2, Heart, Plus, ShieldCheck, FileText, RefreshCw, CheckCircle, Printer } from 'lucide-react';
 import { validateIBAN, validateEmiratesID, validateMolId, formatAED, formatDateUAE } from '../utils/uaeValidators';
 import { calculateGratuity } from '../utils/gratuityCalculator';
 import { getShifts } from '../utils/attendanceStorage';
@@ -11,6 +11,7 @@ import {
   getEmployeeDocuments, uploadEmployeeDocument, deleteEmployeeDocument,
   getInsurancePolicies, getEmployeeInsurance, saveEmployeeInsurance,
   getInsuranceDependants, saveInsuranceDependant, deleteInsuranceDependant,
+  saveEmployee, getEmployeeContracts, saveEmployeeContract, addJobHistoryEntry,
 } from '../utils/storage';
 import { getEmployeePortalRole, setEmployeePortalRole } from '../utils/profileStorage';
 
@@ -90,6 +91,14 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
   const [portalRoleErr, setPortalRoleErr]   = useState('');
   const [portalRoleOk, setPortalRoleOk]     = useState('');
 
+  // Contract history (Feature 12)
+  const [contracts, setContracts]                   = useState([]);
+  const [contractsLoading, setContractsLoading]     = useState(false);
+  const [contractAction, setContractAction]         = useState(null); // null | 'renew' | 'convert' | 'not_renew'
+  const [renewForm, setRenewForm]                   = useState({ startDate:'', endDate:'', notes:'' });
+  const [contractActionSaving, setContractActionSaving] = useState(false);
+  const [contractActionMsg, setContractActionMsg]   = useState('');
+
   useEffect(() => {
     getShifts().then(setShifts).catch(() => {});
   }, []);
@@ -143,6 +152,17 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
       }).catch(() => {}).finally(() => setInsuranceLoading(false));
     }
   }, [tab, employee?.id]);
+
+  // Load contract history when Contracts tab becomes active
+  useEffect(() => {
+    if (tab === 'contracts' && employee?.id) {
+      setContractsLoading(true);
+      getEmployeeContracts(employee.id)
+        .then(setContracts)
+        .catch(() => setContracts([]))
+        .finally(() => setContractsLoading(false));
+    }
+  }, [tab, employee?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleUpload = async () => {
     if (!uploadForm.file || !employee?.id) return;
@@ -216,6 +236,157 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
     }
   };
 
+  // ── Contract action handlers (Feature 12) ───────────────────────────────────
+
+  const handleRenewContract = async () => {
+    if (!renewForm.endDate || !employee?.id) return;
+    setContractActionSaving(true);
+    try {
+      const isFromUnlimited = form.contractType === 'Unlimited';
+      const saved = await saveEmployeeContract({
+        employeeId:   employee.id,
+        contractType: 'Limited',
+        startDate:    renewForm.startDate || form.contractEndDate || '',
+        endDate:      renewForm.endDate,
+        action:       isFromUnlimited ? 'converted' : 'renewed',
+        notes:        renewForm.notes,
+      });
+      // Persist updated contract fields on the employee record
+      await saveEmployee({
+        ...form,
+        contractType:       'Limited',
+        contractEndDate:    renewForm.endDate,
+        basicSalary:        parseFloat(form.basicSalary)       || 0,
+        allowance:          parseFloat(form.allowance)         || 0,
+        housingAllowance:   parseFloat(form.housingAllowance)  || 0,
+        transportAllowance: parseFloat(form.transportAllowance)|| 0,
+        otherAllowances:    parseFloat(form.otherAllowances)   || 0,
+      });
+      addJobHistoryEntry(
+        employee.id,
+        isFromUnlimited ? 'contract_converted' : 'contract_renewed',
+        form.contractEndDate || form.contractType,
+        `Limited to ${renewForm.endDate}`,
+        renewForm.notes,
+      ).catch(() => {});
+      setForm(prev => ({ ...prev, contractType:'Limited', contractEndDate:renewForm.endDate }));
+      setContracts(prev => [saved, ...prev]);
+      setContractAction(null);
+      setContractActionMsg(isFromUnlimited
+        ? 'Contract converted to Limited successfully.'
+        : 'Contract renewed successfully.');
+      setTimeout(() => setContractActionMsg(''), 4000);
+    } catch (err) {
+      alert('Failed to renew contract: ' + err.message);
+    } finally {
+      setContractActionSaving(false);
+    }
+  };
+
+  const handleConvertToUnlimited = async () => {
+    if (!employee?.id) return;
+    setContractActionSaving(true);
+    try {
+      const saved = await saveEmployeeContract({
+        employeeId:   employee.id,
+        contractType: 'Unlimited',
+        startDate:    form.startDate || '',
+        endDate:      '',
+        action:       'converted',
+        notes:        renewForm.notes,
+      });
+      await saveEmployee({
+        ...form,
+        contractType:       'Unlimited',
+        contractEndDate:    '',
+        basicSalary:        parseFloat(form.basicSalary)       || 0,
+        allowance:          parseFloat(form.allowance)         || 0,
+        housingAllowance:   parseFloat(form.housingAllowance)  || 0,
+        transportAllowance: parseFloat(form.transportAllowance)|| 0,
+        otherAllowances:    parseFloat(form.otherAllowances)   || 0,
+      });
+      addJobHistoryEntry(employee.id, 'contract_converted', 'Limited', 'Unlimited', renewForm.notes).catch(() => {});
+      setForm(prev => ({ ...prev, contractType:'Unlimited', contractEndDate:'' }));
+      setContracts(prev => [saved, ...prev]);
+      setContractAction(null);
+      setContractActionMsg('Contract converted to Unlimited successfully.');
+      setTimeout(() => setContractActionMsg(''), 4000);
+    } catch (err) {
+      alert('Failed to convert contract: ' + err.message);
+    } finally {
+      setContractActionSaving(false);
+    }
+  };
+
+  const handleNotRenewing = async () => {
+    if (!employee?.id) return;
+    setContractActionSaving(true);
+    try {
+      const saved = await saveEmployeeContract({
+        employeeId:   employee.id,
+        contractType: form.contractType,
+        startDate:    form.startDate || '',
+        endDate:      form.contractEndDate || '',
+        action:       'not_renewed',
+        notes:        renewForm.notes,
+      });
+      addJobHistoryEntry(employee.id, 'contract_not_renewed', form.contractEndDate, 'Not Renewing', renewForm.notes).catch(() => {});
+      setContracts(prev => [saved, ...prev]);
+      setContractAction(null);
+      setContractActionMsg('Non-renewal recorded. Notify the employee and initiate offboarding when ready. UAE law requires 30 days notice.');
+      setTimeout(() => setContractActionMsg(''), 6000);
+    } catch (err) {
+      alert('Failed to record: ' + err.message);
+    } finally {
+      setContractActionSaving(false);
+    }
+  };
+
+  const printContractLetter = () => {
+    const totalPkg = (parseFloat(form.basicSalary)||0) + (parseFloat(form.housingAllowance)||0) + (parseFloat(form.transportAllowance)||0) + (parseFloat(form.otherAllowances)||0);
+    const fmt = (d) => d ? new Date(d).toLocaleDateString('en-AE', { day:'2-digit', month:'long', year:'numeric' }) : '—';
+    const html = `<!DOCTYPE html><html><head><title>Contract — ${form.name}</title>
+<style>
+  body{font-family:Arial,sans-serif;padding:60px;color:#333;max-width:700px;margin:auto}
+  h1{font-size:20px;margin-bottom:4px}
+  .meta{color:#666;font-size:13px;margin-bottom:36px}
+  p{font-size:14px;line-height:1.6}
+  table{width:100%;border-collapse:collapse;margin:18px 0}
+  td{padding:9px 14px;border:1px solid #e5e7eb;font-size:13px}
+  td:first-child{font-weight:600;color:#555;width:38%;background:#f9fafb}
+  .sig{margin-top:64px;display:flex;justify-content:space-between}
+  .sig-block{width:44%;border-top:2px solid #374151;padding-top:10px;font-size:13px}
+  @media print{button{display:none!important}}
+</style></head><body>
+<h1>CONTRACT AMENDMENT / RENEWAL LETTER</h1>
+<div class="meta">Date: ${new Date().toLocaleDateString('en-AE',{day:'2-digit',month:'long',year:'numeric'})}</div>
+<p>Dear <strong>${form.name}</strong>,</p>
+<p>This letter confirms your current employment contract details with the company. Please review and acknowledge below.</p>
+<table>
+  <tr><td>Employee Name</td><td>${form.name}</td></tr>
+  <tr><td>Employee No.</td><td>${form.empNo || '—'}</td></tr>
+  <tr><td>Job Title</td><td>${form.jobTitle || '—'}</td></tr>
+  <tr><td>Department</td><td>${form.department || '—'}</td></tr>
+  <tr><td>Contract Type</td><td>${form.contractType}</td></tr>
+  <tr><td>Employment Start Date</td><td>${fmt(form.startDate)}</td></tr>
+  ${form.contractType === 'Limited' && form.contractEndDate ? `<tr><td>Contract End Date</td><td>${fmt(form.contractEndDate)}</td></tr>` : ''}
+  <tr><td>Basic Salary</td><td>AED ${(parseFloat(form.basicSalary)||0).toLocaleString('en-AE',{minimumFractionDigits:2})}</td></tr>
+  <tr><td>Total Monthly Package</td><td>AED ${totalPkg.toLocaleString('en-AE',{minimumFractionDigits:2})}</td></tr>
+</table>
+<p>All other terms and conditions of your employment remain unchanged unless expressly stated otherwise.</p>
+<p>Please sign below to acknowledge receipt of this letter.</p>
+<div class="sig">
+  <div class="sig-block">Employee Signature<br/><br/>${form.name}</div>
+  <div class="sig-block">HR / Employer Representative<br/><br/>Authorised Signatory</div>
+</div>
+</body></html>`;
+    const win = window.open('', '_blank', 'width=820,height=920');
+    if (!win) { alert('Pop-up blocked — please allow pop-ups for this site.'); return; }
+    win.document.write(html);
+    win.document.close();
+    win.print();
+  };
+
   const f = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
     setErrors(prev => ({ ...prev, [field]: undefined }));
@@ -251,6 +422,7 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
     compliance: ['molId', 'emiratesId'],
     documents:  [],
     insurance:  [],
+    contracts:  [],
   };
   const tabsWithErrors = (errs) =>
     Object.entries(TAB_FIELDS)
@@ -293,6 +465,7 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
     ...(employee?.id ? [
       { id:'documents', label:'Documents',  icon:FolderOpen },
       { id:'insurance', label:'Insurance',  icon:Heart },
+      { id:'contracts', label:'Contracts',  icon:FileText },
     ] : []),
   ];
 
@@ -983,11 +1156,217 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
             </div>
           )}
 
+          {/* ── CONTRACTS ── */}
+          {tab === 'contracts' && employee?.id && (
+            <div>
+              {/* Current contract status card */}
+              <div style={{ background:'#f8fafc', borderRadius:10, padding:'16px 20px', marginBottom:20, border:'1px solid var(--gray-200)', display:'flex', alignItems:'flex-start', justifyContent:'space-between', flexWrap:'wrap', gap:14 }}>
+                <div style={{ display:'flex', gap:32, flexWrap:'wrap', flex:1 }}>
+                  <div>
+                    <div style={{ fontSize:12, color:'var(--gray-500)', marginBottom:5 }}>Contract Type</div>
+                    <span className={`badge ${form.contractType === 'Limited' ? 'badge-blue' : 'badge-green'}`} style={{ fontSize:12 }}>
+                      {form.contractType}
+                    </span>
+                  </div>
+                  {form.contractType === 'Limited' && form.contractEndDate && (() => {
+                    const days = Math.ceil((new Date(form.contractEndDate) - new Date()) / 86400000);
+                    return (
+                      <div>
+                        <div style={{ fontSize:12, color:'var(--gray-500)', marginBottom:5 }}>Contract End Date</div>
+                        <div style={{ fontWeight:600, fontSize:14 }}>{formatDateUAE(form.contractEndDate)}</div>
+                        <div style={{ fontSize:12, marginTop:3, fontWeight:600,
+                          color: days < 0 ? 'var(--danger)' : days <= 30 ? 'var(--warning)' : days <= 60 ? '#d97706' : 'var(--success)' }}>
+                          {days < 0 ? `Expired ${Math.abs(days)}d ago` : days === 0 ? 'Expires today' : `${days} days remaining`}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  <div>
+                    <div style={{ fontSize:12, color:'var(--gray-500)', marginBottom:5 }}>Start Date</div>
+                    <div style={{ fontWeight:600, fontSize:14 }}>{formatDateUAE(form.startDate) || '—'}</div>
+                  </div>
+                </div>
+                <button className="btn btn-ghost btn-sm" onClick={printContractLetter} style={{ flexShrink:0 }}>
+                  <Printer size={13} style={{ marginRight:5 }} />Print Letter
+                </button>
+              </div>
+
+              {/* Action buttons (only when no action is pending) */}
+              {!contractAction && (
+                <div style={{ marginBottom:20 }}>
+                  <div style={{ fontSize:11, fontWeight:600, color:'var(--gray-400)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:10 }}>Contract Actions</div>
+                  <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+                    {form.contractType === 'Limited' ? (
+                      <>
+                        <button className="btn btn-primary btn-sm"
+                          onClick={() => { setContractAction('renew'); setRenewForm({ startDate:form.contractEndDate||'', endDate:'', notes:'' }); }}>
+                          <RefreshCw size={13} style={{ marginRight:5 }} />Renew Contract
+                        </button>
+                        <button className="btn btn-ghost btn-sm" style={{ border:'1px solid var(--gray-300)' }}
+                          onClick={() => { setContractAction('convert'); setRenewForm({ startDate:'', endDate:'', notes:'' }); }}>
+                          <CheckCircle size={13} style={{ marginRight:5 }} />Convert to Unlimited
+                        </button>
+                        <button className="btn btn-ghost btn-sm" style={{ border:'1px solid #fca5a5', color:'#dc2626' }}
+                          onClick={() => { setContractAction('not_renew'); setRenewForm({ startDate:'', endDate:'', notes:'' }); }}>
+                          Not Renewing
+                        </button>
+                      </>
+                    ) : (
+                      <button className="btn btn-ghost btn-sm" style={{ border:'1px solid var(--gray-300)' }}
+                        onClick={() => { setContractAction('renew'); setRenewForm({ startDate:'', endDate:'', notes:'' }); }}>
+                        <RefreshCw size={13} style={{ marginRight:5 }} />Convert to Limited
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Renew / Convert-to-Limited form */}
+              {contractAction === 'renew' && (
+                <div style={{ background:'#eff6ff', borderRadius:10, padding:'16px 20px', marginBottom:20, border:'1px solid #bfdbfe' }}>
+                  <div style={{ fontWeight:600, fontSize:14, marginBottom:14, color:'#1d4ed8' }}>
+                    {form.contractType === 'Unlimited' ? 'Convert to Limited Contract' : 'Renew Limited Contract'}
+                  </div>
+                  <div className="form-grid form-grid-2">
+                    <div className="form-group">
+                      <label>New Start Date</label>
+                      <input className="form-control" type="date" value={renewForm.startDate}
+                        onChange={e => setRenewForm(p => ({ ...p, startDate:e.target.value }))} />
+                    </div>
+                    <div className="form-group">
+                      <label>New End Date *</label>
+                      <input className="form-control" type="date" value={renewForm.endDate}
+                        onChange={e => setRenewForm(p => ({ ...p, endDate:e.target.value }))} />
+                    </div>
+                    <div className="form-group" style={{ gridColumn:'1/-1' }}>
+                      <label>Notes <span style={{ fontWeight:400, color:'var(--gray-400)' }}>(optional)</span></label>
+                      <input className="form-control" value={renewForm.notes}
+                        onChange={e => setRenewForm(p => ({ ...p, notes:e.target.value }))}
+                        placeholder="e.g. Annual renewal, same terms and conditions" />
+                    </div>
+                  </div>
+                  <div style={{ display:'flex', gap:10, marginTop:12 }}>
+                    <button className="btn btn-primary btn-sm" onClick={handleRenewContract}
+                      disabled={!renewForm.endDate || contractActionSaving}>
+                      {contractActionSaving ? 'Saving…' : 'Confirm'}
+                    </button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => setContractAction(null)}>Cancel</button>
+                  </div>
+                </div>
+              )}
+
+              {/* Convert to Unlimited form */}
+              {contractAction === 'convert' && (
+                <div style={{ background:'#f0fdf4', borderRadius:10, padding:'16px 20px', marginBottom:20, border:'1px solid #bbf7d0' }}>
+                  <div style={{ fontWeight:600, fontSize:14, marginBottom:8, color:'#166534' }}>Convert to Unlimited Contract</div>
+                  <p style={{ fontSize:13, color:'var(--gray-600)', marginBottom:14 }}>
+                    This changes the contract type to Unlimited and clears the end date. The action is logged to job history.
+                    Under Federal Decree-Law No. 33 of 2021, unlimited contracts offer stronger employee protections.
+                  </p>
+                  <div className="form-group">
+                    <label>Notes <span style={{ fontWeight:400, color:'var(--gray-400)' }}>(optional)</span></label>
+                    <input className="form-control" value={renewForm.notes}
+                      onChange={e => setRenewForm(p => ({ ...p, notes:e.target.value }))}
+                      placeholder="e.g. Converted after 2 years of service" />
+                  </div>
+                  <div style={{ display:'flex', gap:10, marginTop:12 }}>
+                    <button className="btn btn-primary btn-sm" onClick={handleConvertToUnlimited}
+                      disabled={contractActionSaving}>
+                      {contractActionSaving ? 'Saving…' : 'Confirm Conversion'}
+                    </button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => setContractAction(null)}>Cancel</button>
+                  </div>
+                </div>
+              )}
+
+              {/* Not Renewing form */}
+              {contractAction === 'not_renew' && (
+                <div style={{ background:'#fff7ed', borderRadius:10, padding:'16px 20px', marginBottom:20, border:'1px solid #fed7aa' }}>
+                  <div style={{ fontWeight:600, fontSize:14, marginBottom:8, color:'#c2410c' }}>Mark as Not Renewing</div>
+                  <p style={{ fontSize:13, color:'var(--gray-600)', marginBottom:14 }}>
+                    This logs non-renewal intent to the contract history. The employee's status remains unchanged — initiate
+                    offboarding separately when ready.{' '}
+                    <strong>UAE Labour Law requires 30 days notice before a limited contract expires.</strong>
+                  </p>
+                  <div className="form-group">
+                    <label>Reason / Notes <span style={{ fontWeight:400, color:'var(--gray-400)' }}>(optional)</span></label>
+                    <input className="form-control" value={renewForm.notes}
+                      onChange={e => setRenewForm(p => ({ ...p, notes:e.target.value }))}
+                      placeholder="e.g. Project ended, position eliminated" />
+                  </div>
+                  <div style={{ display:'flex', gap:10, marginTop:12 }}>
+                    <button
+                      style={{ background:'#ea580c', color:'white', border:'none', borderRadius:8, padding:'7px 16px', fontSize:13, fontWeight:600, cursor: contractActionSaving ? 'not-allowed' : 'pointer', opacity: contractActionSaving ? 0.6 : 1 }}
+                      onClick={handleNotRenewing} disabled={contractActionSaving}>
+                      {contractActionSaving ? 'Saving…' : 'Confirm Non-Renewal'}
+                    </button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => setContractAction(null)}>Cancel</button>
+                  </div>
+                </div>
+              )}
+
+              {/* Success message */}
+              {contractActionMsg && (
+                <div className="alert alert-success mb-4" style={{ marginBottom:16 }}>
+                  <CheckCircle size={14} /> {contractActionMsg}
+                </div>
+              )}
+
+              {/* Contract history table */}
+              <div style={{ fontWeight:600, fontSize:14, marginBottom:10, color:'var(--gray-700)' }}>
+                Contract History
+                {!contractsLoading && (
+                  <span style={{ fontWeight:400, color:'var(--gray-400)', fontSize:13, marginLeft:8 }}>({contracts.length})</span>
+                )}
+              </div>
+              {contractsLoading ? (
+                <div style={{ color:'var(--gray-400)', fontSize:13, padding:'14px 0' }}>Loading…</div>
+              ) : contracts.length === 0 ? (
+                <div style={{ color:'var(--gray-500)', fontSize:13, padding:'16px', background:'var(--gray-50)', borderRadius:8, textAlign:'center' }}>
+                  No contract actions recorded yet. Use the buttons above to log a renewal, conversion, or non-renewal.
+                </div>
+              ) : (
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Action</th>
+                        <th>Type</th>
+                        <th>Start Date</th>
+                        <th>End Date</th>
+                        <th>By</th>
+                        <th>Notes</th>
+                        <th>Date Logged</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {contracts.map(c => (
+                        <tr key={c.id}>
+                          <td>
+                            <span className={`badge ${c.action==='renewed'?'badge-blue':c.action==='converted'?'badge-green':c.action==='not_renewed'?'badge-red':'badge-gray'}`} style={{ fontSize:11 }}>
+                              {c.action==='renewed'?'Renewed':c.action==='converted'?'Converted':c.action==='not_renewed'?'Not Renewing':'New'}
+                            </span>
+                          </td>
+                          <td style={{ fontSize:13 }}>{c.contractType}</td>
+                          <td style={{ fontSize:12, color:'var(--gray-600)' }}>{formatDateUAE(c.startDate) || '—'}</td>
+                          <td style={{ fontSize:12, color:'var(--gray-600)' }}>{formatDateUAE(c.endDate) || '—'}</td>
+                          <td style={{ fontSize:12, color:'var(--gray-500)' }}>{c.renewedBy || '—'}</td>
+                          <td style={{ fontSize:12, color:'var(--gray-500)', maxWidth:160 }}>{c.notes || '—'}</td>
+                          <td style={{ fontSize:12, color:'var(--gray-500)', whiteSpace:'nowrap' }}>{c.createdAt?.split('T')[0] || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
         </div>
 
         <div className="modal-footer">
           <button className="btn btn-outline" onClick={onClose} disabled={saving}>Cancel</button>
-          {tab !== 'documents' && tab !== 'insurance' && (
+          {tab !== 'documents' && tab !== 'insurance' && tab !== 'contracts' && (
             <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
               {saving ? 'Saving…' : (employee?.id ? 'Save Changes' : 'Add Employee')}
             </button>

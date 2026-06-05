@@ -307,6 +307,7 @@ export default function PayrollList({ onEdit }) {
                     <th>Total (AED)</th>
                     <th>Description</th>
                     <th>Status</th>
+                    <th>Approval</th>
                     <th>WPS</th>
                     <th>Run By</th>
                     <th>SIF Filename</th>
@@ -334,6 +335,15 @@ export default function PayrollList({ onEdit }) {
                           <span className={`badge ${p.status === 'generated' ? 'badge-green' : 'badge-yellow'}`}>
                             {p.status === 'generated' ? 'Generated' : 'Draft'}
                           </span>
+                        </td>
+                        <td>
+                          {p.status !== 'generated' && (() => {
+                            const as = p.approvalStatus ?? 'draft';
+                            const ab = { draft:'badge-yellow', pending_approval:'badge-blue', approved:'badge-green' };
+                            const al = { draft:'Draft', pending_approval:'Pending', approved:'Approved' };
+                            return <span className={`badge ${ab[as] ?? 'badge-yellow'}`} style={{ fontSize:11 }}>{al[as] ?? as}</span>;
+                          })()}
+                          {p.status === 'generated' && <span className="badge badge-green" style={{ fontSize:11 }}>Approved</span>}
                         </td>
                         <td>
                           {p.status === 'generated' && (() => {

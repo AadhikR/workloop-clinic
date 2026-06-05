@@ -50,5 +50,30 @@ export default async function globalTeardown() {
   // Salary advances from Feature 5 tests (repayments cascade-delete automatically)
   await db.from('salary_advances').delete().eq('user_id', adminId);
 
+  console.log('[teardown] Cleaning up Feature 12–13 test data…');
+  // Employee contracts (Feature 12) — no rows created by current test suite but clean anyway
+  await db.from('employee_contracts').delete().eq('user_id', adminId);
+  // Offboarding checklists (Feature 13) — tasks cascade-delete with checklist
+  await db.from('offboarding_checklists').delete().eq('user_id', adminId);
+
+  console.log('[teardown] Cleaning up Feature 14 test data…');
+  // Expense claims (Feature 14)
+  await db.from('expense_claims').delete().eq('user_id', adminId);
+
+  console.log('[teardown] Cleaning up Feature 16 test data…');
+  // Asset assignments first (FK to assets), then assets
+  const { data: testAssets } = await db.from('assets').select('id').eq('user_id', adminId);
+  if (testAssets?.length) {
+    await db.from('asset_assignments').delete().in('asset_id', testAssets.map(a => a.id));
+  }
+  await db.from('assets').delete().eq('user_id', adminId);
+
+  console.log('[teardown] Cleaning up Feature 17 test data…');
+  // payroll_approval_log cascades on payroll_runs delete (already handled above)
+
+  console.log('[teardown] Cleaning up Feature 19 test data…');
+  await db.from('training_records').delete().eq('user_id', adminId);
+  await db.from('certifications').delete().eq('user_id', adminId);
+
   console.log('[teardown] Done.\n');
 }

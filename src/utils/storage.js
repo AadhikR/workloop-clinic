@@ -256,6 +256,14 @@ export async function getPayrolls() {
     wpsSubmittedAt:     run.wps_submitted_at ?? null,
     wpsConfirmedAt:     run.wps_confirmed_at ?? null,
     wpsReferenceNo:     run.wps_reference_no ?? '',
+    // Payroll Approval (Feature 17)
+    approvalStatus:            run.approval_status              ?? 'draft',
+    submittedForApprovalAt:    run.submitted_for_approval_at   ?? null,
+    submittedBy:               run.submitted_by                ?? '',
+    approvedBy:                run.approved_by                 ?? '',
+    approvedAt:                run.approved_at                 ?? null,
+    rejectionReason:           run.rejection_reason            ?? '',
+    rejectedAt:                run.rejected_at                 ?? null,
     entries: (entries || [])
       .filter(e => e.payroll_run_id === run.id)
       .map(dbToEntry),
@@ -293,6 +301,14 @@ export async function savePayroll(payroll) {
     wps_submitted_at:     payroll.wpsSubmittedAt   ?? null,
     wps_confirmed_at:     payroll.wpsConfirmedAt   ?? null,
     wps_reference_no:     payroll.wpsReferenceNo   ?? '',
+    // Payroll Approval (Feature 17)
+    approval_status:              payroll.approvalStatus           ?? 'draft',
+    submitted_for_approval_at:    payroll.submittedForApprovalAt  ?? null,
+    submitted_by:                 payroll.submittedBy              ?? '',
+    approved_by:                  payroll.approvedBy               ?? '',
+    approved_at:                  payroll.approvedAt               ?? null,
+    rejection_reason:             payroll.rejectionReason          ?? '',
+    rejected_at:                  payroll.rejectedAt               ?? null,
   };
 
   const { error: runErr } = await supabase
@@ -896,6 +912,261 @@ export async function saveNafisReport(report) {
   if (error) { console.error('saveNafisReport:', error); throw error; }
 }
 
+// ─── OFFBOARDING ─────────────────────────────────────────────────────────────
+
+/** Default clearance tasks used when no custom templates exist. */
+const DEFAULT_OFFBOARDING_TASKS = [
+  'Return access card and office keys',
+  'Revoke system access (email, apps, VPN)',
+  'Return company assets (laptop, phone, ID badge)',
+  'Final salary payment processed via WPS',
+  'Gratuity / EOSB calculated and transferred',
+  'Visa cancellation initiated with immigration authority',
+  'NOC / Reference letter issued to employee',
+  'Exit interview completed',
+  'Knowledge transfer to replacement completed',
+];
+
+/**
+ * Returns the offboarding checklist for an employee, or null if none exists yet.
+ */
+export async function getOffboardingChecklist(employeeId) {
+  const { data, error } = await supabase
+    .from('offboarding_checklists')
+    .select('*')
+    .eq('employee_id', employeeId)
+    .maybeSingle();
+  if (error) { console.error('getOffboardingChecklist:', error); return null; }
+  return data ? dbToChecklist(data) : null;
+}
+
+/**
+ * Creates a new offboarding checklist for an employee and seeds it with default tasks.
+ * Safe to call if one already exists (upsert on user_id,employee_id).
+ */
+export async function createOffboardingChecklist(employeeId) {
+  const user = await getSessionUser();
+  if (!user) throw new Error('Not authenticated');
+
+  // Upsert the checklist header
+  const { data: checklist, error: clErr } = await supabase
+    .from('offboarding_checklists')
+    .upsert(
+      { user_id: user.id, employee_id: employeeId, status: 'in_progress', visa_cancellation_status: 'not_started' },
+      { onConflict: 'user_id,employee_id' }
+    )
+    .select()
+    .single();
+  if (clErr) throw clErr;
+
+  // Seed default tasks only on first creation (no tasks yet)
+  const { data: existing } = await supabase
+    .from('offboarding_tasks')
+    .select('id')
+    .eq('checklist_id', checklist.id)
+    .limit(1);
+
+  if (!existing?.length) {
+    // Use the admin's custom templates if any, otherwise fall back to hardcoded defaults
+    const { data: templates } = await supabase
+      .from('offboarding_task_templates')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('default_order', { ascending: true });
+
+    const taskNames = templates?.length ? templates.map(t => t.task_name) : DEFAULT_OFFBOARDING_TASKS;
+    const taskRows  = taskNames.map((name, i) => ({
+      checklist_id: checklist.id,
+      user_id:      user.id,
+      task_name:    name,
+      sort_order:   i,
+    }));
+    await supabase.from('offboarding_tasks').insert(taskRows);
+  }
+
+  return dbToChecklist(checklist);
+}
+
+/**
+ * Returns all tasks for a checklist, ordered by sort_order.
+ */
+export async function getOffboardingTasks(checklistId) {
+  const { data, error } = await supabase
+    .from('offboarding_tasks')
+    .select('*')
+    .eq('checklist_id', checklistId)
+    .order('sort_order', { ascending: true });
+  if (error) { console.error('getOffboardingTasks:', error); return []; }
+  return (data || []).map(dbToOffboardingTask);
+}
+
+/**
+ * Toggles a task's completed state.
+ */
+export async function updateOffboardingTask(taskId, { completed, completedBy, notes }) {
+  const { data, error } = await supabase
+    .from('offboarding_tasks')
+    .update({
+      completed,
+      completed_at: completed ? new Date().toISOString() : null,
+      completed_by: completed ? (completedBy || '') : '',
+      notes:        notes ?? '',
+    })
+    .eq('id', taskId)
+    .select()
+    .single();
+  if (error) throw error;
+  return dbToOffboardingTask(data);
+}
+
+/**
+ * Adds a custom task to a checklist.
+ */
+export async function addOffboardingTask(checklistId, taskName) {
+  const user = await getSessionUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data: existing } = await supabase
+    .from('offboarding_tasks')
+    .select('sort_order')
+    .eq('checklist_id', checklistId)
+    .order('sort_order', { ascending: false })
+    .limit(1);
+  const maxOrder = existing?.[0]?.sort_order ?? -1;
+
+  const { data, error } = await supabase
+    .from('offboarding_tasks')
+    .insert({ checklist_id: checklistId, user_id: user.id, task_name: taskName, sort_order: maxOrder + 1 })
+    .select()
+    .single();
+  if (error) throw error;
+  return dbToOffboardingTask(data);
+}
+
+/**
+ * Deletes a task from a checklist.
+ */
+export async function deleteOffboardingTask(taskId) {
+  const { error } = await supabase.from('offboarding_tasks').delete().eq('id', taskId);
+  if (error) throw error;
+}
+
+/**
+ * Saves visa cancellation status and date on the checklist header.
+ */
+export async function saveOffboardingVisaStatus(checklistId, { visaCancellationStatus, visaCancellationDate }) {
+  const { data, error } = await supabase
+    .from('offboarding_checklists')
+    .update({
+      visa_cancellation_status: visaCancellationStatus,
+      visa_cancellation_date:   visaCancellationDate || null,
+    })
+    .eq('id', checklistId)
+    .select()
+    .single();
+  if (error) throw error;
+  return dbToChecklist(data);
+}
+
+/**
+ * Marks the entire offboarding checklist as completed.
+ */
+export async function completeOffboardingChecklist(checklistId) {
+  const { data, error } = await supabase
+    .from('offboarding_checklists')
+    .update({ status: 'completed', completed_at: new Date().toISOString() })
+    .eq('id', checklistId)
+    .select()
+    .single();
+  if (error) throw error;
+  return dbToChecklist(data);
+}
+
+function dbToChecklist(row) {
+  return {
+    id:                     row.id,
+    employeeId:             row.employee_id,
+    status:                 row.status || 'in_progress',
+    visaCancellationStatus: row.visa_cancellation_status || 'not_started',
+    visaCancellationDate:   row.visa_cancellation_date || '',
+    createdAt:              row.created_at,
+    completedAt:            row.completed_at || '',
+  };
+}
+
+function dbToOffboardingTask(row) {
+  return {
+    id:          row.id,
+    checklistId: row.checklist_id,
+    taskName:    row.task_name,
+    completed:   row.completed || false,
+    completedAt: row.completed_at || '',
+    completedBy: row.completed_by || '',
+    notes:       row.notes || '',
+    sortOrder:   row.sort_order || 0,
+    createdAt:   row.created_at,
+  };
+}
+
+// ─── EMPLOYEE CONTRACTS ──────────────────────────────────────────────────────
+
+/**
+ * Returns the contract history for a specific employee, newest first.
+ */
+export async function getEmployeeContracts(employeeId) {
+  const { data, error } = await supabase
+    .from('employee_contracts')
+    .select('*')
+    .eq('employee_id', employeeId)
+    .order('created_at', { ascending: false });
+  if (error) { console.error('getEmployeeContracts:', error); return []; }
+  return (data || []).map(dbToContract);
+}
+
+/**
+ * Saves a new contract lifecycle record (always inserts — each action is a new row).
+ * action: 'new' | 'renewed' | 'converted' | 'not_renewed'
+ */
+export async function saveEmployeeContract(contract) {
+  const user = await getSessionUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const row = {
+    user_id:       user.id,
+    employee_id:   contract.employeeId,
+    contract_type: contract.contractType ?? 'Limited',
+    start_date:    contract.startDate || null,
+    end_date:      contract.endDate || null,
+    renewed_at:    new Date().toISOString(),
+    renewed_by:    contract.renewedBy || user.email || user.id,
+    action:        contract.action ?? 'new',
+    notes:         contract.notes ?? '',
+  };
+
+  const { data, error } = await supabase
+    .from('employee_contracts')
+    .insert(row)
+    .select()
+    .single();
+  if (error) throw error;
+  return dbToContract(data);
+}
+
+function dbToContract(row) {
+  return {
+    id:           row.id,
+    employeeId:   row.employee_id,
+    contractType: row.contract_type,
+    startDate:    row.start_date || '',
+    endDate:      row.end_date || '',
+    renewedAt:    row.renewed_at || '',
+    renewedBy:    row.renewed_by || '',
+    action:       row.action || 'new',
+    notes:        row.notes || '',
+    createdAt:    row.created_at,
+  };
+}
+
 // ─── shape converters ───────────────────────────────────────────────────────
 
 function dbToCompany(data) {
@@ -1139,4 +1410,103 @@ export async function saveWpsTracking(payrollId, { wpsStatus, wpsSubmittedAt, wp
     })
     .eq('id', payrollId);
   if (error) throw error;
+}
+
+// ── PAYROLL APPROVAL (Feature 17) ────────────────────────────────────────────
+
+async function logApprovalAction(user, payrollRunId, action, notes = '') {
+  await supabase.from('payroll_approval_log').insert({
+    user_id:        user.id,
+    payroll_run_id: payrollRunId,
+    action,
+    performed_by:   user.email || user.id,
+    notes,
+  });
+}
+
+/** Submit a draft payroll run for approval. Locks editing until approved/rejected. */
+export async function submitPayrollForApproval(payrollRunId) {
+  const user = await getSessionUser();
+  if (!user) throw new Error('Not authenticated');
+  const { error } = await supabase
+    .from('payroll_runs')
+    .update({
+      approval_status:           'pending_approval',
+      submitted_for_approval_at: new Date().toISOString(),
+      submitted_by:              user.email || user.id,
+      rejection_reason:          '',
+      rejected_at:               null,
+    })
+    .eq('id', payrollRunId);
+  if (error) throw error;
+  await logApprovalAction(user, payrollRunId, 'submitted');
+}
+
+/** Approve a pending-approval payroll. Enables the Generate SIF button. */
+export async function approvePayroll(payrollRunId, notes = '') {
+  const user = await getSessionUser();
+  if (!user) throw new Error('Not authenticated');
+  const { error } = await supabase
+    .from('payroll_runs')
+    .update({
+      approval_status: 'approved',
+      approved_by:     user.email || user.id,
+      approved_at:     new Date().toISOString(),
+    })
+    .eq('id', payrollRunId);
+  if (error) throw error;
+  await logApprovalAction(user, payrollRunId, 'approved', notes);
+}
+
+/** Reject a pending payroll, returning it to draft with a mandatory reason. */
+export async function rejectPayroll(payrollRunId, reason) {
+  const user = await getSessionUser();
+  if (!user) throw new Error('Not authenticated');
+  const { error } = await supabase
+    .from('payroll_runs')
+    .update({
+      approval_status:  'draft',
+      rejection_reason: reason || '',
+      rejected_at:      new Date().toISOString(),
+      approved_by:      '',
+      approved_at:      null,
+    })
+    .eq('id', payrollRunId);
+  if (error) throw error;
+  await logApprovalAction(user, payrollRunId, 'rejected', reason);
+}
+
+/** Recall a submitted payroll before it is approved (back to draft). */
+export async function recallPayrollApproval(payrollRunId) {
+  const user = await getSessionUser();
+  if (!user) throw new Error('Not authenticated');
+  const { error } = await supabase
+    .from('payroll_runs')
+    .update({
+      approval_status:           'draft',
+      submitted_for_approval_at: null,
+      submitted_by:              '',
+    })
+    .eq('id', payrollRunId);
+  if (error) throw error;
+  await logApprovalAction(user, payrollRunId, 'recalled');
+}
+
+/** Return the full approval event log for a payroll run (newest first). */
+export async function getPayrollApprovalLog(payrollRunId) {
+  const user = await getSessionUser();
+  if (!user) return [];
+  const { data, error } = await supabase
+    .from('payroll_approval_log')
+    .select('*')
+    .eq('payroll_run_id', payrollRunId)
+    .order('created_at', { ascending: false });
+  if (error) return [];
+  return (data || []).map(r => ({
+    id:          r.id,
+    action:      r.action,
+    performedBy: r.performed_by,
+    notes:       r.notes,
+    createdAt:   r.created_at,
+  }));
 }

@@ -12,7 +12,7 @@ npm run build:dist    # Single-file bundle for offline distribution (vite.single
 npm run lint          # ESLint
 npm run preview       # Preview the production build
 
-# Testing (Playwright E2E — requires dev server running in a separate terminal)
+# Testing (Playwright E2E — dev server auto-starts via playwright.config.js webServer block; reuses existing if already running)
 npm test                        # Full test suite, headless
 npm run test:ui                 # Playwright UI mode — visual step-by-step, best for debugging
 npm run test:auth               # Auth flows only
@@ -21,8 +21,8 @@ npm run test:employees          # Employee CRUD only
 npm run test:payroll            # Payroll flows only
 npm run test:report             # Open HTML report from last run
 
-# Run all feature specs (1–11)
-npx playwright test emiratization documents insurance notifications advances multi-level-leave leave-calendar shift-roster wps reports probation
+# Run all feature specs (1–19, skipping 15/18/20/22)
+npx playwright test emiratization documents insurance notifications advances multi-level-leave leave-calendar shift-roster wps reports probation contracts offboarding expenses assets payroll-approval training
 
 # Run a single feature spec
 npx playwright test emiratization          # Feature 1 — Emiratization / Nafis
@@ -36,6 +36,12 @@ npx playwright test shift-roster          # Feature 8 — Shift Scheduling & Ros
 npx playwright test wps                   # Feature 9 — WPS Payment Confirmation
 npx playwright test reports               # Feature 10 — HR Reports & Analytics
 npx playwright test probation             # Feature 11 — Probation Period Management
+npx playwright test contracts             # Feature 12 — Contract Renewal Management
+npx playwright test offboarding           # Feature 13 — Offboarding Workflow
+npx playwright test expenses              # Feature 14 — Expense Claims & Reimbursements
+npx playwright test assets                # Feature 16 — Asset Management
+npx playwright test payroll-approval      # Feature 17 — Payroll Approval (Maker-Checker)
+npx playwright test training              # Feature 19 — Training & Certification Records
 
 # Run tests matching a name pattern across all files
 npx playwright test --grep "bell icon"
@@ -54,7 +60,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO service_role;
 ```
 
-`global-setup.js` runs once before all tests: creates `test.admin@workloop-test.local` and `test.employee@workloop-test.local` auth users, seeds company/employee rows, then saves browser sessions to `.playwright/admin-session.json` and `.playwright/employee-session.json` so tests start pre-logged-in. `global-teardown.js` cleans test data from: attendance, payroll, nafis_reports, insurance_policies/dependants/employee_insurance, notifications, employee_documents, salary_advances (repayments cascade-delete), and leave_approval_delegates — labelled "Feature 1–6 test data".
+`global-setup.js` runs once before all tests: creates `test.admin@workloop-test.local` and `test.employee@workloop-test.local` auth users, seeds company/employee rows, then saves browser sessions to `.playwright/admin-session.json` and `.playwright/employee-session.json` so tests start pre-logged-in. `global-teardown.js` cleans test data from all feature tables: attendance, payroll (runs/entries/payslips/approval_log), nafis_reports, insurance, notifications, employee_documents, salary_advances, employee_contracts, offboarding_checklists (tasks cascade), expense_claims, asset_assignments + assets, training_records, certifications.
 
 Test files in `tests/` use `storageState` to load saved sessions. Attendance tests open two browser contexts simultaneously (admin + employee) to verify cross-portal clock-in visibility.
 
@@ -144,6 +150,18 @@ This pattern is used in `reports.spec.js` for all Reports tab buttons. The same 
 
 **`<option>` elements are "hidden" in Playwright**: Playwright's `toBeVisible()` returns `false` for `<option>` elements because they are not directly rendered — only the `<select>` parent is visible. To assert that a `<select>` contains specific placeholder text, check the `<select>` element itself: `page.locator('select').filter({ has: page.locator('option').filter({ hasText: /placeholder/i }) })`. Never call `.toBeVisible()` directly on an `<option>` locator.
 
+**Filter chips with count suffix — use substring `hasText`, not anchored regex**: AssetsManager filter chips render as `"Available (2)"` (status label + live count). The regex `/^Available$/i` never matches. Use `page.locator('button.tab-btn').filter({ hasText: 'Available' })` — Playwright's string `hasText` does a substring match. Always scope to `button.tab-btn` (the chip class) to avoid matching unrelated buttons that also contain "Available" in their text.
+
+**`modal-overlay` vs `modal-backdrop`**: Some components (AssetsManager, OffboardingModal) wrap their modals in `<div className="modal-overlay">` rather than `<div className="modal-backdrop">`. In both cases the inner modal uses `<div className="modal">` so `page.locator('.modal')` still works for asserting content. Only the backdrop selector matters when testing click-outside-to-close behaviour.
+
+**Icon-only buttons use `title` attributes, not accessible text**: Action buttons that render only a Lucide icon (Pencil, Trash2, etc.) have no text content, so `getByRole('button', { name: /edit/i })` won't match them. Use the `title` attribute selector instead: `button[title="Edit asset"]`, `button[title="Delete asset"]`, `button[title="Probation actions"]`, `button[title="Delete employee"]`. Always check the component source for the exact `title` string.
+
+**Submit buttons without `type="submit"` don't match `input[type="submit"]` or `button[type="submit"]`**: Many submit buttons use `onClick={handler}` with no explicit `type` attribute (defaulting to `"button"`, not `"submit"`). The CSS selector `button[type="submit"]` requires the attribute to be **explicitly present** in the HTML — it does NOT match buttons that merely default to the submit type. Target these by text content: `page.locator('button').filter({ hasText: 'Submit Claim' })`.
+
+**Inputs without explicit `type="text"` don't match `input[type="text"]`**: Same rule as above — CSS attribute selectors require the attribute to be explicitly set. A bare `<input className="form-control" value={...} />` (no type prop) renders as a text input in browsers but is NOT matched by `input[type="text"]` in Playwright selectors. Target by placeholder instead: `page.locator('input[placeholder*="Fire Safety"]')` or `input:not([type="date"]):not([type="number"])`.
+
+**Multiple Cancel buttons in layered modal content — use `.first()` for the innermost one**: When a modal has an inline confirmation form (e.g. contract action, payroll rejection), two Cancel buttons exist simultaneously: `[0]` = the inline form's Cancel (inside `modal-body`), `[1]` = the modal footer's Cancel (closes the entire modal). Always use `.first()` to dismiss only the inline form. Clicking `.nth(1)` closes the whole modal, which then causes subsequent assertions on modal content to fail with "element(s) not found".
+
 ## Environment
 
 Create `sif-app/.env` with:
@@ -172,7 +190,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
 
 **Workloop** is a UAE HR/payroll SaaS. It generates **SIF files** (Salary Information File — UAE WPS/MOL bank format) and manages employees, payroll, leave, and attendance. There are two completely separate UIs sharing one Supabase project.
 
-See `FEATURES_ROADMAP.md` for the 22-feature implementation plan and current completion status.
+See `FEATURES_ROADMAP.md` for the 22-feature implementation plan. **Features 1–14, 16, 17, and 19 are complete** (Emiratization, Document Storage, Insurance, Notifications, Advances, Multi-Level Leave, Leave Calendar, Shift Roster, WPS Tracking, Reports, Probation, Contract Renewal, Offboarding, Expense Claims, Asset Management, Payroll Approval, Training & Certifications). Features 15, 18, 20, 22 were skipped. Remaining pending: 21 (Multi-Company).
 
 ### Dual-portal structure
 
@@ -207,7 +225,10 @@ All DB access goes through utility modules — components never call `supabase` 
 
 | File | Scope |
 |------|-------|
-| `utils/storage.js` | Admin CRUD: companies, employees, payroll runs/entries, payslip records, employee documents, Nafis reports, insurance policies/assignments/dependants, salary advances/repayments |
+| `utils/storage.js` | Admin CRUD: companies, employees, payroll runs/entries, payslip records, employee documents, Nafis reports, insurance policies/assignments/dependants, salary advances/repayments, employee contracts (`getEmployeeContracts`, `saveEmployeeContract`), offboarding checklists/tasks (`getOffboardingChecklist`, `createOffboardingChecklist`, `getOffboardingTasks`, `updateOffboardingTask`, `addOffboardingTask`, `deleteOffboardingTask`, `saveOffboardingVisaStatus`, `completeOffboardingChecklist`), payroll approval (`submitPayrollForApproval`, `approvePayroll`, `rejectPayroll`, `recallPayrollApproval`, `getPayrollApprovalLog`) |
+| `utils/expenseStorage.js` | Expense claims (Feature 14): `getExpenseClaims`, `getApprovedUnpaidExpenses`, `approveExpenseClaim`, `rejectExpenseClaim`, `markExpensesPaid`, `deleteExpenseClaim`, `uploadExpenseReceipt`, `getExpenseReceiptUrl` |
+| `utils/assetStorage.js` | Asset management (Feature 16): `getAssets`, `saveAsset`, `deleteAsset`, `getAssetAssignments`, `assignAsset`, `returnAsset`, `getEmployeeCurrentAssets` |
+| `utils/trainingStorage.js` | Training & certifications (Feature 19): `getTrainingRecords`, `saveTrainingRecord`, `deleteTrainingRecord`, `getEmployeeTrainingRecords`, `getCertifications`, `getAllCertifications`, `saveCertification`, `deleteCertification`, `getEmployeeCertifications` |
 | `utils/notificationStorage.js` | In-app notifications: `getNotifications`, `getUnreadCount`, `markNotificationRead`, `markAllNotificationsRead`, `createNotification`, `createNotifications` (batch), `generateExpiryNotifications` |
 | `utils/profileStorage.js` | Role resolution (`user_profiles`), employee self-service data (own record, own payslips, own company); `getEmployeePortalRole(employeeId)`, `setEmployeePortalRole(employeeId, role)` |
 | `utils/leaveStorage.js` | Leave types, requests, balances, public holidays, delegates; `getLeaveQueueForManager`, `approveLeaveAsManager`, `rejectLeaveAsManager`, `getLeaveApprovalDelegates`, `saveLeaveApprovalDelegate`, `deleteLeaveApprovalDelegate` |
@@ -224,7 +245,7 @@ All DB access goes through utility modules — components never call `supabase` 
 - `companies` — one row per admin user (`user_id = auth.uid()`). New columns: `sector TEXT`, `nafis_quota_percent DECIMAL(5,2)` (Emiratization tracking).
 - `employees` — all employees for a company; `auth_user_id` set when employee links their account; `user_id` = the admin's UUID; `work_email` is always stored lowercase. Several columns are NOT NULL (including `mol_id`, `emp_no`, `name`, `bank_name`, `bank_routing_code`, `iban`) — always pass `''` as default, never omit them in raw inserts. New columns: `nafis_registration_no TEXT` (UAE nationals only); `probation_extended BOOLEAN DEFAULT false` (set to true when admin extends the probation period).
 - `user_profiles` — `role` ('admin'|'employee'|'manager'), `company_user_id`, `employee_id`; RLS restricts each user to their own row. Admins can change an employee's role to 'manager' via `admin_set_employee_portal_role` RPC (requires the employee to have activated their portal first)
-- `payroll_runs` + `payroll_entries` — payroll run header + one row per employee
+- `payroll_runs` + `payroll_entries` — payroll run header + one row per employee. Feature 17 added approval columns: `approval_status` (`'draft'`|`'pending_approval'`|`'approved'`), `submitted_for_approval_at`, `submitted_by`, `approved_by`, `approved_at`, `rejection_reason`, `rejected_at`. After final generation `payroll_runs.status` becomes `'generated'` (irreversible; separate from `approval_status`).
 - `payslips` — snapshot of each employee's pay per period; created when admin downloads SIF (`createPayslipRecords`)
 - `leave_types`, `leave_requests`, `leave_balances`, `public_holidays`
 - `clock_events` — raw clock-in/out events; `user_id` = admin's UUID (even for self-service entries via RPC); `event_type` stored as uppercase `CLOCK_IN` / `CLOCK_OUT`
@@ -243,6 +264,16 @@ All DB access goes through utility modules — components never call `supabase` 
 - `leave_approval_delegates` — admin configures a deputy approver when a manager is on leave. `approver_employee_id` = the absent manager, `delegate_employee_id` = the colleague covering them, `from_date`/`to_date` = coverage window. Both manager and delegate can read their own rows via `leave_approval_delegates_actor_read` policy.
 - `roster_assignments` — one shift per employee per calendar day (`UNIQUE (employee_id, date)`). `published BOOLEAN` controls whether the employee portal can see the row. Admin has full access via `user_id = auth.uid()`; employees read only their own `published = true` rows via the `roster_assignments_employee_read` policy. `shift_id` FK → `shifts` table (which gained a `color TEXT` column in migration 007).
 - `shift_swap_requests` — employee-initiated swap between two employees for a specific date. `status` CHECK `('pending'|'approved'|'rejected'|'cancelled')`. Both the `requester_employee_id` and `target_employee_id` can SELECT their own rows via `shift_swap_requests_employee_read` policy. Admin has full access.
+- `employee_contracts` — contract lifecycle history (Feature 12). One **insert-only** row per action; never updated. `action` values: `'new'` | `'renewed'` | `'converted'` | `'not_renewed'`. `UNIQUE` constraint: none — multiple rows per employee expected. Stores `contract_type`, `start_date`, `end_date`, `renewed_by` (admin email), `notes`.
+- `offboarding_checklists` — one row per terminated employee offboarding (Feature 13). `UNIQUE (user_id, employee_id)` prevents duplicates. Stores `status` (`'in_progress'`|`'completed'`), `visa_cancellation_status` (`'not_started'`|`'initiated'`|`'submitted_gdrfa'`|`'cancelled'`), `visa_cancellation_date`, `completed_at`.
+- `offboarding_tasks` — individual clearance items for a checklist (CASCADE delete with checklist). Columns: `task_name`, `completed BOOLEAN`, `completed_at`, `completed_by`, `notes`, `sort_order`. Seeded from `offboarding_task_templates` on checklist creation, or from 9 hardcoded defaults if no templates exist.
+- `offboarding_task_templates` — admin-configurable reusable default task list. If rows exist for the admin's `user_id`, they override the hardcoded defaults when `createOffboardingChecklist()` seeds a new checklist.
+- `expense_claims` — employee expense reimbursements (Feature 14).
+- `assets` — company asset registry (Feature 16). `status`: `'available'` | `'assigned'` | `'under_repair'` | `'retired'` | `'lost'`. `category`: laptop | phone | tablet | vehicle | furniture | equipment | other. Admin full CRUD; employees read assets assigned to them via `asset_assignments` sub-select. Status is automatically managed by `assignAsset()` (→ `'assigned'`) and `returnAsset()` (→ `'available'`) — never set manually to `'assigned'` from the Edit modal. `ASSET_CATEGORIES` constant exported from `AssetsManager.jsx`.
+- `asset_assignments` — assignment history (Feature 16). Append-only: one INSERT per assignment, `return_date IS NULL` means currently held. `condition_at_handover` / `condition_at_return`: `'new'` | `'good'` | `'fair'` | `'poor'`. `deleteAsset()` guards against deleting assets with an open assignment. Employee self-read policy: `employee_id IN (SELECT id FROM employees WHERE auth_user_id = auth.uid())`.
+- `payroll_approval_log` — audit trail for Feature 17. One row per approval action (`'submitted'` | `'approved'` | `'rejected'` | `'recalled'`). Columns: `payroll_run_id`, `action`, `performed_by` (email), `notes`, `created_at`. Written by the four approval functions in `storage.js`; never updated or deleted. Admin-only RLS (`user_id = auth.uid()`).
+- `training_records` — training/course history per employee (Feature 19). `training_type`: `'internal'` | `'external'` | `'online'` | `'conference'`. `status`: `'planned'` | `'in_progress'` | `'completed'` | `'cancelled'`. Optional fields: `score`, `passed BOOLEAN`, `certificate_url`, `duration_hours`, `cost`. Admin full CRUD; employee self-read policy. `TRAINING_TYPES` and `TRAINING_STATUSES` constants exported from `TrainingManager.jsx`.
+- `certifications` — professional certification registry per employee (Feature 19). Key fields: `certification_name`, `issuing_body`, `certificate_no`, `issued_date`, `expiry_date` (NULL = no expiry / lifetime cert), `certificate_url`. Admin full CRUD; employee self-read policy. Expiry status (`expired` / `expiring_30d` / `expiring_60d` / `active` / `no_expiry`) is computed dynamically by `certExpiryInfo()` in `TrainingManager.jsx` — not stored in DB. Dashboard loads all certs via `getAllCertifications()` for the 60-day cert expiry alert. `generateExpiryNotifications` now accepts a 5th param `allCertifications = []` and fires `cert_expiry` notifications at 14d / 30d / 60d thresholds.
 
 ### Supabase Storage
 
@@ -268,7 +299,7 @@ ALTER TABLE tablename ENABLE ROW LEVEL SECURITY; -- then add RLS policies
 
 ### RLS model
 
-**Admin tables** (`companies`, `employees`, `payroll_*`, `payslips`, `leave_*`, `clock_events`, `attendance_records`, `attendance_periods`, `employee_job_history`, `nafis_reports`, `employee_documents`, `insurance_policies`, `employee_insurance`, `insurance_dependants`, `leave_approval_delegates`) use `FOR ALL USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid())`.
+**Admin tables** (`companies`, `employees`, `payroll_*`, `payslips`, `leave_*`, `clock_events`, `attendance_records`, `attendance_periods`, `employee_job_history`, `nafis_reports`, `employee_documents`, `insurance_policies`, `employee_insurance`, `insurance_dependants`, `leave_approval_delegates`, `employee_contracts`, `offboarding_checklists`, `offboarding_tasks`, `offboarding_task_templates`, `expense_claims`, `assets`, `asset_assignments`, `payroll_approval_log`, `training_records`, `certifications`) use `FOR ALL USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid())`.
 
 **Employee self-service** crosses the RLS boundary via `SECURITY DEFINER` RPCs and dedicated SELECT policies:
 
@@ -286,6 +317,11 @@ ALTER TABLE tablename ENABLE ROW LEVEL SECURITY; -- then add RLS policies
 | `leave_approval_delegates` | `approver_employee_id IN (SELECT id FROM employees WHERE auth_user_id = auth.uid()) OR delegate_employee_id IN (...)` |
 | `roster_assignments` | `published = true AND employee_id IN (SELECT id FROM employees WHERE auth_user_id = auth.uid())` |
 | `shift_swap_requests` | requester or target employee: `requester_employee_id IN (...) OR target_employee_id IN (...)` |
+| `expense_claims` | employee reads own claims: `employee_id IN (SELECT id FROM employees WHERE auth_user_id = auth.uid())` — INSERT only via `employee_submit_expense` RPC |
+| `assets` | `id IN (SELECT asset_id FROM asset_assignments WHERE employee_id IN (SELECT id FROM employees WHERE auth_user_id = auth.uid()))` — employees see assets ever assigned to them |
+| `asset_assignments` | `employee_id IN (SELECT id FROM employees WHERE auth_user_id = auth.uid())` — employees see their own assignment history |
+| `training_records` | `employee_id IN (SELECT id FROM employees WHERE auth_user_id = auth.uid())` — employees see their own training history |
+| `certifications` | `employee_id IN (SELECT id FROM employees WHERE auth_user_id = auth.uid())` — employees see their own certifications |
 
 **Notifications RLS** is split across four separate policies (not a single `FOR ALL`): SELECT and UPDATE use `recipient_user_id = auth.uid()`; INSERT uses `user_id = auth.uid()` (admin creates for anyone); DELETE uses `user_id = auth.uid()` (admin deletes their own). This lets the employee portal read and mark-read its own notifications without being able to insert or delete.
 
@@ -307,6 +343,7 @@ These must exist in Supabase. All look up the caller's employee via `employees.a
 | `admin_get_employee_portal_role(p_employee_id)` | Returns current portal role string for an employee, or NULL if not activated. |
 | `employee_get_my_roster(p_date_from, p_date_to)` | Returns published roster assignments for the calling employee in the given date range, joined with the shift template (name, color, start/end times, expected hours). |
 | `employee_request_shift_swap(p_requester_date, p_target_employee_id, p_target_date, p_reason)` | Creates a `'pending'` shift swap request between two employees. Resolves the requester from `auth.uid()`. |
+| `employee_submit_expense(p_category, p_amount, p_expense_date, p_description, p_receipt_url)` | Inserts an `expense_claims` row for the calling employee. Resolves `employee_id` and admin `user_id` from `auth.uid()` → `employees.auth_user_id`. Returns the new claim UUID. |
 
 ### Key behavioral patterns
 
@@ -332,15 +369,16 @@ These must exist in Supabase. All look up the caller's employee via `employees.a
 
 **Photo upload removed**: `EmployeeModal` has no photo upload UI. The `photoUrl` field is preserved in the DB shape (`employeeToDb` still maps it) so existing data is not lost, but the UI to change it has been removed.
 
-**EmployeeModal tab layout**: The modal has **six tabs for existing employees**, four for new employees (Documents and Insurance tabs are hidden when `employee?.id` is absent):
+**EmployeeModal tab layout**: The modal has **seven tabs for existing employees**, four for new employees (Documents, Insurance, and Contracts tabs are hidden when `employee?.id` is absent):
 - Personal — name (`placeholder="e.g. John Smith"`), contact info, emergency contact
 - Job & Contract — title, department, reporting manager, shift, dates
 - Salary & Bank — MOL ID, salary breakdown, bank details. Basic salary: `placeholder="e.g. 5000"`
 - UAE Compliance — nationality, visa, passport, Emirates ID, labour card, Nafis registration number (enabled only when `nationality === 'United Arab Emirates'`)
 - Documents *(existing employees only)* — file upload form (type, expiry, notes, file picker) + document list with signed-URL links, expiry status badges, and delete.
 - Insurance *(existing employees only)* — coverage assignment (policy selector, member ID, card number, effective/expiry dates) with its own "Assign/Update Coverage" button, plus dependants add/delete table.
+- Contracts *(existing employees only)* — current contract status card (type badge, end date countdown, start date), action buttons (Renew / Convert to Unlimited / Not Renewing for Limited; Convert to Limited for Unlimited), inline confirmation forms, contract history table, and "Print Letter" button. Each action calls `saveEmployeeContract()` + `saveEmployee()` + `addJobHistoryEntry()` directly — does **not** call `onSave`, so the modal stays open. (Feature 12)
 
-The **Save button is hidden** on both the Documents and Insurance tabs — each section has its own dedicated save action. This is enforced via `tab !== 'documents' && tab !== 'insurance'` in the modal footer.
+The **Save button is hidden** on Documents, Insurance, and Contracts tabs — enforced via `tab !== 'documents' && tab !== 'insurance' && tab !== 'contracts'` in the modal footer.
 
 **Emiratization compliance**: `Dashboard.jsx` computes `emiratiEmps` by filtering active employees where `nationality === 'United Arab Emirates'`. The required ratio comes from `company.nafisQuotaPercent` (set in Company Settings). `NafisReportModal.jsx` generates a full compliance report with CSV export and DB snapshot save via `saveNafisReport()`. The `nafis_reports` table has a `UNIQUE (user_id, period)` constraint — `saveNafisReport` upserts by period.
 
@@ -382,6 +420,18 @@ The **Save button is hidden** on both the Documents and Insurance tabs — each 
 **EndOfServiceScreen advance auto-load**: A `useEffect` fires on `employee.id` and calls `getAdvances(employee.id)`, sums `outstandingBalance` across all `active` advances, and pre-populates the "Outstanding Salary Advances" input. The field hint changes to "Auto-loaded from Advances module. Edit to override." once loaded (`advancesLoaded` state). The field remains editable so the admin can manually correct the figure.
 
 **Probation Period Management (Feature 11)**: `EmployeeManager` shows a blue `UserCheck` icon button in the row actions for any employee with `employmentStatus === 'Probation'`. Clicking it opens `ProbationModal` (defined in `EmployeeManager.jsx`) with three modes: **Confirm Active** (sets status Active, clears `probationEndDate`, logs `probation_confirmed` job history), **Extend** (date picker → sets `probationExtended: true`, logs `probation_extended`), **Terminate** (shows UAE 14-day notice warning, calls `archiveEmployee`, logs `probation_terminated`). Modal shows days remaining/overdue from current end date. `Dashboard.jsx` computes `probationEnding` — employees in Probation status with `probationEndDate ≤ 14 days away` — and shows an amber alert card with a "Manage in Employees" link. `generateExpiryNotifications` in `notificationStorage.js` creates `probation_ending` in-app notifications at 14d and 7d thresholds using the same `ON CONFLICT DO NOTHING` deduplication pattern as other expiry alerts.
+
+**Contract Renewal Management (Feature 12)**: `Dashboard.jsx` computes `contractExpiring` — active `Limited`-contract employees with `contractEndDate ≤ 60 days` — and shows an amber alert. `generateExpiryNotifications` also fires `contract_expiry` in-app notifications at 60d/30d/14d/7d thresholds using the `{empId}_contract_{thr}d` related_entity_id pattern. Contract actions in the EmployeeModal Contracts tab call `saveEmployee()` directly (bypassing `onSave`), then update local `form` state so the user sees the change without closing the modal. The `employee_contracts` table is **append-only** — each lifecycle action adds a new row; nothing is ever updated or deleted.
+
+**Payroll Approval — Maker-Checker (Feature 17)**: Adds a mandatory review step before payroll can be generated. `approval_status` flow on `payroll_runs`: `'draft'` → `'pending_approval'` (Submit for Approval) → `'approved'` (Approve) → then `status = 'generated'` (Generate Payroll). Rejection returns `approval_status` to `'draft'` and stores `rejection_reason`. Recall returns from `pending_approval` back to `draft`. Four new functions in `storage.js`: `submitPayrollForApproval`, `approvePayroll`, `rejectPayroll`, `recallPayrollApproval`. `getPayrollApprovalLog(payrollRunId)` returns the full audit trail from `payroll_approval_log`. **PayrollEditor** introduces `approvalLocked` (true when `pending_approval` or `approved`) and `editingLocked` (true when `approvalLocked || isLocked`) — all input `disabled` props use `editingLocked`. The header button set is conditional: draft shows "Submit for Approval"; pending shows "Recall" + "Reject" + "✓ Approve"; approved shows "Generate Payroll" (the existing `handleSubmitPayroll` flow unchanged). Status banners are injected below the existing lock banner: amber rejection notice (shown on draft with a stored reason), blue pending notice with inline reject-reason form, green approved notice. **PayrollList** gains an "Approval" column. **Dashboard** shows a blue info alert for any payrolls in `pending_approval` state.
+
+**Asset Management (Feature 16)**: `AssetsManager.jsx` (admin) sits at nav item "Assets" between "Roster" and "Reports" in `App.jsx`. Two tabs: **Assets** (filterable table with Assign/Return/Edit/Delete actions) and **Assignment History** (full log). `getAssets()` runs two parallel queries (assets + open assignments) then merges in JS — avoids complex Supabase JOIN syntax. Status transitions are managed exclusively by `assignAsset()` (→ `'assigned'`) and `returnAsset()` (→ `'available'`); the Edit modal explicitly excludes `'assigned'` from the status dropdown so it can't be set manually. `deleteAsset()` checks for an open assignment before deleting and throws if one exists. Employee portal: `getEmployeeCurrentAssets(employeeId)` uses the `asset_assignments_employee_read` RLS policy (no admin scope). Results rendered as a "My Assigned Assets" card in `EmpHome.jsx` — loaded via the existing `Promise.all` with `.catch(() => [])` so a missing table silently produces no card. `ASSET_CATEGORIES` is exported from `AssetsManager.jsx` (no separate constants file needed — only used in two places).
+
+**Training & Certification Records (Feature 19)**: `TrainingManager.jsx` (admin) sits at nav item "Training" between "Assets" and "Roster" in `App.jsx`. Two tabs: **Training Records** (CRUD table with type/status filters per employee) and **Certifications** (expiry-aware registry with expired/expiring-soon filters). `EmpTraining.jsx` is the "Training" tab in `EmployeeShell` (9th tab, between Expenses and Profile). Employee portal is read-only — admin manages all records. Certification expiry status (`expired` / `Xd — Expiring` / `Xd — Due Soon` / `Active` / `No Expiry`) is computed dynamically by `certExpiryInfo(expiryDate)` exported from `TrainingManager.jsx`. Dashboard loads all certifications via `getAllCertifications().catch(() => [])` as a 6th item in the `Promise.all` and shows an amber alert for certs expiring within 60 days, linking to `onNavigate('training')`. `generateExpiryNotifications` in `notificationStorage.js` now accepts a 5th optional parameter `allCertifications = []` and fires `cert_expiry` notifications at 14d/30d/60d thresholds (same deduplication pattern as other expiry alerts — `{certId}_{thr}d` as `relatedEntityId`). No RPCs needed — admin creates/updates via `saveTrainingRecord` / `saveCertification`; employees read via the employee self-read RLS policies.
+
+**Expense Claims & Reimbursements (Feature 14)**: `ExpensesManager.jsx` (admin) sits at nav item "Expenses" between "Advances" and "Leave" in `App.jsx`. `EmpExpenses.jsx` (employee self-service) is the "Expenses" tab in `EmployeeShell`, between "Advances" and "Profile". Employees submit via `supabase.rpc('employee_submit_expense', {...})` directly in `EmpExpenses.jsx` — no wrapper function needed. `EXPENSE_CATEGORIES` (the category label map) is exported from `ExpensesManager.jsx` and imported by `EmpExpenses.jsx` to keep them in sync. `PayrollEditor` loads `getApprovedUnpaidExpenses()` on mount, displays them in a green info panel alongside the advances and leave deduction panels, and calls `markExpensesPaid(ids, payroll.id)` on payroll submission — silently ignoring errors. Status flow: `pending` → `approved` → `paid` (or `rejected`). Admin provides a mandatory `rejection_reason` via an inline form row that appears below the claim. Receipt is a free-text URL field (Google Drive, etc.) — no binary upload required. The `expense-receipts` Storage bucket is optional (for `uploadExpenseReceipt` / `getExpenseReceiptUrl`) and must be created manually if needed.
+
+**Offboarding Workflow (Feature 13)**: `EmployeeManager` shows an indigo `ClipboardList` icon button in row actions for any `Terminated` employee. `OffboardingModal.jsx` auto-creates (or loads) the `offboarding_checklists` row on mount, seeds default tasks from `offboarding_task_templates` (or the hardcoded 9-task list if none exist), then loads all tasks. Task toggling is **optimistic** — local state updates immediately, DB write happens async, state reverts on failure. The EOS calculator is layered on top by replacing the modal's return value: `if (showEOS) return <EndOfServiceScreen employee={employee} onClose={() => setShowEOS(false)} />` — this is the only modal-within-modal pattern in the codebase. NOC and Experience letters open via `window.open('', '_blank')` then `win.document.write(html); win.print()` — the same approach used by `EndOfServiceScreen.printSettlement`.
 
 **LeaveManager Calendar tab (Feature 7)**: `LeaveManager` has a third "Calendar" tab (after Requests and Balances/Settings). It renders a monthly grid showing all approved leave colour-coded by leave type. State: `calendarMonth` (Date), `calendarDeptFilter` (string). Navigation uses chevron buttons to step months; a department `<select>` filters which employees appear. A print button calls `window.print()` against a `#calendar-print-area` div. Data comes from the same `requests` array already loaded by `loadAll()` — no extra fetch. `getApprovedLeavesForMonth(year, month)` in `leaveStorage.js` is available but the Calendar tab reads from in-memory state, not a fresh query.
 
