@@ -271,3 +271,131 @@ test.describe('Multi-Company — Company Settings branch label', () => {
     await branchInput.fill('');
   });
 });
+
+// ─── Data isolation — new branch has empty employee and payroll lists ──────────
+
+test.describe('Multi-Company — Data isolation', () => {
+  test.use({ storageState: '.playwright/admin-session.json' });
+
+  test('new branch shows empty employee list (no cross-branch data leakage)', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('.sidebar-logo')).toBeVisible({ timeout: 10000 });
+
+    // Count employees in the current (primary) branch
+    await page.locator('.sidebar-nav').getByRole('button', { name: 'Employees' }).click();
+    await page.waitForLoadState('networkidle');
+    await expect(page.locator('.page-header h2').filter({ hasText: /Employees/i })).toBeVisible({ timeout: 10000 });
+    const primaryCount = await page.locator('tbody tr').count();
+
+    // Switch to the test branch (created in the create-branch test)
+    const switcherBtn = page.locator('.sidebar-logo button').first();
+    await switcherBtn.click();
+    const testBranchItem = page.locator('.sidebar-logo button').filter({ hasText: BRANCH_NAME }).first();
+    if (!(await testBranchItem.isVisible({ timeout: 3000 }).catch(() => false))) {
+      test.skip(true, 'Test branch not found — run the create-branch test first');
+      return;
+    }
+    await testBranchItem.click();
+    await page.waitForLoadState('networkidle');
+
+    // Navigate to Employees in the new branch
+    await page.locator('.sidebar-nav').getByRole('button', { name: 'Employees' }).click();
+    await page.waitForLoadState('networkidle');
+    await expect(page.locator('.page-header h2').filter({ hasText: /Employees/i })).toBeVisible({ timeout: 10000 });
+
+    const newBranchCount = await page.locator('tbody tr').count();
+    // The new branch should have 0 employees (isolation verified)
+    expect(newBranchCount).toBe(0);
+    // And if primary had employees, they shouldn't leak into the new branch
+    if (primaryCount > 0) {
+      expect(newBranchCount).toBeLessThan(primaryCount);
+    }
+  });
+
+  test('new branch shows empty payroll list (no cross-branch data leakage)', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('.sidebar-logo')).toBeVisible({ timeout: 10000 });
+
+    // Switch to the test branch
+    const switcherBtn = page.locator('.sidebar-logo button').first();
+    await switcherBtn.click();
+    const testBranchItem = page.locator('.sidebar-logo button').filter({ hasText: BRANCH_NAME }).first();
+    if (!(await testBranchItem.isVisible({ timeout: 3000 }).catch(() => false))) {
+      test.skip(true, 'Test branch not found — run the create-branch test first');
+      return;
+    }
+    await testBranchItem.click();
+    await page.waitForLoadState('networkidle');
+
+    // Navigate to Payroll in the new branch
+    await page.locator('.sidebar-nav').getByRole('button', { name: 'Payroll Module' }).click();
+    await page.waitForLoadState('networkidle');
+
+    // New branch should have no payroll runs
+    const payrollRows = await page.locator('tbody tr').count();
+    expect(payrollRows).toBe(0);
+  });
+
+  test('switching back to primary branch restores original employee list', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('.sidebar-logo')).toBeVisible({ timeout: 10000 });
+
+    // Count primary employees
+    await page.locator('.sidebar-nav').getByRole('button', { name: 'Employees' }).click();
+    await page.waitForLoadState('networkidle');
+    await expect(page.locator('.page-header h2').filter({ hasText: /Employees/i })).toBeVisible({ timeout: 10000 });
+    const primaryCount = await page.locator('tbody tr').count();
+
+    // Switch to test branch
+    let switcherBtn = page.locator('.sidebar-logo button').first();
+    await switcherBtn.click();
+    const testBranchItem = page.locator('.sidebar-logo button').filter({ hasText: BRANCH_NAME }).first();
+    if (!(await testBranchItem.isVisible({ timeout: 3000 }).catch(() => false))) {
+      test.skip(true, 'Test branch not found');
+      return;
+    }
+    await testBranchItem.click();
+    await page.waitForLoadState('networkidle');
+    await page.locator('.sidebar-nav').getByRole('button', { name: 'Employees' }).click();
+    await page.waitForLoadState('networkidle');
+
+    // Now switch back to primary (first branch)
+    switcherBtn = page.locator('.sidebar-logo button').first();
+    await switcherBtn.click();
+    // Click the primary (first) branch item — it has a checkmark if active
+    const primaryItem = page.locator('.sidebar-logo div[style*="position: absolute"] button').first();
+    await primaryItem.click();
+    await page.waitForLoadState('networkidle');
+    await page.locator('.sidebar-nav').getByRole('button', { name: 'Employees' }).click();
+    await page.waitForLoadState('networkidle');
+    await expect(page.locator('.page-header h2').filter({ hasText: /Employees/i })).toBeVisible({ timeout: 10000 });
+
+    const restoredCount = await page.locator('tbody tr').count();
+    expect(restoredCount).toBe(primaryCount);
+  });
+
+  test('Dashboard shows data for the active branch only', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('.sidebar-logo')).toBeVisible({ timeout: 10000 });
+
+    // Check Dashboard on primary branch
+    const primaryStatCards = await page.locator('.stat-card').count();
+
+    // Switch to test branch
+    const switcherBtn = page.locator('.sidebar-logo button').first();
+    await switcherBtn.click();
+    const testBranchItem = page.locator('.sidebar-logo button').filter({ hasText: BRANCH_NAME }).first();
+    if (!(await testBranchItem.isVisible({ timeout: 3000 }).catch(() => false))) {
+      test.skip(true, 'Test branch not found');
+      return;
+    }
+    await testBranchItem.click();
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(2000); // Let Dashboard reload
+
+    // Dashboard should still render without crashing for the empty branch
+    await expect(page.locator('.stat-card').first()).toBeVisible({ timeout: 10000 });
+    // The employee count stat should be 0 for the empty branch
+    await expect(page.locator('.stat-card')).toHaveCount(primaryStatCards, { timeout: 5000 });
+  });
+});

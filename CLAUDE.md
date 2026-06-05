@@ -22,7 +22,7 @@ npm run test:payroll            # Payroll flows only
 npm run test:report             # Open HTML report from last run
 
 # Run all feature specs (1–21, skipping 15/18/20/22)
-npx playwright test emiratization documents insurance notifications advances multi-level-leave leave-calendar shift-roster wps reports probation contracts offboarding expenses assets payroll-approval training multi-company
+npx playwright test emiratization documents insurance notifications advances multi-level-leave leave-calendar shift-roster wps reports probation contracts offboarding expenses assets payroll-approval training multi-company employee-portal
 
 # Run a single feature spec
 npx playwright test emiratization          # Feature 1 — Emiratization / Nafis
@@ -43,6 +43,9 @@ npx playwright test assets                # Feature 16 — Asset Management
 npx playwright test payroll-approval      # Feature 17 — Payroll Approval (Maker-Checker)
 npx playwright test training              # Feature 19 — Training & Certification Records
 npx playwright test multi-company        # Feature 21 — Multi-Company / Branch Support
+npx playwright test employee-portal     # Employee portal — all 9 tabs comprehensive
+npx playwright test payroll             # Payroll — full coverage (list, editor, SIF, repeat)
+npx playwright test leave               # Leave — full coverage (overview, requests, balances, settings)
 
 # Run tests matching a name pattern across all files
 npx playwright test --grep "bell icon"
