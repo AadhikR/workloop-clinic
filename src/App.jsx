@@ -1,8 +1,8 @@
 import { useState, useRef, useLayoutEffect, useEffect } from 'react';
-import { LayoutDashboard, Building2, Users, FileText, LogOut, User, CalendarDays, Clock, DollarSign, LayoutGrid, BarChart2, Receipt, Package, GraduationCap } from 'lucide-react';
+import { LayoutDashboard, Building2, Users, FileText, LogOut, User, CalendarDays, Clock, DollarSign, LayoutGrid, BarChart2, Receipt, Package, GraduationCap, ChevronDown, Plus, X, Check } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { CompanyProvider, useCompany } from './context/CompanyContext';
 import AuthPage from './components/AuthPage';
-import { getCompany } from './utils/storage';
 import NotificationBell from './components/NotificationBell';
 import Dashboard from './components/Dashboard';
 import CompanySettings from './components/CompanySettings';
@@ -38,15 +38,31 @@ const NAV_ITEMS = [
 // ─── Admin shell (HR users) ──────────────────────────────────────────────────
 function AppShell() {
   const { user, signOut } = useAuth();
-  const [page, setPage] = useState('dashboard');
-  const [signingOut, setSigningOut] = useState(false);
+  const { companies, activeCompany, activeCompanyId, setActiveCompanyId, createBranch, deleteBranch } = useCompany();
+  const [page, setPage]               = useState('dashboard');
+  const [signingOut, setSigningOut]   = useState(false);
   const navRef  = useRef(null);
-  const [pill, setPill]         = useState({ top: 0, height: 36 });
-  const [companyName, setCompanyName] = useState('');
+  const [pill, setPill] = useState({ top: 0, height: 36 });
 
+  // ── Branch switcher state ──
+  const switcherRef                   = useRef(null);
+  const [showSwitcher, setShowSwitcher] = useState(false);
+  const [showNewBranch, setShowNewBranch] = useState(false);
+  const [newBranchName, setNewBranchName] = useState('');
+  const [creatingBranch, setCreatingBranch] = useState(false);
+  const [branchError, setBranchError] = useState('');
+
+  // Close the branch dropdown on click-outside
   useEffect(() => {
-    getCompany().then(co => { if (co?.name) setCompanyName(co.name); });
-  }, []);
+    if (!showSwitcher) return;
+    const handler = (e) => {
+      if (switcherRef.current && !switcherRef.current.contains(e.target)) {
+        setShowSwitcher(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showSwitcher]);
 
   useLayoutEffect(() => {
     if (!navRef.current) return;
@@ -65,6 +81,37 @@ function AppShell() {
     try { await signOut(); } catch { /* ignore */ }
     setSigningOut(false);
   };
+
+  const handleCreateBranch = async () => {
+    if (!newBranchName.trim()) return;
+    setCreatingBranch(true);
+    setBranchError('');
+    try {
+      await createBranch(newBranchName.trim(), activeCompany);
+      setShowNewBranch(false);
+      setNewBranchName('');
+      // Auto-navigate to Company Settings so user can configure the new branch
+      setPage('company');
+    } catch (err) {
+      setBranchError(err.message || 'Failed to create branch');
+    } finally {
+      setCreatingBranch(false);
+    }
+  };
+
+  const handleDeleteBranch = async (id) => {
+    if (!window.confirm('Delete this branch? This cannot be undone.')) return;
+    try {
+      await deleteBranch(id);
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  // Display label for active branch in the switcher button
+  const activeBranchLabel = activeCompany
+    ? (activeCompany.branchName || activeCompany.name || 'Unnamed Branch')
+    : 'Setup Company';
 
   const renderPage = () => {
     switch (page) {
@@ -87,12 +134,118 @@ function AppShell() {
   return (
     <div className="app-layout">
       <aside className="sidebar">
+        {/* ── Brand + Company/Branch Switcher ── */}
         <div className="sidebar-logo">
           <h1>Workloop</h1>
-          {companyName
-            ? <p style={{ color: 'rgba(255,255,255,0.75)', fontWeight: 500, fontSize: 12, marginTop: 3 }}>{companyName}</p>
-            : <p>UAE Payroll &amp; HRMS</p>
-          }
+
+          {/* Branch switcher button */}
+          <div style={{ position: 'relative', marginTop: 6 }} ref={switcherRef}>
+            <button
+              onClick={() => setShowSwitcher(s => !s)}
+              title="Switch branch"
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', gap: 6,
+                padding: '5px 8px', borderRadius: 7,
+                border: '1px solid rgba(56,189,248,0.15)',
+                background: 'rgba(37,99,235,0.08)',
+                color: 'rgba(255,255,255,0.80)', fontSize: 11, fontWeight: 500,
+                cursor: 'pointer', textAlign: 'left',
+              }}
+            >
+              <Building2 size={11} style={{ flexShrink: 0, color: 'rgba(6,182,212,0.80)' }} />
+              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {activeBranchLabel}
+              </span>
+              {companies.length > 1 && (
+                <span style={{
+                  fontSize: 9, background: 'rgba(37,99,235,0.30)',
+                  padding: '1px 5px', borderRadius: 10, flexShrink: 0,
+                  color: 'rgba(148,213,202,0.90)',
+                }}>
+                  {companies.length}
+                </span>
+              )}
+              <ChevronDown
+                size={11}
+                style={{
+                  flexShrink: 0,
+                  transform: showSwitcher ? 'rotate(180deg)' : 'none',
+                  transition: 'transform 0.18s',
+                }}
+              />
+            </button>
+
+            {/* Branch dropdown */}
+            {showSwitcher && (
+              <div style={{
+                position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
+                background: '#0d1b3e', border: '1px solid rgba(56,189,248,0.15)',
+                borderRadius: 8, zIndex: 200, overflow: 'hidden',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.40)',
+              }}>
+                {companies.map(co => {
+                  const label = co.branchName || co.name || 'Unnamed';
+                  const isActive = co.id === activeCompanyId;
+                  return (
+                    <div
+                      key={co.id}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        padding: '7px 10px',
+                        background: isActive ? 'rgba(37,99,235,0.18)' : 'transparent',
+                        borderBottom: '1px solid rgba(56,189,248,0.06)',
+                      }}
+                    >
+                      <button
+                        onClick={() => { setActiveCompanyId(co.id); setShowSwitcher(false); }}
+                        style={{
+                          flex: 1, display: 'flex', alignItems: 'center', gap: 6,
+                          background: 'none', border: 'none', cursor: 'pointer',
+                          color: isActive ? 'rgba(255,255,255,0.95)' : 'rgba(148,163,184,0.85)',
+                          fontSize: 11, fontWeight: isActive ? 600 : 400, textAlign: 'left',
+                          padding: 0,
+                        }}
+                      >
+                        {isActive && <Check size={10} style={{ color: '#06B6D4', flexShrink: 0 }} />}
+                        {!isActive && <span style={{ width: 10, flexShrink: 0 }} />}
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {label}
+                        </span>
+                      </button>
+                      {/* Delete branch — only shown when there's more than one branch */}
+                      {companies.length > 1 && !isActive && (
+                        <button
+                          onClick={() => { setShowSwitcher(false); handleDeleteBranch(co.id); }}
+                          title={`Delete ${label}`}
+                          style={{
+                            flexShrink: 0, background: 'none', border: 'none',
+                            cursor: 'pointer', color: 'rgba(148,163,184,0.45)',
+                            padding: 2, borderRadius: 4, lineHeight: 1,
+                          }}
+                        >
+                          <X size={11} />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Add branch */}
+                <button
+                  onClick={() => { setShowSwitcher(false); setShowNewBranch(true); }}
+                  style={{
+                    width: '100%', display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '7px 10px', background: 'none', border: 'none',
+                    cursor: 'pointer', color: 'rgba(6,182,212,0.85)',
+                    fontSize: 11, fontWeight: 500,
+                  }}
+                >
+                  <Plus size={11} />
+                  Add Branch
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         <nav className="sidebar-nav" ref={navRef}>
@@ -180,6 +333,60 @@ function AppShell() {
       <main className="main-content">
         {renderPage()}
       </main>
+
+      {/* ── New Branch modal ── */}
+      {showNewBranch && (
+        <div
+          className="modal-backdrop"
+          onClick={() => { setShowNewBranch(false); setNewBranchName(''); setBranchError(''); }}
+        >
+          <div className="modal" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 style={{ margin: 0, fontSize: 16 }}>Add New Branch</h3>
+              <button
+                onClick={() => { setShowNewBranch(false); setNewBranchName(''); setBranchError(''); }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gray-400)' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--gray-700)' }}>Branch Name</label>
+              <input
+                className="form-control"
+                placeholder="e.g. Abu Dhabi Branch"
+                value={newBranchName}
+                onChange={e => setNewBranchName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleCreateBranch()}
+                autoFocus
+                style={{ marginTop: 6 }}
+              />
+              <p style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 8 }}>
+                This label identifies the branch in the switcher. Configure the branch's company name,
+                MOL Employer ID, and other details in Company Settings after creation.
+              </p>
+              {branchError && (
+                <p style={{ fontSize: 12, color: 'var(--red-600)', marginTop: 6 }}>{branchError}</p>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button
+                className="btn"
+                onClick={() => { setShowNewBranch(false); setNewBranchName(''); setBranchError(''); }}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={handleCreateBranch}
+                disabled={!newBranchName.trim() || creatingBranch}
+              >
+                {creatingBranch ? 'Creating…' : 'Create Branch'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -248,7 +455,8 @@ function Root() {
 
   if (profile.role === 'employee') return <EmployeeShell />;
   if (profile.role === 'manager')  return <ManagerShell />;
-  return <AppShell />;
+  // Admins get the multi-company context
+  return <CompanyProvider><AppShell /></CompanyProvider>;
 }
 
 export default function App() {

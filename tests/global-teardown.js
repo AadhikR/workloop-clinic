@@ -75,5 +75,14 @@ export default async function globalTeardown() {
   await db.from('training_records').delete().eq('user_id', adminId);
   await db.from('certifications').delete().eq('user_id', adminId);
 
+  console.log('[teardown] Cleaning up Feature 21 test branches…');
+  // Remove any extra company branches created by the multi-company tests.
+  // Keep only the primary branch (the one with the oldest created_at).
+  const { data: branches } = await db.from('companies').select('id, created_at').eq('user_id', adminId).order('created_at', { ascending: true });
+  if (branches?.length > 1) {
+    const extraIds = branches.slice(1).map(b => b.id);
+    await db.from('companies').delete().in('id', extraIds);
+  }
+
   console.log('[teardown] Done.\n');
 }

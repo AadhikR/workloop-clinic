@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { FileText, Plus, Trash2, X, Download, AlertCircle, Calendar, ChevronRight, Copy } from 'lucide-react';
 import { getPayrolls, getEmployees, getCompany, savePayroll, deletePayroll } from '../utils/storage';
+import { useCompany } from '../context/CompanyContext';
 import { generateSIF, generateSIFFilename } from '../utils/sifGenerator';
 
 function getMonthName(month) {
@@ -9,6 +10,7 @@ function getMonthName(month) {
 }
 
 export default function PayrollList({ onEdit }) {
+  const { activeCompanyId } = useCompany();
   const [payrolls, setPayrolls]         = useState([]);
   const [employees, setEmployees]       = useState([]);
   const [company, setCompany]           = useState(null);
@@ -25,13 +27,14 @@ export default function PayrollList({ onEdit }) {
   const [creating, setCreating]         = useState(false);
 
   useEffect(() => {
-    Promise.all([getPayrolls(), getEmployees(), getCompany()]).then(([p, e, c]) => {
+    setLoading(true);
+    Promise.all([getPayrolls(activeCompanyId), getEmployees(activeCompanyId), getCompany(activeCompanyId)]).then(([p, e, c]) => {
       setPayrolls(p);
       setEmployees(e);
       setCompany(c);
       setLoading(false);
     });
-  }, []);
+  }, [activeCompanyId]); // Re-load when the active branch changes
 
   const openNew = () => {
     const now = new Date();
@@ -99,6 +102,7 @@ export default function PayrollList({ onEdit }) {
         entries,
         createdAt: new Date().toISOString(),
         status: 'draft',
+        companyId: activeCompanyId,  // Feature 21: tag payroll to the active branch
       };
 
       await savePayroll(payroll);

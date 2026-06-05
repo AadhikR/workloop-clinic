@@ -8,6 +8,7 @@ import { getEmployees, saveEmployee, saveEmployees, archiveEmployee, getJobHisto
 import { parseCSV, readFileAsText } from '../utils/csvImport';
 import { formatDateUAE, formatAED, daysUntil, expiryBadgeClass } from '../utils/uaeValidators';
 import { calculateGratuity } from '../utils/gratuityCalculator';
+import { useCompany } from '../context/CompanyContext';
 import EmployeeModal from './EmployeeModal';
 import EndOfServiceScreen from './EndOfServiceScreen';
 import OffboardingModal from './OffboardingModal';
@@ -402,6 +403,7 @@ function ProbationModal({ employee, onClose, onConfirm, onExtend, onTerminate })
 }
 
 function EmployeeManagerInner() {
+  const { activeCompanyId } = useCompany();
   const [employees, setEmployees]         = useState([]);
   const [loading, setLoading]             = useState(true);
   const [modal, setModal]                 = useState(null);
@@ -421,16 +423,19 @@ function EmployeeManagerInner() {
   const fileRef = useRef();
 
   useEffect(() => {
-    getEmployees().then(emps => {
+    setLoading(true);
+    getEmployees(activeCompanyId).then(emps => {
       setEmployees(emps);
       setLoading(false);
     });
-  }, []);
+  }, [activeCompanyId]); // Re-load when the active branch changes
 
   const handleSaveEmployee = async (emp) => {
     try {
       const old = emp.id ? employees.find(e => e.id === emp.id) : null;
-      const saved = await saveEmployee(emp);
+      // Assign to the active branch when creating a new employee
+      const empWithCompany = emp.companyId ? emp : { ...emp, companyId: activeCompanyId };
+      const saved = await saveEmployee(empWithCompany);
 
       if (old) {
         const checks = [
@@ -499,7 +504,7 @@ function EmployeeManagerInner() {
         }
       }
       await saveEmployees(updated);
-      const fresh = await getEmployees();
+      const fresh = await getEmployees(activeCompanyId);
       setEmployees(fresh);
       setImportMsg({ type:'success', text:`Import complete: ${added} added, ${updatedCount} updated.` });
       setTimeout(() => setImportMsg(null), 5000);

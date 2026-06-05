@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Building2, Info, CheckCircle, Save, AlertCircle, Loader, MapPin, Calendar, ShieldCheck, Heart, Plus, Trash2, Edit2 } from 'lucide-react';
 import { getCompany, saveCompany, getInsurancePolicies, saveInsurancePolicy, deleteInsurancePolicy } from '../utils/storage';
+import { useCompany } from '../context/CompanyContext';
 import { formatDateUAE } from '../utils/uaeValidators';
 
 // UAE sectors with their approximate 2024 Emiratization quota targets (Cabinet Res. 27/2023)
@@ -31,6 +32,7 @@ const FREE_ZONES = [
 
 const DEFAULT_COMPANY = {
   name: '',
+  branchName: '',
   molEmployerId: '',
   defaultBankRoutingCode: '',
   address: '',
@@ -55,6 +57,7 @@ function policyRenewalStatus(renewalDate) {
 }
 
 export default function CompanySettings() {
+  const { activeCompanyId, refreshCompanies } = useCompany();
   const [company, setCompany] = useState(DEFAULT_COMPANY);
   const [saved, setSaved]     = useState(false);
   const [saving, setSaving]   = useState(false);
@@ -70,15 +73,17 @@ export default function CompanySettings() {
   const [policyError, setPolicyError]   = useState('');
 
   useEffect(() => {
-    Promise.all([getCompany(), getInsurancePolicies()]).then(([stored, pols]) => {
+    setLoading(true);
+    Promise.all([getCompany(activeCompanyId), getInsurancePolicies()]).then(([stored, pols]) => {
       if (stored) setCompany({ ...DEFAULT_COMPANY, ...stored });
+      else setCompany(DEFAULT_COMPANY); // fresh branch — start blank
       setPolicies(pols);
       setLoading(false);
     }).catch(err => {
       console.error('CompanySettings load:', err);
       setLoading(false);
     });
-  }, []);
+  }, [activeCompanyId]); // Re-load when the active branch changes
 
   const openAddPolicy = () => {
     setEditingPolicy(null);
@@ -147,6 +152,8 @@ export default function CompanySettings() {
       if (result?.id && !company.id) {
         setCompany(prev => ({ ...prev, id: result.id }));
       }
+      // Refresh the branch switcher so renamed branches show the new label
+      refreshCompanies().catch(() => {});
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
@@ -219,6 +226,16 @@ export default function CompanySettings() {
                   onChange={e => handleChange('name', e.target.value)}
                   placeholder="e.g. Example Trading LLC"
                 />
+              </div>
+              <div className="form-group">
+                <label>Branch / Entity Label</label>
+                <input
+                  className="form-control"
+                  value={company.branchName}
+                  onChange={e => handleChange('branchName', e.target.value)}
+                  placeholder="e.g. Dubai HQ, Abu Dhabi Branch"
+                />
+                <span className="hint">Short label shown in the branch switcher. Leave blank to use the company name.</span>
               </div>
               <div className="form-group">
                 <label>MOL Employer ID *</label>

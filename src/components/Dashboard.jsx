@@ -3,9 +3,11 @@ import { Building2, Users, FileText, CheckCircle, AlertCircle, ArrowRight, Clock
 import { getCompany, getEmployees, getPayrolls, getInsurancePolicies, getAllEmployeeInsurance } from '../utils/storage';
 import { getAllCertifications } from '../utils/trainingStorage';
 import { generateExpiryNotifications } from '../utils/notificationStorage';
+import { useCompany } from '../context/CompanyContext';
 import NafisReportModal from './NafisReportModal';
 
 export default function Dashboard({ onNavigate }) {
+  const { activeCompanyId } = useCompany();
   const [company, setCompany]         = useState(null);
   const [employees, setEmployees]     = useState([]);
   const [payrolls, setPayrolls]       = useState([]);
@@ -16,8 +18,9 @@ export default function Dashboard({ onNavigate }) {
   const [allCertifications, setAllCertifications] = useState([]);
 
   useEffect(() => {
+    setLoading(true);
     Promise.all([
-      getCompany(), getEmployees(), getPayrolls(),
+      getCompany(activeCompanyId), getEmployees(activeCompanyId), getPayrolls(activeCompanyId),
       getInsurancePolicies(), getAllEmployeeInsurance(),
       getAllCertifications().catch(() => []),
     ]).then(([co, emps, pays, pols, empIns, certs]) => {
@@ -31,7 +34,7 @@ export default function Dashboard({ onNavigate }) {
       // Silently generate persistent expiry notifications (ON CONFLICT DO NOTHING)
       generateExpiryNotifications(emps, co, pols, empIns, certs || []).catch(() => {});
     });
-  }, []);
+  }, [activeCompanyId]); // Re-load when the active branch changes
 
   const activeEmps    = employees.filter(e => e.active !== false && e.employmentStatus !== 'Terminated');
   const generatedRuns = payrolls.filter(p => p.status === 'generated');

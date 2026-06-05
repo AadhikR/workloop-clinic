@@ -27,23 +27,39 @@ function getUserId() {
 // ─── COMPANY ────────────────────────────────────────────────────────────────
 
 /**
- * Returns the company row for the current user, or null if not set up yet.
+ * Returns all company/branch rows for the current admin.
+ * Multi-company (Feature 21): one admin can own multiple company rows.
  */
-export async function getCompany() {
+export async function getCompanies() {
   const { data, error } = await supabase
     .from('companies')
     .select('*')
-    .limit(1)
-    .maybeSingle();
+    .order('created_at', { ascending: true });
 
+  if (error) { console.error('getCompanies:', error); return []; }
+  return (data || []).map(dbToCompany);
+}
+
+/**
+ * Returns a single company row.
+ * If `id` is provided, returns that specific branch.
+ * Without `id`, returns the first company (backward-compatible for single-company usage).
+ */
+export async function getCompany(id) {
+  let query = supabase.from('companies').select('*');
+  if (id) {
+    query = query.eq('id', id);
+  }
+  const { data, error } = await query.limit(1).maybeSingle();
   if (error) { console.error('getCompany:', error); return null; }
   if (!data) return null;
-
   return dbToCompany(data);
 }
 
 /**
- * Upserts the company for the current user.
+ * Saves (updates or inserts) a company/branch row.
+ * Always updates by id if the company already exists.
+ * For new companies (no id), inserts a fresh row.
  */
 export async function saveCompany(company) {
   const user = await getSessionUser();
@@ -58,9 +74,11 @@ export async function saveCompany(company) {
       .eq('id', company.id);
     if (error) { console.error('saveCompany update:', error); throw error; }
   } else {
+    // First-time company creation: plain INSERT (no upsert on user_id —
+    // multi-company allows multiple rows per admin).
     const { data, error } = await supabase
       .from('companies')
-      .upsert({ ...row }, { onConflict: 'user_id' })
+      .insert({ ...row })
       .select()
       .single();
     if (error) { console.error('saveCompany insert:', error); throw error; }
@@ -68,17 +86,81 @@ export async function saveCompany(company) {
   }
 }
 
+/**
+ * Creates a new branch for the current admin.
+ * `name` is the branch label (e.g. "Abu Dhabi Branch").
+ * `templateCompany` (optional) copies some settings from an existing branch.
+ */
+export async function createBranch(name, templateCompany) {
+  const user = await getSessionUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const row = {
+    user_id:                    user.id,
+    branch_name:                name.trim(),
+    // Copy non-sensitive settings from template branch; MOL ID must be unique
+    name:                       templateCompany?.name ?? '',
+    mol_employer_id:            '',  // Each branch has its own MOL ID
+    default_bank_routing_code:  templateCompany?.defaultBankRoutingCode ?? '',
+    address:                    templateCompany?.address ?? '',
+    contact_email:              templateCompany?.contactEmail ?? '',
+    default_salary_day:         templateCompany?.defaultSalaryDay ?? 25,
+    work_location_type:         templateCompany?.workLocationType ?? 'Mainland',
+    free_zone_name:             templateCompany?.freeZoneName ?? '',
+    logo_url:                   templateCompany?.logoUrl ?? '',
+    sector:                     templateCompany?.sector ?? '',
+    nafis_quota_percent:        templateCompany?.nafisQuotaPercent ?? 2,
+  };
+
+  const { data, error } = await supabase
+    .from('companies')
+    .insert(row)
+    .select()
+    .single();
+  if (error) { console.error('createBranch:', error); throw error; }
+  return dbToCompany(data);
+}
+
+/**
+ * Deletes a branch. Guards against deleting a branch that still has active employees.
+ */
+export async function deleteBranch(id) {
+  const { count, error: checkErr } = await supabase
+    .from('employees')
+    .select('id', { count: 'exact', head: true })
+    .eq('company_id', id)
+    .eq('active', true);
+
+  if (checkErr) throw checkErr;
+  if (count > 0) {
+    throw new Error(
+      `Cannot delete this branch — it still has ${count} active employee(s). ` +
+      'Transfer or archive them first.'
+    );
+  }
+
+  const { error } = await supabase.from('companies').delete().eq('id', id);
+  if (error) throw error;
+}
+
 // ─── EMPLOYEES ──────────────────────────────────────────────────────────────
 
 /**
- * Returns all employees for the current user.
+ * Returns employees for the current user, optionally filtered by branch.
+ * `companyId` — when provided, returns only employees for that branch (Feature 21).
+ *               When omitted, returns all employees (backward-compatible).
  */
-export async function getEmployees() {
-  const { data, error } = await supabase
+export async function getEmployees(companyId) {
+  let query = supabase
     .from('employees')
     .select('*')
     .order('created_at', { ascending: true });
 
+  if (companyId) {
+    query = query.eq('company_id', companyId);
+  }
+
+  const { data, error } = await query;
   if (error) { console.error('getEmployees:', error); return []; }
 
   return (data || []).map(dbToEmployee);
@@ -219,13 +301,21 @@ export async function addJobHistoryEntry(employeeId, changeType, oldValue, newVa
 // ─── PAYROLL RUNS ───────────────────────────────────────────────────────────
 
 /**
- * Returns all payroll runs (with their entries) for the current user.
+ * Returns payroll runs (with their entries) for the current user.
+ * `companyId` — when provided, returns only runs for that branch (Feature 21).
+ *               When omitted, returns all runs (backward-compatible).
  */
-export async function getPayrolls() {
-  const { data: runs, error: runsErr } = await supabase
+export async function getPayrolls(companyId) {
+  let query = supabase
     .from('payroll_runs')
     .select('*')
     .order('period', { ascending: false });
+
+  if (companyId) {
+    query = query.eq('company_id', companyId);
+  }
+
+  const { data: runs, error: runsErr } = await query;
 
   if (runsErr) { console.error('getPayrolls runs:', runsErr); return []; }
   if (!runs?.length) return [];
@@ -264,6 +354,8 @@ export async function getPayrolls() {
     approvedAt:                run.approved_at                 ?? null,
     rejectionReason:           run.rejection_reason            ?? '',
     rejectedAt:                run.rejected_at                 ?? null,
+    // Multi-company (Feature 21)
+    companyId:                 run.company_id                  ?? null,
     entries: (entries || [])
       .filter(e => e.payroll_run_id === run.id)
       .map(dbToEntry),
@@ -287,6 +379,7 @@ export async function savePayroll(payroll) {
   const runRow = {
     id:                   payroll.id,
     user_id:              user.id,
+    company_id:           payroll.companyId ?? null,   // Feature 21: branch scoping
     period:               payroll.period,
     payment_date:         payroll.paymentDate ?? '',
     sequence_no:          payroll.sequenceNo ?? '',
@@ -1173,6 +1266,7 @@ function dbToCompany(data) {
   return {
     id:                     data.id,
     name:                   data.name,
+    branchName:             data.branch_name ?? '',   // Feature 21: branch label
     molEmployerId:          data.mol_employer_id,
     defaultBankRoutingCode: data.default_bank_routing_code,
     address:                data.address,
@@ -1189,6 +1283,7 @@ function dbToCompany(data) {
 function companyToDb(company, userId) {
   return {
     user_id:                    userId,
+    branch_name:                company.branchName ?? '',   // Feature 21
     name:                       company.name ?? '',
     mol_employer_id:            company.molEmployerId ?? '',
     default_bank_routing_code:  company.defaultBankRoutingCode ?? '',
@@ -1257,6 +1352,8 @@ function dbToEmployee(row) {
 
     // Auth link (set when employee registers on the employee portal)
     authUserId:             row.auth_user_id || null,
+    // Multi-company (Feature 21)
+    companyId:              row.company_id ?? null,
 
     // UAE compliance
     nationality:            row.nationality ?? '',
@@ -1289,6 +1386,7 @@ function employeeToDb(emp, userId) {
     basic_salary:       parseFloat(emp.basicSalary) || 0,
     allowance:          parseFloat(emp.allowance) || 0,
     active:             emp.active ?? true,
+    company_id:         emp.companyId ?? null,   // Feature 21: branch scoping
 
     // Personal info
     personal_email:     emp.personalEmail ?? '',
