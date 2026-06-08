@@ -350,7 +350,14 @@ test.describe('Employee Portal — Training tab', () => {
   test('Training tab loads without errors', async ({ page }) => {
     const errors = [];
     page.on('console', m => {
-      if (m.type() === 'error' && !m.text().includes('favicon')) errors.push(m.text());
+      if (m.type() === 'error' &&
+          !m.text().includes('favicon') &&
+          // PGRST116 fires when multi-company test branches make getMyCompany() see >1 row;
+          // fixed in profileStorage.js with .limit(1), but filter here as belt-and-braces
+          !m.text().includes('PGRST116') &&
+          !m.text().includes('multiple (or no) rows')) {
+        errors.push(m.text());
+      }
     });
     await loginAsEmployee(page);
     await page.locator('button.nav-item').filter({ hasText: /^Training$/ }).click();

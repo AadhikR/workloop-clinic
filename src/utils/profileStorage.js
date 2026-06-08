@@ -117,6 +117,8 @@ export async function getMyCompany() {
     .from('companies')
     .select('*')
     .eq('user_id', profile.companyUserId)
+    .order('created_at', { ascending: true })
+    .limit(1)
     .maybeSingle();
 
   if (error) { console.error('getMyCompany:', error); return null; }

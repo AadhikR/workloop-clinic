@@ -102,10 +102,11 @@ test.describe('Notifications — Admin portal', () => {
       page.locator('div').filter({ hasText: /^Notifications$/ }).first()
     ).toBeVisible({ timeout: 6000 });
 
-    // Either shows empty-state text OR notification rows — both are valid
-    const emptyState = page.locator('text=No notifications yet');
-    const notifRow   = page.locator('[style*="border-bottom"]').filter({ hasText: /.+/ }).first();
-    await expect(emptyState.or(notifRow)).toBeVisible({ timeout: 8000 });
+    // Either shows empty-state text OR notification rows (with emoji icons) — both valid.
+    // [style*="border-bottom"] is too broad — the panel header also has borderBottom.
+    const emptyState = page.locator('text=No notifications yet').first();
+    const notifItem  = page.locator('div').filter({ hasText: /📄|⚠️|🏥|🔄|✅|❌|📝|💰|🔔/ }).first();
+    await expect(emptyState.or(notifItem)).toBeVisible({ timeout: 8000 });
   });
 
   test('dashboard load creates expiry notifications in bell (if docs expiring)', async ({ page }) => {
@@ -202,9 +203,9 @@ test.describe('Notifications — Employee portal', () => {
     await loginAsEmployee(page);
     await page.locator('button[title="Notifications"]').click();
 
-    const emptyState = page.locator('text=No notifications yet');
-    const notifRow   = page.locator('[style*="border-bottom"]').filter({ hasText: /.+/ }).first();
-    await expect(emptyState.or(notifRow)).toBeVisible({ timeout: 8000 });
+    const emptyState = page.locator('text=No notifications yet').first();
+    const notifItem  = page.locator('div').filter({ hasText: /📄|⚠️|🏥|🔄|✅|❌|📝|💰|🔔/ }).first();
+    await expect(emptyState.or(notifItem)).toBeVisible({ timeout: 8000 });
   });
 
   test('employee panel close button works', async ({ page }) => {
