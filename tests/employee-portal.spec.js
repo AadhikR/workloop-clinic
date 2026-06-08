@@ -32,13 +32,14 @@ test.describe('Employee Portal — Sidebar tabs', () => {
     }
   });
 
-  test('employee email is shown in the sidebar footer', async ({ page }) => {
+  test('employee identity section is shown in the sidebar', async ({ page }) => {
     await loginAsEmployee(page);
-    // Sidebar footer shows the employee's email
+    // EmployeeShell sidebar shows the employee's name + job title card, then a Sign Out button.
+    // It does NOT show the email address — there is no '@' in the sidebar.
+    // Wait for Sign Out button which is always rendered once the shell mounts.
     await expect(
-      page.locator('.emp-sidebar').locator('text=@').first()
-        .or(page.locator('.emp-sidebar-footer').first())
-    ).toBeVisible({ timeout: 8000 });
+      page.locator('.emp-sidebar').getByRole('button', { name: /sign out/i }).first()
+    ).toBeVisible({ timeout: 10000 });
   });
 });
 

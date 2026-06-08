@@ -113,11 +113,17 @@ test.describe('Offboarding — OffboardingModal tasks and controls', () => {
       test.skip(true, 'No Terminated employees found');
       return;
     }
-    // Either a list of tasks (checkboxes) or "no tasks" message
-    const checkbox  = page.locator('.modal input[type="checkbox"]').first();
-    const noTasks   = page.locator('.modal').locator('text=/no tasks/i').first();
-    const tasksList = page.locator('.modal li, .modal [class*="task"]').first();
-    await expect(checkbox.or(noTasks).or(tasksList)).toBeVisible({ timeout: 8000 });
+    // Offboarding tasks use Lucide SVG icons (CheckSquare/Square) + <div onClick> rows,
+    // NOT <input type="checkbox"> or <li> elements.
+    // The checklist card is always present; either tasks (with a Remove button each) or "No tasks yet."
+    const clearanceCard = page.locator('.card').filter({
+      has: page.locator('h3').filter({ hasText: /Clearance Checklist/i }),
+    });
+    await expect(clearanceCard).toBeVisible({ timeout: 8000 });
+    // Either at least one task row (has a "Remove task" delete button) or the empty-state text
+    const taskRow = clearanceCard.locator('button[title="Remove task"]').first();
+    const emptyMsg = clearanceCard.getByText('No tasks yet.').first();
+    await expect(taskRow.or(emptyMsg)).toBeVisible({ timeout: 8000 });
   });
 
   test('task checkbox toggles (optimistic update)', async ({ page }) => {

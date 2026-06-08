@@ -262,10 +262,9 @@ test.describe('Employees — Modal Salary & Bank tab', () => {
     await expect(
       page.locator('.modal input[placeholder*="AE"], .modal input[placeholder*="IBAN"]').first()
     ).toBeVisible({ timeout: 5000 });
+    // Bank Name is a free-text input (placeholder "e.g. ENBD, FAB, ADCB"), not a <select>
     await expect(
-      page.locator('.modal select').filter({
-        has: page.locator('option').filter({ hasText: /bank|Emirates|Abu Dhabi/i })
-      }).first()
+      page.locator('.modal input[placeholder*="ENBD"]').first()
     ).toBeVisible({ timeout: 5000 });
     await page.locator('.modal').getByRole('button', { name: /cancel/i }).click();
   });
@@ -274,9 +273,9 @@ test.describe('Employees — Modal Salary & Bank tab', () => {
     await goToEmployees(page);
     await openAddModal(page);
     await page.locator('.modal').getByRole('button', { name: /Salary/i }).first().click();
+    // Housing Allowance input has placeholder "e.g. 2000"; check the label too
     await expect(
-      page.locator('.modal input[placeholder*="housing"], .modal').locator('text=/housing allowance/i').first()
-        .or(page.locator('.modal input').nth(1))
+      page.locator('.modal label').filter({ hasText: /Housing Allowance/i }).first()
     ).toBeVisible({ timeout: 5000 });
     await page.locator('.modal').getByRole('button', { name: /cancel/i }).click();
   });
@@ -372,9 +371,10 @@ test.describe('Employees — Modal advanced tabs', () => {
       return;
     }
     await docsTab.click();
-    // File input (type="file")
+    // The file input is hidden (display:none) — it's triggered by a visible drop-zone div.
+    // Check for the visible "Click to choose file" drop-zone instead.
     await expect(
-      page.locator('.modal input[type="file"]')
+      page.locator('.modal').getByText(/Click to choose file/i).first()
     ).toBeVisible({ timeout: 5000 });
     await page.keyboard.press('Escape');
   });

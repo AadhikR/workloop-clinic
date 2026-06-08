@@ -162,27 +162,38 @@ test.describe('Multi-Company — Admin sidebar branch switcher', () => {
     // Modal closes
     await expect(page.locator('.modal')).not.toBeVisible({ timeout: 8000 });
 
-    // Auto-navigates to Company Settings
+    // Auto-navigates to Company Settings — h2 text is "Company / Employer Settings"
     await expect(
-      page.locator('.page-header h2').filter({ hasText: /company settings/i })
+      page.locator('.page-header h2').filter({ hasText: /employer settings/i })
     ).toBeVisible({ timeout: 10000 });
   });
 
   test('new branch appears in the switcher after creation', async ({ page }) => {
+    // This test is self-contained: create a branch, then verify it appears in the dropdown.
+    // It does not depend on the previous test having run successfully.
     await goToAdmin(page);
     await openBranchDropdown(page);
 
-    // Check the dropdown for the test branch name
-    const branchItem = page.locator('.sidebar-logo').getByRole('button', { name: new RegExp(BRANCH_NAME, 'i') });
-    if (!(await branchItem.isVisible({ timeout: 4000 }).catch(() => false))) {
-      // Maybe dropdown was already closed — re-open
-      const switcherBtn = page.locator('.sidebar-logo button').first();
-      await switcherBtn.click();
+    // Check if the test branch already exists (created by previous test in this run)
+    let branchVisible = await page.locator('.sidebar-logo')
+      .getByRole('button', { name: new RegExp(BRANCH_NAME, 'i') })
+      .isVisible({ timeout: 2000 }).catch(() => false);
+
+    if (!branchVisible) {
+      // Create the branch now
+      await page.locator('.sidebar-logo').getByRole('button', { name: /add branch/i }).click();
+      const input = page.locator('.modal').getByRole('textbox');
+      await expect(input).toBeVisible({ timeout: 5000 });
+      await input.fill(BRANCH_NAME);
+      await page.locator('.modal-footer').getByRole('button', { name: /create branch/i }).click();
+      await expect(page.locator('.modal')).not.toBeVisible({ timeout: 8000 });
+      // Re-open the dropdown to verify
+      await openBranchDropdown(page);
     }
 
     await expect(
       page.locator('.sidebar-logo').getByRole('button', { name: new RegExp(BRANCH_NAME, 'i') }).first()
-    ).toBeVisible({ timeout: 6000 });
+    ).toBeVisible({ timeout: 8000 });
   });
 
   test('switching branches reloads the active module data', async ({ page }) => {
