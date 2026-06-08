@@ -166,6 +166,43 @@ This pattern is used in `reports.spec.js` for all Reports tab buttons. The same 
 
 **Multiple Cancel buttons in layered modal content — use `.first()` for the innermost one**: When a modal has an inline confirmation form (e.g. contract action, payroll rejection), two Cancel buttons exist simultaneously: `[0]` = the inline form's Cancel (inside `modal-body`), `[1]` = the modal footer's Cancel (closes the entire modal). Always use `.first()` to dismiss only the inline form. Clicking `.nth(1)` closes the whole modal, which then causes subsequent assertions on modal content to fail with "element(s) not found".
 
+**Data-conditional tables — always skip-guard before asserting `th`**: `PayrollList`, `LeaveManager` requests, and the WPS column only render a `<table>` when rows exist — the empty state is a `<div className="empty-state">` with no `<th>` at all. Never write `expect(page.locator('th').filter(...)).toBeVisible()` without first checking the table exists:
+```js
+const table = page.locator('.card')
+  .filter({ has: page.locator('h3').filter({ hasText: /Payroll History/i }) })
+  .locator('table').first();
+if (!(await table.isVisible({ timeout: 8000 }).catch(() => false))) {
+  test.skip(true, 'No runs yet');
+  return;
+}
+await expect(table.locator('th').filter({ hasText: /Period/i }).first()).toBeVisible();
+```
+Scope the `th` locator **to the table**, not `page` — scoping avoids matching header rows from other visible tables.
+
+**`input[type="file"]` is always `display:none`** — file upload inputs are hidden and triggered via a visible click-area div. `expect(page.locator('input[type="file"]')).toBeVisible()` always fails. Check the visible drop-zone text instead: `page.locator('.modal').getByText(/Click to choose file/i)`.
+
+**`bankName` is a free-text input, not a `<select>`** — `EmployeeModal` Salary tab renders Bank Name as `<input placeholder="e.g. ENBD, FAB, ADCB">`. There is no bank `<select>` with options. Target with `input[placeholder*="ENBD"]`.
+
+**Offboarding tasks use Lucide SVG icons, not `<input type="checkbox">`** — `OffboardingModal` renders each task as a `<div onClick>` row containing a `<CheckSquare>` or `<Square>` Lucide icon. There are no checkbox inputs. Check for `button[title="Remove task"]` (present on each task row) or the `"No tasks yet."` empty-state text inside the Clearance Checklist card.
+
+**Notification panel header also has `borderBottom` — don't use `[style*="border-bottom"]` for rows**: The panel header div has `borderBottom: '1px solid var(--gray-100)'` in its inline style; so does every notification row. The selector `[style*="border-bottom"]` matches the header too and causes a strict-mode violation with `.or()`. Identify notification rows by their emoji prefix instead:
+```js
+const emptyState = page.locator('text=No notifications yet').first();
+const notifItem  = page.locator('div').filter({ hasText: /📄|⚠️|🏥|🔄|✅|❌|📝|💰|🔔/ }).first();
+await expect(emptyState.or(notifItem)).toBeVisible({ timeout: 8000 });
+```
+
+**CompanySettings h2 is "Company / Employer Settings"** — the slash makes `/company settings/i` fail as a substring match. Use `/employer settings/i` or `/company.*employer/i`.
+
+**Leave module structural notes for tests**:
+- "Approval Chain" is a `<label>` inside a form group, NOT an `<h3>`. The `<h3>` in the Settings tab is "Leave Configuration".
+- "Leave Types" has no `<h3>` in the Settings tab — it is only a stat card (`<div className="stat-label">Leave Types</div>`) on the Overview tab.
+- `getLeaveApprovalDelegates()` may return HTTP 500 if the `leave_approval_delegates` table hasn't been created yet. Filter `"Failed to load resource"` / `"500"` from console-error assertions in Leave module tests.
+
+**EmployeeShell sidebar shows name + job title, NOT email** — the sidebar footer renders `emp.name` (bold) and `emp.jobTitle` (or "Employee"). There is no email address displayed. Do not check for `text=@` in the employee sidebar. Check for the always-present Sign Out button: `page.locator('.emp-sidebar').getByRole('button', { name: /sign out/i })`.
+
+**`getMyCompany()` must not use bare `.maybeSingle()` when multiple branches exist** — `profileStorage.getMyCompany()` queries `companies` filtered by `user_id`. Since Feature 21 allows multiple company rows per admin (branches), a bare `.maybeSingle()` throws `PGRST116` ("multiple rows returned"). The function already applies `.order('created_at', { ascending: true }).limit(1)` before `.maybeSingle()`. Any future utility that fetches a single company by `user_id` must do the same.
+
 ## Environment
 
 Create `sif-app/.env` with:
