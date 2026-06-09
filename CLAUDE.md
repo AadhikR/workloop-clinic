@@ -215,6 +215,8 @@ VITE_SUPABASE_ANON_KEY=...
 
 New DB schema changes live in `sql/` as numbered files (`001_emiratization.sql`, `002_document_storage.sql`, …). Run each file manually in **Supabase Dashboard → SQL Editor → New Query**. There is no automated migration runner — files are applied in order by number. Each file is idempotent (`IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`).
 
+**Pending migration**: `sql/021_multi_company.sql` adds `branch_name` to `companies`, `company_id FK` to `employees`/`payroll_runs`, and drops the unique constraint on `companies.user_id`. If employees show `company_id = NULL` in the multi-company tests, this migration has not been applied yet.
+
 When adding a new table, always include in the same migration file:
 1. `CREATE TABLE IF NOT EXISTS`
 2. `ALTER TABLE … ENABLE ROW LEVEL SECURITY`
@@ -229,11 +231,11 @@ GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
 
 ## Architecture
 
-**Workloop** is a UAE HR/payroll SaaS. It generates **SIF files** (Salary Information File — UAE WPS/MOL bank format) and manages employees, payroll, leave, and attendance. There are two completely separate UIs sharing one Supabase project.
+**Workloop** is a UAE HR/payroll SaaS. It generates **SIF files** (Salary Information File — UAE WPS/MOL bank format) and manages employees, payroll, leave, and attendance. There are three completely separate UIs sharing one Supabase project.
 
 See `FEATURES_ROADMAP.md` for the 22-feature implementation plan. **All planned features are complete**: 1–14, 16, 17, 19, 21 (Emiratization, Document Storage, Insurance, Notifications, Advances, Multi-Level Leave, Leave Calendar, Shift Roster, WPS Tracking, Reports, Probation, Contract Renewal, Offboarding, Expense Claims, Asset Management, Payroll Approval, Training & Certifications, Multi-Company / Branch Support). Features 15, 18, 20, 22 were skipped. No remaining features.
 
-### Dual-portal structure
+### Three-portal structure
 
 | Portal | Entry point | Who uses it |
 |--------|-------------|-------------|
@@ -441,7 +443,7 @@ The **Save button is hidden** on Documents, Insurance, and Contracts tabs — en
 
 **AdvancesManager (admin)**: Standalone page, nav item "Advances" sits between "Payroll Module" and "Leave" in `NAV_ITEMS`. Loads all advances + employees on mount. Approve/reject pending requests by calling `saveAdvance({ ...adv, status: 'active'/'cancelled' })`; settle/cancel active advances the same way. Repayment history per advance fetched lazily via `getAdvanceRepayments(advanceId)` when the row is expanded. `saveAdvance()` auto-computes `monthly_deduction = amount / repayment_months` if `monthlyDeduction` is not explicitly passed.
 
-**EmpAdvances (employee self-service)**: Tab "Advances" sits between "Payslips" and "Profile" in `EmployeeShell` TABS. The full TABS order is: Home, Leave, Schedule, Attendance, Payslips, Advances, Profile. Calls `getAdvances(emp.id)` (reads via employee self-read RLS policy, not admin scope). Advance request form calls `supabase.rpc('employee_request_advance', { p_amount, p_reason })` directly — the RPC resolves the employee from `auth.uid()`. Active advances show a progress bar: `(amount - outstandingBalance) / amount * 100`.
+**EmpAdvances (employee self-service)**: Tab "Advances" sits between "Payslips" and "Expenses" in `EmployeeShell` TABS. Calls `getAdvances(emp.id)` (reads via employee self-read RLS policy, not admin scope). Advance request form calls `supabase.rpc('employee_request_advance', { p_amount, p_reason })` directly — the RPC resolves the employee from `auth.uid()`. Active advances show a progress bar: `(amount - outstandingBalance) / amount * 100`. The full TABS order in `EmployeeShell` is (9 tabs): **Home, Leave, Schedule, Attendance, Payslips, Advances, Expenses, Training, Profile**.
 
 **PayrollEditor advance info panel**: A `useEffect` loads all `active` advances via `getAdvances()` (no employeeId filter) and groups them by `employeeId` into `advanceData` state. The info panel renders only when `Object.keys(advanceData).length > 0` — it's purely informational; deductions must still be applied manually via the AllowDeductPanel. Silently swallows errors (table may not exist yet — `.catch(() => {})`).
 

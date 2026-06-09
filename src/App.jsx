@@ -1,5 +1,5 @@
 import { useState, useRef, useLayoutEffect, useEffect } from 'react';
-import { LayoutDashboard, Building2, Users, FileText, LogOut, User, CalendarDays, Clock, DollarSign, LayoutGrid, BarChart2, Receipt, Package, GraduationCap, ChevronDown, Plus, X, Check } from 'lucide-react';
+import { LayoutDashboard, Building2, Users, FileText, LogOut, User, CalendarDays, Clock, DollarSign, LayoutGrid, BarChart2, Receipt, Package, GraduationCap, ChevronDown, Plus, X, Check, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { CompanyProvider, useCompany } from './context/CompanyContext';
 import AuthPage from './components/AuthPage';
@@ -41,8 +41,19 @@ function AppShell() {
   const { companies, activeCompany, activeCompanyId, setActiveCompanyId, createBranch, deleteBranch } = useCompany();
   const [page, setPage]               = useState('dashboard');
   const [signingOut, setSigningOut]   = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem('sidebar-collapsed') === 'true'; } catch { return false; }
+  });
   const navRef  = useRef(null);
   const [pill, setPill] = useState({ top: 0, height: 36 });
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed(prev => {
+      const next = !prev;
+      try { localStorage.setItem('sidebar-collapsed', String(next)); } catch {}
+      return next;
+    });
+  };
 
   // ── Branch switcher state ──
   const switcherRef                   = useRef(null);
@@ -74,7 +85,7 @@ function AppShell() {
       top:    itemRect.top  - navRect.top  + navRef.current.scrollTop,
       height: itemRect.height,
     });
-  }, [page]);
+  }, [page, sidebarCollapsed]);
 
   const handleSignOut = async () => {
     setSigningOut(true);
@@ -133,123 +144,145 @@ function AppShell() {
 
   return (
     <div className="app-layout">
-      <aside className="sidebar">
+      <aside className={`sidebar${sidebarCollapsed ? ' collapsed' : ''}`}>
         {/* ── Brand + Company/Branch Switcher ── */}
-        <div className="sidebar-logo">
-          <h1>Workloop</h1>
-
-          {/* Branch switcher button */}
-          <div style={{ position: 'relative', marginTop: 6 }} ref={switcherRef}>
-            <button
-              onClick={() => setShowSwitcher(s => !s)}
-              title="Switch branch"
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', gap: 6,
-                padding: '5px 8px', borderRadius: 7,
-                border: '1px solid rgba(56,189,248,0.15)',
-                background: 'rgba(37,99,235,0.08)',
-                color: 'rgba(255,255,255,0.80)', fontSize: 11, fontWeight: 500,
-                cursor: 'pointer', textAlign: 'left',
-              }}
-            >
-              <Building2 size={11} style={{ flexShrink: 0, color: 'rgba(6,182,212,0.80)' }} />
-              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {activeBranchLabel}
-              </span>
-              {companies.length > 1 && (
-                <span style={{
-                  fontSize: 9, background: 'rgba(37,99,235,0.30)',
-                  padding: '1px 5px', borderRadius: 10, flexShrink: 0,
-                  color: 'rgba(148,213,202,0.90)',
-                }}>
-                  {companies.length}
-                </span>
-              )}
-              <ChevronDown
-                size={11}
-                style={{
-                  flexShrink: 0,
-                  transform: showSwitcher ? 'rotate(180deg)' : 'none',
-                  transition: 'transform 0.18s',
-                }}
-              />
-            </button>
-
-            {/* Branch dropdown */}
-            {showSwitcher && (
-              <div style={{
-                position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
-                background: '#0d1b3e', border: '1px solid rgba(56,189,248,0.15)',
-                borderRadius: 8, zIndex: 200, overflow: 'hidden',
-                boxShadow: '0 8px 24px rgba(0,0,0,0.40)',
-              }}>
-                {companies.map(co => {
-                  const label = co.branchName || co.name || 'Unnamed';
-                  const isActive = co.id === activeCompanyId;
-                  return (
-                    <div
-                      key={co.id}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 6,
-                        padding: '7px 10px',
-                        background: isActive ? 'rgba(37,99,235,0.18)' : 'transparent',
-                        borderBottom: '1px solid rgba(56,189,248,0.06)',
-                      }}
-                    >
-                      <button
-                        onClick={() => { setActiveCompanyId(co.id); setShowSwitcher(false); }}
-                        style={{
-                          flex: 1, display: 'flex', alignItems: 'center', gap: 6,
-                          background: 'none', border: 'none', cursor: 'pointer',
-                          color: isActive ? 'rgba(255,255,255,0.95)' : 'rgba(148,163,184,0.85)',
-                          fontSize: 11, fontWeight: isActive ? 600 : 400, textAlign: 'left',
-                          padding: 0,
-                        }}
-                      >
-                        {isActive && <Check size={10} style={{ color: '#06B6D4', flexShrink: 0 }} />}
-                        {!isActive && <span style={{ width: 10, flexShrink: 0 }} />}
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {label}
-                        </span>
-                      </button>
-                      {/* Delete branch — only shown when there's more than one branch */}
-                      {companies.length > 1 && !isActive && (
-                        <button
-                          onClick={() => { setShowSwitcher(false); handleDeleteBranch(co.id); }}
-                          title={`Delete ${label}`}
-                          style={{
-                            flexShrink: 0, background: 'none', border: 'none',
-                            cursor: 'pointer', color: 'rgba(148,163,184,0.45)',
-                            padding: 2, borderRadius: 4, lineHeight: 1,
-                          }}
-                        >
-                          <X size={11} />
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-
-                {/* Add branch */}
+        <div className={`sidebar-logo${sidebarCollapsed ? ' sidebar-logo--collapsed' : ''}`}>
+          {!sidebarCollapsed ? (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h1>Workloop</h1>
                 <button
-                  onClick={() => { setShowSwitcher(false); setShowNewBranch(true); }}
-                  style={{
-                    width: '100%', display: 'flex', alignItems: 'center', gap: 6,
-                    padding: '7px 10px', background: 'none', border: 'none',
-                    cursor: 'pointer', color: 'rgba(6,182,212,0.85)',
-                    fontSize: 11, fontWeight: 500,
-                  }}
+                  onClick={toggleSidebar}
+                  title="Collapse sidebar"
+                  className="sidebar-collapse-btn"
                 >
-                  <Plus size={11} />
-                  Add Branch
+                  <PanelLeftClose size={15} />
                 </button>
               </div>
-            )}
-          </div>
+
+              {/* Branch switcher button */}
+              <div style={{ position: 'relative', marginTop: 6 }} ref={switcherRef}>
+                <button
+                  onClick={() => setShowSwitcher(s => !s)}
+                  title="Switch branch"
+                  style={{
+                    width: '100%', display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '5px 8px', borderRadius: 7,
+                    border: '1px solid rgba(56,189,248,0.15)',
+                    background: 'rgba(37,99,235,0.08)',
+                    color: 'rgba(255,255,255,0.80)', fontSize: 11, fontWeight: 500,
+                    cursor: 'pointer', textAlign: 'left',
+                  }}
+                >
+                  <Building2 size={11} style={{ flexShrink: 0, color: 'rgba(6,182,212,0.80)' }} />
+                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {activeBranchLabel}
+                  </span>
+                  {companies.length > 1 && (
+                    <span style={{
+                      fontSize: 9, background: 'rgba(37,99,235,0.30)',
+                      padding: '1px 5px', borderRadius: 10, flexShrink: 0,
+                      color: 'rgba(148,213,202,0.90)',
+                    }}>
+                      {companies.length}
+                    </span>
+                  )}
+                  <ChevronDown
+                    size={11}
+                    style={{
+                      flexShrink: 0,
+                      transform: showSwitcher ? 'rotate(180deg)' : 'none',
+                      transition: 'transform 0.18s',
+                    }}
+                  />
+                </button>
+
+                {/* Branch dropdown */}
+                {showSwitcher && (
+                  <div style={{
+                    position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
+                    background: '#0d1b3e', border: '1px solid rgba(56,189,248,0.15)',
+                    borderRadius: 8, zIndex: 200, overflow: 'hidden',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.40)',
+                  }}>
+                    {companies.map(co => {
+                      const label = co.branchName || co.name || 'Unnamed';
+                      const isActive = co.id === activeCompanyId;
+                      return (
+                        <div
+                          key={co.id}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 6,
+                            padding: '7px 10px',
+                            background: isActive ? 'rgba(37,99,235,0.18)' : 'transparent',
+                            borderBottom: '1px solid rgba(56,189,248,0.06)',
+                          }}
+                        >
+                          <button
+                            onClick={() => { setActiveCompanyId(co.id); setShowSwitcher(false); }}
+                            style={{
+                              flex: 1, display: 'flex', alignItems: 'center', gap: 6,
+                              background: 'none', border: 'none', cursor: 'pointer',
+                              color: isActive ? 'rgba(255,255,255,0.95)' : 'rgba(148,163,184,0.85)',
+                              fontSize: 11, fontWeight: isActive ? 600 : 400, textAlign: 'left',
+                              padding: 0,
+                            }}
+                          >
+                            {isActive && <Check size={10} style={{ color: '#06B6D4', flexShrink: 0 }} />}
+                            {!isActive && <span style={{ width: 10, flexShrink: 0 }} />}
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {label}
+                            </span>
+                          </button>
+                          {/* Delete branch — only shown when there's more than one branch */}
+                          {companies.length > 1 && !isActive && (
+                            <button
+                              onClick={() => { setShowSwitcher(false); handleDeleteBranch(co.id); }}
+                              title={`Delete ${label}`}
+                              style={{
+                                flexShrink: 0, background: 'none', border: 'none',
+                                cursor: 'pointer', color: 'rgba(148,163,184,0.45)',
+                                padding: 2, borderRadius: 4, lineHeight: 1,
+                              }}
+                            >
+                              <X size={11} />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {/* Add branch */}
+                    <button
+                      onClick={() => { setShowSwitcher(false); setShowNewBranch(true); }}
+                      style={{
+                        width: '100%', display: 'flex', alignItems: 'center', gap: 6,
+                        padding: '7px 10px', background: 'none', border: 'none',
+                        cursor: 'pointer', color: 'rgba(6,182,212,0.85)',
+                        fontSize: 11, fontWeight: 500,
+                      }}
+                    >
+                      <Plus size={11} />
+                      Add Branch
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            /* Collapsed: show only the expand button */
+            <button
+              onClick={toggleSidebar}
+              title="Expand sidebar"
+              className="sidebar-collapse-btn"
+            >
+              <PanelLeftOpen size={15} />
+            </button>
+          )}
         </div>
 
         <nav className="sidebar-nav" ref={navRef}>
-          <div className="nav-section-label">Navigation</div>
+          {!sidebarCollapsed && <div className="nav-section-label">Navigation</div>}
 
           {/* Sliding pill behind active item */}
           <div className="nav-pill" style={{ transform: `translateY(${pill.top}px)`, height: pill.height }} />
@@ -261,9 +294,10 @@ function AppShell() {
                 key={item.id}
                 className={`nav-item ${page === item.id ? 'active' : ''}`}
                 onClick={() => setPage(item.id)}
+                title={item.label}
               >
                 <Icon size={16} />
-                {item.label}
+                {!sidebarCollapsed && <span className="nav-item-label">{item.label}</span>}
               </button>
             );
           })}
@@ -271,12 +305,14 @@ function AppShell() {
 
         <div style={{
           marginTop: 'auto',
-          padding: '12px 16px',
+          padding: sidebarCollapsed ? '12px 8px' : '12px 16px',
           borderTop: '1px solid rgba(56,189,248,0.10)',
         }}>
           <div style={{
-            display: 'flex', alignItems: 'center', gap: 10,
-            marginBottom: 10, padding: '8px 10px', borderRadius: 10,
+            display: 'flex', alignItems: 'center',
+            gap: sidebarCollapsed ? 0 : 10,
+            flexDirection: sidebarCollapsed ? 'column' : 'row',
+            marginBottom: 10, padding: sidebarCollapsed ? '8px 4px' : '8px 10px', borderRadius: 10,
             background: 'rgba(37,99,235,0.08)',
             border: '1px solid rgba(56,189,248,0.12)',
           }}>
@@ -289,26 +325,31 @@ function AppShell() {
             }}>
               <User size={14} color="rgba(255,255,255,0.9)" />
             </div>
-            <div style={{ overflow: 'hidden', flex: 1 }}>
-              <div style={{
-                fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.88)',
-                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-              }}>
-                {user?.email}
+            {!sidebarCollapsed && (
+              <div style={{ overflow: 'hidden', flex: 1 }}>
+                <div style={{
+                  fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.88)',
+                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                }}>
+                  {user?.email}
+                </div>
+                <div style={{ fontSize: 10, color: 'rgba(148,163,184,0.70)', marginTop: 1 }}>
+                  HR Admin
+                </div>
               </div>
-              <div style={{ fontSize: 10, color: 'rgba(148,163,184,0.70)', marginTop: 1 }}>
-                HR Admin
-              </div>
-            </div>
+            )}
             <NotificationBell />
           </div>
 
           <button
             onClick={handleSignOut}
             disabled={signingOut}
+            title="Sign out"
             style={{
-              width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-              padding: '7px 10px', borderRadius: 8,
+              width: '100%', display: 'flex', alignItems: 'center',
+              justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
+              gap: 8,
+              padding: sidebarCollapsed ? '7px 0' : '7px 10px', borderRadius: 8,
               border: '1px solid rgba(56,189,248,0.10)',
               background: 'transparent', color: 'rgba(148,163,184,0.70)',
               fontSize: 12, cursor: 'pointer', transition: 'all 0.18s',
@@ -325,12 +366,12 @@ function AppShell() {
             }}
           >
             <LogOut size={13} />
-            {signingOut ? 'Signing out…' : 'Sign out'}
+            {!sidebarCollapsed && (signingOut ? 'Signing out…' : 'Sign out')}
           </button>
         </div>
       </aside>
 
-      <main className="main-content">
+      <main className={`main-content${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
         {renderPage()}
       </main>
 
