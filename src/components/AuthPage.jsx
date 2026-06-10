@@ -5,9 +5,9 @@ import { FileText, Mail, Lock, Eye, EyeOff, AlertCircle, CheckCircle, Building2,
 const BG_STYLE = {
   background: '#EEF2F7',
   backgroundImage: [
-    'radial-gradient(ellipse 70% 55% at 15% 40%, rgba(255,71,67,0.07) 0%, transparent 65%)',
-    'radial-gradient(ellipse 60% 45% at 85% 18%, rgba(255,107,107,0.05) 0%, transparent 65%)',
-    'radial-gradient(ellipse 50% 40% at 55% 88%, rgba(255,71,67,0.04) 0%, transparent 60%)',
+    'radial-gradient(ellipse 70% 55% at 15% 40%, rgba(37,99,235,0.07) 0%, transparent 65%)',
+    'radial-gradient(ellipse 60% 45% at 85% 18%, rgba(6,182,212,0.05) 0%, transparent 65%)',
+    'radial-gradient(ellipse 50% 40% at 55% 88%, rgba(56,189,248,0.04) 0%, transparent 60%)',
   ].join(', '),
 };
 
@@ -152,8 +152,8 @@ function CreateCompanyForm({ onBack, onGoAdmin }) {
         <div style={{ textAlign: 'center', padding: '20px 0' }}>
           <div style={{
             width: 48, height: 48,
-            border: '3px solid rgba(255,71,67,0.18)',
-            borderTopColor: '#FF4743', borderRadius: '50%',
+            border: '3px solid rgba(37,99,235,0.18)',
+            borderTopColor: '#2563EB', borderRadius: '50%',
             animation: 'spin 0.8s linear infinite',
             margin: '0 auto 20px',
           }} />
@@ -266,8 +266,8 @@ function AdminSignInForm({ onBack }) {
         <div style={{ textAlign: 'center', padding: '20px 0' }}>
           <div style={{
             width: 48, height: 48,
-            border: '3px solid rgba(255,71,67,0.18)',
-            borderTopColor: '#FF4743', borderRadius: '50%',
+            border: '3px solid rgba(37,99,235,0.18)',
+            borderTopColor: '#2563EB', borderRadius: '50%',
             animation: 'spin 0.8s linear infinite',
             margin: '0 auto 20px',
           }} />
@@ -375,8 +375,8 @@ function EmployeeSignInForm({ onBack }) {
         <div style={{ textAlign: 'center', padding: '20px 0' }}>
           <div style={{
             width: 48, height: 48,
-            border: '3px solid rgba(255,71,67,0.18)',
-            borderTopColor: '#FF4743', borderRadius: '50%',
+            border: '3px solid rgba(37,99,235,0.18)',
+            borderTopColor: '#2563EB', borderRadius: '50%',
             animation: 'spin 0.8s linear infinite',
             margin: '0 auto 20px',
           }} />
@@ -499,10 +499,10 @@ export default function AuthPage() {
       <div style={{ textAlign: 'center', marginBottom: 28 }}>
         <div style={{
           width: 56, height: 56, borderRadius: 16,
-          background: 'linear-gradient(135deg, #FF4743 0%, #FF6B6B 100%)',
+          background: 'linear-gradient(135deg, #2563EB 0%, #06B6D4 100%)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           margin: '0 auto 14px',
-          boxShadow: '0 8px 28px rgba(255,71,67,0.30)',
+          boxShadow: '0 8px 28px rgba(37,99,235,0.30)',
         }}>
           <FileText size={28} color="white" />
         </div>

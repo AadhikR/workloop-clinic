@@ -169,7 +169,7 @@ export default function ExpensesManager() {
           </div>
 
           <div className="stat-card">
-            <div className="stat-icon" style={{ background: 'rgba(255,71,67,0.10)' }}>
+            <div className="stat-icon" style={{ background: 'rgba(37,99,235,0.10)' }}>
               <Check size={20} color="var(--primary)" />
             </div>
             <div>

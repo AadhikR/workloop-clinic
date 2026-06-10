@@ -140,11 +140,11 @@ export default function EmpProfile({ onSignOut, signingOut }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
           <div style={{
             width: 56, height: 56, borderRadius: '50%',
-            background: 'linear-gradient(135deg, rgba(255,71,67,0.14), rgba(255,107,107,0.14))',
-            border: '1px solid rgba(255,71,67,0.18)',
+            background: 'linear-gradient(135deg, rgba(37,99,235,0.14), rgba(6,182,212,0.14))',
+            border: '1px solid rgba(37,99,235,0.18)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <User size={26} color="#FF4743" />
+            <User size={26} color="#2563EB" />
           </div>
           <div>
             <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--gray-900)' }}>{emp.name}</div>

@@ -285,7 +285,7 @@ export default function EmpHome({ onNavigate }) {
                 </div>
                 <span style={{
                   fontSize: 11, padding: '2px 8px', borderRadius: 999,
-                  background: 'rgba(255,71,67,0.10)', color: 'var(--primary)',
+                  background: 'rgba(37,99,235,0.10)', color: 'var(--primary)',
                   fontWeight: 500,
                 }}>
                   {a.category?.replace('_', ' ')}
