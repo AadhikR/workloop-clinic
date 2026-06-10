@@ -100,11 +100,11 @@ export default function EmployeeShell() {
               position: 'absolute',
               left: 10, right: 10, top: 0,
               height: pill.height,
-              background: 'linear-gradient(135deg, #2563EB 0%, #06B6D4 100%)',
+              background: 'linear-gradient(135deg, #FF4743 0%, #FF6B6B 100%)',
               borderRadius: 10,
               pointerEvents: 'none',
               zIndex: 0,
-              boxShadow: '0 4px 18px rgba(37,99,235,0.38)',
+              boxShadow: '0 4px 18px rgba(255,71,67,0.38)',
               transform: `translateY(${pill.top}px)`,
               transition: 'transform 0.40s cubic-bezier(0.34, 1.3, 0.64, 1), height 0.40s cubic-bezier(0.34, 1.3, 0.64, 1)',
             }}
@@ -127,21 +127,21 @@ export default function EmployeeShell() {
         {/* Employee identity + sign out */}
         <div style={{
           padding: '12px 16px',
-          borderTop: '1px solid rgba(56,189,248,0.10)',
+          borderTop: '1px solid rgba(255,71,67,0.10)',
         }}>
           {emp && (
             <div style={{
               display: 'flex', alignItems: 'center', gap: 8,
               marginBottom: 10, padding: '8px 10px', borderRadius: 10,
-              background: 'rgba(37,99,235,0.08)',
-              border: '1px solid rgba(56,189,248,0.12)',
+              background: 'rgba(255,71,67,0.08)',
+              border: '1px solid rgba(255,71,67,0.12)',
             }}>
               <div style={{
                 width: 28, height: 28, borderRadius: '50%',
-                background: 'linear-gradient(135deg, rgba(37,99,235,0.50), rgba(6,182,212,0.50))',
+                background: 'linear-gradient(135deg, rgba(255,71,67,0.50), rgba(255,107,107,0.50))',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 flexShrink: 0,
-                border: '1px solid rgba(56,189,248,0.20)',
+                border: '1px solid rgba(255,71,67,0.20)',
               }}>
                 <User size={13} color="rgba(255,255,255,0.9)" />
               </div>
@@ -166,7 +166,7 @@ export default function EmployeeShell() {
             style={{
               width: '100%', display: 'flex', alignItems: 'center', gap: 8,
               padding: '7px 10px', borderRadius: 8,
-              border: '1px solid rgba(56,189,248,0.10)',
+              border: '1px solid rgba(255,71,67,0.10)',
               background: 'transparent', color: 'rgba(148,163,184,0.70)',
               fontSize: 12, cursor: 'pointer', transition: 'all 0.18s',
             }}
@@ -178,7 +178,7 @@ export default function EmployeeShell() {
             onMouseLeave={e => {
               e.currentTarget.style.background = 'transparent';
               e.currentTarget.style.color = 'rgba(148,163,184,0.70)';
-              e.currentTarget.style.borderColor = 'rgba(56,189,248,0.10)';
+              e.currentTarget.style.borderColor = 'rgba(255,71,67,0.10)';
             }}
           >
             <LogOut size={14} />

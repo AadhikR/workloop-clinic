@@ -168,19 +168,19 @@ function AppShell() {
                   style={{
                     width: '100%', display: 'flex', alignItems: 'center', gap: 6,
                     padding: '5px 8px', borderRadius: 7,
-                    border: '1px solid rgba(56,189,248,0.15)',
-                    background: 'rgba(37,99,235,0.08)',
+                    border: '1px solid rgba(255,71,67,0.15)',
+                    background: 'rgba(255,71,67,0.08)',
                     color: 'rgba(255,255,255,0.80)', fontSize: 11, fontWeight: 500,
                     cursor: 'pointer', textAlign: 'left',
                   }}
                 >
-                  <Building2 size={11} style={{ flexShrink: 0, color: 'rgba(6,182,212,0.80)' }} />
+                  <Building2 size={11} style={{ flexShrink: 0, color: 'rgba(255,107,107,0.80)' }} />
                   <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {activeBranchLabel}
                   </span>
                   {companies.length > 1 && (
                     <span style={{
-                      fontSize: 9, background: 'rgba(37,99,235,0.30)',
+                      fontSize: 9, background: 'rgba(255,71,67,0.30)',
                       padding: '1px 5px', borderRadius: 10, flexShrink: 0,
                       color: 'rgba(148,213,202,0.90)',
                     }}>
@@ -201,7 +201,7 @@ function AppShell() {
                 {showSwitcher && (
                   <div style={{
                     position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
-                    background: '#0d1b3e', border: '1px solid rgba(56,189,248,0.15)',
+                    background: '#200808', border: '1px solid rgba(255,71,67,0.15)',
                     borderRadius: 8, zIndex: 200, overflow: 'hidden',
                     boxShadow: '0 8px 24px rgba(0,0,0,0.40)',
                   }}>
@@ -214,8 +214,8 @@ function AppShell() {
                           style={{
                             display: 'flex', alignItems: 'center', gap: 6,
                             padding: '7px 10px',
-                            background: isActive ? 'rgba(37,99,235,0.18)' : 'transparent',
-                            borderBottom: '1px solid rgba(56,189,248,0.06)',
+                            background: isActive ? 'rgba(255,71,67,0.18)' : 'transparent',
+                            borderBottom: '1px solid rgba(255,71,67,0.06)',
                           }}
                         >
                           <button
@@ -228,7 +228,7 @@ function AppShell() {
                               padding: 0,
                             }}
                           >
-                            {isActive && <Check size={10} style={{ color: '#06B6D4', flexShrink: 0 }} />}
+                            {isActive && <Check size={10} style={{ color: '#FF6B6B', flexShrink: 0 }} />}
                             {!isActive && <span style={{ width: 10, flexShrink: 0 }} />}
                             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {label}
@@ -258,7 +258,7 @@ function AppShell() {
                       style={{
                         width: '100%', display: 'flex', alignItems: 'center', gap: 6,
                         padding: '7px 10px', background: 'none', border: 'none',
-                        cursor: 'pointer', color: 'rgba(6,182,212,0.85)',
+                        cursor: 'pointer', color: 'rgba(255,107,107,0.85)',
                         fontSize: 11, fontWeight: 500,
                       }}
                     >
@@ -306,22 +306,22 @@ function AppShell() {
         <div style={{
           marginTop: 'auto',
           padding: sidebarCollapsed ? '12px 8px' : '12px 16px',
-          borderTop: '1px solid rgba(56,189,248,0.10)',
+          borderTop: '1px solid rgba(255,71,67,0.10)',
         }}>
           <div style={{
             display: 'flex', alignItems: 'center',
             gap: sidebarCollapsed ? 0 : 10,
             flexDirection: sidebarCollapsed ? 'column' : 'row',
             marginBottom: 10, padding: sidebarCollapsed ? '8px 4px' : '8px 10px', borderRadius: 10,
-            background: 'rgba(37,99,235,0.08)',
-            border: '1px solid rgba(56,189,248,0.12)',
+            background: 'rgba(255,71,67,0.08)',
+            border: '1px solid rgba(255,71,67,0.12)',
           }}>
             <div style={{
               width: 30, height: 30, borderRadius: '50%',
-              background: 'linear-gradient(135deg, rgba(37,99,235,0.50), rgba(6,182,212,0.50))',
+              background: 'linear-gradient(135deg, rgba(255,71,67,0.50), rgba(255,107,107,0.50))',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               flexShrink: 0,
-              border: '1px solid rgba(56,189,248,0.20)',
+              border: '1px solid rgba(255,71,67,0.20)',
             }}>
               <User size={14} color="rgba(255,255,255,0.9)" />
             </div>
@@ -350,7 +350,7 @@ function AppShell() {
               justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
               gap: 8,
               padding: sidebarCollapsed ? '7px 0' : '7px 10px', borderRadius: 8,
-              border: '1px solid rgba(56,189,248,0.10)',
+              border: '1px solid rgba(255,71,67,0.10)',
               background: 'transparent', color: 'rgba(148,163,184,0.70)',
               fontSize: 12, cursor: 'pointer', transition: 'all 0.18s',
             }}
@@ -362,7 +362,7 @@ function AppShell() {
             onMouseLeave={e => {
               e.currentTarget.style.background = 'transparent';
               e.currentTarget.style.color = 'rgba(148,163,184,0.70)';
-              e.currentTarget.style.borderColor = 'rgba(56,189,248,0.10)';
+              e.currentTarget.style.borderColor = 'rgba(255,71,67,0.10)';
             }}
           >
             <LogOut size={13} />
@@ -436,7 +436,7 @@ function AppShell() {
 const PAGE_BG = {
   minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
   background: '#F8FAFC',
-  backgroundImage: 'radial-gradient(ellipse 70% 55% at 20% 40%, rgba(37,99,235,0.07) 0%, transparent 65%), radial-gradient(ellipse 60% 45% at 80% 20%, rgba(6,182,212,0.05) 0%, transparent 65%)',
+  backgroundImage: 'radial-gradient(ellipse 70% 55% at 20% 40%, rgba(255,71,67,0.07) 0%, transparent 65%), radial-gradient(ellipse 60% 45% at 80% 20%, rgba(255,107,107,0.05) 0%, transparent 65%)',
 };
 const SPIN_CSS = `@keyframes spin { to { transform: rotate(360deg); } }`;
 
@@ -444,7 +444,7 @@ function Spinner({ label = 'Loading…' }) {
   return (
     <div style={PAGE_BG}>
       <div style={{ textAlign: 'center', color: '#64748B' }}>
-        <div style={{ width: 40, height: 40, border: '3px solid rgba(37,99,235,0.18)', borderTopColor: '#2563EB', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px' }} />
+        <div style={{ width: 40, height: 40, border: '3px solid rgba(255,71,67,0.18)', borderTopColor: '#FF4743', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px' }} />
         <p style={{ fontSize: 14 }}>{label}</p>
       </div>
       <style>{SPIN_CSS}</style>
@@ -482,7 +482,7 @@ function Root() {
             </p>
             <button
               onClick={() => signOut().catch(() => {})}
-              style={{ background: '#2563EB', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 24px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+              style={{ background: '#FF4743', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 24px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
             >
               Sign out and try again
             </button>

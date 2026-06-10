@@ -400,9 +400,9 @@ export default function AssetsManager() {
         {/* ── Stat cards ── */}
         <div className="stats-grid mb-4" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
           {[
-            { label: 'Total Assets',  value: totalCount,    color: 'var(--primary)', bg: 'rgba(37,99,235,0.10)' },
+            { label: 'Total Assets',  value: totalCount,    color: 'var(--primary)', bg: 'rgba(255,71,67,0.10)' },
             { label: 'Available',     value: availCount,    color: 'var(--success)', bg: 'rgba(22,163,74,0.10)' },
-            { label: 'Assigned',      value: assignedCount, color: 'var(--accent)',  bg: 'rgba(6,182,212,0.10)' },
+            { label: 'Assigned',      value: assignedCount, color: 'var(--accent)',  bg: 'rgba(255,107,107,0.10)' },
             { label: 'Under Repair',  value: repairCount,   color: 'var(--warning)', bg: 'rgba(245,158,11,0.10)' },
           ].map(s => (
             <div key={s.label} className="stat-card">

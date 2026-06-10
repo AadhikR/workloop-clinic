@@ -590,7 +590,7 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
               {employee?.id && employee?.authUserId && (
                 <div className="form-group">
                   <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <ShieldCheck size={14} style={{ color: '#2563eb' }} /> Portal Role
+                    <ShieldCheck size={14} style={{ color: '#FF4743' }} /> Portal Role
                   </label>
                   <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                     <select

@@ -89,7 +89,7 @@ export default function NotificationBell() {
           color: 'rgba(148,163,184,0.85)', display: 'flex', alignItems: 'center',
           transition: 'background 0.15s',
         }}
-        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(37,99,235,0.15)'; }}
+        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,71,67,0.15)'; }}
         onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
       >
         <Bell size={16} />
