@@ -18,6 +18,7 @@ import AssetsManager from './components/AssetsManager';
 import TrainingManager from './components/TrainingManager';
 import EmployeeShell from './components/employee/EmployeeShell';
 import ManagerShell from './components/ManagerShell';
+import { useAdvancedFeatures } from './utils/featureFlags';
 import './index.css';
 
 const NAV_ITEMS = [
@@ -29,9 +30,9 @@ const NAV_ITEMS = [
   { id: 'expenses',   label: 'Expenses',          icon: Receipt },
   { id: 'leave',      label: 'Leave',             icon: CalendarDays },
   { id: 'attendance', label: 'Attendance',        icon: Clock },
-  { id: 'assets',     label: 'Assets',            icon: Package },
-  { id: 'training',   label: 'Training',          icon: GraduationCap },
-  { id: 'roster',     label: 'Roster',            icon: LayoutGrid },
+  { id: 'assets',     label: 'Assets',            icon: Package,        advanced: true },
+  { id: 'training',   label: 'Training',          icon: GraduationCap, advanced: true },
+  { id: 'roster',     label: 'Roster',            icon: LayoutGrid,     advanced: true },
   { id: 'reports',    label: 'Reports',           icon: BarChart2 },
 ];
 
@@ -39,6 +40,8 @@ const NAV_ITEMS = [
 function AppShell() {
   const { user, signOut } = useAuth();
   const { companies, activeCompany, activeCompanyId, setActiveCompanyId, createBranch, deleteBranch } = useCompany();
+  const advancedFeatures = useAdvancedFeatures();
+  const navItems = NAV_ITEMS.filter(item => !item.advanced || advancedFeatures);
   const [page, setPage]               = useState('dashboard');
   const [signingOut, setSigningOut]   = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
@@ -86,6 +89,14 @@ function AppShell() {
       height: itemRect.height,
     });
   }, [page, sidebarCollapsed]);
+
+  // If advanced features are turned off while on a now-hidden page, fall back to Dashboard
+  useEffect(() => {
+    const currentItem = NAV_ITEMS.find(item => item.id === page);
+    if (currentItem?.advanced && !advancedFeatures) {
+      setPage('dashboard');
+    }
+  }, [advancedFeatures, page]);
 
   const handleSignOut = async () => {
     setSigningOut(true);
@@ -287,7 +298,7 @@ function AppShell() {
           {/* Sliding pill behind active item */}
           <div className="nav-pill" style={{ transform: `translateY(${pill.top}px)`, height: pill.height }} />
 
-          {NAV_ITEMS.map(item => {
+          {navItems.map(item => {
             const Icon = item.icon;
             return (
               <button
