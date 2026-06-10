@@ -1,5 +1,5 @@
 import { useState, useRef, useLayoutEffect, useEffect } from 'react';
-import { LayoutDashboard, Building2, Users, FileText, LogOut, User, CalendarDays, Clock, DollarSign, LayoutGrid, BarChart2, Receipt, Package, GraduationCap, ChevronDown, Plus, X, Check, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { LayoutDashboard, Building2, Users, FileText, LogOut, User, CalendarDays, Clock, DollarSign, LayoutGrid, BarChart2, Receipt, Package, GraduationCap, ChevronDown, Plus, X, Check, PanelLeftClose, PanelLeftOpen, Sliders } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { CompanyProvider, useCompany } from './context/CompanyContext';
 import AuthPage from './components/AuthPage';
@@ -18,7 +18,7 @@ import AssetsManager from './components/AssetsManager';
 import TrainingManager from './components/TrainingManager';
 import EmployeeShell from './components/employee/EmployeeShell';
 import ManagerShell from './components/ManagerShell';
-import { useAdvancedFeatures } from './utils/featureFlags';
+import { useAdvancedFeatures, setAdvancedFeatures } from './utils/featureFlags';
 import './index.css';
 
 const NAV_ITEMS = [
@@ -90,14 +90,6 @@ function AppShell() {
     });
   }, [page, sidebarCollapsed]);
 
-  // If advanced features are turned off while on a now-hidden page, fall back to Dashboard
-  useEffect(() => {
-    const currentItem = NAV_ITEMS.find(item => item.id === page);
-    if (currentItem?.advanced && !advancedFeatures) {
-      setPage('dashboard');
-    }
-  }, [advancedFeatures, page]);
-
   const handleSignOut = async () => {
     setSigningOut(true);
     try { await signOut(); } catch { /* ignore */ }
@@ -136,6 +128,11 @@ function AppShell() {
     : 'Setup Company';
 
   const renderPage = () => {
+    // Fall back to Dashboard if the current page is an advanced module that's now hidden
+    const currentItem = NAV_ITEMS.find(item => item.id === page);
+    if (currentItem?.advanced && !advancedFeatures) {
+      return <Dashboard onNavigate={setPage} />;
+    }
     switch (page) {
       case 'dashboard':  return <Dashboard onNavigate={setPage} />;
       case 'company':    return <CompanySettings />;
@@ -351,6 +348,46 @@ function AppShell() {
             )}
             <NotificationBell />
           </div>
+
+          {/* ── Advanced features toggle ── */}
+          <button
+            onClick={() => setAdvancedFeatures(!advancedFeatures)}
+            title="Show advanced features (Assets, Training, Roster)"
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center',
+              justifyContent: sidebarCollapsed ? 'center' : 'space-between',
+              gap: 8,
+              marginBottom: 6,
+              padding: sidebarCollapsed ? '7px 0' : '7px 10px', borderRadius: 8,
+              border: '1px solid rgba(56,189,248,0.10)',
+              background: 'transparent', color: 'rgba(148,163,184,0.70)',
+              fontSize: 12, cursor: 'pointer', transition: 'all 0.18s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(37,99,235,0.10)'; e.currentTarget.style.borderColor = 'rgba(56,189,248,0.20)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'rgba(56,189,248,0.10)'; }}
+          >
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Sliders size={13} />
+              {!sidebarCollapsed && 'Advanced features'}
+            </span>
+            {!sidebarCollapsed && (
+              <span style={{
+                position: 'relative', display: 'inline-block', width: 32, height: 18, flexShrink: 0,
+              }}>
+                <span style={{
+                  position: 'absolute', inset: 0, borderRadius: 999,
+                  background: advancedFeatures ? 'var(--primary)' : 'rgba(148,163,184,0.30)',
+                  transition: 'background 0.18s',
+                }}>
+                  <span style={{
+                    position: 'absolute', top: 2, left: advancedFeatures ? 16 : 2,
+                    width: 14, height: 14, borderRadius: '50%', background: '#fff',
+                    transition: 'left 0.18s',
+                  }} />
+                </span>
+              </span>
+            )}
+          </button>
 
           <button
             onClick={handleSignOut}

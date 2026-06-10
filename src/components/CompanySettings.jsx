@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Building2, Info, CheckCircle, Save, AlertCircle, Loader, MapPin, Calendar, ShieldCheck, Heart, Plus, Trash2, Edit2, Sliders } from 'lucide-react';
+import { Building2, Info, CheckCircle, Save, AlertCircle, Loader, MapPin, Calendar, ShieldCheck, Heart, Plus, Trash2, Edit2 } from 'lucide-react';
 import { getCompany, saveCompany, getInsurancePolicies, saveInsurancePolicy, deleteInsurancePolicy } from '../utils/storage';
 import { useCompany } from '../context/CompanyContext';
 import { formatDateUAE } from '../utils/uaeValidators';
-import { useAdvancedFeatures, setAdvancedFeatures } from '../utils/featureFlags';
 
 // UAE sectors with their approximate 2024 Emiratization quota targets (Cabinet Res. 27/2023)
 const SECTORS = [
@@ -59,7 +58,6 @@ function policyRenewalStatus(renewalDate) {
 
 export default function CompanySettings() {
   const { activeCompanyId, refreshCompanies } = useCompany();
-  const advancedFeatures = useAdvancedFeatures();
   const [company, setCompany] = useState(DEFAULT_COMPANY);
   const [saved, setSaved]     = useState(false);
   const [saving, setSaving]   = useState(false);
@@ -278,43 +276,6 @@ export default function CompanySettings() {
                   placeholder="Dubai, UAE"
                 />
               </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ── App Preferences ── */}
-        <div className="card mb-4">
-          <div className="card-header">
-            <h3><Sliders size={16} style={{display:'inline',marginRight:6}} />App Preferences</h3>
-          </div>
-          <div className="card-body">
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: 13.5 }}>Show advanced features</div>
-                <div className="text-sm text-muted" style={{ marginTop: 2 }}>
-                  Adds <strong>Assets</strong>, <strong>Training</strong>, and <strong>Roster</strong> to the sidebar.
-                  Turn this off for a simpler, streamlined view if your business doesn't need these modules.
-                </div>
-              </div>
-              <label style={{ position: 'relative', display: 'inline-block', width: 40, height: 22, flexShrink: 0, cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={advancedFeatures}
-                  onChange={e => setAdvancedFeatures(e.target.checked)}
-                  style={{ opacity: 0, width: 0, height: 0 }}
-                />
-                <span style={{
-                  position: 'absolute', inset: 0, borderRadius: 999,
-                  background: advancedFeatures ? 'var(--primary)' : 'var(--gray-300)',
-                  transition: 'background 0.18s',
-                }}>
-                  <span style={{
-                    position: 'absolute', top: 2, left: advancedFeatures ? 20 : 2,
-                    width: 18, height: 18, borderRadius: '50%', background: '#fff',
-                    transition: 'left 0.18s', boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
-                  }} />
-                </span>
-              </label>
             </div>
           </div>
         </div>
