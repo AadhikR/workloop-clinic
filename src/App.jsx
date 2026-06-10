@@ -78,7 +78,7 @@ function AppShell() {
     return () => document.removeEventListener('mousedown', handler);
   }, [showSwitcher]);
 
-  useLayoutEffect(() => {
+  const measurePill = () => {
     if (!navRef.current) return;
     const active = navRef.current.querySelector('.nav-item.active');
     if (!active) return;
@@ -88,7 +88,18 @@ function AppShell() {
       top:    itemRect.top  - navRect.top  + navRef.current.scrollTop,
       height: itemRect.height,
     });
+  };
+
+  useLayoutEffect(() => {
+    measurePill();
   }, [page, sidebarCollapsed]);
+
+  // The sidebar width animates over 0.28s — re-measure once the transition
+  // finishes so the pill doesn't stay sized for the pre-toggle layout.
+  useEffect(() => {
+    const t = setTimeout(measurePill, 300);
+    return () => clearTimeout(t);
+  }, [sidebarCollapsed]);
 
   const handleSignOut = async () => {
     setSigningOut(true);
