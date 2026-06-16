@@ -56,7 +56,7 @@ async function goToAdmin(page) {
 async function openBranchDropdown(page) {
   // The switcher button is inside .sidebar-logo, shows the current branch label
   // and a ChevronDown icon
-  const switcherBtn = page.locator('.sidebar-logo button').first();
+  const switcherBtn = page.locator('.sidebar-logo button[title="Switch branch"]');
   await expect(switcherBtn).toBeVisible({ timeout: 6000 });
   await switcherBtn.click();
 }
@@ -70,7 +70,7 @@ test.describe('Multi-Company — Admin sidebar branch switcher', () => {
     await goToAdmin(page);
     // The switcher is a button inside .sidebar-logo containing a Building2 icon and ChevronDown
     await expect(
-      page.locator('.sidebar-logo button').first()
+      page.locator('.sidebar-logo button[title="Switch branch"]')
     ).toBeVisible({ timeout: 6000 });
   });
 
@@ -299,7 +299,7 @@ test.describe('Multi-Company — Data isolation', () => {
     const primaryCount = await page.locator('tbody tr').count();
 
     // Switch to the test branch (created in the create-branch test)
-    const switcherBtn = page.locator('.sidebar-logo button').first();
+    const switcherBtn = page.locator('.sidebar-logo button[title="Switch branch"]');
     await switcherBtn.click();
     const testBranchItem = page.locator('.sidebar-logo button').filter({ hasText: BRANCH_NAME }).first();
     if (!(await testBranchItem.isVisible({ timeout: 3000 }).catch(() => false))) {
@@ -328,7 +328,7 @@ test.describe('Multi-Company — Data isolation', () => {
     await expect(page.locator('.sidebar-logo')).toBeVisible({ timeout: 10000 });
 
     // Switch to the test branch
-    const switcherBtn = page.locator('.sidebar-logo button').first();
+    const switcherBtn = page.locator('.sidebar-logo button[title="Switch branch"]');
     await switcherBtn.click();
     const testBranchItem = page.locator('.sidebar-logo button').filter({ hasText: BRANCH_NAME }).first();
     if (!(await testBranchItem.isVisible({ timeout: 3000 }).catch(() => false))) {
@@ -358,7 +358,7 @@ test.describe('Multi-Company — Data isolation', () => {
     const primaryCount = await page.locator('tbody tr').count();
 
     // Switch to test branch
-    let switcherBtn = page.locator('.sidebar-logo button').first();
+    let switcherBtn = page.locator('.sidebar-logo button[title="Switch branch"]');
     await switcherBtn.click();
     const testBranchItem = page.locator('.sidebar-logo button').filter({ hasText: BRANCH_NAME }).first();
     if (!(await testBranchItem.isVisible({ timeout: 3000 }).catch(() => false))) {
@@ -371,7 +371,7 @@ test.describe('Multi-Company — Data isolation', () => {
     await page.waitForLoadState('networkidle');
 
     // Now switch back to primary (first branch)
-    switcherBtn = page.locator('.sidebar-logo button').first();
+    switcherBtn = page.locator('.sidebar-logo button[title="Switch branch"]');
     await switcherBtn.click();
     // Click the primary (first) branch item — it has a checkmark if active
     const primaryItem = page.locator('.sidebar-logo div[style*="position: absolute"] button').first();
@@ -403,7 +403,7 @@ test.describe('Multi-Company — Data isolation', () => {
     const primaryStatCards = await page.locator('.stat-card').count();
 
     // Switch to test branch
-    const switcherBtn = page.locator('.sidebar-logo button').first();
+    const switcherBtn = page.locator('.sidebar-logo button[title="Switch branch"]');
     await switcherBtn.click();
     const testBranchItem = page.locator('.sidebar-logo button').filter({ hasText: BRANCH_NAME }).first();
     if (!(await testBranchItem.isVisible({ timeout: 3000 }).catch(() => false))) {

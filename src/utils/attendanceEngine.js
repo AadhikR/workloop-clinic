@@ -277,15 +277,18 @@ export function deriveAttendanceStatus({
   recordDate.setHours(0, 0, 0, 0);
   const isPast = recordDate <= today;
 
-  // 1. Weekend
-  if (isWeekend) {
+  // 1. Weekend — unless the employee clocked in (worked on rest day), in which
+  // case fall through to the normal present/missing-clock-out logic below.
+  if (isWeekend && !clockIn) {
     return { status: ATTENDANCE_STATUS.WEEKEND, lateMinutes: 0, earlyDepartureMinutes: 0, overtimeHours: 0, overtimeAmount: 0, missingClockOut: false, isRamadanDay: isRamadan };
   }
 
-  // 2. Public holiday
-  if (isHoliday) {
+  // 2. Public holiday — same exception as weekend above.
+  if (isHoliday && !clockIn) {
     return { status: ATTENDANCE_STATUS.PUBLIC_HOLIDAY, lateMinutes: 0, earlyDepartureMinutes: 0, overtimeHours: 0, overtimeAmount: 0, missingClockOut: false, isRamadanDay: isRamadan };
   }
+
+  const workedOnRestDay = isWeekend || isHoliday;
 
   // 3. Approved leave (read from Leave Management — do NOT mark as absent)
   if (hasApprovedLeave) {
@@ -302,7 +305,7 @@ export function deriveAttendanceStatus({
 
   // 5. Has clock-in but no clock-out
   if (clockIn && !clockOut) {
-    return { status: ATTENDANCE_STATUS.MISSING_CLOCK_OUT, lateMinutes: 0, earlyDepartureMinutes: 0, overtimeHours: 0, overtimeAmount: 0, missingClockOut: true, isRamadanDay: isRamadan };
+    return { status: ATTENDANCE_STATUS.MISSING_CLOCK_OUT, lateMinutes: 0, earlyDepartureMinutes: 0, overtimeHours: 0, overtimeAmount: 0, missingClockOut: true, isRamadanDay: isRamadan, workedOnRestDay };
   }
 
   // 6. Has both clock-in and clock-out — calculate details
@@ -375,6 +378,7 @@ export function deriveAttendanceStatus({
     lateDeduction,
     missingClockOut: false,
     isRamadanDay: isRamadan,
+    workedOnRestDay,
   };
 }
 

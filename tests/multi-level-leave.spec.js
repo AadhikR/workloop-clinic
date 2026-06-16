@@ -49,8 +49,13 @@ test.describe('Leave Approval — Admin portal', () => {
     await expect(requestsTab).toBeVisible({ timeout: 6000 });
     await requestsTab.click();
     await page.waitForLoadState('networkidle');
-    // Table header row should appear
-    await expect(page.locator('th').filter({ hasText: /employee/i }).first()).toBeVisible({ timeout: 8000 });
+    // Either the requests table (with an "Employee" column) or the
+    // "No leave requests" empty state should appear, depending on
+    // whether any leave requests exist for the test company.
+    await expect(
+      page.locator('th').filter({ hasText: /employee/i }).first()
+        .or(page.locator('.empty-state').filter({ hasText: /no leave requests/i }))
+    ).toBeVisible({ timeout: 8000 });
   });
 
   test('Settings tab has Approval Chain dropdown with 2-level option', async ({ page }) => {

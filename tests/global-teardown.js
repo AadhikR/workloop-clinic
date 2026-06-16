@@ -20,12 +20,19 @@ export default async function globalTeardown() {
 
   const envPath = '.playwright/env.json';
   if (!existsSync(envPath)) return;
-  const { adminId } = JSON.parse(readFileSync(envPath, 'utf8'));
+  const { adminId, empAuthId } = JSON.parse(readFileSync(envPath, 'utf8'));
 
   console.log('\n[teardown] Cleaning up test attendance data…');
   await db.from('attendance_records').delete().eq('user_id', adminId);
   await db.from('clock_events').delete().eq('user_id', adminId);
   await db.from('attendance_periods').delete().eq('user_id', adminId);
+  // Clock-in/out events are recorded under the employee's own auth user_id,
+  // not the admin's — clean those up too so "today" doesn't carry a
+  // leftover clock-in into the next test run.
+  if (empAuthId) {
+    await db.from('attendance_records').delete().eq('user_id', empAuthId);
+    await db.from('clock_events').delete().eq('user_id', empAuthId);
+  }
 
   console.log('[teardown] Cleaning up test payroll data…');
   const { data: runs } = await db.from('payroll_runs').select('id').eq('user_id', adminId);

@@ -427,6 +427,7 @@ export async function computeAndSaveAttendance({
     missingClockOut:       derived.missingClockOut || false,
     isRamadanDay:          isRamadan,
     lateDeduction:         derived.lateDeduction || 0,
+    workedOnRestDay:       derived.workedOnRestDay || false,
   });
 }
 

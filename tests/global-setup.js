@@ -85,11 +85,28 @@ export default async function globalSetup() {
   const adminUser = await ensureUser(db, TEST_ADMIN_EMAIL, TEST_ADMIN_PASSWORD, 'admin');
   console.log(`  admin id: ${adminUser.id}`);
 
-  const { error: coErr } = await db.from('companies').upsert(
-    { user_id: adminUser.id, name: TEST_ADMIN_COMPANY },
-    { onConflict: 'user_id' }
-  );
-  if (coErr) console.warn('  companies upsert warning:', coErr.message);
+  // companies.user_id no longer has a unique constraint (multi-company support),
+  // so select-then-insert/update instead of upsert with onConflict.
+  const { data: existingCo } = await db
+    .from('companies')
+    .select('id')
+    .eq('user_id', adminUser.id)
+    .maybeSingle();
+
+  let companyId = existingCo?.id;
+
+  if (existingCo) {
+    const { error: coErr } = await db.from('companies')
+      .update({ name: TEST_ADMIN_COMPANY })
+      .eq('id', existingCo.id);
+    if (coErr) console.warn('  companies update warning:', coErr.message);
+  } else {
+    const { data: newCo, error: coErr } = await db.from('companies')
+      .insert({ user_id: adminUser.id, name: TEST_ADMIN_COMPANY })
+      .select('id').single();
+    if (coErr) console.warn('  companies insert warning:', coErr.message);
+    companyId = newCo?.id;
+  }
 
   const { error: profErr } = await db.from('user_profiles').upsert(
     { user_id: adminUser.id, role: 'admin', company_user_id: adminUser.id, employee_id: null },
@@ -116,6 +133,7 @@ export default async function globalSetup() {
   // Full row matching all NOT NULL columns in the employees table
   const empRowData = {
     user_id:            adminUser.id,
+    company_id:         companyId, // Feature 21: scope to the test admin's branch
     auth_user_id:       empUser.id,
     name:               TEST_EMPLOYEE_NAME,
     work_email:         TEST_EMPLOYEE_EMAIL.toLowerCase(),
@@ -144,7 +162,7 @@ export default async function globalSetup() {
 
   if (existingEmp) {
     console.log(`  found existing employee row: ${existingEmp.id}`);
-    await db.from('employees').update({ auth_user_id: empUser.id, active: true })
+    await db.from('employees').update({ auth_user_id: empUser.id, active: true, company_id: companyId })
       .eq('id', existingEmp.id);
   } else {
     const { data: newEmp, error: insertErr } = await db.from('employees')
@@ -183,6 +201,11 @@ export default async function globalSetup() {
   // Use type=submit to avoid matching the portal-switcher buttons
   await adminPage.locator('button[type="submit"]').click();
   await adminPage.waitForSelector('.sidebar-logo', { timeout: 25000 });
+  // Enable the "Advanced features" flag so Assets/Training/Roster nav items
+  // (gated behind NAV_ITEMS[].advanced) are visible in tests.
+  await adminPage.evaluate(() => localStorage.setItem('workloop-advanced-features', 'true'));
+  await adminPage.reload();
+  await adminPage.waitForSelector('.sidebar-logo', { timeout: 25000 });
   await adminCtx.storageState({ path: '.playwright/admin-session.json' });
   await adminCtx.close();
 
@@ -202,6 +225,6 @@ export default async function globalSetup() {
 
   await browser.close();
 
-  writeFileSync('.playwright/env.json', JSON.stringify({ adminId: adminUser.id, employeeId }));
+  writeFileSync('.playwright/env.json', JSON.stringify({ adminId: adminUser.id, employeeId, empAuthId: empUser.id }));
   console.log('[setup] Done.\n');
 }

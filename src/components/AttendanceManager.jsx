@@ -19,7 +19,7 @@ import { getEmployees } from '../utils/storage';
 import { getLeaveRequests, getPublicHolidays, getLeaveSettings } from '../utils/leaveStorage';
 import {
   getAttendanceSettings, saveAttendanceSettings,
-  getShifts, saveShift, deleteShift,
+  getShifts, saveShift, deleteShift, getShiftForEmployee,
   getClockEvents, recordClockEvent, recordManualClockEvent,
   getAttendanceRecords, upsertAttendanceRecord, computeAndSaveAttendance,
   getAttendancePeriods, getAttendancePeriod, closeAttendancePeriod,
@@ -35,6 +35,12 @@ import {
   formatHours, getWorkingDaysInMonth,
 } from '../utils/attendanceEngine';
 import { formatDateUAE, formatAED } from '../utils/uaeValidators';
+
+// Today's date in the UAE calendar (UTC+4) — matches EmpAttendance.jsx's
+// todayUAE(), which is the date employee clock-in/out events are filed under.
+function todayUAE() {
+  return new Date(Date.now() + 4 * 60 * 60000).toISOString().split('T')[0];
+}
 
 // ── Status Badge ──────────────────────────────────────────────────────────────
 function AttendanceBadge({ status }) {
@@ -198,11 +204,35 @@ export default function AttendanceManager() {
       setSettingsForm(sett || defaultSettings);
       setLeaveSettings(leaveSett);
       setApprovedLeaves(leaves);
-      setHolidayDates(hols.map(h => h.date));
-      setRecords(recs);
+      const holidayDates = hols.map(h => h.date);
+      setHolidayDates(holidayDates);
       setPeriods(pers);
       setRegularisations(regs);
       if (emps.length > 0) setClockEmp(emps[0].id);
+
+      // Compute & persist today's attendance record for each active employee
+      // so the dashboard ("Present Today" etc.) reflects same-day clock-ins
+      // without waiting for an end-of-day batch process.
+      const today = todayUAE();
+      let todayRecs = recs;
+      if (selectedMonth === today.slice(0, 7)) {
+        const activeEmps = emps.filter(e => e.active);
+        await Promise.all(activeEmps.map(async emp => {
+          const shift = await getShiftForEmployee(emp.id, today).catch(() => null);
+          await computeAndSaveAttendance({
+            employee: emp,
+            date: today,
+            shift,
+            settings: sett || defaultSettings,
+            approvedLeaves: leaves,
+            holidayDates,
+            ramadanStart: leaveSett?.ramadanStart,
+            ramadanEnd: leaveSett?.ramadanEnd,
+          }).catch(() => null);
+        }));
+        todayRecs = await getAttendanceRecords({ period: selectedMonth }).catch(() => recs);
+      }
+      setRecords(todayRecs);
     } catch (err) {
       console.error('AttendanceManager loadAll:', err);
     } finally {
@@ -390,9 +420,11 @@ export default function AttendanceManager() {
   };
 
   // ── Derived data ────────────────────────────────────────────────────────────
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = todayUAE();
   const todayRecords = records.filter(r => r.date === todayStr);
-  const presentToday = todayRecords.filter(r => [ATTENDANCE_STATUS.PRESENT, ATTENDANCE_STATUS.LATE, ATTENDANCE_STATUS.OVERTIME, ATTENDANCE_STATUS.PRESENT_REMOTE].includes(r.status));
+  // MISSING_CLOCK_OUT on today's date means the employee clocked in and
+  // hasn't clocked out yet — i.e. they are currently present.
+  const presentToday = todayRecords.filter(r => [ATTENDANCE_STATUS.PRESENT, ATTENDANCE_STATUS.LATE, ATTENDANCE_STATUS.OVERTIME, ATTENDANCE_STATUS.PRESENT_REMOTE, ATTENDANCE_STATUS.MISSING_CLOCK_OUT].includes(r.status));
   const absentToday  = todayRecords.filter(r => r.status === ATTENDANCE_STATUS.UNEXPLAINED_ABSENCE || r.status === ATTENDANCE_STATUS.ABSENT);
   const lateToday    = todayRecords.filter(r => r.lateMinutes > 0);
   const onLeaveToday = approvedLeaves.filter(l => l.startDate <= todayStr && l.endDate >= todayStr);
