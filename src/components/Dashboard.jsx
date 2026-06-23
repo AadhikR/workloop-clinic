@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Building2, Users, FileText, CheckCircle, AlertCircle, ArrowRight, Clock, ShieldAlert, ShieldCheck, Heart } from 'lucide-react';
-import { getCompany, getEmployees, getPayrolls, getInsurancePolicies, getAllEmployeeInsurance } from '../utils/storage';
+import { Building2, Users, FileText, CheckCircle, AlertCircle, ArrowRight, Clock, ShieldAlert, ShieldCheck, Heart, Mail } from 'lucide-react';
+import { getCompany, getEmployees, getPayrolls, getInsurancePolicies, getAllEmployeeInsurance, getAllEmployeeDocuments } from '../utils/storage';
 import { getAllCertifications } from '../utils/trainingStorage';
 import { generateExpiryNotifications } from '../utils/notificationStorage';
+import { getPendingLetterCount } from '../utils/letterStorage';
+import { getAppraisalCycles, getAppraisalsForCycle } from '../utils/appraisalStorage';
 import { useCompany } from '../context/CompanyContext';
 import NafisReportModal from './NafisReportModal';
 
@@ -16,6 +18,8 @@ export default function Dashboard({ onNavigate }) {
   const [insurancePolicies, setInsurancePolicies] = useState([]);
   const [allEmpInsurance, setAllEmpInsurance]     = useState([]);
   const [allCertifications, setAllCertifications] = useState([]);
+  const [pendingLetters, setPendingLetters]       = useState(0);
+  const [pendingAppraisals, setPendingAppraisals] = useState(0);
 
   useEffect(() => {
     setLoading(true);
@@ -23,16 +27,26 @@ export default function Dashboard({ onNavigate }) {
       getCompany(activeCompanyId), getEmployees(activeCompanyId), getPayrolls(activeCompanyId),
       getInsurancePolicies(), getAllEmployeeInsurance(),
       getAllCertifications().catch(() => []),
-    ]).then(([co, emps, pays, pols, empIns, certs]) => {
+      getAllEmployeeDocuments().catch(() => []),
+      getPendingLetterCount().catch(() => 0),
+    ]).then(([co, emps, pays, pols, empIns, certs, allDocs, letterCount]) => {
       setCompany(co);
       setEmployees(emps);
       setPayrolls(pays);
       setInsurancePolicies(pols);
       setAllEmpInsurance(empIns);
       setAllCertifications(certs || []);
+      setPendingLetters(letterCount || 0);
       setLoading(false);
       // Silently generate persistent expiry notifications (ON CONFLICT DO NOTHING)
-      generateExpiryNotifications(emps, co, pols, empIns, certs || []).catch(() => {});
+      generateExpiryNotifications(emps, co, pols, empIns, certs || [], allDocs || []).catch(() => {});
+      // Count pending appraisals across all active cycles
+      getAppraisalCycles().then(async cycles => {
+        const activeCycles = cycles.filter(c => c.status === 'active' || c.status === 'open');
+        if (!activeCycles.length) return;
+        const allAppraisals = (await Promise.all(activeCycles.map(c => getAppraisalsForCycle(c.id).catch(() => [])))).flat();
+        setPendingAppraisals(allAppraisals.filter(a => a.status === 'pending').length);
+      }).catch(() => {});
     });
   }, [activeCompanyId]); // Re-load when the active branch changes
 
@@ -319,6 +333,36 @@ export default function Dashboard({ onNavigate }) {
               <button className="btn btn-ghost btn-sm" style={{ padding: '0 4px', textDecoration: 'underline' }}
                 onClick={() => onNavigate('training')}>
                 View in Training
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Pending letter requests alert (Feature 1.3) */}
+        {pendingLetters > 0 && (
+          <div className="alert alert-info mb-4">
+            <Mail size={16} />
+            <div>
+              <strong>{pendingLetters} letter request{pendingLetters !== 1 ? 's' : ''} pending.</strong>
+              {' '}Employees are waiting for HR letters to be generated.{' '}
+              <button className="btn btn-ghost btn-sm" style={{ padding: '0 4px', textDecoration: 'underline' }}
+                onClick={() => onNavigate('letters')}>
+                View Letter Requests
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Appraisals pending review alert (Feature 6.1) */}
+        {pendingAppraisals > 0 && (
+          <div className="alert alert-info mb-4">
+            <CheckCircle size={16} />
+            <div>
+              <strong>{pendingAppraisals} appraisal{pendingAppraisals !== 1 ? 's' : ''} pending review.</strong>
+              {' '}Staff appraisals in active cycles have not been rated yet.{' '}
+              <button className="btn btn-ghost btn-sm" style={{ padding: '0 4px', textDecoration: 'underline' }}
+                onClick={() => onNavigate('appraisals')}>
+                Open Appraisals
               </button>
             </div>
           </div>

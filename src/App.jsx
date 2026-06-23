@@ -1,5 +1,5 @@
 import { useState, useRef, useLayoutEffect, useEffect } from 'react';
-import { LayoutDashboard, Building2, Users, FileText, LogOut, User, CalendarDays, Clock, DollarSign, LayoutGrid, BarChart2, Receipt, Package, GraduationCap, ChevronDown, Plus, X, Check, PanelLeftClose, PanelLeftOpen, Sliders } from 'lucide-react';
+import { LayoutDashboard, Building2, Users, FileText, LogOut, User, CalendarDays, Clock, DollarSign, LayoutGrid, BarChart2, Receipt, Package, GraduationCap, ChevronDown, Plus, X, Check, PanelLeftClose, PanelLeftOpen, Mail, GitBranch, Activity, ClipboardList } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { CompanyProvider, useCompany } from './context/CompanyContext';
 import AuthPage from './components/AuthPage';
@@ -16,23 +16,30 @@ import Reports from './components/Reports';
 import ExpensesManager from './components/ExpensesManager';
 import AssetsManager from './components/AssetsManager';
 import TrainingManager from './components/TrainingManager';
+import LetterRequestsManager from './components/LetterRequestsManager';
+import DepartmentManager from './components/DepartmentManager';
+import ClinicalDashboard from './components/ClinicalDashboard';
+import AppraisalManager from './components/AppraisalManager';
 import EmployeeShell from './components/employee/EmployeeShell';
 import ManagerShell from './components/ManagerShell';
-import { useAdvancedFeatures, setAdvancedFeatures } from './utils/featureFlags';
 import './index.css';
 
 const NAV_ITEMS = [
-  { id: 'dashboard',  label: 'Dashboard',        icon: LayoutDashboard },
-  { id: 'company',    label: 'Company Settings', icon: Building2 },
-  { id: 'employees',  label: 'Employees',         icon: Users },
+  { id: 'dashboard',          label: 'Dashboard',          icon: LayoutDashboard },
+  { id: 'clinical-dashboard', label: 'Clinical Dashboard', icon: Activity },
+  { id: 'company',            label: 'Company Settings',   icon: Building2 },
+  { id: 'employees',          label: 'Employees',          icon: Users },
+  { id: 'departments',        label: 'Departments',        icon: GitBranch },
+  { id: 'letters',            label: 'Letter Requests',    icon: Mail },
   { id: 'payroll',    label: 'Payroll Module',    icon: FileText },
   { id: 'advances',   label: 'Advances',          icon: DollarSign },
   { id: 'expenses',   label: 'Expenses',          icon: Receipt },
   { id: 'leave',      label: 'Leave',             icon: CalendarDays },
   { id: 'attendance', label: 'Attendance',        icon: Clock },
-  { id: 'assets',     label: 'Assets',            icon: Package,        advanced: true },
-  { id: 'training',   label: 'Training',          icon: GraduationCap, advanced: true },
-  { id: 'roster',     label: 'Roster',            icon: LayoutGrid,     advanced: true },
+  { id: 'assets',     label: 'Assets',            icon: Package },
+  { id: 'training',   label: 'Training',          icon: GraduationCap },
+  { id: 'appraisals', label: 'Appraisals',        icon: ClipboardList },
+  { id: 'roster',     label: 'Roster',            icon: LayoutGrid },
   { id: 'reports',    label: 'Reports',           icon: BarChart2 },
 ];
 
@@ -40,8 +47,7 @@ const NAV_ITEMS = [
 function AppShell() {
   const { user, signOut } = useAuth();
   const { companies, activeCompany, activeCompanyId, setActiveCompanyId, createBranch, deleteBranch } = useCompany();
-  const advancedFeatures = useAdvancedFeatures();
-  const navItems = NAV_ITEMS.filter(item => !item.advanced || advancedFeatures);
+  const navItems = NAV_ITEMS;
   const [page, setPage]               = useState('dashboard');
   const [signingOut, setSigningOut]   = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
@@ -139,15 +145,13 @@ function AppShell() {
     : 'Setup Company';
 
   const renderPage = () => {
-    // Fall back to Dashboard if the current page is an advanced module that's now hidden
-    const currentItem = NAV_ITEMS.find(item => item.id === page);
-    if (currentItem?.advanced && !advancedFeatures) {
-      return <Dashboard onNavigate={setPage} />;
-    }
     switch (page) {
-      case 'dashboard':  return <Dashboard onNavigate={setPage} />;
-      case 'company':    return <CompanySettings />;
-      case 'employees':  return <EmployeeManager />;
+      case 'dashboard':          return <Dashboard onNavigate={setPage} />;
+      case 'clinical-dashboard': return <ClinicalDashboard />;
+      case 'company':            return <CompanySettings />;
+      case 'employees':          return <EmployeeManager />;
+      case 'departments':  return <DepartmentManager />;
+      case 'letters':      return <LetterRequestsManager />;
       case 'payroll':    return <PayrollManager />;
       case 'advances':   return <AdvancesManager />;
       case 'expenses':   return <ExpensesManager />;
@@ -155,6 +159,7 @@ function AppShell() {
       case 'attendance': return <AttendanceManager />;
       case 'assets':     return <AssetsManager />;
       case 'training':   return <TrainingManager />;
+      case 'appraisals': return <AppraisalManager />;
       case 'roster':     return <RosterManager />;
       case 'reports':    return <Reports />;
       default:           return <Dashboard onNavigate={setPage} />;
@@ -359,46 +364,6 @@ function AppShell() {
             )}
             <NotificationBell />
           </div>
-
-          {/* ── Advanced features toggle ── */}
-          <button
-            onClick={() => setAdvancedFeatures(!advancedFeatures)}
-            title="Show advanced features (Assets, Training, Roster)"
-            style={{
-              width: '100%', display: 'flex', alignItems: 'center',
-              justifyContent: sidebarCollapsed ? 'center' : 'space-between',
-              gap: 8,
-              marginBottom: 6,
-              padding: sidebarCollapsed ? '7px 0' : '7px 10px', borderRadius: 8,
-              border: '1px solid rgba(56,189,248,0.10)',
-              background: 'transparent', color: 'rgba(148,163,184,0.70)',
-              fontSize: 12, cursor: 'pointer', transition: 'all 0.18s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(37,99,235,0.10)'; e.currentTarget.style.borderColor = 'rgba(56,189,248,0.20)'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'rgba(56,189,248,0.10)'; }}
-          >
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Sliders size={13} />
-              {!sidebarCollapsed && 'Advanced features'}
-            </span>
-            {!sidebarCollapsed && (
-              <span style={{
-                position: 'relative', display: 'inline-block', width: 32, height: 18, flexShrink: 0,
-              }}>
-                <span style={{
-                  position: 'absolute', inset: 0, borderRadius: 999,
-                  background: advancedFeatures ? 'var(--primary)' : 'rgba(148,163,184,0.30)',
-                  transition: 'background 0.18s',
-                }}>
-                  <span style={{
-                    position: 'absolute', top: 2, left: advancedFeatures ? 16 : 2,
-                    width: 14, height: 14, borderRadius: '50%', background: '#fff',
-                    transition: 'left 0.18s',
-                  }} />
-                </span>
-              </span>
-            )}
-          </button>
 
           <button
             onClick={handleSignOut}

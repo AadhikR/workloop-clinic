@@ -12,8 +12,9 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Clock, Users, AlertCircle, BarChart2, Settings, CheckCircle,
   Plus, X, Check, Download, ChevronLeft, ChevronRight, Save,
-  AlertTriangle, Calendar, RefreshCw, Lock, Info
+  AlertTriangle, Calendar, RefreshCw, Lock, Info, Fingerprint
 } from 'lucide-react';
+import BiometricImport from './BiometricImport';
 import { useAuth } from '../context/AuthContext';
 import { getEmployees } from '../utils/storage';
 import { getLeaveRequests, getPublicHolidays, getLeaveSettings } from '../utils/leaveStorage';
@@ -456,6 +457,7 @@ export default function AttendanceManager() {
     { id:'overtime',       label:`Overtime${pendingOT.length > 0 ? ` (${pendingOT.length})` : ''}`, icon:AlertCircle },
     { id:'regularisation', label:`Corrections${pendingRegs.length > 0 ? ` (${pendingRegs.length})` : ''}`, icon:RefreshCw },
     { id:'reports',        label:'Reports',        icon:Download },
+    { id:'biometric',      label:'Biometric Import', icon:Fingerprint },
     { id:'settings',       label:'Settings',       icon:Settings },
   ];
 
@@ -924,6 +926,11 @@ export default function AttendanceManager() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* ── BIOMETRIC IMPORT TAB ── */}
+        {tab === 'biometric' && (
+          <BiometricImport employees={employees} />
         )}
 
         {/* ── SETTINGS TAB ── */}

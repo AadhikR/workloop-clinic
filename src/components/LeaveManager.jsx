@@ -17,7 +17,7 @@ import { useAuth } from '../context/AuthContext';
 import { getEmployees } from '../utils/storage';
 import { createNotification } from '../utils/notificationStorage';
 import {
-  getLeaveTypes, getLeaveRequests, submitLeaveRequest, updateLeaveRequestStatus,
+  getLeaveTypes, saveLeaveType, getLeaveRequests, submitLeaveRequest, updateLeaveRequestStatus,
   cancelLeaveRequest, getLeaveBalances, getAllLeaveBalances, upsertLeaveBalance,
   getPublicHolidays, savePublicHoliday, deletePublicHoliday,
   getLeaveSettings, saveLeaveSettings, initialiseLeaveModule, recalculateAllBalances,
@@ -495,7 +495,7 @@ export default function LeaveManager() {
                   <thead>
                     <tr>
                       <th>Employee</th><th>Type</th><th>Start</th><th>End</th>
-                      <th>Days</th><th>Status</th><th>Submitted</th><th>Approved By</th><th></th>
+                      <th>Days</th><th>Status</th><th>Submitted</th><th>Approved By</th><th>Doc</th><th></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -520,6 +520,12 @@ export default function LeaveManager() {
                               : r.status === 'ManagerRejected' && r.managerApprovedBy
                               ? <span title={r.managerRejectionReason} style={{ color:'#ef4444' }}>Mgr rejected</span>
                               : (r.approvedBy || '—')
+                            }
+                          </td>
+                          <td>
+                            {r.attachmentUrl
+                              ? <a href={r.attachmentUrl} target="_blank" rel="noopener noreferrer" title="View attachment" style={{ color: 'var(--primary)' }}>📎</a>
+                              : <span style={{ color: 'var(--gray-300)' }}>—</span>
                             }
                           </td>
                           <td>
@@ -890,6 +896,81 @@ export default function LeaveManager() {
                                 <Trash2 size={13}/>
                               </button>
                             )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            {/* Probation Leave Rules (Feature 2.3) */}
+            <div className="card" style={{ marginTop: 16 }}>
+              <div className="card-header">
+                <h3>Probation Leave Eligibility</h3>
+                <span style={{ fontSize: 12, color: 'var(--gray-500)', fontWeight: 400 }}>
+                  Toggle which leave types employees on probation can apply for
+                </span>
+              </div>
+              <div className="card-body">
+                <p style={{ fontSize: 13, color: 'var(--gray-500)', marginBottom: 12 }}>
+                  Disabled leave types are hidden from the employee portal during probation. Sick Leave is always available (processed as unpaid per Art. 31 UAE Labour Law).
+                </p>
+                <div className="table-wrap">
+                  <table style={{ fontSize: 13 }}>
+                    <thead>
+                      <tr>
+                        <th>Leave Type</th>
+                        <th style={{ width: 160 }}>Available on Probation</th>
+                        <th style={{ width: 160 }}>Requires Attachment</th>
+                        <th>Law Reference</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {leaveTypes.map(lt => (
+                        <tr key={lt.id}>
+                          <td>
+                            <span style={{
+                              background: lt.color + '22', color: lt.color,
+                              border: `1px solid ${lt.color}44`,
+                              borderRadius: 999, padding: '2px 10px', fontSize: 12, fontWeight: 600,
+                            }}>
+                              {lt.name}
+                            </span>
+                          </td>
+                          <td>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                              <input
+                                type="checkbox"
+                                checked={lt.probationEligible !== false}
+                                onChange={async e => {
+                                  const updated = { ...lt, probationEligible: e.target.checked };
+                                  setLeaveTypes(prev => prev.map(t => t.id === lt.id ? updated : t));
+                                  try { await saveLeaveType(updated); }
+                                  catch { setLeaveTypes(prev => prev.map(t => t.id === lt.id ? lt : t)); }
+                                }}
+                              />
+                              {lt.probationEligible !== false ? 'Yes' : 'No'}
+                            </label>
+                          </td>
+                          <td>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                              <input
+                                type="checkbox"
+                                checked={!!lt.requiresAttachment}
+                                onChange={async e => {
+                                  const updated = { ...lt, requiresAttachment: e.target.checked };
+                                  setLeaveTypes(prev => prev.map(t => t.id === lt.id ? updated : t));
+                                  try { await saveLeaveType(updated); }
+                                  catch { setLeaveTypes(prev => prev.map(t => t.id === lt.id ? lt : t)); }
+                                }}
+                              />
+                              {lt.requiresAttachment ? 'Yes' : 'No'}
+                            </label>
+                          </td>
+                          <td style={{ fontSize: 12, color: 'var(--gray-400)' }}>
+                            {lt.lawReference || '—'}
                           </td>
                         </tr>
                       ))}

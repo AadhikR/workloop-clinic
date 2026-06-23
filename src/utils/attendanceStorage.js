@@ -113,6 +113,8 @@ export async function saveShift(shift) {
   const row = {
     user_id:          user.id,
     name:             shift.name,
+    code:             shift.code || null,
+    shift_category:   shift.shiftCategory || 'morning',
     shift_type:       shift.shiftType || 'fixed',
     start_time:       shift.startTime || null,
     end_time:         shift.endTime || null,
@@ -126,6 +128,7 @@ export async function saveShift(shift) {
     min_hours_flexible: shift.minHoursFlexible || null,
     is_active:        shift.isActive ?? true,
     color:            shift.color || '#6366f1',
+    min_staff:        shift.minStaff ?? 1,
   };
   if (shift.id) {
     const { data, error } = await supabase.from('shifts').update(row).eq('id', shift.id).select().single();
@@ -147,6 +150,8 @@ function dbToShift(row) {
   return {
     id:                row.id,
     name:              row.name,
+    code:              row.code || '',
+    shiftCategory:     row.shift_category || 'morning',
     shiftType:         row.shift_type,
     startTime:         row.start_time,
     endTime:           row.end_time,
@@ -160,6 +165,7 @@ function dbToShift(row) {
     minHoursFlexible:  row.min_hours_flexible,
     isActive:          row.is_active,
     color:             row.color || '#6366f1',
+    minStaff:          row.min_staff ?? 1,
   };
 }
 
@@ -590,6 +596,42 @@ export async function getAttendancePayrollData(period) {
 // ── ROSTER ASSIGNMENTS (Feature 8) ───────────────────────────────────────────
 
 /**
+ * Compute overtime from roster for a payroll period (Feature 5.2).
+ * Reads roster_assignments where actual_hours > planned_hours and returns
+ * per-employee overtime totals.
+ *
+ * Returns: { [employeeId]: { overtimeHours, plannedHours, actualHours } }
+ */
+export async function getOvertimeFromRoster(year, month) {
+  const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
+  const lastDay    = new Date(year, month, 0).getDate();
+  const monthEnd   = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+  const { data, error } = await supabase
+    .from('roster_assignments')
+    .select('employee_id, planned_hours, actual_hours')
+    .gte('date', monthStart)
+    .lte('date', monthEnd)
+    .not('actual_hours', 'is', null);
+
+  if (error) { console.error('getOvertimeFromRoster:', error); return {}; }
+
+  const result = {};
+  for (const row of data || []) {
+    const planned = parseFloat(row.planned_hours) || 0;
+    const actual  = parseFloat(row.actual_hours)  || 0;
+    const ot      = Math.max(0, actual - planned);
+    if (!result[row.employee_id]) {
+      result[row.employee_id] = { overtimeHours: 0, plannedHours: 0, actualHours: 0 };
+    }
+    result[row.employee_id].overtimeHours += ot;
+    result[row.employee_id].plannedHours  += planned;
+    result[row.employee_id].actualHours   += actual;
+  }
+  return result;
+}
+
+/**
  * Fetch all roster assignments for a calendar month.
  * Joins shifts table to include shift name and color.
  */
@@ -613,14 +655,14 @@ export async function getRosterForMonth(year, month) {
  * Upsert a single roster assignment (employee × date → shift).
  * Uses ON CONFLICT on (employee_id, date) to update if already assigned.
  */
-export async function saveRosterAssignment({ employeeId, shiftId, date, notes = '', published = false }) {
+export async function saveRosterAssignment({ employeeId, shiftId, date, notes = '', published = false, plannedHours = null }) {
   const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
 
   const { data, error } = await supabase
     .from('roster_assignments')
     .upsert(
-      { user_id: user.id, employee_id: employeeId, shift_id: shiftId, date, notes, published },
+      { user_id: user.id, employee_id: employeeId, shift_id: shiftId, date, notes, published, planned_hours: plannedHours },
       { onConflict: 'employee_id,date' }
     )
     .select('*, shifts(*)')
@@ -666,14 +708,17 @@ export async function publishRoster(year, month) {
 
 function dbToRosterAssignment(row) {
   return {
-    id:         row.id,
-    employeeId: row.employee_id,
-    shiftId:    row.shift_id,
-    date:       row.date,
-    published:  row.published,
-    notes:      row.notes || '',
-    shift:      row.shifts ? dbToShift(row.shifts) : null,
-    createdAt:  row.created_at,
+    id:           row.id,
+    employeeId:   row.employee_id,
+    shiftId:      row.shift_id,
+    date:         row.date,
+    published:    row.published,
+    notes:        row.notes || '',
+    plannedHours: row.planned_hours != null ? parseFloat(row.planned_hours) : null,
+    actualHours:  row.actual_hours  != null ? parseFloat(row.actual_hours)  : null,
+    coHours:      row.co_hours      != null ? parseFloat(row.co_hours)      : 0,
+    shift:        row.shifts ? dbToShift(row.shifts) : null,
+    createdAt:    row.created_at,
   };
 }
 

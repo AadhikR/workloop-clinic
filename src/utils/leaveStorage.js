@@ -145,7 +145,43 @@ function dbToLeaveType(row) {
     lawReference:          row.law_reference,
     isActive:              row.is_active,
     sortOrder:             row.sort_order,
+    probationEligible:     row.probation_eligible ?? true,
   };
+}
+
+export async function saveLeaveType(leaveType) {
+  const user = await getSessionUser();
+  if (!user) throw new Error('Not authenticated');
+  const updates = {};
+  if (leaveType.probationEligible  !== undefined) updates.probation_eligible  = leaveType.probationEligible;
+  if (leaveType.requiresAttachment !== undefined) updates.requires_attachment = leaveType.requiresAttachment;
+  const { data, error } = await supabase
+    .from('leave_types')
+    .update(updates)
+    .eq('id', leaveType.id)
+    .eq('user_id', user.id)
+    .select()
+    .single();
+  if (error) throw error;
+  return dbToLeaveType(data);
+}
+
+/**
+ * Upload a leave supporting document to the employee-documents bucket under the
+ * leave/ sub-path. Returns a 7-day signed URL (long enough for HR review).
+ * Reuses existing Storage RLS policies — no new bucket needed.
+ */
+export async function uploadLeaveAttachment(adminUserId, employeeId, file) {
+  const safeName    = file.name.replace(/[^a-z0-9._-]/gi, '_');
+  const storagePath = `${adminUserId}/${employeeId}/leave/${Date.now()}_${safeName}`;
+  const { error: uploadErr } = await supabase.storage
+    .from('employee-documents')
+    .upload(storagePath, file, { cacheControl: '3600', upsert: false });
+  if (uploadErr) throw uploadErr;
+  const { data: signed } = await supabase.storage
+    .from('employee-documents')
+    .createSignedUrl(storagePath, 604800); // 7 days
+  return signed?.signedUrl ?? '';
 }
 
 // ── PUBLIC HOLIDAYS ───────────────────────────────────────────────────────────

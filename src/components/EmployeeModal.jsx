@@ -3,25 +3,43 @@
  * Tabs: Personal | Job & Contract | Salary & Bank | UAE Compliance
  */
 import { useState, useEffect } from 'react';
-import { X, UserCheck, Briefcase, CreditCard, Shield, FolderOpen, Upload, AlertCircle, Trash2, Heart, Plus, ShieldCheck, FileText, RefreshCw, CheckCircle, Printer } from 'lucide-react';
+import { X, UserCheck, Briefcase, CreditCard, Shield, FolderOpen, Upload, AlertCircle, Trash2, Heart, Plus, ShieldCheck, FileText, RefreshCw, CheckCircle, XCircle, Printer } from 'lucide-react';
 import { validateIBAN, validateEmiratesID, validateMolId, formatAED, formatDateUAE } from '../utils/uaeValidators';
 import { calculateGratuity } from '../utils/gratuityCalculator';
 import { getShifts } from '../utils/attendanceStorage';
 import {
   getEmployeeDocuments, uploadEmployeeDocument, deleteEmployeeDocument,
+  verifyEmployeeDocument, rejectEmployeeDocument,
   getInsurancePolicies, getEmployeeInsurance, saveEmployeeInsurance,
   getInsuranceDependants, saveInsuranceDependant, deleteInsuranceDependant,
   saveEmployee, getEmployeeContracts, saveEmployeeContract, addJobHistoryEntry,
 } from '../utils/storage';
 import { getEmployeePortalRole, setEmployeePortalRole } from '../utils/profileStorage';
+import { getDepartments } from '../utils/departmentStorage';
 
 const FREE_ZONES = ['DIFC','ADGM','JAFZA','DMCC','DAFZA','TECOM','Dubai Internet City','Dubai Media City','Dubai Healthcare City','Meydan Free Zone','RAKEZ','SAIF Zone','KIZAD','Abu Dhabi Free Zone','Hamriyah Free Zone','Other'];
 
-const DOC_TYPES = [
-  'Visa', 'Passport', 'Emirates ID', 'Labour Card', 'Work Permit',
-  'Medical Fitness Certificate', 'Educational Certificate',
-  'Professional License', 'NOC / Reference Letter', 'Other',
+// Grouped document types — rendered as <optgroup> in the upload form
+export const DOC_GROUPS = [
+  {
+    label: 'UAE Residency & Work',
+    types: ['Visa', 'Passport', 'Emirates ID', 'Labour Card', 'Work Permit'],
+  },
+  {
+    label: 'Clinical Credentials',
+    types: ['DHA Licence', 'DOH Licence', 'MOH Licence', 'BLS Certificate', 'ACLS Certificate', 'PALS Certificate', 'NRP Certificate', 'CME Certificate'],
+  },
+  {
+    label: 'General',
+    types: ['Medical Fitness Certificate', 'Educational Certificate', 'Professional License', 'NOC / Reference Letter', 'Other'],
+  },
 ];
+
+export const CLINICAL_DOC_TYPES = new Set([
+  'DHA Licence', 'DOH Licence', 'MOH Licence',
+  'BLS Certificate', 'ACLS Certificate', 'PALS Certificate',
+  'NRP Certificate', 'CME Certificate',
+]);
 
 function formatFileSize(bytes) {
   if (!bytes) return '';
@@ -29,12 +47,14 @@ function formatFileSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function docExpiryStatus(expiryDate) {
+function docExpiryStatus(expiryDate, isClinical = false) {
   if (!expiryDate) return { label: 'No Expiry', cls: 'badge-gray' };
   const days = Math.ceil((new Date(expiryDate) - new Date()) / (1000 * 60 * 60 * 24));
   if (days < 0)   return { label: `Expired ${Math.abs(days)}d ago`, cls: 'badge-red' };
   if (days <= 30) return { label: `${days}d left`, cls: 'badge-red' };
-  if (days <= 60) return { label: `${days}d left`, cls: 'badge-amber' };
+  // Clinical credentials show amber from 90 days out (harder to renew)
+  if (isClinical && days <= 90) return { label: `${days}d left`, cls: 'badge-amber' };
+  if (!isClinical && days <= 60) return { label: `${days}d left`, cls: 'badge-amber' };
   return { label: `Valid (${days}d)`, cls: 'badge-green' };
 }
 const VISA_TYPES = ['Employment Visa','Investor Visa','Dependent Visa','Tourist (Temp)','Exempt'];
@@ -61,6 +81,7 @@ const EMPTY_EMP = {
   labourCardNumber:'', labourCardExpiry:'',
   sponsoringEntity:'', workLocationType:'Mainland', freeZoneName:'',
   nafisRegistrationNo:'',
+  licenceAuthority:'None', licenceNumber:'', licenceExpiry:'',
 };
 
 export default function EmployeeModal({ employee, allEmployees, onSave, onClose }) {
@@ -68,6 +89,7 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
   const [errors, setErrors]     = useState({});
   const [saving, setSaving]     = useState(false);
   const [tab, setTab]           = useState('personal');
+  const [deptList, setDeptList]     = useState([]);
   const [shifts, setShifts]         = useState([]);
   const [docs, setDocs]             = useState([]);
   const [docsLoading, setDocsLoading] = useState(false);
@@ -101,6 +123,7 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
 
   useEffect(() => {
     getShifts().then(setShifts).catch(() => {});
+    getDepartments().then(setDeptList).catch(() => {});
   }, []);
 
   // Load documents whenever the Documents tab becomes active (existing employees only)
@@ -196,6 +219,26 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
       setDocs(prev => prev.filter(d => d.id !== doc.id));
     } catch (err) {
       alert('Delete failed: ' + err.message);
+    }
+  };
+
+  const handleVerifyDoc = async (doc) => {
+    try {
+      await verifyEmployeeDocument(doc.id);
+      setDocs(prev => prev.map(d => d.id === doc.id ? { ...d, status: 'verified' } : d));
+    } catch (err) {
+      alert('Verify failed: ' + err.message);
+    }
+  };
+
+  const handleRejectDoc = async (doc) => {
+    const reason = window.prompt('Rejection reason (shown to employee):');
+    if (reason === null) return; // cancelled
+    try {
+      await rejectEmployeeDocument(doc.id, reason);
+      setDocs(prev => prev.map(d => d.id === doc.id ? { ...d, status: 'rejected', rejectionReason: reason } : d));
+    } catch (err) {
+      alert('Reject failed: ' + err.message);
     }
   };
 
@@ -575,7 +618,16 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
               </div>
               <div className="form-group">
                 <label>Department</label>
-                <input className="form-control" value={form.department} onChange={e => f('department', e.target.value)} placeholder="e.g. Engineering"/>
+                <input
+                  className="form-control"
+                  list="dept-suggestions"
+                  value={form.department}
+                  onChange={e => f('department', e.target.value)}
+                  placeholder="e.g. Nursing"
+                />
+                <datalist id="dept-suggestions">
+                  {deptList.map(d => <option key={d.id} value={d.name} />)}
+                </datalist>
               </div>
               <div className="form-group">
                 <label>Reporting Manager</label>
@@ -725,16 +777,113 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
                 <label>Other Allowances Label</label>
                 <input className="form-control" value={form.otherAllowancesLabel} onChange={e => f('otherAllowancesLabel', e.target.value)} placeholder="e.g. Meal Allowance"/>
               </div>
-              {totalPackage > 0 && (
-                <div className="form-group" style={{ gridColumn:'1/-1' }}>
-                  <div style={{ background:'var(--primary-light)', borderRadius:8, padding:'10px 16px', border:'1px solid #bfdbfe' }}>
-                    <span style={{ fontWeight:600, color:'var(--primary-dark)', fontSize:13 }}>Total Package: {formatAED(totalPackage)} / month</span>
-                    <span style={{ fontSize:12, color:'var(--gray-500)', marginLeft:12 }}>
-                      Basic {formatAED(parseFloat(form.basicSalary)||0)} + Housing {formatAED(parseFloat(form.housingAllowance)||0)} + Transport {formatAED(parseFloat(form.transportAllowance)||0)} + Other {formatAED(parseFloat(form.otherAllowances)||0)}
-                    </span>
+              {totalPackage > 0 && (() => {
+                const basic     = parseFloat(form.basicSalary)      || 0;
+                const housing   = parseFloat(form.housingAllowance)  || 0;
+                const transport = parseFloat(form.transportAllowance)|| 0;
+                const basicPct     = Math.round(basic     / totalPackage * 100);
+                const housingPct   = Math.round(housing   / totalPackage * 100);
+                const transportPct = Math.round(transport / totalPackage * 100);
+
+                const checks = [
+                  {
+                    label:  'Basic Salary',
+                    value:  formatAED(basic),
+                    pct:    basicPct,
+                    status: basicPct >= 60 ? 'ok' : basicPct >= 50 ? 'warn' : 'error',
+                    note:   basicPct >= 60
+                      ? 'Compliant — MoHRE recommended ≥60%, EOSB gratuity basis correct'
+                      : basicPct >= 50
+                        ? 'Below MoHRE recommended 60% — gratuity basis partially affected'
+                        : `Below 50% — gratuity calculated on a smaller base (Art. 51, Labour Law No. 33/2021)`,
+                  },
+                  {
+                    label:  'Housing Allowance',
+                    value:  formatAED(housing),
+                    pct:    housingPct,
+                    status: housingPct <= 25 ? 'ok' : 'warn',
+                    note:   housingPct > 25
+                      ? 'Exceeds MoHRE recommended 25% — verify against company housing policy'
+                      : 'Within MoHRE recommended range (≤25%)',
+                  },
+                  {
+                    label:  'Transport Allowance',
+                    value:  formatAED(transport),
+                    pct:    transportPct,
+                    status: transportPct <= 10 ? 'ok' : 'warn',
+                    note:   transportPct > 10
+                      ? 'Exceeds MoHRE recommended 10% — verify against company policy'
+                      : 'Within MoHRE recommended range (≤10%)',
+                  },
+                ];
+
+                const hasWarning = checks.some(c => c.status !== 'ok');
+                const COLORS = {
+                  ok:    { bg: '#f0fdf4', border: '#bbf7d0', dot: '#16a34a', text: '#166534' },
+                  warn:  { bg: '#fffbeb', border: '#fde68a', dot: '#d97706', text: '#92400e' },
+                  error: { bg: '#fff5f5', border: '#fecaca', dot: '#dc2626', text: '#991b1b' },
+                };
+
+                return (
+                  <div className="form-group" style={{ gridColumn:'1/-1' }}>
+                    {/* Package summary */}
+                    <div style={{ background:'var(--primary-light)', borderRadius:8, padding:'10px 16px', border:'1px solid #bfdbfe', marginBottom: 10 }}>
+                      <span style={{ fontWeight:600, color:'var(--primary-dark)', fontSize:13 }}>Total Package: {formatAED(totalPackage)} / month</span>
+                      <span style={{ fontSize:12, color:'var(--gray-500)', marginLeft:12 }}>
+                        Basic {formatAED(basic)} + Housing {formatAED(housing)} + Transport {formatAED(transport)} + Other {formatAED(parseFloat(form.otherAllowances)||0)}
+                      </span>
+                    </div>
+
+                    {/* Salary distribution validation */}
+                    <div style={{
+                      border: `1px solid ${hasWarning ? '#fde68a' : '#bbf7d0'}`,
+                      borderRadius: 8,
+                      overflow: 'hidden',
+                    }}>
+                      <div style={{
+                        padding: '7px 14px',
+                        background: hasWarning ? '#fffbeb' : '#f0fdf4',
+                        borderBottom: `1px solid ${hasWarning ? '#fde68a' : '#bbf7d0'}`,
+                        fontSize: 12, fontWeight: 600,
+                        color: hasWarning ? '#92400e' : '#166534',
+                        display: 'flex', alignItems: 'center', gap: 6,
+                      }}>
+                        {hasWarning ? '⚠ Salary Distribution Warnings' : '✓ Salary Distribution — Compliant'}
+                        <span style={{ fontWeight: 400, color: 'var(--gray-500)', marginLeft: 4 }}>
+                          Contract: {form.contractType || 'Unlimited'}
+                        </span>
+                      </div>
+                      {checks.map(c => {
+                        const col = COLORS[c.status];
+                        return (
+                          <div key={c.label} style={{
+                            display: 'grid',
+                            gridTemplateColumns: '140px 80px 60px 1fr',
+                            gap: 8, alignItems: 'center',
+                            padding: '6px 14px',
+                            borderBottom: '1px solid var(--gray-100)',
+                            background: c.status !== 'ok' ? col.bg : 'transparent',
+                          }}>
+                            <span style={{ fontSize: 12, fontWeight: 500 }}>{c.label}</span>
+                            <span style={{ fontSize: 12, fontFamily: 'monospace' }}>{c.value}</span>
+                            <span style={{
+                              fontSize: 11, fontWeight: 700,
+                              color: col.text, background: col.bg,
+                              border: `1px solid ${col.border}`,
+                              borderRadius: 4, padding: '1px 6px', textAlign: 'center',
+                            }}>
+                              {c.pct}%
+                            </span>
+                            <span style={{ fontSize: 11, color: c.status !== 'ok' ? col.text : 'var(--gray-400)' }}>
+                              {c.note}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
               <div className="form-group" style={{ gridColumn:'1/-1' }}>
                 <label style={{ fontWeight:600, marginBottom:6, display:'block' }}>Bank Details (for WPS / Payslip)</label>
                 <div className="form-grid form-grid-2" style={{ gap:10 }}>
@@ -867,6 +1016,54 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
                     ? 'Nafis registration number from the Nafis portal (nafis.gov.ae). Required for Emiratization reporting.'
                     : 'Only applicable to UAE national employees.'}
                 </span>
+              </div>
+
+              {/* ── Professional Licence (Feature 7.1) ── */}
+              <div style={{ gridColumn:'1/-1', borderTop:'1px solid var(--gray-100)', paddingTop:16, marginTop:8 }}>
+                <p style={{ fontWeight:600, fontSize:13, color:'var(--gray-700)', marginBottom:12, display:'flex', alignItems:'center', gap:6 }}>
+                  <ShieldCheck size={14} style={{ color:'var(--primary)' }} />
+                  Professional Licence (DHA / DOH / MOH)
+                </p>
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label>Licence Authority</label>
+                    <select className="form-control" value={form.licenceAuthority} onChange={e => f('licenceAuthority', e.target.value)}>
+                      <option value="None">None / Not Applicable</option>
+                      <option value="DHA">DHA — Dubai Health Authority</option>
+                      <option value="DOH">DOH — Department of Health Abu Dhabi</option>
+                      <option value="MOH">MOH — Ministry of Health</option>
+                      <option value="HAAD">HAAD — Health Authority Abu Dhabi</option>
+                      <option value="DHCC">DHCC — Dubai Healthcare City Authority</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Licence Number</label>
+                    <input
+                      className="form-control font-mono"
+                      value={form.licenceNumber}
+                      onChange={e => f('licenceNumber', e.target.value.trim())}
+                      placeholder="e.g. DHA-P-XXXXXXXX"
+                      disabled={form.licenceAuthority === 'None'}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Licence Expiry Date</label>
+                    <input
+                      className="form-control"
+                      type="date"
+                      value={form.licenceExpiry}
+                      onChange={e => f('licenceExpiry', e.target.value)}
+                      disabled={form.licenceAuthority === 'None'}
+                    />
+                    {form.licenceExpiry && form.licenceAuthority !== 'None' && (() => {
+                      const days = Math.ceil((new Date(form.licenceExpiry) - new Date()) / 86400000);
+                      if (days < 0) return <span className="hint" style={{ color:'var(--danger)' }}>⚠ Expired {Math.abs(days)}d ago — payroll SIF generation will require override</span>;
+                      if (days <= 30) return <span className="hint" style={{ color:'var(--warning)' }}>⚠ Expires in {days}d — renew soon</span>;
+                      return <span className="hint" style={{ color:'var(--success)' }}>Valid — {days}d remaining</span>;
+                    })()}
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -1043,7 +1240,11 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
                     <div className="form-group">
                       <label>Document Type</label>
                       <select className="form-control" value={uploadForm.type} onChange={e => setUploadForm(p => ({ ...p, type: e.target.value }))}>
-                        {DOC_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                        {DOC_GROUPS.map(g => (
+                          <optgroup key={g.label} label={g.label}>
+                            {g.types.map(t => <option key={t} value={t}>{t}</option>)}
+                          </optgroup>
+                        ))}
                       </select>
                     </div>
                     <div className="form-group">
@@ -1105,7 +1306,7 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
                   <div style={{ padding:'20px', textAlign:'center', color:'var(--gray-400)', fontSize:13 }}>Loading documents…</div>
                 ) : docs.length === 0 ? (
                   <div style={{ padding:'24px 20px', textAlign:'center', color:'var(--gray-500)', fontSize:13 }}>
-                    No documents uploaded yet. Use the form above to attach visa copies, passport scans, Emirates ID, and other compliance documents.
+                    No documents uploaded yet. Use the form above to attach visa copies, passport scans, Emirates ID, clinical credentials (DHA/DOH Licence, BLS, ACLS, etc.), and other compliance documents.
                   </div>
                 ) : (
                   <div className="table-wrap">
@@ -1113,19 +1314,29 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
                       <thead>
                         <tr>
                           <th>Type</th>
+                          <th>Number</th>
                           <th>File</th>
-                          <th>Size</th>
-                          <th>Uploaded</th>
                           <th>Expiry Status</th>
+                          <th>Review Status</th>
                           <th></th>
                         </tr>
                       </thead>
                       <tbody>
                         {docs.map(doc => {
-                          const expiry = docExpiryStatus(doc.expiryDate);
+                          const clinical = CLINICAL_DOC_TYPES.has(doc.documentType);
+                          const expiry = docExpiryStatus(doc.expiryDate, clinical);
+                          const isPending = doc.status === 'pending_verification';
+                          const isRejected = doc.status === 'rejected';
                           return (
-                            <tr key={doc.id}>
-                              <td><span className="badge badge-blue" style={{ fontSize:11 }}>{doc.documentType}</span></td>
+                            <tr key={doc.id} style={isPending ? { background: 'rgba(217,119,6,0.04)' } : undefined}>
+                              <td>
+                                <span className={`badge ${clinical ? 'badge-cyan' : 'badge-blue'}`} style={{ fontSize:11 }}>{doc.documentType}</span>
+                                {clinical && <span style={{ fontSize:10, color:'var(--accent)', marginLeft:4, fontWeight:600 }}>Clinical</span>}
+                                {doc.submittedBy === 'employee' && <div style={{ fontSize:10, color:'var(--gray-400)', marginTop:2 }}>Self-submitted</div>}
+                              </td>
+                              <td style={{ fontSize:12, color:'var(--gray-600)' }}>
+                                {doc.documentNumber || <span style={{ color:'var(--gray-300)' }}>—</span>}
+                              </td>
                               <td>
                                 {doc.signedUrl
                                   ? <a href={doc.signedUrl} target="_blank" rel="noreferrer" style={{ color:'var(--primary)', textDecoration:'none', fontWeight:500, fontSize:13 }}>{doc.fileName}</a>
@@ -1133,17 +1344,39 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
                                 }
                                 {doc.notes && <div style={{ fontSize:11, color:'var(--gray-400)', marginTop:1 }}>{doc.notes}</div>}
                               </td>
-                              <td style={{ fontSize:12, color:'var(--gray-500)' }}>{formatFileSize(doc.fileSize)}</td>
-                              <td style={{ fontSize:12, color:'var(--gray-500)' }}>{doc.uploadedAt?.split('T')[0] || '—'}</td>
                               <td>
                                 <span className={`badge ${expiry.cls}`} style={{ fontSize:11 }}>
                                   {doc.expiryDate ? `${formatDateUAE(doc.expiryDate)} · ${expiry.label}` : expiry.label}
                                 </span>
                               </td>
                               <td>
-                                <button className="btn btn-ghost btn-icon btn-sm text-danger" title="Delete document" onClick={() => handleDeleteDoc(doc)}>
-                                  <Trash2 size={13} />
-                                </button>
+                                {isPending ? (
+                                  <span className="badge badge-amber" style={{ fontSize:11 }}>Pending Review</span>
+                                ) : isRejected ? (
+                                  <div>
+                                    <span className="badge badge-red" style={{ fontSize:11 }}>Rejected</span>
+                                    {doc.rejectionReason && <div style={{ fontSize:10, color:'var(--danger)', marginTop:2 }}>{doc.rejectionReason}</div>}
+                                  </div>
+                                ) : (
+                                  <span className="badge badge-green" style={{ fontSize:11 }}>Verified</span>
+                                )}
+                              </td>
+                              <td>
+                                <div style={{ display:'flex', gap:4 }}>
+                                  {isPending && (
+                                    <>
+                                      <button className="btn btn-ghost btn-icon btn-sm" title="Verify document" style={{ color:'var(--success)' }} onClick={() => handleVerifyDoc(doc)}>
+                                        <CheckCircle size={13} />
+                                      </button>
+                                      <button className="btn btn-ghost btn-icon btn-sm text-danger" title="Reject document" onClick={() => handleRejectDoc(doc)}>
+                                        <XCircle size={13} />
+                                      </button>
+                                    </>
+                                  )}
+                                  <button className="btn btn-ghost btn-icon btn-sm text-danger" title="Delete document" onClick={() => handleDeleteDoc(doc)}>
+                                    <Trash2 size={13} />
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           );

@@ -607,17 +607,39 @@ export async function deleteEmployeeDocument(id, storagePath) {
 
 function dbToDocument(row) {
   return {
-    id:           row.id,
-    employeeId:   row.employee_id,
-    documentType: row.document_type,
-    fileName:     row.file_name,
-    fileSize:     row.file_size || 0,
-    storagePath:  row.storage_path || '',
-    expiryDate:   row.expiry_date || '',
-    notes:        row.notes || '',
-    uploadedAt:   row.uploaded_at,
-    signedUrl:    '',
+    id:              row.id,
+    employeeId:      row.employee_id,
+    documentType:    row.document_type,
+    documentNumber:  row.document_number  || '',
+    fileName:        row.file_name,
+    fileSize:        row.file_size        || 0,
+    storagePath:     row.storage_path     || '',
+    expiryDate:      row.expiry_date      || '',
+    notes:           row.notes            || '',
+    uploadedAt:      row.uploaded_at,
+    status:          row.status           || 'verified',
+    submittedBy:     row.submitted_by     || 'hr',
+    rejectionReason: row.rejection_reason || '',
+    signedUrl:       '',
   };
+}
+
+/** HR verifies a pending employee-submitted document. */
+export async function verifyEmployeeDocument(docId) {
+  const { error } = await supabase
+    .from('employee_documents')
+    .update({ status: 'verified', rejection_reason: '' })
+    .eq('id', docId);
+  if (error) throw error;
+}
+
+/** HR rejects a pending employee-submitted document with a reason. */
+export async function rejectEmployeeDocument(docId, reason) {
+  const { error } = await supabase
+    .from('employee_documents')
+    .update({ status: 'rejected', rejection_reason: reason || '' })
+    .eq('id', docId);
+  if (error) throw error;
 }
 
 // ─── INSURANCE POLICIES ─────────────────────────────────────────────────────
@@ -1370,6 +1392,10 @@ function dbToEmployee(row) {
     workLocationType:       row.work_location_type ?? 'Mainland',
     freeZoneName:           row.free_zone_name ?? '',
     nafisRegistrationNo:    row.nafis_registration_no ?? '',
+    // Professional licence (Feature 7.1)
+    licenceAuthority:       row.licence_authority ?? 'None',
+    licenceNumber:          row.licence_number ?? '',
+    licenceExpiry:          row.licence_expiry ?? '',
   };
 }
 
@@ -1440,6 +1466,10 @@ function employeeToDb(emp, userId) {
     work_location_type:    emp.workLocationType ?? 'Mainland',
     free_zone_name:        emp.freeZoneName ?? '',
     nafis_registration_no: emp.nafisRegistrationNo ?? '',
+    // Professional licence (Feature 7.1)
+    licence_authority:  emp.licenceAuthority ?? 'None',
+    licence_number:     emp.licenceNumber ?? '',
+    licence_expiry:     emp.licenceExpiry || null,
   };
 }
 
@@ -1507,6 +1537,21 @@ export async function saveWpsTracking(payrollId, { wpsStatus, wpsSubmittedAt, wp
       wps_reference_no:  wpsReferenceNo  ?? '',
     })
     .eq('id', payrollId);
+  if (error) throw error;
+}
+
+// ── COMPLIANCE OVERRIDES (Feature 7.1) ───────────────────────────────────────
+
+export async function saveComplianceOverride({ overrideType, employeeIds, reason }) {
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user ?? null;
+  if (!user) throw new Error('Not authenticated');
+  const { error } = await supabase.from('compliance_overrides').insert({
+    user_id:       user.id,
+    override_type: overrideType,
+    employee_ids:  employeeIds,
+    reason,
+  });
   if (error) throw error;
 }
 

@@ -3,14 +3,15 @@ import { Download, Eye, Upload, AlertCircle, Plus, ChevronDown, CheckCircle, Fil
 import { generateSIF, generateSIFFilename, generateCorrectedSIF } from '../utils/sifGenerator';
 import { parseCSV, readFileAsText } from '../utils/csvImport';
 import { savePayroll, createPayslipRecords, saveWpsTracking,
-         submitPayrollForApproval, approvePayroll, rejectPayroll, recallPayrollApproval } from '../utils/storage';
+         submitPayrollForApproval, approvePayroll, rejectPayroll, recallPayrollApproval,
+         saveComplianceOverride } from '../utils/storage';
 import { createNotifications } from '../utils/notificationStorage';
 import AllowDeductPanel, { computeFinalAllowance } from './AllowDeductPanel';
 import SIFPreviewModal from './SIFPreviewModal';
 import { downloadPayslip, downloadAllPayslips } from '../utils/payslipGenerator';
 import { calculatePayrollLeaveDeductions } from '../utils/leaveEngine';
 import { getLeaveRequests } from '../utils/leaveStorage';
-import { getAttendancePayrollData } from '../utils/attendanceStorage';
+import { getAttendancePayrollData, getOvertimeFromRoster } from '../utils/attendanceStorage';
 import { getAdvances } from '../utils/storage';
 import { getApprovedUnpaidExpenses, markExpensesPaid } from '../utils/expenseStorage';
 import { getPayrollSummaryFromAttendance, formatHours } from '../utils/attendanceEngine';
@@ -82,6 +83,7 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
   const [attendanceData, setAttendanceData]   = useState(null); // { periodClosed, payrollReady, byEmployee }
   const [advanceData, setAdvanceData]         = useState({}); // { [employeeId]: advance[] }
   const [expenseData, setExpenseData]         = useState({}); // { [employeeId]: expense[] } — approved+unpaid
+  const [rosterOvertime, setRosterOvertime]   = useState({}); // { [employeeId]: { overtimeHours, plannedHours, actualHours } }
   const [attendanceWarning, setAttendanceWarning] = useState(false);
   const autoSaveTimer = useRef(null);
   const fileRef = useRef();
@@ -114,6 +116,10 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
   const [approvedAt,      setApprovedAt]      = useState(payroll.approvedAt      ?? null);
   const [submittedBy,     setSubmittedBy]     = useState(payroll.submittedBy     ?? '');
   const [rejectionReason, setRejectionReason] = useState(payroll.rejectionReason ?? '');
+
+  // Licence compliance gate state (Feature 7.1)
+  const [licenceGate, setLicenceGate] = useState(null); // { expiredStaff, overrideReason, pendingDownload }
+  const [licenceOverrideReason, setLicenceOverrideReason] = useState('');
 
   // Load leave deductions for this payroll period and pre-fill entry fields
   useEffect(() => {
@@ -171,6 +177,12 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
       setExpenseData(byEmp);
     }).catch(() => {}); // expense_claims table may not exist yet — fail silently
   }, []);
+
+  // Load roster-derived overtime for this payroll period (Feature 5.2)
+  useEffect(() => {
+    const [y, m] = payroll.period.split('-').map(Number);
+    getOvertimeFromRoster(y, m).then(setRosterOvertime).catch(() => {});
+  }, [payroll.period]);
 
   // Load attendance data for this payroll period (Connection C)
   // Art. 56: Payroll must not run against unclosed attendance period
@@ -269,6 +281,36 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
   };
 
   const handleDownload = async () => {
+    // Feature 7.1 — Licence compliance gate: check for expired professional licences
+    const today = new Date().toISOString().split('T')[0];
+    const expiredStaff = entries
+      .filter(e => !e.excluded)
+      .map(e => employees.find(emp => emp.id === e.employeeId))
+      .filter(emp => emp && emp.licenceAuthority && emp.licenceAuthority !== 'None'
+                     && emp.licenceExpiry && emp.licenceExpiry < today);
+    if (expiredStaff.length > 0 && !licenceGate) {
+      setLicenceGate({ expiredStaff });
+      return; // show confirmation modal
+    }
+    if (licenceGate) {
+      // HR overriding — log the override then proceed
+      if (licenceOverrideReason.trim().length < 10) {
+        alert('Please provide a reason for the compliance override (minimum 10 characters).');
+        return;
+      }
+      try {
+        await saveComplianceOverride({
+          overrideType: 'payroll_sif',
+          employeeIds:  licenceGate.expiredStaff.map(e => e.id),
+          reason:       licenceOverrideReason.trim(),
+        });
+      } catch (err) {
+        console.error('Compliance override log failed:', err);
+      }
+      setLicenceGate(null);
+      setLicenceOverrideReason('');
+    }
+
     const p = buildPayroll();
     doDownload(p);
     // Auto-transition wps_status draft → sif_generated on first SIF download (Feature 9)
@@ -979,6 +1021,92 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
           </div>
         )}
 
+        {/* ── Roster Overtime Panel (Feature 5.2) ── */}
+        {Object.keys(rosterOvertime).length > 0 && (() => {
+          const empIds = Object.keys(rosterOvertime).filter(id => rosterOvertime[id].overtimeHours > 0);
+          if (!empIds.length) return null;
+
+          const applyOvertimeToEntry = (employeeId, overtimePay) => {
+            setEntries(prev => prev.map(entry => {
+              if (entry.employeeId !== employeeId) return entry;
+              const existing = (entry.additionalAllowances || []);
+              const alreadyApplied = existing.some(a => a.label === 'Overtime (Roster)');
+              if (alreadyApplied) return entry; // idempotent — don't double-apply
+              return {
+                ...entry,
+                additionalAllowances: [...existing, { label: 'Overtime (Roster)', amount: parseFloat(overtimePay.toFixed(2)) }],
+              };
+            }));
+          };
+
+          return (
+            <div className="card mb-4">
+              <div className="card-header">
+                <h3><Info size={15} style={{ marginRight:6, color:'var(--accent)' }}/>Roster Overtime — Auto-Calculated</h3>
+                <span className="badge badge-blue">
+                  {empIds.length} employee{empIds.length !== 1 ? 's' : ''} with overtime hours
+                </span>
+              </div>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Employee</th>
+                      <th className="text-right">Planned Hrs</th>
+                      <th className="text-right">Actual Hrs</th>
+                      <th className="text-right">OT Hrs</th>
+                      <th className="text-right">OT Pay (AED)</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {empIds.map(empId => {
+                      const ot    = rosterOvertime[empId];
+                      const entry = entries.find(e => e.employeeId === empId);
+                      const emp   = employees.find(e => e.id === empId);
+                      if (!emp) return null;
+                      const hourlyRate  = (parseFloat(emp.basicSalary) || 0) / 208; // 26d × 8h
+                      const overtimePay = ot.overtimeHours * hourlyRate * 1.25;      // Art. 19 UAE Labour Law
+                      const applied     = (entry?.additionalAllowances || []).some(a => a.label === 'Overtime (Roster)');
+                      return (
+                        <tr key={empId}>
+                          <td><strong>{emp.name}</strong></td>
+                          <td className="text-right">{ot.plannedHours.toFixed(1)}</td>
+                          <td className="text-right">{ot.actualHours.toFixed(1)}</td>
+                          <td className="text-right" style={{ fontWeight: 600, color: 'var(--accent)' }}>
+                            +{ot.overtimeHours.toFixed(1)}
+                          </td>
+                          <td className="text-right" style={{ fontWeight: 600 }}>
+                            {overtimePay.toFixed(2)}
+                          </td>
+                          <td>
+                            {applied ? (
+                              <span className="badge badge-green" style={{ fontSize: 11 }}>✓ Applied</span>
+                            ) : (
+                              <button
+                                className="btn btn-secondary"
+                                style={{ fontSize: 11, padding: '3px 10px' }}
+                                onClick={() => applyOvertimeToEntry(empId, overtimePay)}
+                                disabled={editingLocked}
+                              >
+                                Apply to Payroll
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div style={{ padding:'10px 20px', fontSize:12, color:'var(--gray-500)', borderTop:'1px solid var(--gray-100)' }}>
+                <Info size={12} style={{ marginRight:4 }}/>
+                Computed from <strong>Roster actual vs planned hours</strong>. Rate: <strong>1.25× hourly</strong> (Art. 19, UAE Labour Law No. 33/2021). Hourly = Basic ÷ 208 (26d × 8h). Click "Apply to Payroll" to add as an allowance line item.
+              </div>
+            </div>
+          );
+        })()}
+
         {/* ── Expense Reimbursements Panel (Feature 14) ── */}
         {Object.keys(expenseData).length > 0 && (
           <div className="card mb-4">
@@ -1354,6 +1482,57 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
             setPreview(null);
           }}
         />
+      )}
+
+      {/* Feature 7.1 — Licence compliance override gate */}
+      {licenceGate && (
+        <div className="modal-overlay" style={{ zIndex: 2000 }}>
+          <div className="modal" style={{ maxWidth: 520 }}>
+            <div className="modal-header" style={{ background: '#fff5f5', borderBottom: '1px solid #fecaca' }}>
+              <h3 style={{ color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <AlertCircle size={18} /> Expired Professional Licences
+              </h3>
+            </div>
+            <div className="modal-body">
+              <p style={{ color: 'var(--gray-700)', marginBottom: 12 }}>
+                The following staff members have <strong>expired professional licences</strong>.
+                Generating a SIF for these employees may violate DHA/DOH/MOH regulations.
+              </p>
+              <table className="table" style={{ marginBottom: 16 }}>
+                <thead><tr><th>Employee</th><th>Authority</th><th>Expired</th></tr></thead>
+                <tbody>
+                  {licenceGate.expiredStaff.map(emp => (
+                    <tr key={emp.id} style={{ background: '#fff5f5' }}>
+                      <td style={{ fontWeight: 500 }}>{emp.name}</td>
+                      <td><span className="badge badge-red">{emp.licenceAuthority}</span></td>
+                      <td style={{ color: 'var(--danger)', fontSize: 13 }}>{emp.licenceExpiry}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="form-group">
+                <label style={{ color: 'var(--danger)', fontWeight: 600 }}>
+                  Override Reason (HR authority required) *
+                </label>
+                <textarea
+                  className="form-control"
+                  rows={3}
+                  value={licenceOverrideReason}
+                  onChange={e => setLicenceOverrideReason(e.target.value)}
+                  placeholder="State the clinical justification for proceeding despite expired licences (min 10 characters)…"
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={() => { setLicenceGate(null); setLicenceOverrideReason(''); }}>
+                Cancel — Resolve Licences First
+              </button>
+              <button className="btn btn-danger" onClick={handleDownload} disabled={licenceOverrideReason.trim().length < 10}>
+                <Download size={14} /> Override &amp; Download SIF
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

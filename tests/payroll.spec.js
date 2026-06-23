@@ -47,6 +47,7 @@ async function createPayrollRun(page) {
   const futureYear = new Date().getFullYear() + 2;
   const period = `${futureYear}-01`;
 
+  await expect(page.getByRole('button', { name: /New Payroll Run/i })).toBeEnabled({ timeout: 15000 });
   await page.getByRole('button', { name: /New Payroll Run/i }).click();
   await expect(
     page.locator('.modal-header h3').filter({ hasText: /New Payroll Run/i })
@@ -192,6 +193,7 @@ test.describe('Payroll — New run form', () => {
 
   test('form opens with all required fields', async ({ page }) => {
     await goToPayroll(page);
+    await expect(page.getByRole('button', { name: /New Payroll Run/i })).toBeEnabled({ timeout: 15000 });
     await page.getByRole('button', { name: /New Payroll Run/i }).click();
     await expect(
       page.locator('.modal-header h3').filter({ hasText: /New Payroll Run/i })
@@ -204,6 +206,7 @@ test.describe('Payroll — New run form', () => {
 
   test('submitting without a payment date shows a validation error', async ({ page }) => {
     await goToPayroll(page);
+    await expect(page.getByRole('button', { name: /New Payroll Run/i })).toBeEnabled({ timeout: 15000 });
     await page.getByRole('button', { name: /New Payroll Run/i }).click();
     await expect(page.locator('.modal')).toBeVisible({ timeout: 6000 });
     // Just click Create without filling payment date
@@ -214,6 +217,7 @@ test.describe('Payroll — New run form', () => {
 
   test('invalid Sequence No (non-numeric) shows a validation error', async ({ page }) => {
     await goToPayroll(page);
+    await expect(page.getByRole('button', { name: /New Payroll Run/i })).toBeEnabled({ timeout: 15000 });
     await page.getByRole('button', { name: /New Payroll Run/i }).click();
     await expect(page.locator('.modal')).toBeVisible({ timeout: 6000 });
     const futureYear = new Date().getFullYear() + 2;
@@ -229,6 +233,7 @@ test.describe('Payroll — New run form', () => {
 
   test('Cancel button closes the form without creating', async ({ page }) => {
     await goToPayroll(page);
+    await expect(page.getByRole('button', { name: /New Payroll Run/i })).toBeEnabled({ timeout: 15000 });
     await page.getByRole('button', { name: /New Payroll Run/i }).click();
     await expect(page.locator('.modal')).toBeVisible({ timeout: 6000 });
     await page.locator('.modal-footer').getByRole('button', { name: /cancel/i }).click();

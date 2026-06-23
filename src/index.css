@@ -380,6 +380,7 @@ tr:hover td {
 .badge-yellow { background: rgba(217,119,6,0.10); color: #B45309; border: 1px solid rgba(217,119,6,0.18); }
 .badge-gray   { background: rgba(100,116,139,0.10); color: var(--gray-600); border: 1px solid rgba(100,116,139,0.16); }
 .badge-amber  { background: rgba(217,119,6,0.10); color: #B45309; border: 1px solid rgba(217,119,6,0.22); }
+.badge-cyan   { background: rgba(6,182,212,0.12); color: #0E7490; border: 1px solid rgba(6,182,212,0.22); }
 
 /* ── Alerts ───────────────────────────────────────────────────────────────── */
 .alert {

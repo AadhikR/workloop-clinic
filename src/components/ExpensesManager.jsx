@@ -27,20 +27,24 @@ export const EXPENSE_CATEGORIES = {
 };
 
 const STATUS_BADGE = {
-  pending:  'badge-amber',
-  approved: 'badge-blue',
-  paid:     'badge-green',
-  rejected: 'badge-red',
+  pending:          'badge-amber',
+  manager_approved: 'badge-blue',
+  approved:         'badge-green',
+  paid:             'badge-green',
+  manager_rejected: 'badge-red',
+  rejected:         'badge-red',
 };
 
 const STATUS_LABEL = {
-  pending:  'Pending',
-  approved: 'Approved',
-  paid:     'Paid',
-  rejected: 'Rejected',
+  pending:          'Pending',
+  manager_approved: 'Mgr Approved',
+  approved:         'HR Approved',
+  paid:             'Paid',
+  manager_rejected: 'Mgr Rejected',
+  rejected:         'Rejected',
 };
 
-const FILTERS = ['all', 'pending', 'approved', 'paid', 'rejected'];
+const FILTERS = ['all', 'pending', 'manager_approved', 'approved', 'paid', 'rejected'];
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -68,6 +72,7 @@ export default function ExpensesManager() {
   const filtered = filter === 'all' ? claims : claims.filter(c => c.status === filter);
 
   const pendingCount   = claims.filter(c => c.status === 'pending').length;
+  const mgrApprovedCount = claims.filter(c => c.status === 'manager_approved').length;
   const pendingTotal   = claims.filter(c => c.status === 'pending').reduce((s, c) => s + c.amount, 0);
   const approvedTotal  = claims.filter(c => c.status === 'approved').reduce((s, c) => s + c.amount, 0);
   const paidTotal      = claims.filter(c => c.status === 'paid').reduce((s, c) => s + c.amount, 0);
@@ -203,10 +208,15 @@ export default function ExpensesManager() {
               className={`tab-btn ${filter === f ? 'active' : ''}`}
               onClick={() => setFilter(f)}
             >
-              {f.charAt(0).toUpperCase() + f.slice(1)}
+              {STATUS_LABEL[f] || (f === 'all' ? 'All' : f)}
               {f === 'pending' && pendingCount > 0 && (
                 <span className="badge badge-amber" style={{ marginLeft: 6, fontSize: 10, padding: '1px 6px' }}>
                   {pendingCount}
+                </span>
+              )}
+              {f === 'manager_approved' && mgrApprovedCount > 0 && (
+                <span className="badge badge-blue" style={{ marginLeft: 6, fontSize: 10, padding: '1px 6px' }}>
+                  {mgrApprovedCount}
                 </span>
               )}
             </button>
@@ -280,6 +290,16 @@ export default function ExpensesManager() {
                           <span className={`badge ${STATUS_BADGE[claim.status] || 'badge-yellow'}`}>
                             {STATUS_LABEL[claim.status] || claim.status}
                           </span>
+                          {claim.status === 'manager_approved' && claim.managerApprovedBy && (
+                            <div style={{ fontSize: 10, color: 'var(--gray-400)', marginTop: 2 }}>
+                              by {claim.managerApprovedBy}
+                            </div>
+                          )}
+                          {claim.status === 'manager_rejected' && claim.managerRejectionReason && (
+                            <div style={{ fontSize: 10, color: 'var(--danger)', marginTop: 2 }}>
+                              {claim.managerRejectionReason}
+                            </div>
+                          )}
                           {claim.status === 'paid' && claim.payrollRunId && (
                             <div style={{ fontSize: 10, color: 'var(--gray-400)', marginTop: 2 }}>
                               via payroll
@@ -288,14 +308,14 @@ export default function ExpensesManager() {
                         </td>
                         <td>
                           <div style={{ display: 'flex', gap: 4 }}>
-                            {claim.status === 'pending' && (
+                            {(claim.status === 'pending' || claim.status === 'manager_approved') && (
                               <>
                                 <button
                                   className="btn btn-sm"
                                   style={{ background: 'var(--success)', color: '#fff', border: 'none' }}
                                   onClick={() => handleApprove(claim.id)}
                                   disabled={actionBusy}
-                                  title="Approve"
+                                  title={claim.status === 'manager_approved' ? 'Final Approve' : 'Approve'}
                                 >
                                   <Check size={13} />
                                 </button>
@@ -310,7 +330,7 @@ export default function ExpensesManager() {
                                 </button>
                               </>
                             )}
-                            {claim.status === 'rejected' && (
+                            {(claim.status === 'rejected' || claim.status === 'manager_rejected') && (
                               <button
                                 className="btn btn-sm btn-outline"
                                 onClick={() => handleApprove(claim.id)}
@@ -320,7 +340,7 @@ export default function ExpensesManager() {
                                 <Check size={13} /> Approve
                               </button>
                             )}
-                            {(claim.status === 'pending' || claim.status === 'rejected') && (
+                            {(claim.status === 'pending' || claim.status === 'rejected' || claim.status === 'manager_rejected') && (
                               <button
                                 className="btn btn-ghost btn-icon btn-sm text-danger"
                                 onClick={() => setDeleteConfirm(claim.id)}

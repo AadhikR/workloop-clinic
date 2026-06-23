@@ -91,6 +91,8 @@ export default async function globalSetup() {
     .from('companies')
     .select('id')
     .eq('user_id', adminUser.id)
+    .order('created_at', { ascending: true })
+    .limit(1)
     .maybeSingle();
 
   let companyId = existingCo?.id;
@@ -200,11 +202,6 @@ export default async function globalSetup() {
   await adminPage.locator('input[type="password"]').fill(TEST_ADMIN_PASSWORD);
   // Use type=submit to avoid matching the portal-switcher buttons
   await adminPage.locator('button[type="submit"]').click();
-  await adminPage.waitForSelector('.sidebar-logo', { timeout: 25000 });
-  // Enable the "Advanced features" flag so Assets/Training/Roster nav items
-  // (gated behind NAV_ITEMS[].advanced) are visible in tests.
-  await adminPage.evaluate(() => localStorage.setItem('workloop-advanced-features', 'true'));
-  await adminPage.reload();
   await adminPage.waitForSelector('.sidebar-logo', { timeout: 25000 });
   await adminCtx.storageState({ path: '.playwright/admin-session.json' });
   await adminCtx.close();

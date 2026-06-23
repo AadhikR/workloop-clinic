@@ -174,3 +174,44 @@ export async function getMyPayslips() {
     issuedAt:     row.issued_at,
   }));
 }
+
+/**
+ * Employee portal: fetch all documents for the currently signed-in employee.
+ * Attempts to generate a signed URL for each file so the employee can view uploads.
+ */
+export async function getMyDocuments() {
+  const { data, error } = await supabase
+    .from('employee_documents')
+    .select('*')
+    .order('uploaded_at', { ascending: false });
+
+  if (error) { console.error('getMyDocuments:', error); return []; }
+
+  return Promise.all((data || []).map(async row => {
+    const doc = {
+      id:              row.id,
+      employeeId:      row.employee_id,
+      documentType:    row.document_type,
+      documentNumber:  row.document_number  || '',
+      fileName:        row.file_name,
+      fileSize:        row.file_size        || 0,
+      storagePath:     row.storage_path     || '',
+      expiryDate:      row.expiry_date      || '',
+      notes:           row.notes            || '',
+      uploadedAt:      row.uploaded_at,
+      status:          row.status           || 'verified',
+      submittedBy:     row.submitted_by     || 'hr',
+      rejectionReason: row.rejection_reason || '',
+      signedUrl:       '',
+    };
+    if (row.storage_path) {
+      try {
+        const { data: signed } = await supabase.storage
+          .from('employee-documents')
+          .createSignedUrl(row.storage_path, 3600);
+        doc.signedUrl = signed?.signedUrl ?? '';
+      } catch { /* signed URL may fail for admin-uploaded docs — show without link */ }
+    }
+    return doc;
+  }));
+}

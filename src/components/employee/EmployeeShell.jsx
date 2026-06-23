@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Home, CalendarDays, CalendarClock, Clock, FileText, User, LogOut, DollarSign, Receipt, GraduationCap } from 'lucide-react';
+import { Home, CalendarDays, CalendarClock, Clock, FileText, User, LogOut, DollarSign, Receipt, GraduationCap, FolderOpen, Mail, Star } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import NotificationBell from '../NotificationBell';
 import { getMyEmployeeRecord, getMyCompany } from '../../utils/profileStorage';
@@ -12,17 +12,23 @@ import EmpAdvances from './EmpAdvances';
 import EmpSchedule from './EmpSchedule';
 import EmpExpenses from './EmpExpenses';
 import EmpTraining from './EmpTraining';
+import EmpDocuments from './EmpDocuments';
+import EmpRequests from './EmpRequests';
+import EmpAppraisal from './EmpAppraisal';
 
 const TABS = [
-  { id: 'home',       label: 'Home',       icon: Home },
-  { id: 'leave',      label: 'Leave',      icon: CalendarDays },
-  { id: 'schedule',   label: 'Schedule',   icon: CalendarClock },
-  { id: 'attendance', label: 'Attendance', icon: Clock },
-  { id: 'payslips',   label: 'Payslips',   icon: FileText },
-  { id: 'advances',   label: 'Advances',   icon: DollarSign },
-  { id: 'expenses',   label: 'Expenses',   icon: Receipt },
-  { id: 'training',   label: 'Training',   icon: GraduationCap },
-  { id: 'profile',    label: 'Profile',    icon: User },
+  { id: 'home',        label: 'Home',        icon: Home },
+  { id: 'leave',       label: 'Leave',       icon: CalendarDays },
+  { id: 'schedule',    label: 'Schedule',    icon: CalendarClock },
+  { id: 'attendance',  label: 'Attendance',  icon: Clock },
+  { id: 'payslips',    label: 'Payslips',    icon: FileText },
+  { id: 'advances',    label: 'Advances',    icon: DollarSign },
+  { id: 'expenses',    label: 'Expenses',    icon: Receipt },
+  { id: 'training',    label: 'Training',    icon: GraduationCap },
+  { id: 'appraisals',  label: 'Appraisals',  icon: Star },
+  { id: 'documents',   label: 'Documents',   icon: FolderOpen },
+  { id: 'requests',    label: 'Requests',    icon: Mail },
+  { id: 'profile',     label: 'Profile',     icon: User },
 ];
 
 export default function EmployeeShell() {
@@ -69,7 +75,10 @@ export default function EmployeeShell() {
       case 'payslips':   return <EmpPayslips />;
       case 'advances':   return <EmpAdvances />;
       case 'expenses':   return <EmpExpenses />;
-      case 'training':   return <EmpTraining />;
+      case 'training':    return <EmpTraining />;
+      case 'appraisals':  return <EmpAppraisal emp={emp} />;
+      case 'documents':   return <EmpDocuments />;
+      case 'requests':    return <EmpRequests />;
       case 'profile':    return <EmpProfile onSignOut={handleSignOut} signingOut={signingOut} />;
       default:           return <EmpHome onNavigate={setTab} />;
     }

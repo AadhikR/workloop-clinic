@@ -11,10 +11,11 @@
  *   7. Staff Turnover  — joiners & leavers for a selected date range
  */
 import { useState, useEffect } from 'react';
-import { BarChart2, Users, DollarSign, CalendarDays, Clock, FileText, TrendingUp, UserMinus, Download, AlertCircle } from 'lucide-react';
+import { BarChart2, Users, DollarSign, CalendarDays, Clock, FileText, TrendingUp, UserMinus, Download, AlertCircle, ShieldCheck } from 'lucide-react';
 import { getEmployees, getPayrolls, getAllEmployeeDocuments, getAllJobHistory } from '../utils/storage';
 import { getLeaveRequests } from '../utils/leaveStorage';
-import { getAttendanceRecords } from '../utils/attendanceStorage';
+import { getAttendanceRecords, getRosterForMonth } from '../utils/attendanceStorage';
+import { getDeptStaffingRules } from '../utils/staffingStorage';
 import {
   buildHeadcountReport,     headcountToRows,
   buildPayrollCostReport,   payrollCostToRows,
@@ -27,13 +28,14 @@ import {
 } from '../utils/reportUtils';
 
 const TABS = [
-  { id: 'headcount',   label: 'Headcount',       icon: Users },
-  { id: 'payroll',     label: 'Payroll Cost',     icon: DollarSign },
-  { id: 'leave',       label: 'Leave Usage',      icon: CalendarDays },
-  { id: 'attendance',  label: 'Attendance',       icon: Clock },
-  { id: 'documents',   label: 'Doc Expiry',       icon: FileText },
-  { id: 'salary',      label: 'Salary History',   icon: TrendingUp },
-  { id: 'turnover',    label: 'Staff Turnover',   icon: UserMinus },
+  { id: 'headcount',   label: 'Headcount',          icon: Users },
+  { id: 'payroll',     label: 'Payroll Cost',        icon: DollarSign },
+  { id: 'leave',       label: 'Leave Usage',         icon: CalendarDays },
+  { id: 'attendance',  label: 'Attendance',          icon: Clock },
+  { id: 'documents',   label: 'Doc Expiry',          icon: FileText },
+  { id: 'salary',      label: 'Salary History',      icon: TrendingUp },
+  { id: 'turnover',    label: 'Staff Turnover',      icon: UserMinus },
+  { id: 'staffing',    label: 'Staffing Compliance', icon: ShieldCheck },
 ];
 
 const thisYear  = new Date().getFullYear();
@@ -545,6 +547,121 @@ function TurnoverTab({ employees }) {
   );
 }
 
+// ─── 8. Staffing Compliance ────────────────────────────────────────────────────
+function StaffingComplianceTab({ employees, staffingRules }) {
+  const [month, setMonth]   = useState(thisPeriod);
+  const [roster, setRoster] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const SHIFT_LABELS = { morning: '☀ Morning', afternoon: '🌤 Afternoon', night: '🌙 Night' };
+
+  useEffect(() => {
+    setLoading(true);
+    const [y, m] = month.split('-').map(Number);
+    getRosterForMonth(y, m).then(r => {
+      setRoster(r);
+      setLoading(false);
+    }).catch(() => { setRoster([]); setLoading(false); });
+  }, [month]);
+
+  if (!staffingRules.length) {
+    return (
+      <EmptyState message="No staffing rules defined. Add rules in Departments → Staffing Rules tab." />
+    );
+  }
+
+  const MonthPicker = () => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+      <label style={{ fontSize: 13, fontWeight: 600 }}>Month:</label>
+      <input type="month" className="form-control" style={{ display: 'inline-block', width: 'auto' }} value={month} onChange={e => setMonth(e.target.value)} />
+    </div>
+  );
+
+  if (loading) return <div><MonthPicker /><div style={{ padding: 24, textAlign: 'center', color: 'var(--gray-400)' }}>Loading roster…</div></div>;
+
+  if (!roster.length) {
+    return (
+      <div>
+        <MonthPicker />
+        <EmptyState message="No roster data for this month. Publish the roster first." />
+      </div>
+    );
+  }
+
+  // Build compliance heatmap: for each rule, for each day — actual vs required
+  const [y, m] = month.split('-').map(Number);
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const days = Array.from({ length: daysInMonth }, (_, i) => {
+    const d = i + 1;
+    return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  });
+
+  const rows = staffingRules.map(rule => {
+    const dayCounts = days.map(dateStr => {
+      const count = roster.filter(r => {
+        if (r.date !== dateStr) return false;
+        const emp = employees.find(e => e.id === r.employeeId);
+        if (!emp || emp.department !== rule.department) return false;
+        return r.shiftCategory === rule.shiftCategory;
+      }).length;
+      return { dateStr, count, ok: count >= rule.minStaff };
+    });
+    const violations = dayCounts.filter(d => !d.ok).length;
+    return { rule, dayCounts, violations };
+  });
+
+  const overallOk = rows.every(r => r.violations === 0);
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <label style={{ fontSize: 13, fontWeight: 600 }}>Month:</label>
+          <input type="month" className="form-control" style={{ display: 'inline-block', width: 'auto' }} value={month} onChange={e => setMonth(e.target.value)} />
+        </div>
+        <span className={`badge ${overallOk ? 'badge-green' : 'badge-red'}`}>
+          {overallOk ? '✓ Fully Compliant' : `${rows.reduce((s, r) => s + r.violations, 0)} violations`}
+        </span>
+      </div>
+
+      {rows.map(({ rule, dayCounts, violations }) => (
+        <div key={rule.id} className="card" style={{ marginBottom: 16, padding: '14px 16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div>
+              <span style={{ fontWeight: 600 }}>{rule.department}</span>
+              <span style={{ fontSize: 12, color: 'var(--gray-500)', marginLeft: 8 }}>{SHIFT_LABELS[rule.shiftCategory] || rule.shiftCategory}</span>
+              <span style={{ fontSize: 12, color: 'var(--gray-400)', marginLeft: 8 }}>Min: {rule.minStaff}</span>
+            </div>
+            <span className={`badge ${violations === 0 ? 'badge-green' : 'badge-red'}`}>
+              {violations === 0 ? '✓ Compliant' : `${violations} day${violations > 1 ? 's' : ''} below minimum`}
+            </span>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+            {dayCounts.map(({ dateStr, count, ok }) => (
+              <div
+                key={dateStr}
+                title={`${dateStr}: ${count} staff (min ${rule.minStaff})`}
+                style={{
+                  width: 28, height: 28, borderRadius: 4,
+                  background: ok ? '#dcfce7' : '#fee2e2',
+                  border: `1px solid ${ok ? '#a7f3d0' : '#fca5a5'}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 10, fontWeight: 600,
+                  color: ok ? '#16a34a' : '#dc2626',
+                }}
+              >
+                {count}
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 6 }}>
+            Each cell = day count (green ≥ min, red &lt; min)
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Main Reports component ───────────────────────────────────────────────────
 export default function Reports() {
   const [tab, setTab]         = useState('headcount');
@@ -557,6 +674,7 @@ export default function Reports() {
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [documents,         setDocuments]         = useState([]);
   const [jobHistory,        setJobHistory]        = useState([]);
+  const [staffingRules,     setStaffingRules]     = useState([]);
 
   useEffect(() => {
     Promise.all([
@@ -566,13 +684,15 @@ export default function Reports() {
       getAttendanceRecords(),
       getAllEmployeeDocuments(),
       getAllJobHistory(),
-    ]).then(([emps, pays, leaves, attn, docs, hist]) => {
+      getDeptStaffingRules().catch(() => []),
+    ]).then(([emps, pays, leaves, attn, docs, hist, rules]) => {
       setEmployees(emps);
       setPayrolls(pays);
       setLeaveRequests(leaves);
       setAttendanceRecords(attn);
       setDocuments(docs);
       setJobHistory(hist);
+      setStaffingRules(rules);
       setLoading(false);
     }).catch(err => {
       console.error('Reports load failed:', err);
@@ -604,6 +724,7 @@ export default function Reports() {
       case 'documents':  return <DocExpiryTab   employees={employees} documents={documents} />;
       case 'salary':     return <SalaryHistoryTab employees={employees} jobHistory={jobHistory} />;
       case 'turnover':   return <TurnoverTab    employees={employees} />;
+      case 'staffing':   return <StaffingComplianceTab employees={employees} staffingRules={staffingRules} />;
       default:           return null;
     }
   };

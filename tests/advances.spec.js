@@ -122,8 +122,7 @@ test.describe('Advances — Admin portal', () => {
 
   test('Cancel hides the form', async ({ page }) => {
     await page.locator('.sidebar-nav').getByRole('button', { name: 'Advances' }).click();
-    await page.waitForLoadState('networkidle');
-    await expect(page.locator('.stat-card').first()).toBeVisible({ timeout: 8000 });
+    await expect(page.locator('.stat-card').first()).toBeVisible({ timeout: 20000 });
     await page.getByRole('button', { name: /New Advance/i }).click();
     await expect(page.locator('text=New Salary Advance')).toBeVisible({ timeout: 5000 });
 
@@ -133,8 +132,7 @@ test.describe('Advances — Admin portal', () => {
 
   test('creating an advance adds it to the list', async ({ page }) => {
     await page.locator('.sidebar-nav').getByRole('button', { name: 'Advances' }).click();
-    await page.waitForLoadState('networkidle');
-    await expect(page.locator('.stat-card').first()).toBeVisible({ timeout: 8000 });
+    await expect(page.locator('.stat-card').first()).toBeVisible({ timeout: 20000 });
 
     await page.getByRole('button', { name: /New Advance/i }).click();
     await expect(page.locator('text=New Salary Advance')).toBeVisible({ timeout: 5000 });

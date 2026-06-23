@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react';
-import { Plus, X, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Calendar, AlertCircle, CheckCircle } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Plus, X, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Calendar, AlertCircle, CheckCircle, Paperclip, Upload } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import {
   getLeaveTypes, getLeaveRequests, getLeaveBalances, getPublicHolidays,
+  uploadLeaveAttachment,
 } from '../../utils/leaveStorage';
 import { supabase } from '../../lib/supabase';
-import { countLeaveDays, validateLeaveRequest, getLeaveTypeColor, calculateAnnualLeaveAccrual, DEFAULT_LEAVE_TYPES } from '../../utils/leaveEngine';
+import { countLeaveDays, validateLeaveRequest, getLeaveTypeColor, calculateAnnualLeaveAccrual, DEFAULT_LEAVE_TYPES, ATTACHMENT_HINTS } from '../../utils/leaveEngine';
 import { getMyEmployeeRecord } from '../../utils/profileStorage';
 
 function computeBalancesLocally(leaveTypes, requests, empRec, year) {
@@ -67,6 +68,12 @@ export default function EmpLeave() {
   const [empCalMonth, setEmpCalMonth] = useState(new Date());
   const [saving, setSaving]           = useState(false);
   const [toast, setToast]             = useState(null); // { type, msg }
+
+  // Attachment state
+  const [attachmentUrl,  setAttachmentUrl]  = useState('');
+  const [attachmentName, setAttachmentName] = useState('');
+  const [uploading,      setUploading]      = useState(false);
+  const fileRef = useRef(null);
 
   // Form state
   const [form, setForm] = useState({
@@ -154,8 +161,8 @@ export default function EmpLeave() {
     }
     const balance = balances.find(b => b.leaveTypeCode === selectedType.code);
     const result = validateLeaveRequest(
-      { startDate: form.startDate, endDate: form.endDate, isHalfDay: form.isHalfDay, reason: form.reason },
-      { startDate: emp.employment_start_date, employmentStartDate: emp.employment_start_date, gender: emp.gender },
+      { startDate: form.startDate, endDate: form.endDate, isHalfDay: form.isHalfDay, reason: form.reason, attachmentUrl },
+      { startDate: emp.employment_start_date, employmentStartDate: emp.employment_start_date, gender: emp.gender, employmentStatus: emp.employment_status },
       selectedType,
       balance,
       holidays,
@@ -179,7 +186,7 @@ export default function EmpLeave() {
       p_half_day_period: null,
       p_days_requested:  computedDays,
       p_reason:          form.reason,
-      p_attachment_url:  '',
+      p_attachment_url:  attachmentUrl,
       p_warnings:        formWarnings,
     });
 
@@ -192,6 +199,8 @@ export default function EmpLeave() {
     showToast('success', `${selectedType.name} request submitted — ${computedDays} day${computedDays !== 1 ? 's' : ''}.`);
     setShowForm(false);
     setForm({ leaveTypeCode: '', startDate: '', endDate: '', isHalfDay: false, reason: '' });
+    setAttachmentUrl('');
+    setAttachmentName('');
 
     // Refresh requests
     const fresh = await getLeaveRequests({ employeeId: profile.employeeId });
@@ -199,6 +208,10 @@ export default function EmpLeave() {
   }
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--gray-400)' }}>Loading…</div>;
+
+  const onProbation       = emp?.employment_status === 'Probation';
+  const availableTypes    = onProbation ? leaveTypes.filter(lt => lt.probationEligible !== false) : leaveTypes;
+  const restrictedTypes   = onProbation ? leaveTypes.filter(lt => lt.probationEligible === false) : [];
 
   return (
     <div>
@@ -225,6 +238,19 @@ export default function EmpLeave() {
           </div>
         )}
 
+        {/* Probation notice */}
+        {onProbation && (
+          <div className="alert alert-info" style={{ marginBottom: 16, borderRadius: 10 }}>
+            <AlertCircle size={14} />
+            <span>
+              <strong>You are currently on probation.</strong>
+              {restrictedTypes.length > 0
+                ? ` The following leave types are not available during probation: ${restrictedTypes.map(lt => lt.name).join(', ')}. Contact HR for exceptions.`
+                : ' All leave types are available during your probation period.'}
+            </span>
+          </div>
+        )}
+
         {/* Tabs */}
         <div className="tabs" style={{ marginBottom: 16 }}>
           <button className={`tab-btn ${activeTab === 'requests' ? 'active' : ''}`} onClick={() => setActiveTab('requests')}>
@@ -243,7 +269,7 @@ export default function EmpLeave() {
           <div className="emp-card" style={{ marginBottom: 16, padding: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
               <span style={{ fontWeight: 700, fontSize: 15 }}>New Leave Request</span>
-              <button className="btn btn-ghost btn-icon" onClick={() => setShowForm(false)}>
+              <button className="btn btn-ghost btn-icon" onClick={() => { setShowForm(false); setAttachmentUrl(''); setAttachmentName(''); }}>
                 <X size={16} />
               </button>
             </div>
@@ -255,11 +281,11 @@ export default function EmpLeave() {
                   <select
                     className="form-control"
                     value={form.leaveTypeCode}
-                    onChange={e => setForm(f => ({ ...f, leaveTypeCode: e.target.value }))}
+                    onChange={e => { setForm(f => ({ ...f, leaveTypeCode: e.target.value })); setAttachmentUrl(''); setAttachmentName(''); }}
                     required
                   >
                     <option value="">Select type…</option>
-                    {leaveTypes.map(t => (
+                    {availableTypes.map(t => (
                       <option key={t.code} value={t.code}>{t.name}</option>
                     ))}
                   </select>
@@ -314,6 +340,74 @@ export default function EmpLeave() {
                     style={{ resize: 'vertical' }}
                   />
                 </div>
+
+                {/* Attachment upload — shown when the leave type requires it */}
+                {selectedType?.requiresAttachment && (
+                  <div className="form-group">
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Paperclip size={13} />
+                      Supporting Document
+                      <span style={{ color: 'var(--danger)', marginLeft: 2 }}>*</span>
+                    </label>
+                    <span style={{ fontSize: 11, color: 'var(--gray-400)', display: 'block', marginBottom: 6 }}>
+                      {ATTACHMENT_HINTS[selectedType.code]
+                        ? `Required: ${ATTACHMENT_HINTS[selectedType.code]}`
+                        : 'A supporting document is required for this leave type'}
+                    </span>
+                    {attachmentUrl ? (
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        padding: '8px 12px', background: 'rgba(16,185,129,0.06)',
+                        border: '1px solid rgba(16,185,129,0.2)', borderRadius: 8,
+                      }}>
+                        <CheckCircle size={14} style={{ color: 'var(--success)', flexShrink: 0 }} />
+                        <span style={{ fontSize: 12, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {attachmentName}
+                        </span>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-icon btn-sm"
+                          onClick={() => { setAttachmentUrl(''); setAttachmentName(''); }}
+                          title="Remove attachment"
+                        >
+                          <X size={13} />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-sm"
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', justifyContent: 'center' }}
+                        onClick={() => fileRef.current?.click()}
+                        disabled={uploading}
+                      >
+                        <Upload size={13} />
+                        {uploading ? 'Uploading…' : 'Upload Document'}
+                      </button>
+                    )}
+                    <input
+                      ref={fileRef}
+                      type="file"
+                      style={{ display: 'none' }}
+                      accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                      onChange={async e => {
+                        const file = e.target.files?.[0];
+                        if (!file || !emp) return;
+                        setUploading(true);
+                        try {
+                          const url = await uploadLeaveAttachment(emp.user_id, emp.id, file);
+                          setAttachmentUrl(url);
+                          setAttachmentName(file.name);
+                        } catch (err) {
+                          showToast('error', 'Upload failed: ' + err.message);
+                        } finally {
+                          setUploading(false);
+                          e.target.value = '';
+                        }
+                      }}
+                    />
+                  </div>
+                )}
 
                 {formErrors.map((err, i) => (
                   <div key={i} className="alert alert-danger" style={{ padding: '8px 12px', borderRadius: 6 }}>

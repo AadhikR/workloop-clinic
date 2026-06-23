@@ -127,17 +127,24 @@ export async function createNotifications(notifs) {
 
 // ─── Expiry sweep ─────────────────────────────────────────────────────────────
 
+// Clinical credential document types — wider notification window (90d/30d/14d)
+const CLINICAL_DOC_TYPES = new Set([
+  'DHA Licence', 'DOH Licence', 'MOH Licence',
+  'BLS Certificate', 'ACLS Certificate', 'PALS Certificate',
+  'NRP Certificate', 'CME Certificate',
+]);
+
 /**
- * Generates document / insurance / WPS expiry notifications for the admin.
+ * Generates document / insurance / clinical credential expiry notifications for the admin.
  * Called from Dashboard after data loads. Uses ON CONFLICT DO NOTHING so
  * repeated Dashboard loads do not create duplicate rows.
  *
- * Threshold bands (embedded in related_entity_id for deduplication):
- *   60d → fires once when ≤60 days remain
- *   30d → fires again when ≤30 days remain
- *   14d → fires again when ≤14 days remain
+ * Threshold bands for standard documents:
+ *   60d / 30d / 14d
+ * Threshold bands for clinical credentials (DHA/DOH Licence, BLS, ACLS, etc.):
+ *   90d / 30d / 14d  — wider window because UAE healthcare licences take longer to renew
  */
-export async function generateExpiryNotifications(employees, _company, insurancePolicies, allEmpInsurance, allCertifications = []) {
+export async function generateExpiryNotifications(employees, _company, insurancePolicies, allEmpInsurance, allCertifications = [], allEmployeeDocs = []) {
   const today = new Date();
   const notifs = [];
 
@@ -162,6 +169,31 @@ export async function generateExpiryNotifications(employees, _company, insurance
           relatedEntityType:  'employee',
           relatedEntityId:    `${emp.id}_${key}_${thr}d`,
         });
+      });
+    });
+
+  // ── Clinical credential document expiry (DHA/DOH Licence, BLS, ACLS, etc.) ──
+  // Uses a 90-day window (vs 60 for standard docs) because healthcare licences take longer to renew.
+  const activeEmpIds = new Set(
+    (employees || [])
+      .filter(e => e.employmentStatus !== 'Terminated' && e.active !== false)
+      .map(e => e.id)
+  );
+  const empNameMap = Object.fromEntries((employees || []).map(e => [e.id, e.name]));
+
+  (allEmployeeDocs || [])
+    .filter(doc => CLINICAL_DOC_TYPES.has(doc.documentType) && doc.expiryDate && activeEmpIds.has(doc.employeeId))
+    .forEach(doc => {
+      const days = Math.ceil((new Date(doc.expiryDate) - today) / (1000 * 60 * 60 * 24));
+      if (days < 0 || days > 90) return;
+      const thr = days <= 14 ? 14 : days <= 30 ? 30 : 90;
+      const empName = empNameMap[doc.employeeId] || 'Employee';
+      notifs.push({
+        type:               'clinical_credential_expiry',
+        title:              `${doc.documentType} expiring — ${empName}`,
+        body:               `${empName}'s ${doc.documentType} expires in ${days} day${days !== 1 ? 's' : ''} (${doc.expiryDate}). Renew in the employee Documents tab.`,
+        relatedEntityType:  'employee_document',
+        relatedEntityId:    `${doc.id}_${thr}d`,
       });
     });
 
@@ -229,6 +261,24 @@ export async function generateExpiryNotifications(employees, _company, insurance
       relatedEntityId:    `${cert.id}_${thr}d`,
     });
   });
+
+  // ── Professional licence expiry (Feature 7.1) ──
+  // Direct licence_authority/licence_expiry fields on employees (separate from document uploads).
+  (employees || [])
+    .filter(e => e.active !== false && e.employmentStatus !== 'Terminated'
+               && e.licenceAuthority && e.licenceAuthority !== 'None' && e.licenceExpiry)
+    .forEach(emp => {
+      const days = Math.ceil((new Date(emp.licenceExpiry) - today) / (1000 * 60 * 60 * 24));
+      if (days < 0 || days > 60) return;
+      const thr = days <= 14 ? 14 : days <= 30 ? 30 : 60;
+      notifs.push({
+        type:               'clinical_licence_expiry',
+        title:              `${emp.licenceAuthority} Licence expiring — ${emp.name}`,
+        body:               `${emp.name}'s ${emp.licenceAuthority} professional licence expires in ${days} day${days !== 1 ? 's' : ''} (${emp.licenceExpiry}). Renew in the employee's UAE Compliance tab.`,
+        relatedEntityType:  'employee',
+        relatedEntityId:    `${emp.id}_licence_${thr}d`,
+      });
+    });
 
   // ── Insurance policy renewal ──
   (insurancePolicies || []).forEach(pol => {

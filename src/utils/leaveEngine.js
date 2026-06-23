@@ -210,6 +210,16 @@ export const DEFAULT_LEAVE_TYPES = [
  *
  * UAE rule: Public holidays falling on a weekend are NOT automatically moved.
  */
+// Hint text shown to employees when a leave type requires an attachment.
+// Keyed by leave type code — fallback is 'supporting document'.
+export const ATTACHMENT_HINTS = {
+  SICK:        'medical certificate',
+  MATERNITY:   'medical certificate or birth registration',
+  STUDY:       'proof of enrollment and exam schedule (Art. 36)',
+  BEREAVEMENT: 'death certificate',
+  HAJJ:        'pilgrimage permit',
+};
+
 export const UAE_PUBLIC_HOLIDAYS_2025 = [
   { date: '2025-01-01', name: "New Year's Day", type: 'federal' },
   { date: '2025-03-30', name: 'Eid Al Fitr (Day 1)', type: 'federal' },
@@ -639,6 +649,11 @@ export function validateLeaveRequest(request, employee, leaveType, balance, holi
     errors.push('End date cannot be before start date.');
   }
 
+  // Probation eligibility — HR-configured per leave type
+  if (employee.employmentStatus === 'Probation' && leaveType.probationEligible === false) {
+    errors.push(`${leaveType.name} is not available during the probation period. Contact HR for exceptions.`);
+  }
+
   // Art. 31 — Sick leave during probation: not entitled to paid sick leave
   if (leaveType.code === 'SICK' && employee.employmentStatus === 'Probation') {
     warnings.push('Art. 31: Employee is on probation. Sick leave during probation is unpaid. HR approval required.');
@@ -696,9 +711,10 @@ export function validateLeaveRequest(request, employee, leaveType, balance, holi
     }
   }
 
-  // Art. 36 — Study leave: attachment required before submission
-  if (leaveType.code === 'STUDY' && !request.attachmentUrl) {
-    errors.push('Art. 36: Study/exam leave requires proof of enrollment and exam schedule (attachment required).');
+  // Mandatory attachment — enforced by the requiresAttachment flag set per leave type
+  if (leaveType.requiresAttachment && !request.attachmentUrl) {
+    const hint = ATTACHMENT_HINTS[leaveType.code] || 'supporting document';
+    errors.push(`${leaveType.name} requires a ${hint}. Please upload before submitting.`);
   }
 
   // Bereavement — relationship required for correct duration

@@ -1,17 +1,19 @@
 /**
- * RosterManager.jsx — Shift Scheduling & Roster (Feature 8)
+ * RosterManager.jsx — Clinical Duty Rota (Feature 2.1 + Feature 8)
  *
  * Tabs:
- *   1. Templates — Create / edit / delete shift templates (name, color, times, grace periods)
- *   2. Roster    — Monthly grid: assign shifts to employees per day; publish to portal
- *   3. Swaps     — Review and approve / reject employee shift-swap requests
+ *   1. Templates — Create/edit shift templates with short code (D/N/M/A) + category
+ *   2. Roster    — Monthly grid: compact code-based cells, dept-scoped, totals, CSV export
+ *   3. Swaps     — Review and approve/reject employee shift-swap requests
  */
 import { useState, useEffect, useRef } from 'react';
 import {
   Plus, Edit2, Trash2, Check, X,
-  ChevronLeft, ChevronRight, Send, AlertCircle,
+  ChevronLeft, ChevronRight, Send, AlertCircle, Download,
 } from 'lucide-react';
-import { getEmployees } from '../utils/storage';
+import { getEmployees, getAllEmployeeDocuments, saveComplianceOverride } from '../utils/storage';
+import { getDeptStaffingRules } from '../utils/staffingStorage';
+import { CLINICAL_DOC_TYPES } from './EmployeeModal';
 import {
   getShifts, saveShift, deleteShift,
   getRosterForMonth, saveRosterAssignment, deleteRosterAssignment, publishRoster,
@@ -32,7 +34,7 @@ function autoExpectedHours(startTime, endTime, breakMinutes) {
   const [sh, sm] = startTime.split(':').map(Number);
   const [eh, em] = endTime.split(':').map(Number);
   let mins = (eh * 60 + em) - (sh * 60 + sm);
-  if (mins < 0) mins += 24 * 60; // overnight shift
+  if (mins < 0) mins += 24 * 60;
   mins -= (breakMinutes || 0);
   return Math.round(Math.max(0, mins) / 60 * 10) / 10;
 }
@@ -42,12 +44,126 @@ const PALETTE = [
   '#8b5cf6', '#06b6d4', '#84cc16', '#f97316', '#ec4899',
 ];
 
+const SHIFT_CATEGORIES = [
+  { value: 'morning',   label: 'Morning' },
+  { value: 'afternoon', label: 'Afternoon' },
+  { value: 'night',     label: 'Night' },
+  { value: 'flexible',  label: 'Flexible / Other' },
+];
+
+const CATEGORY_LABELS = {
+  morning:   '☀ Morning',
+  afternoon: '🌤 Afternoon',
+  night:     '🌙 Night',
+  flexible:  'Flexible / Other',
+};
+
+const CATEGORY_COLORS = {
+  morning:   '#f59e0b',
+  afternoon: '#06b6d4',
+  night:     '#6366f1',
+  flexible:  '#10b981',
+};
+
 const EMPTY_FORM = {
-  name: '', color: '#6366f1',
+  name: '', code: '', color: '#6366f1', shiftCategory: 'morning',
   startTime: '09:00', endTime: '18:00',
   breakMinutes: 60, expectedHours: 8,
   lateGraceMinutes: 10, earlyDepartureGraceMinutes: 10,
+  minStaff: 1,
 };
+
+// ── CSV export ────────────────────────────────────────────────────────────────
+
+function exportRosterCsv({ year, month, daysInMonth, employees, shifts, rosterData, rosterMonth }) {
+  const monthLabel = rosterMonth.toLocaleString('en-AE', { month: 'long', year: 'numeric' });
+  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
+  function getCode(empId, day) {
+    const dateStr = `${year}-${pad2(month)}-${pad2(day)}`;
+    const a = rosterData[`${empId}_${dateStr}`];
+    if (!a) return 'O';
+    const sh = shifts.find(s => s.id === a.shiftId);
+    return sh?.code || sh?.name?.substring(0, 2)?.toUpperCase() || 'S';
+  }
+
+  function getCategory(empId, day) {
+    const dateStr = `${year}-${pad2(month)}-${pad2(day)}`;
+    const a = rosterData[`${empId}_${dateStr}`];
+    if (!a) return null;
+    const sh = shifts.find(s => s.id === a.shiftId);
+    return sh?.shiftCategory || 'flexible';
+  }
+
+  function getPlannedHours(empId) {
+    let total = 0;
+    for (const d of days) {
+      const dateStr = `${year}-${pad2(month)}-${pad2(d)}`;
+      const a = rosterData[`${empId}_${dateStr}`];
+      if (a) {
+        const sh = shifts.find(s => s.id === a.shiftId);
+        total += a.plannedHours ?? sh?.expectedHours ?? 0;
+      }
+    }
+    return parseFloat(total.toFixed(1));
+  }
+
+  const rows = [];
+
+  // Title row
+  rows.push([`DUTY ROSTER — ${monthLabel.toUpperCase()}`, '', '', ...days.map(() => ''), '', '', '', '', '']);
+
+  // Header
+  rows.push(['STAFF NAME', 'DEPT', 'SH', ...days.map(d => String(d)), 'M', 'A', 'N', 'O', 'TOTAL HRS']);
+
+  // Employee rows
+  for (const emp of employees) {
+    let m = 0, a = 0, n = 0, o = 0;
+    const dayCodes = days.map(day => {
+      const code = getCode(emp.id, day);
+      const cat  = getCategory(emp.id, day);
+      if (!cat) { o++; return 'O'; }
+      if (cat === 'morning' || cat === 'flexible') m++;
+      else if (cat === 'afternoon') a++;
+      else if (cat === 'night') n++;
+      return code;
+    });
+    const totalHrs = getPlannedHours(emp.id);
+    const shiftCount = m + a + n;
+    rows.push([emp.name, emp.department || '', shiftCount, ...dayCodes, m, a, n, o, totalHrs]);
+  }
+
+  // Blank separator
+  rows.push(Array(days.length + 9).fill(''));
+
+  // Summary footer — count per category per day
+  const mRow = ['Total Morning', '', '', ...days.map(day => {
+    return employees.filter(emp => getCategory(emp.id, day) === 'morning' || (getCategory(emp.id, day) === 'flexible' && rosterData[`${emp.id}_${year}-${pad2(month)}-${pad2(day)}`])).length;
+  }), '', '', '', '', ''];
+
+  const aRow = ['Total Afternoon', '', '', ...days.map(day => {
+    return employees.filter(emp => getCategory(emp.id, day) === 'afternoon').length;
+  }), '', '', '', '', ''];
+
+  const nRow = ['Total Night', '', '', ...days.map(day => {
+    return employees.filter(emp => getCategory(emp.id, day) === 'night').length;
+  }), '', '', '', '', ''];
+
+  const oRow = ['Off / Uncovered', '', '', ...days.map(day => {
+    return employees.filter(emp => !rosterData[`${emp.id}_${year}-${pad2(month)}-${pad2(day)}`]).length;
+  }), '', '', '', '', ''];
+
+  rows.push(mRow, aRow, nRow, oRow);
+
+  const csv = rows.map(r => r.map(cell => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `Roster_${year}_${pad2(month)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 // ── component ─────────────────────────────────────────────────────────────────
 
@@ -57,29 +173,37 @@ export default function RosterManager() {
   const [msg, setMsg]         = useState(null);
 
   // Shift templates
-  const [shifts, setShifts]         = useState([]);
-  const [shiftForm, setShiftForm]   = useState(null); // null = closed
+  const [shifts, setShifts]           = useState([]);
+  const [shiftForm, setShiftForm]     = useState(null);
   const [shiftSaving, setShiftSaving] = useState(false);
 
   // Employees & roster
-  const [employees, setEmployees]         = useState([]);
-  const [rosterMonth, setRosterMonth]     = useState(new Date());
-  const [rosterData, setRosterData]       = useState({}); // `${empId}_${dateStr}` → assignment
-  const [savingCell, setSavingCell]       = useState(null);
-  const [publishing, setPublishing]       = useState(false);
+  const [employees, setEmployees]               = useState([]);
+  const [rosterMonth, setRosterMonth]           = useState(new Date());
+  const [rosterData, setRosterData]             = useState({});
+  const [savingCell, setSavingCell]             = useState(null);
+  const [publishing, setPublishing]             = useState(false);
   const [rosterDeptFilter, setRosterDeptFilter] = useState('');
 
   // Swaps
   const [swaps, setSwaps]           = useState([]);
   const [swapSaving, setSwapSaving] = useState(null);
 
-  // Don't re-load roster on initial mount (loadAll already does it)
+  // Compliance — Feature 7.1 & 7.2
+  // licenceMap: { [employeeId]: 'valid'|'expiring'|'expired'|'missing' }
+  const [licenceMap, setLicenceMap] = useState({});
+
+  // Staffing rules (Feature 7.2)
+  const [staffingRules, setStaffingRules] = useState([]);
+  // Publish block modal state
+  const [publishGate, setPublishGate] = useState(null); // { violations } or null
+
   const initialLoadDone = useRef(false);
 
   const rYear  = rosterMonth.getFullYear();
-  const rMonth = rosterMonth.getMonth() + 1; // 1-indexed
+  const rMonth = rosterMonth.getMonth() + 1;
 
-  // ── data loading ────────────────────────────────────────────────────────────
+  // ── data loading ─────────────────────────────────────────────────────────────
 
   useEffect(() => { loadAll(); }, []);
 
@@ -91,16 +215,38 @@ export default function RosterManager() {
   async function loadAll() {
     setLoading(true);
     try {
-      const [emps, shfts, swapReqs, roster] = await Promise.all([
+      const [emps, shfts, swapReqs, roster, allDocs, deptRules] = await Promise.all([
         getEmployees(),
         getShifts(),
         getShiftSwapRequests().catch(() => []),
         getRosterForMonth(rYear, rMonth).catch(() => []),
+        getAllEmployeeDocuments().catch(() => []),
+        getDeptStaffingRules().catch(() => []),
       ]);
-      setEmployees(emps.filter(e => e.employmentStatus !== 'Terminated'));
+      setStaffingRules(deptRules);
+      const activeEmps = emps.filter(e => e.employmentStatus !== 'Terminated');
+      setEmployees(activeEmps);
       setShifts(shfts);
       setSwaps(swapReqs);
       buildRosterMap(roster);
+
+      // Build licence compliance map (Feature 7.1)
+      const PRIMARY_LICENCES = new Set(['DHA Licence', 'DOH Licence', 'MOH Licence']);
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const soon  = new Date(today); soon.setDate(soon.getDate() + 30);
+      const map = {};
+      for (const emp of activeEmps) {
+        const empDocs = allDocs.filter(d =>
+          d.employeeId === emp.id && PRIMARY_LICENCES.has(d.documentType)
+        );
+        if (!empDocs.length) { map[emp.id] = 'missing'; continue; }
+        const validDocs    = empDocs.filter(d => !d.expiryDate || new Date(d.expiryDate) > today);
+        const expiringDocs = validDocs.filter(d => d.expiryDate && new Date(d.expiryDate) <= soon);
+        if (!validDocs.length) map[emp.id] = 'expired';
+        else if (expiringDocs.length) map[emp.id] = 'expiring';
+        else map[emp.id] = 'valid';
+      }
+      setLicenceMap(map);
     } catch (err) {
       showMsg('danger', 'Load failed: ' + err.message);
     } finally {
@@ -120,9 +266,7 @@ export default function RosterManager() {
 
   function buildRosterMap(assignments) {
     const map = {};
-    for (const a of assignments) {
-      map[`${a.employeeId}_${a.date}`] = a;
-    }
+    for (const a of assignments) map[`${a.employeeId}_${a.date}`] = a;
     setRosterData(map);
   }
 
@@ -170,7 +314,13 @@ export default function RosterManager() {
         await deleteRosterAssignment(empId, dateStr);
         setRosterData(prev => { const n = { ...prev }; delete n[cellKey]; return n; });
       } else {
-        const saved = await saveRosterAssignment({ employeeId: empId, shiftId, date: dateStr });
+        const sh = shifts.find(s => s.id === shiftId);
+        const saved = await saveRosterAssignment({
+          employeeId:   empId,
+          shiftId,
+          date:         dateStr,
+          plannedHours: sh?.expectedHours ?? null,
+        });
         setRosterData(prev => ({ ...prev, [cellKey]: saved }));
       }
     } catch (err) {
@@ -181,14 +331,48 @@ export default function RosterManager() {
   }
 
   async function handlePublish() {
-    if (!window.confirm(
-      `Publish roster for ${rosterMonth.toLocaleString('en-AE', { month: 'long', year: 'numeric' })}?\n\n` +
-      `Employees will be able to see their schedule in the portal.`
-    )) return;
+    // Feature 7.2 — staffing compliance check before publish
+    if (staffingRules.length > 0) {
+      const violations = [];
+      const daysInMonth = new Date(rYear, rMonth, 0).getDate();
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = `${rYear}-${pad2(rMonth)}-${pad2(d)}`;
+        for (const rule of staffingRules) {
+          // Count assigned employees in this department + shift_category on this date
+          const count = Object.entries(rosterData).filter(([empId, byDate]) => {
+            const assignment = byDate[dateStr];
+            if (!assignment || !assignment.shiftId) return false;
+            const emp = employees.find(e => e.id === empId);
+            if (!emp || emp.department !== rule.department) return false;
+            const shift = shifts.find(s => s.id === assignment.shiftId);
+            return shift?.shiftCategory === rule.shiftCategory;
+          }).length;
+          if (count < rule.minStaff) {
+            violations.push({ date: dateStr, department: rule.department, shiftCategory: rule.shiftCategory, required: rule.minStaff, actual: count });
+          }
+        }
+      }
+      if (violations.length > 0) {
+        setPublishGate({ violations });
+        return;
+      }
+    }
+    await doPublish();
+  }
+
+  async function doPublish(overrideReason) {
     setPublishing(true);
     try {
+      if (overrideReason) {
+        await saveComplianceOverride({
+          overrideType: 'roster_publish',
+          employeeIds:  null,
+          reason:       overrideReason,
+        }).catch(() => {});
+      }
       await publishRoster(rYear, rMonth);
       await loadRoster();
+      setPublishGate(null);
       showMsg('success', 'Roster published — employees can now view their schedule.');
     } catch (err) {
       showMsg('danger', 'Failed to publish roster: ' + err.message);
@@ -212,15 +396,56 @@ export default function RosterManager() {
     }
   }
 
-  // ── derived ──────────────────────────────────────────────────────────────────
+  // ── derived values ───────────────────────────────────────────────────────────
 
-  const daysInMonth      = new Date(rYear, rMonth, 0).getDate();
-  const departments      = [...new Set(employees.map(e => e.department).filter(Boolean))].sort();
+  const daysInMonth       = new Date(rYear, rMonth, 0).getDate();
+  const departments       = [...new Set(employees.map(e => e.department).filter(Boolean))].sort();
   const filteredEmployees = rosterDeptFilter
     ? employees.filter(e => e.department === rosterDeptFilter)
     : employees;
-  const pendingSwaps     = swaps.filter(s => s.status === 'pending');
+  const pendingSwaps    = swaps.filter(s => s.status === 'pending');
   const monthIsPublished = Object.values(rosterData).some(a => a.published);
+
+  function getEmpPlannedHours(empId) {
+    let total = 0;
+    for (let d = 1; d <= daysInMonth; d++) {
+      const key = `${empId}_${rYear}-${pad2(rMonth)}-${pad2(d)}`;
+      const a   = rosterData[key];
+      if (a) {
+        const sh = shifts.find(s => s.id === a.shiftId);
+        total += a.plannedHours ?? sh?.expectedHours ?? 0;
+      }
+    }
+    return parseFloat(total.toFixed(1));
+  }
+
+  function getDayStats(day) {
+    const dateStr = `${rYear}-${pad2(rMonth)}-${pad2(day)}`;
+    let morning = 0, afternoon = 0, night = 0, off = 0;
+    for (const emp of filteredEmployees) {
+      const a = rosterData[`${emp.id}_${dateStr}`];
+      if (!a) { off++; continue; }
+      const sh  = shifts.find(s => s.id === a.shiftId);
+      const cat = sh?.shiftCategory || 'flexible';
+      if (cat === 'morning' || cat === 'flexible') morning++;
+      else if (cat === 'afternoon') afternoon++;
+      else if (cat === 'night') night++;
+    }
+    return { morning, afternoon, night, off };
+  }
+
+  // Returns true when dateStr is before the employee's first working day this month
+  function isBeforeJoin(emp, dateStr) {
+    const joinDate = (emp.joiningDate || emp.hireDate || '').substring(0, 10);
+    if (!joinDate) return false;
+    return dateStr < joinDate;
+  }
+
+  // Returns true when dateStr is the employee's exact join date and it's in this month
+  function isJoinDay(emp, dateStr) {
+    const joinDate = (emp.joiningDate || emp.hireDate || '').substring(0, 10);
+    return joinDate === dateStr;
+  }
 
   const TABS = [
     { id: 'templates', label: 'Shift Templates' },
@@ -295,6 +520,36 @@ export default function RosterManager() {
                     </div>
 
                     <div className="form-group">
+                      <label>
+                        Short Code
+                        <span style={{ fontWeight: 400, color: 'var(--gray-400)', fontSize: 11, marginLeft: 4 }}>
+                          (shown in grid, e.g. D, N, M)
+                        </span>
+                      </label>
+                      <input
+                        className="form-control"
+                        value={shiftForm.code}
+                        onChange={e => setShiftForm(p => ({ ...p, code: e.target.value.toUpperCase().slice(0, 3) }))}
+                        placeholder="D"
+                        maxLength={3}
+                        style={{ fontFamily: 'monospace', fontWeight: 700, letterSpacing: 1 }}
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>Category</label>
+                      <select
+                        className="form-control"
+                        value={shiftForm.shiftCategory}
+                        onChange={e => setShiftForm(p => ({ ...p, shiftCategory: e.target.value }))}
+                      >
+                        {SHIFT_CATEGORIES.map(c => (
+                          <option key={c.value} value={c.value}>{c.label}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="form-group">
                       <label>Color</label>
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                         {PALETTE.map(c => (
@@ -362,6 +617,15 @@ export default function RosterManager() {
                     </div>
 
                     <div className="form-group">
+                      <label>Min Staff Required <span style={{ fontWeight: 400, color: 'var(--gray-400)', fontSize: 11 }}>(Feature 7.2)</span></label>
+                      <input
+                        className="form-control" type="number" min={1} max={50}
+                        value={shiftForm.minStaff}
+                        onChange={e => setShiftForm(p => ({ ...p, minStaff: parseInt(e.target.value) || 1 }))}
+                      />
+                    </div>
+
+                    <div className="form-group">
                       <label>Late Grace (minutes)</label>
                       <input
                         className="form-control" type="number" min={0} max={60}
@@ -408,6 +672,8 @@ export default function RosterManager() {
                       <tr>
                         <th style={{ width: 30 }}>Color</th>
                         <th>Name</th>
+                        <th>Code</th>
+                        <th>Category</th>
                         <th>Start</th>
                         <th>End</th>
                         <th>Break</th>
@@ -424,6 +690,32 @@ export default function RosterManager() {
                             <div style={{ width: 18, height: 18, borderRadius: 4, background: s.color || '#6366f1' }} />
                           </td>
                           <td style={{ fontWeight: 600 }}>{s.name}</td>
+                          <td>
+                            {s.code ? (
+                              <span style={{
+                                fontFamily: 'monospace', fontWeight: 700, fontSize: 12,
+                                background: (s.color || '#6366f1') + '22',
+                                color: s.color || '#6366f1',
+                                padding: '2px 7px', borderRadius: 4,
+                                border: `1px solid ${(s.color || '#6366f1')}44`,
+                              }}>
+                                {s.code}
+                              </span>
+                            ) : <span style={{ color: 'var(--gray-300)' }}>—</span>}
+                          </td>
+                          <td style={{ fontSize: 12 }}>
+                            {s.shiftCategory ? (
+                              <span style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 4,
+                                fontSize: 11, padding: '2px 7px', borderRadius: 10,
+                                background: CATEGORY_COLORS[s.shiftCategory] + '18',
+                                color: CATEGORY_COLORS[s.shiftCategory],
+                                border: `1px solid ${CATEGORY_COLORS[s.shiftCategory]}33`,
+                              }}>
+                                {SHIFT_CATEGORIES.find(c => c.value === s.shiftCategory)?.label || s.shiftCategory}
+                              </span>
+                            ) : '—'}
+                          </td>
                           <td>{fmtTime(s.startTime)}</td>
                           <td>{fmtTime(s.endTime)}</td>
                           <td>{s.breakMinutes} min</td>
@@ -483,6 +775,18 @@ export default function RosterManager() {
                   </select>
                 )}
                 <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => exportRosterCsv({
+                    year: rYear, month: rMonth, daysInMonth,
+                    employees: filteredEmployees, shifts, rosterData, rosterMonth,
+                  })}
+                  disabled={filteredEmployees.length === 0}
+                  title="Export duty rota as CSV"
+                  style={{ display: 'flex', alignItems: 'center', gap: 5 }}
+                >
+                  <Download size={13} /> Export CSV
+                </button>
+                <button
                   className="btn btn-primary btn-sm"
                   onClick={handlePublish}
                   disabled={publishing || Object.keys(rosterData).length === 0}
@@ -492,6 +796,39 @@ export default function RosterManager() {
                 </button>
               </div>
             </div>
+
+            {/* Feature 7.1 — Licence compliance warning banner */}
+            {(() => {
+              const nonCompliant = filteredEmployees.filter(e =>
+                licenceMap[e.id] === 'expired' || licenceMap[e.id] === 'missing'
+              );
+              const expiring = filteredEmployees.filter(e => licenceMap[e.id] === 'expiring');
+              if (!nonCompliant.length && !expiring.length) return null;
+              return (
+                <div style={{
+                  border: '1px solid #fde68a', borderRadius: 8,
+                  background: '#fffbeb', padding: '10px 14px', marginBottom: 12,
+                  fontSize: 12,
+                }}>
+                  <strong style={{ color: '#92400e' }}>⚠ Licence Compliance Alerts</strong>
+                  {nonCompliant.length > 0 && (
+                    <div style={{ marginTop: 4, color: '#991b1b' }}>
+                      <strong>Expired / Missing licence:</strong>{' '}
+                      {nonCompliant.map(e => e.name).join(', ')}
+                    </div>
+                  )}
+                  {expiring.length > 0 && (
+                    <div style={{ marginTop: 4, color: '#92400e' }}>
+                      <strong>Expiring within 30 days:</strong>{' '}
+                      {expiring.map(e => e.name).join(', ')}
+                    </div>
+                  )}
+                  <div style={{ color: 'var(--gray-500)', marginTop: 4 }}>
+                    Requires a valid DHA, DOH, or MOH licence. Verify in the Employees → Documents tab.
+                  </div>
+                </div>
+              );
+            })()}
 
             {shifts.length === 0 ? (
               <div className="empty-state">
@@ -517,90 +854,280 @@ export default function RosterManager() {
                       }}>
                         Employee
                       </th>
+                      {/* Day columns */}
                       {Array.from({ length: daysInMonth }).map((_, i) => {
                         const day = i + 1;
                         const dow = new Date(`${rYear}-${pad2(rMonth)}-${pad2(day)}`).toLocaleString('en-AE', { weekday: 'short' });
                         const isWeekend = dow === 'Fri' || dow === 'Sat';
                         return (
                           <th key={day} style={{
-                            padding: '4px 2px', textAlign: 'center',
-                            minWidth: 70, width: 70,
+                            padding: '4px 1px', textAlign: 'center',
+                            minWidth: 40, width: 40,
                             borderRight: '1px solid var(--gray-100)',
                             borderBottom: '1px solid var(--gray-200)',
                             background: isWeekend ? '#f1f5f9' : 'var(--gray-50)',
                             color: isWeekend ? 'var(--gray-400)' : 'var(--gray-500)',
                           }}>
-                            <div style={{ fontWeight: 700, fontSize: 12 }}>{day}</div>
+                            <div style={{ fontWeight: 700, fontSize: 11 }}>{day}</div>
                             <div style={{ fontSize: 9 }}>{dow}</div>
                           </th>
                         );
                       })}
+                      {/* Totals column */}
+                      <th style={{
+                        padding: '8px 10px', textAlign: 'center',
+                        minWidth: 60, borderLeft: '2px solid var(--gray-200)',
+                        borderBottom: '1px solid var(--gray-200)',
+                        background: 'var(--gray-50)', fontWeight: 700, fontSize: 11,
+                        color: 'var(--primary)',
+                      }}>
+                        Total Hrs
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredEmployees.map(emp => (
-                      <tr key={emp.id} style={{ borderBottom: '1px solid var(--gray-100)' }}>
-                        <td style={{
-                          padding: '6px 12px', fontWeight: 500,
-                          position: 'sticky', left: 0, zIndex: 1,
-                          background: 'white', borderRight: '2px solid var(--gray-200)',
-                        }}>
-                          <div style={{ maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12 }}>
-                            {emp.name}
-                          </div>
-                          {emp.department && (
-                            <div style={{ fontSize: 10, color: 'var(--gray-400)' }}>{emp.department}</div>
-                          )}
-                        </td>
-                        {Array.from({ length: daysInMonth }).map((_, i) => {
-                          const day      = i + 1;
-                          const dateStr  = `${rYear}-${pad2(rMonth)}-${pad2(day)}`;
-                          const cellKey  = `${emp.id}_${dateStr}`;
-                          const assignment = rosterData[cellKey];
-                          const sh       = assignment ? shifts.find(s => s.id === assignment.shiftId) : null;
-                          const dow      = new Date(dateStr).toLocaleString('en-AE', { weekday: 'short' });
-                          const isWeekend = dow === 'Fri' || dow === 'Sat';
-                          const isSaving = savingCell === cellKey;
+                    {filteredEmployees.map(emp => {
+                      const totalHrs = getEmpPlannedHours(emp.id);
+                      return (
+                        <tr key={emp.id} style={{ borderBottom: '1px solid var(--gray-100)' }}>
+                          {/* Sticky name cell */}
+                          <td style={{
+                            padding: '6px 12px', fontWeight: 500,
+                            position: 'sticky', left: 0, zIndex: 1,
+                            background: 'white', borderRight: '2px solid var(--gray-200)',
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <div style={{ maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12 }}>
+                                {emp.name}
+                              </div>
+                              {/* Feature 7.1 — Licence compliance badge */}
+                              {(() => {
+                                const ls = licenceMap[emp.id];
+                                if (!ls || ls === 'valid') return null;
+                                const cfg = {
+                                  expired:  { bg: '#fee2e2', color: '#991b1b', title: 'Clinical licence EXPIRED', dot: '✗' },
+                                  expiring: { bg: '#fef3c7', color: '#92400e', title: 'Licence expiring in ≤30d',  dot: '!' },
+                                  missing:  { bg: '#fee2e2', color: '#991b1b', title: 'No DHA/DOH/MOH licence on file', dot: '?' },
+                                }[ls];
+                                return (
+                                  <span title={cfg.title} style={{
+                                    fontSize: 9, fontWeight: 700, lineHeight: 1,
+                                    background: cfg.bg, color: cfg.color,
+                                    borderRadius: 3, padding: '1px 4px', flexShrink: 0,
+                                  }}>{cfg.dot}</span>
+                                );
+                              })()}
+                            </div>
+                            {emp.department && (
+                              <div style={{ fontSize: 10, color: 'var(--gray-400)' }}>{emp.department}</div>
+                            )}
+                          </td>
 
-                          return (
-                            <td key={day} style={{
-                              padding: '3px 2px', textAlign: 'center',
-                              borderRight: '1px solid var(--gray-100)',
-                              background: isWeekend ? '#f8fafc' : 'white',
-                            }}>
-                              <select
-                                value={assignment?.shiftId || ''}
-                                disabled={isSaving}
-                                onChange={e => handleCellChange(emp.id, dateStr, e.target.value)}
-                                title={sh
-                                  ? `${sh.name}: ${fmtTime(sh.startTime)}–${fmtTime(sh.endTime)}${assignment?.published ? ' ✓' : ''}`
-                                  : 'Click to assign a shift'}
-                                style={{
-                                  width: 66, height: 26, fontSize: 10,
-                                  borderRadius: 5, padding: '0 2px',
-                                  border: `2px solid ${sh ? sh.color : 'var(--gray-200)'}`,
-                                  background: sh ? sh.color + '22' : 'transparent',
-                                  color: sh ? sh.color : 'var(--gray-400)',
-                                  fontWeight: sh ? 700 : 400,
-                                  cursor: isSaving ? 'wait' : 'pointer',
-                                  opacity: isSaving ? 0.5 : 1,
-                                  textAlign: 'center',
-                                  textAlignLast: 'center',
+                          {/* Day cells */}
+                          {Array.from({ length: daysInMonth }).map((_, i) => {
+                            const day        = i + 1;
+                            const dateStr    = `${rYear}-${pad2(rMonth)}-${pad2(day)}`;
+                            const cellKey    = `${emp.id}_${dateStr}`;
+                            const assignment = rosterData[cellKey];
+                            const sh         = assignment ? shifts.find(s => s.id === assignment.shiftId) : null;
+                            const dow        = new Date(dateStr).toLocaleString('en-AE', { weekday: 'short' });
+                            const isWeekend  = dow === 'Fri' || dow === 'Sat';
+                            const isSaving   = savingCell === cellKey;
+                            const beforeJoin = isBeforeJoin(emp, dateStr);
+                            const joinDay    = isJoinDay(emp, dateStr);
+
+                            return (
+                              <td key={day} style={{
+                                padding: '2px 1px', textAlign: 'center',
+                                borderRight: '1px solid var(--gray-100)',
+                                background: beforeJoin
+                                  ? '#f1f5f9'
+                                  : isWeekend ? '#fafbfc' : 'white',
+                                opacity: beforeJoin ? 0.4 : 1,
+                              }}>
+                                {beforeJoin ? (
+                                  <span style={{ fontSize: 9, color: 'var(--gray-300)' }}>–</span>
+                                ) : (
+                                  <>
+                                    <select
+                                      value={assignment?.shiftId || ''}
+                                      disabled={isSaving}
+                                      onChange={e => handleCellChange(emp.id, dateStr, e.target.value)}
+                                      title={sh
+                                        ? `${sh.name} (${sh.code || ''}) ${fmtTime(sh.startTime)}–${fmtTime(sh.endTime)}${assignment?.published ? ' ✓ published' : ''}`
+                                        : 'Click to assign a shift'}
+                                      style={{
+                                        width: 38, height: 26, fontSize: 11,
+                                        borderRadius: 5, padding: '0 1px',
+                                        border: `2px solid ${sh ? sh.color : 'var(--gray-200)'}`,
+                                        background: sh ? sh.color + '22' : 'transparent',
+                                        color: sh ? sh.color : 'var(--gray-400)',
+                                        fontWeight: sh ? 700 : 400,
+                                        fontFamily: 'monospace',
+                                        cursor: isSaving ? 'wait' : 'pointer',
+                                        opacity: isSaving ? 0.5 : 1,
+                                        textAlign: 'center',
+                                        textAlignLast: 'center',
+                                      }}
+                                    >
+                                      <option value="">—</option>
+                                      {shifts.map(s => (
+                                        <option key={s.id} value={s.id}>
+                                          {s.code || s.name.substring(0, 3).toUpperCase()}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    {joinDay && (
+                                      <div style={{ fontSize: 8, color: 'var(--success)', lineHeight: 1, marginTop: 1 }}>
+                                        joined
+                                      </div>
+                                    )}
+                                    {assignment?.published && !joinDay && (
+                                      <div style={{ fontSize: 8, color: 'var(--success)', lineHeight: 1, marginTop: 1 }}>✓</div>
+                                    )}
+                                  </>
+                                )}
+                              </td>
+                            );
+                          })}
+
+                          {/* Totals cell */}
+                          <td style={{
+                            textAlign: 'center', fontWeight: 600, fontSize: 12,
+                            borderLeft: '2px solid var(--gray-200)',
+                            color: totalHrs > 0 ? 'var(--primary)' : 'var(--gray-300)',
+                            padding: '0 10px',
+                          }}>
+                            {totalHrs > 0 ? `${totalHrs}h` : '—'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                    {/* ── Summary footer rows ── */}
+                    {filteredEmployees.length > 0 && (
+                      <>
+                        <tr style={{ borderTop: '2px solid var(--gray-200)', background: 'rgba(245,158,11,0.06)' }}>
+                          <td style={{
+                            padding: '4px 12px', fontSize: 10, fontWeight: 700,
+                            color: CATEGORY_COLORS.morning,
+                            position: 'sticky', left: 0, zIndex: 1,
+                            background: 'rgba(245,158,11,0.06)',
+                            borderRight: '2px solid var(--gray-200)',
+                          }}>
+                            ☀ Morning
+                          </td>
+                          {(() => {
+                            const minMorning = Math.max(0, ...shifts.filter(s => s.shiftCategory === 'morning').map(s => s.minStaff || 1));
+                            return Array.from({ length: daysInMonth }).map((_, i) => {
+                              const day = i + 1;
+                              const { morning } = getDayStats(day);
+                              const understaffed = morning > 0 && minMorning > 1 && morning < minMorning;
+                              return (
+                                <td key={day} style={{
+                                  textAlign: 'center', fontSize: 10, fontWeight: 600,
+                                  color: understaffed ? '#dc2626' : morning > 0 ? CATEGORY_COLORS.morning : 'var(--gray-300)',
+                                  background: understaffed ? '#fee2e2' : undefined,
+                                  borderRight: '1px solid var(--gray-100)',
                                 }}
+                                  title={understaffed ? `Below minimum ${minMorning} staff` : undefined}
+                                >
+                                  {morning || ''}
+                                </td>
+                              );
+                            });
+                          })()}
+                          <td style={{ borderLeft: '2px solid var(--gray-200)' }} />
+                        </tr>
+                        <tr style={{ background: 'rgba(6,182,212,0.05)' }}>
+                          <td style={{
+                            padding: '4px 12px', fontSize: 10, fontWeight: 700,
+                            color: CATEGORY_COLORS.afternoon,
+                            position: 'sticky', left: 0, zIndex: 1,
+                            background: 'rgba(6,182,212,0.05)',
+                            borderRight: '2px solid var(--gray-200)',
+                          }}>
+                            🌤 Afternoon
+                          </td>
+                          {Array.from({ length: daysInMonth }).map((_, i) => {
+                            const day = i + 1;
+                            const { afternoon } = getDayStats(day);
+                            const minAft = Math.max(0, ...shifts.filter(s => s.shiftCategory === 'afternoon').map(s => s.minStaff || 1));
+                            const underAft = afternoon > 0 && minAft > 1 && afternoon < minAft;
+                            return (
+                              <td key={day} style={{
+                                textAlign: 'center', fontSize: 10, fontWeight: 600,
+                                color: underAft ? '#dc2626' : afternoon > 0 ? CATEGORY_COLORS.afternoon : 'var(--gray-300)',
+                                background: underAft ? '#fee2e2' : undefined,
+                                borderRight: '1px solid var(--gray-100)',
+                              }}
+                                title={underAft ? `Below minimum ${minAft} staff` : undefined}
                               >
-                                <option value="">—</option>
-                                {shifts.map(s => (
-                                  <option key={s.id} value={s.id}>{s.name}</option>
-                                ))}
-                              </select>
-                              {assignment?.published && (
-                                <div style={{ fontSize: 8, color: 'var(--success)', lineHeight: 1 }}>✓ pub</div>
-                              )}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
+                                {afternoon || ''}
+                              </td>
+                            );
+                          })}
+                          <td style={{ borderLeft: '2px solid var(--gray-200)' }} />
+                        </tr>
+                        <tr style={{ background: 'rgba(99,102,241,0.05)' }}>
+                          <td style={{
+                            padding: '4px 12px', fontSize: 10, fontWeight: 700,
+                            color: CATEGORY_COLORS.night,
+                            position: 'sticky', left: 0, zIndex: 1,
+                            background: 'rgba(99,102,241,0.05)',
+                            borderRight: '2px solid var(--gray-200)',
+                          }}>
+                            🌙 Night
+                          </td>
+                          {(() => {
+                            const minNight = Math.max(0, ...shifts.filter(s => s.shiftCategory === 'night').map(s => s.minStaff || 1));
+                            return Array.from({ length: daysInMonth }).map((_, i) => {
+                              const day = i + 1;
+                              const { night } = getDayStats(day);
+                              const underNight = night > 0 && minNight > 1 && night < minNight;
+                              return (
+                                <td key={day} style={{
+                                  textAlign: 'center', fontSize: 10, fontWeight: 600,
+                                  color: underNight ? '#dc2626' : night > 0 ? CATEGORY_COLORS.night : 'var(--gray-300)',
+                                  background: underNight ? '#fee2e2' : undefined,
+                                  borderRight: '1px solid var(--gray-100)',
+                                }}
+                                  title={underNight ? `Below minimum ${minNight} staff` : undefined}
+                                >
+                                  {night || ''}
+                                </td>
+                              );
+                            });
+                          })()}
+                          <td style={{ borderLeft: '2px solid var(--gray-200)' }} />
+                        </tr>
+                        <tr style={{ background: 'var(--gray-50)' }}>
+                          <td style={{
+                            padding: '4px 12px', fontSize: 10, fontWeight: 700,
+                            color: 'var(--gray-400)',
+                            position: 'sticky', left: 0, zIndex: 1,
+                            background: 'var(--gray-50)',
+                            borderRight: '2px solid var(--gray-200)',
+                          }}>
+                            ○ Unassigned
+                          </td>
+                          {Array.from({ length: daysInMonth }).map((_, i) => {
+                            const day = i + 1;
+                            const { off } = getDayStats(day);
+                            return (
+                              <td key={day} style={{
+                                textAlign: 'center', fontSize: 10, fontWeight: 600,
+                                color: off > 0 ? 'var(--danger)' : 'var(--gray-300)',
+                                borderRight: '1px solid var(--gray-100)',
+                              }}>
+                                {off || ''}
+                              </td>
+                            );
+                          })}
+                          <td style={{ borderLeft: '2px solid var(--gray-200)' }} />
+                        </tr>
+                      </>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -614,12 +1141,19 @@ export default function RosterManager() {
               }}>
                 {shifts.map(s => (
                   <span key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--gray-600)' }}>
-                    <span style={{ width: 10, height: 10, borderRadius: 2, background: s.color, display: 'inline-block' }} />
+                    <span style={{
+                      fontFamily: 'monospace', fontWeight: 700, fontSize: 11,
+                      background: (s.color || '#6366f1') + '22', color: s.color || '#6366f1',
+                      padding: '1px 5px', borderRadius: 3,
+                      border: `1px solid ${(s.color || '#6366f1')}44`,
+                    }}>
+                      {s.code || s.name.substring(0, 2).toUpperCase()}
+                    </span>
                     {s.name} {s.startTime ? `(${fmtTime(s.startTime)}–${fmtTime(s.endTime)})` : ''}
                   </span>
                 ))}
                 <span style={{ fontSize: 11, color: 'var(--gray-400)' }}>
-                  "—" = not assigned · ✓ pub = published to portal
+                  "—" = unassigned · ✓ = published · grey = before hire date
                 </span>
               </div>
             )}
@@ -679,22 +1213,20 @@ export default function RosterManager() {
                           <td className="text-muted text-sm">{sw.createdAt?.split('T')[0] || '—'}</td>
                           <td>
                             {sw.status === 'pending' && (
-                              <div style={{ display: 'flex', gap: 4 }}>
+                              <div style={{ display: 'flex', gap: 6 }}>
                                 <button
-                                  className="btn btn-success btn-sm"
-                                  disabled={swapSaving === sw.id}
+                                  className="btn btn-primary btn-sm"
                                   onClick={() => handleSwapUpdate(sw.id, 'approved')}
-                                  title="Approve swap"
+                                  disabled={swapSaving === sw.id}
                                 >
-                                  <Check size={13} />
+                                  <Check size={12} />
                                 </button>
                                 <button
-                                  className="btn btn-danger btn-sm"
-                                  disabled={swapSaving === sw.id}
+                                  className="btn btn-ghost btn-sm text-danger"
                                   onClick={() => handleSwapUpdate(sw.id, 'rejected')}
-                                  title="Reject swap"
+                                  disabled={swapSaving === sw.id}
                                 >
-                                  <X size={13} />
+                                  <X size={12} />
                                 </button>
                               </div>
                             )}
@@ -709,6 +1241,70 @@ export default function RosterManager() {
           </div>
         )}
       </div>
+
+      {/* Feature 7.2 — Publish staffing compliance gate */}
+      {publishGate && (
+        <div className="modal-overlay" style={{ zIndex: 2000 }}>
+          <div className="modal" style={{ maxWidth: 560 }}>
+            <div className="modal-header" style={{ background: '#fff5f5', borderBottom: '1px solid #fecaca' }}>
+              <h3 style={{ color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <AlertCircle size={18} /> Staffing Below Minimum
+              </h3>
+            </div>
+            <div className="modal-body">
+              <p style={{ color: 'var(--gray-700)', marginBottom: 12 }}>
+                The roster has <strong>{publishGate.violations.length} date/shift combinations</strong> below the required minimum staff.
+                Publishing will make this visible to employees.
+              </p>
+                <div style={{ maxHeight: 240, overflowY: 'auto', marginBottom: 16 }}>
+                  <table className="table">
+                    <thead><tr><th>Date</th><th>Department</th><th>Shift</th><th>Required</th><th>Assigned</th></tr></thead>
+                    <tbody>
+                      {publishGate.violations.slice(0, 30).map((v, i) => (
+                        <tr key={i} style={{ background: '#fff5f5' }}>
+                          <td style={{ fontSize: 13 }}>{v.date}</td>
+                          <td style={{ fontWeight: 500 }}>{v.department}</td>
+                          <td>{CATEGORY_LABELS[v.shiftCategory] || v.shiftCategory}</td>
+                          <td><span className="badge badge-blue">{v.required}</span></td>
+                          <td><span className="badge badge-red">{v.actual}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {publishGate.violations.length > 30 && (
+                    <p style={{ fontSize: 12, color: 'var(--gray-400)', textAlign: 'center', margin: '8px 0 0' }}>
+                      …and {publishGate.violations.length - 30} more violations
+                    </p>
+                  )}
+                </div>
+                <div className="form-group">
+                  <label style={{ color: 'var(--danger)', fontWeight: 600 }}>
+                    Override Reason (required to publish despite violations)
+                  </label>
+                  <textarea
+                    className="form-control"
+                    rows={3}
+                    value={publishGate.overrideReason || ''}
+                    onChange={e => setPublishGate(prev => ({ ...prev, overrideReason: e.target.value }))}
+                    placeholder="State the operational reason for publishing below minimum staffing (min 10 characters)…"
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-outline" onClick={() => setPublishGate(null)}>
+                  Cancel — Fix Staffing
+                </button>
+                <button
+                  className="btn btn-danger"
+                  onClick={() => doPublish(publishGate.overrideReason)}
+                  disabled={publishing || !publishGate.overrideReason || publishGate.overrideReason.trim().length < 10}
+                >
+                  <Send size={14} /> {publishing ? 'Publishing…' : 'Override & Publish'}
+                </button>
+              </div>
+            </div>
+          </div>
+      )}
     </div>
   );
 }

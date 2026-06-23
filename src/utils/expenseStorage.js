@@ -28,22 +28,25 @@ async function getSessionUser() {
 // ── Shape converter ───────────────────────────────────────────────────────────
 function dbToExpense(row) {
   return {
-    id:              row.id,
-    userId:          row.user_id,
-    employeeId:      row.employee_id,
-    category:        row.category,
-    amount:          parseFloat(row.amount) || 0,
-    expenseDate:     row.expense_date,
-    description:     row.description,
-    receiptUrl:      row.receipt_url,
-    status:          row.status,
-    rejectionReason: row.rejection_reason,
-    payrollRunId:    row.payroll_run_id,
-    approvedBy:      row.approved_by,
-    approvedAt:      row.approved_at,
-    createdAt:       row.created_at,
+    id:                     row.id,
+    userId:                 row.user_id,
+    employeeId:             row.employee_id,
+    category:               row.category,
+    amount:                 parseFloat(row.amount) || 0,
+    expenseDate:            row.expense_date,
+    description:            row.description,
+    receiptUrl:             row.receipt_url,
+    status:                 row.status,
+    rejectionReason:        row.rejection_reason,
+    payrollRunId:           row.payroll_run_id,
+    approvedBy:             row.approved_by,
+    approvedAt:             row.approved_at,
+    createdAt:              row.created_at,
+    managerApprovedAt:      row.manager_approved_at ?? null,
+    managerApprovedBy:      row.manager_approved_by ?? '',
+    managerRejectionReason: row.manager_rejection_reason ?? '',
     // Joined employee name (when .select includes employees)
-    employeeName:    row.employees?.name ?? null,
+    employeeName:           row.employees?.name ?? null,
   };
 }
 
@@ -179,4 +182,39 @@ export async function getExpenseReceiptUrl(storagePath) {
     .createSignedUrl(storagePath, 3600);
   if (error) return null;
   return data?.signedUrl ?? null;
+}
+
+// ── Manager functions (Feature 3.2: Multi-Level Expense Approvals) ────────────
+
+/**
+ * Manager: fetch all expense claims from direct reports.
+ * Uses manager_get_expense_queue SECURITY DEFINER RPC (crosses RLS boundary).
+ */
+export async function getExpenseQueueForManager() {
+  const { data, error } = await supabase.rpc('manager_get_expense_queue');
+  if (error) { console.error('getExpenseQueueForManager:', error); return []; }
+  return (data || []).map(dbToExpense);
+}
+
+/**
+ * Manager: pre-approve a direct report's pending expense.
+ * Sets status → 'manager_approved'.
+ */
+export async function managerApproveExpense(expenseId) {
+  const { data, error } = await supabase.rpc('manager_approve_expense', { p_expense_id: expenseId });
+  if (error) throw error;
+  if (!data) throw new Error('Expense not found or already actioned.');
+}
+
+/**
+ * Manager: reject a direct report's pending or manager_approved expense.
+ * Sets status → 'manager_rejected'.
+ */
+export async function managerRejectExpense(expenseId, reason) {
+  const { data, error } = await supabase.rpc('manager_reject_expense', {
+    p_expense_id: expenseId,
+    p_reason:     reason || '',
+  });
+  if (error) throw error;
+  if (!data) throw new Error('Expense not found or already actioned.');
 }

@@ -109,7 +109,7 @@ test.describe('Emiratization — Dashboard panel', () => {
     // Two "View Report" buttons can exist (panel header + non-compliance alert) — .first() handles both.
     const viewReport   = page.getByRole('button', { name: /view report/i }).first();
     const sectorPrompt = page.locator('text=/set your sector/i');
-    await expect(viewReport.or(sectorPrompt)).toBeVisible({ timeout: 8000 });
+    await expect(viewReport.or(sectorPrompt).first()).toBeVisible({ timeout: 8000 });
   });
 });
 
