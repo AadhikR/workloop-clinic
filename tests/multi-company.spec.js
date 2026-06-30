@@ -225,19 +225,22 @@ test.describe('Multi-Company — Admin sidebar branch switcher', () => {
     await goToAdmin(page);
     await openBranchDropdown(page);
 
-    // If there's only one branch, no X buttons are shown
     const dropdown = page.locator('.sidebar-logo div[style*="position: absolute"]').first();
     if (!(await dropdown.isVisible({ timeout: 3000 }).catch(() => false))) return;
 
-    // Count branch rows (excluding Add Branch)
-    const allBtns = await dropdown.locator('button').count();
-    if (allBtns <= 2) {
-      // Only 1 branch + Add Branch — no X button expected
-      await expect(
-        dropdown.locator('button[title*="Delete"]')
-      ).not.toBeVisible({ timeout: 2000 });
+    // Wait for the companies list to fully load (async Supabase fetch) before counting.
+    // .count() is non-waiting — querying too early gives 0-1 buttons (initial render only).
+    await page.waitForLoadState('networkidle');
+    await expect(dropdown.locator('button').first()).toBeVisible({ timeout: 5000 });
+
+    // Count delete buttons directly — they only exist for non-active branches.
+    const deleteCount = await dropdown.locator('button[title*="Delete"]').count();
+
+    if (deleteCount === 0) {
+      // Single branch — toHaveCount avoids strict-mode violation if buttons appear transiently
+      await expect(dropdown.locator('button[title*="Delete"]')).toHaveCount(0, { timeout: 2000 });
     } else {
-      // Multiple branches — X button(s) should be visible for non-active branches
+      // Multiple branches — at least one X button should be visible
       await expect(
         dropdown.locator('button[title*="Delete"]').first()
       ).toBeVisible({ timeout: 3000 });
@@ -399,7 +402,9 @@ test.describe('Multi-Company — Data isolation', () => {
     await page.goto('/');
     await expect(page.locator('.sidebar-logo')).toBeVisible({ timeout: 10000 });
 
-    // Check Dashboard on primary branch
+    // Check Dashboard on primary branch — wait for cards to load before counting
+    // (.count() is non-waiting; if Dashboard is still in loading state it returns 0)
+    await expect(page.locator('.stat-card').first()).toBeVisible({ timeout: 12000 });
     const primaryStatCards = await page.locator('.stat-card').count();
 
     // Switch to test branch

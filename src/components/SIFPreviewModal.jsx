@@ -1,5 +1,6 @@
 import { X, Download, Info } from 'lucide-react';
 import { parseSIFPreview } from '../utils/sifGenerator';
+import { formatDateUAE } from '../utils/uaeValidators';
 
 export default function SIFPreviewModal({ sifContent, filename, onClose, onDownload }) {
   const lines = parseSIFPreview(sifContent);
@@ -58,7 +59,7 @@ export default function SIFPreviewModal({ sifContent, filename, onClose, onDownl
                     <td>{i + 1}</td>
                     <td className="font-mono text-sm">{l.molId}</td>
                     <td className="font-mono text-sm">{l.iban}</td>
-                    <td>{l.startDate} → {l.endDate}</td>
+                    <td>{formatDateUAE(l.startDate)} → {formatDateUAE(l.endDate)}</td>
                     <td>{l.days}</td>
                     <td className="text-right">{Number(l.basic).toLocaleString('en-AE')}</td>
                     <td className="text-right">{Number(l.allowance).toLocaleString('en-AE')}</td>

@@ -40,10 +40,13 @@ test.describe('Reports — HR Reporting & Analytics', () => {
     ).toBeVisible({ timeout: 6000 });
   });
 
-  test('Reports page loads and shows 7 tab buttons', async ({ page }) => {
+  test('Reports page loads and shows all 8 tab buttons', async ({ page }) => {
     await goToReports(page);
 
-    const tabLabels = ['Headcount', 'Payroll Cost', 'Leave Usage', 'Attendance', 'Doc Expiry', 'Salary History', 'Staff Turnover'];
+    const tabLabels = [
+      'Headcount', 'Payroll Cost', 'Leave Usage', 'Attendance',
+      'Doc Expiry', 'Salary History', 'Staff Turnover', 'Staffing Compliance',
+    ];
     for (const label of tabLabels) {
       // Scoped to .page-body to avoid matching sidebar nav buttons
       await expect(
@@ -139,5 +142,50 @@ test.describe('Reports — HR Reporting & Analytics', () => {
     // Use .stat-label scope to avoid matching "Avg. Tenure (Leavers)" card
     await expect(page.locator('.stat-card').filter({ has: page.locator('.stat-label', { hasText: /^Leavers$/i }) })).toBeVisible({ timeout: 5000 });
     await expect(page.locator('.page-body input[type="date"]').first()).toBeVisible({ timeout: 5000 });
+  });
+
+  // ── Staffing Compliance tab (Clinic 7.2) ─────────────────────────────────────
+
+  test('Staffing Compliance tab is present and renders', async ({ page }) => {
+    await goToReports(page);
+    await clickTab(page, 'Staffing Compliance');
+
+    // Either a compliance heatmap (if staffing rules exist) or an empty state
+    const heatmap = page.locator('.card, [class*="heatmap"], table').first();
+    const empty   = page.locator('text=/No staffing rules defined/i').first();
+    await expect(heatmap.or(empty).first()).toBeVisible({ timeout: 8000 });
+  });
+
+  test('Staffing Compliance tab shows month picker or empty state', async ({ page }) => {
+    await goToReports(page);
+    await clickTab(page, 'Staffing Compliance');
+
+    // Month picker renders only when staffing rules exist in department_staffing_rules.
+    // When no rules are defined, StaffingComplianceTab renders EmptyState (no month input).
+    // Accept either outcome — the tab itself is what we're testing, not the data dependency.
+    const monthPicker = page.locator('.page-body input[type="month"]').first();
+    const emptyState  = page.locator('text=/No staffing rules defined/i').first();
+    await expect(monthPicker.or(emptyState).first()).toBeVisible({ timeout: 6000 });
+  });
+
+  // ── Export functionality ──────────────────────────────────────────────────────
+
+  test('Headcount tab Export CSV triggers download', async ({ page }) => {
+    await goToReports(page);
+    // Listen for download event rather than checking file contents
+    const [download] = await Promise.all([
+      page.waitForEvent('download', { timeout: 8000 }),
+      page.locator('button').filter({ hasText: /Export CSV/i }).first().click(),
+    ]);
+    expect(download.suggestedFilename()).toMatch(/\.csv$/i);
+  });
+
+  test('Headcount tab Export PDF triggers download', async ({ page }) => {
+    await goToReports(page);
+    const [download] = await Promise.all([
+      page.waitForEvent('download', { timeout: 8000 }),
+      page.locator('button').filter({ hasText: /Export PDF/i }).first().click(),
+    ]);
+    expect(download.suggestedFilename()).toMatch(/\.pdf$/i);
   });
 });

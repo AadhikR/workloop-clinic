@@ -147,18 +147,30 @@ export async function getMyAppraisals() {
   }));
 }
 
-/** Returns appraisals for the calling manager's direct reports (uses manager RLS policy from 033). */
+/** Returns appraisals for the calling manager's direct reports (uses manager RLS policy from 033).
+ *  Joins employees(name, job_title) — requires policy from 035_manager_employee_read.sql.
+ *  Excludes the manager's own appraisal row, which is also visible via the employee self-read
+ *  policy and would otherwise leak into "Team Appraisals". */
 export async function getMyTeamAppraisals() {
-  const { data, error } = await supabase
+  // Get own employee_id so we can exclude our own appraisal from the team view
+  const { data: selfId } = await supabase.rpc('get_manager_employee_id');
+
+  let q = supabase
     .from('appraisals')
-    .select('*, appraisal_sections(*), appraisal_cycles(name, review_from, review_to)')
+    .select('*, appraisal_sections(*), appraisal_cycles(name, review_from, review_to), employees(name, job_title)')
     .order('created_at', { ascending: false });
+
+  if (selfId) q = q.neq('employee_id', selfId);
+
+  const { data, error } = await q;
   if (error) { console.error('getMyTeamAppraisals:', error); return []; }
   return (data || []).map(row => ({
     ...dbToAppraisal(row),
-    cycleName:  row.appraisal_cycles?.name,
-    reviewFrom: row.appraisal_cycles?.review_from,
-    reviewTo:   row.appraisal_cycles?.review_to,
+    cycleName:    row.appraisal_cycles?.name,
+    reviewFrom:   row.appraisal_cycles?.review_from,
+    reviewTo:     row.appraisal_cycles?.review_to,
+    employeeName: row.employees?.name     ?? null,
+    jobTitle:     row.employees?.job_title ?? null,
   }));
 }
 

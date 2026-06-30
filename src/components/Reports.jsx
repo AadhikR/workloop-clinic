@@ -16,6 +16,7 @@ import { getEmployees, getPayrolls, getAllEmployeeDocuments, getAllJobHistory } 
 import { getLeaveRequests } from '../utils/leaveStorage';
 import { getAttendanceRecords, getRosterForMonth } from '../utils/attendanceStorage';
 import { getDeptStaffingRules } from '../utils/staffingStorage';
+import { formatDateUAE } from '../utils/uaeValidators';
 import {
   buildHeadcountReport,     headcountToRows,
   buildPayrollCostReport,   payrollCostToRows,
@@ -148,7 +149,7 @@ function PayrollCostTab({ payrolls, employees }) {
               {report.map(r => (
                 <tr key={r.period}>
                   <td style={{ fontWeight: 600 }}>{r.period}</td>
-                  <td>{r.paymentDate}</td>
+                  <td>{formatDateUAE(r.paymentDate)}</td>
                   <td className="text-right">{r.employeeCount}</td>
                   <td className="text-right">{r.totalBasic.toLocaleString('en-AE')}</td>
                   <td className="text-right">{r.totalAllow.toLocaleString('en-AE')}</td>
@@ -358,7 +359,7 @@ function DocExpiryTab({ employees, documents }) {
                     <td style={{ fontWeight: 500 }}>{r.employee}</td>
                     <td className="text-muted">{r.department}</td>
                     <td>{r.documentType}</td>
-                    <td className="font-mono text-sm">{r.expiryDate}</td>
+                    <td className="font-mono text-sm">{formatDateUAE(r.expiryDate)}</td>
                     <td className="text-right font-bold" style={{ color: r.daysRemaining < 0 ? 'var(--danger)' : r.daysRemaining < 30 ? 'var(--danger)' : r.daysRemaining < 60 ? 'var(--warning)' : 'var(--gray-600)' }}>
                       {r.daysRemaining < 0 ? `${Math.abs(r.daysRemaining)}d ago` : `${r.daysRemaining}d`}
                     </td>
@@ -422,7 +423,7 @@ function SalaryHistoryTab({ employees, jobHistory }) {
                   <tr key={i}>
                     <td style={{ fontWeight: 500 }}>{r.employee}</td>
                     <td className="text-muted">{r.department}</td>
-                    <td className="text-sm">{r.changedAt}</td>
+                    <td className="text-sm">{formatDateUAE(r.changedAt)}</td>
                     <td className="text-right text-muted">{r.oldSalary.toLocaleString('en-AE')}</td>
                     <td className="text-right font-bold">{r.newSalary.toLocaleString('en-AE')}</td>
                     <td className="text-right font-bold" style={{ color: r.change >= 0 ? 'var(--success)' : 'var(--danger)' }}>

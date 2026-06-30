@@ -12,6 +12,7 @@
 import { useState, useEffect } from 'react';
 import { Receipt, Check, X, Trash2, ExternalLink, AlertCircle, RefreshCw } from 'lucide-react';
 import { getExpenseClaims, approveExpenseClaim, rejectExpenseClaim, deleteExpenseClaim } from '../utils/expenseStorage';
+import { formatDateUAE } from '../utils/uaeValidators';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -263,7 +264,7 @@ export default function ExpensesManager() {
                         <td style={{ fontWeight: 600 }}>
                           AED {claim.amount.toLocaleString('en-AE', { minimumFractionDigits: 2 })}
                         </td>
-                        <td style={{ whiteSpace: 'nowrap' }}>{claim.expenseDate}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>{formatDateUAE(claim.expenseDate)}</td>
                         <td style={{ maxWidth: 220 }}>
                           <span title={claim.description} style={{
                             display: 'block', overflow: 'hidden',

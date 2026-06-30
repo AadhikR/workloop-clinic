@@ -38,12 +38,19 @@ test.describe('Attendance — employee clock-in visibility', () => {
     // ── Admin: refresh and verify employee is Present Today ──────────────────
     await adminPage.goto('/');
     await expect(adminPage.locator('.sidebar-logo')).toBeVisible({ timeout: 10000 });
-    await adminPage.getByRole('button', { name: 'Attendance' }).click();
-    await adminPage.waitForLoadState('networkidle');
+    // Scope to sidebar-nav to avoid ambiguity with any dashboard "Attendance" link
+    await adminPage.locator('.sidebar-nav').getByRole('button', { name: 'Attendance' }).click();
+    // Do NOT use waitForLoadState('networkidle') — AttendanceManager polls every 30s,
+    // so the network never becomes idle and the call hangs until test timeout.
+    // Wait directly for stat cards to confirm the component has mounted and loaded.
+    await expect(adminPage.locator('.stat-card').first()).toBeVisible({ timeout: 20000 });
 
     // Click Refresh to load latest data
-    await adminPage.getByRole('button', { name: /refresh/i }).click();
-    await adminPage.waitForLoadState('networkidle');
+    const refreshBtn = adminPage.locator('button').filter({ hasText: /refresh/i }).first();
+    if (await refreshBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await refreshBtn.click();
+      await expect(adminPage.locator('.stat-card').first()).toBeVisible({ timeout: 10000 });
+    }
 
     // "Present Today" stat should be at least 1
     const presentCard = adminPage.locator('.stat-card').filter({ hasText: /present today/i });

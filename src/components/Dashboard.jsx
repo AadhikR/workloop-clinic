@@ -594,50 +594,64 @@ export default function Dashboard({ onNavigate }) {
         </div>
 
         {/* Payroll trend */}
-        {trendRuns.length >= 2 && (
-          <div className="card mb-4">
-            <div className="card-header">
-              <h3>Payroll Trend</h3>
-              <span style={{ fontSize:12, color:'var(--gray-500)' }}>Last {trendRuns.length} processed months</span>
-            </div>
-            <div className="card-body">
-              <div style={{ display:'flex', alignItems:'flex-end', gap:12, height:100 }}>
-                {trendRuns.map((r, i) => {
-                  const pct = trendMax > 0 ? (r.total / trendMax) * 100 : 0;
-                  const prev = trendRuns[i - 1];
-                  const delta = prev ? r.total - prev.total : 0;
-                  const isLast = i === trendRuns.length - 1;
-                  return (
-                    <div key={r.period} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:4 }}>
-                      {isLast && delta !== 0 && (
-                        <div style={{ fontSize:10, fontWeight:700, color: delta > 0 ? 'var(--success)' : 'var(--danger)' }}>
-                          {delta > 0 ? '▲' : '▼'} {Math.abs(delta).toLocaleString('en-AE', { maximumFractionDigits:0 })}
-                        </div>
-                      )}
-                      <div
-                        title={`${r.label}: AED ${r.total.toLocaleString('en-AE', { minimumFractionDigits:0 })}`}
-                        style={{
-                          width:'100%', borderRadius:'4px 4px 0 0',
-                          background: isLast ? 'var(--primary)' : 'var(--primary-light)',
-                          height: `${Math.max(pct, 4)}%`,
-                          transition: 'height 0.3s',
-                        }}
-                      />
-                      <div style={{ fontSize:10, color:'var(--gray-500)', textAlign:'center', whiteSpace:'nowrap' }}>
-                        {r.label.split(' ')[0]}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              <div style={{ marginTop:8, fontSize:12, color:'var(--gray-500)', textAlign:'right' }}>
-                Latest: <strong style={{ color:'var(--gray-800)' }}>
-                  AED {trendRuns[trendRuns.length - 1]?.total.toLocaleString('en-AE', { minimumFractionDigits:0 })}
-                </strong>
-              </div>
-            </div>
+        <div className="card mb-4">
+          <div className="card-header">
+            <h3>Payroll Cost Trend</h3>
+            <span style={{ fontSize:12, color:'var(--gray-500)' }}>
+              {trendRuns.length >= 2 ? `Last ${trendRuns.length} processed months` : 'No generated runs yet'}
+            </span>
           </div>
-        )}
+          <div className="card-body">
+            {trendRuns.length < 2 ? (
+              <div style={{ textAlign:'center', color:'var(--gray-400)', padding:'20px 0', fontSize:13 }}>
+                Generate at least 2 payroll runs to see the cost trend chart.
+                <div style={{ marginTop:8 }}>
+                  <button className="btn btn-ghost btn-sm" style={{ textDecoration:'underline' }}
+                    onClick={() => onNavigate('payroll')}>
+                    Go to Payroll Module →
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div style={{ display:'flex', alignItems:'flex-end', gap:12, height:100 }}>
+                  {trendRuns.map((r, i) => {
+                    const pct = trendMax > 0 ? (r.total / trendMax) * 100 : 0;
+                    const prev = trendRuns[i - 1];
+                    const delta = prev ? r.total - prev.total : 0;
+                    const isLast = i === trendRuns.length - 1;
+                    return (
+                      <div key={r.period} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:4 }}>
+                        {isLast && delta !== 0 && (
+                          <div style={{ fontSize:10, fontWeight:700, color: delta > 0 ? 'var(--success)' : 'var(--danger)' }}>
+                            {delta > 0 ? '▲' : '▼'} {Math.abs(delta).toLocaleString('en-AE', { maximumFractionDigits:0 })}
+                          </div>
+                        )}
+                        <div
+                          title={`${r.label}: AED ${r.total.toLocaleString('en-AE', { minimumFractionDigits:0 })}`}
+                          style={{
+                            width:'100%', borderRadius:'4px 4px 0 0',
+                            background: isLast ? 'var(--primary)' : 'var(--primary-light)',
+                            height: `${Math.max(pct, 4)}%`,
+                            transition: 'height 0.3s',
+                          }}
+                        />
+                        <div style={{ fontSize:10, color:'var(--gray-500)', textAlign:'center', whiteSpace:'nowrap' }}>
+                          {r.label.split(' ')[0]}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{ marginTop:8, fontSize:12, color:'var(--gray-500)', textAlign:'right' }}>
+                  Latest: <strong style={{ color:'var(--gray-800)' }}>
+                    AED {trendRuns[trendRuns.length - 1]?.total.toLocaleString('en-AE', { minimumFractionDigits:0 })}
+                  </strong>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
 
         {/* Recent payrolls */}
         {recentPayrolls.length > 0 && (

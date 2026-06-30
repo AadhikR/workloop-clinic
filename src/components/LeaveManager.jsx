@@ -210,7 +210,7 @@ export default function LeaveManager() {
               recipientUserId:   emp.authUserId,
               type:              typeStr,
               title:             `Leave request ${action.toLowerCase()}`,
-              body:              `Your ${req.leaveTypeCode || 'leave'} request (${req.startDate} – ${req.endDate}) has been ${action.toLowerCase()}${reason ? ': ' + reason : '.'}`,
+              body:              `Your ${req.leaveTypeCode || 'leave'} request (${formatDateUAE(req.startDate)} – ${formatDateUAE(req.endDate)}) has been ${action.toLowerCase()}${reason ? ': ' + reason : '.'}`,
               relatedEntityType: 'leave_request',
               relatedEntityId:   requestId,
             }).catch(() => {});

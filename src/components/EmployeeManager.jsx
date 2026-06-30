@@ -36,9 +36,24 @@ const CSV_COLUMNS = [
   { col:'S (18)', header:'TOTAL',             required:false, example:'8000.00',                 note:'Total salary (informational)' },
 ];
 
+// Plain CSV-quoted cell (RFC4180 — doubles internal quotes).
+function csvCell(v) {
+  return `"${String(v ?? '').replace(/"/g, '""')}"`;
+}
+// Excel auto-converts long all-digit strings (MOL ID, bank routing codes) into
+// scientific notation even when CSV-quoted. Wrapping the value as a text formula
+// forces Excel to display and store it as plain text instead.
+function csvIdCell(v) {
+  if (v === undefined || v === null || v === '') return '""';
+  return `="${String(v)}"`;
+}
+
+// Headers that hold long numeric IDs and need the Excel text-formula guard.
+const ID_HEADERS = new Set(['Labor Card No', 'Bank / Routing Code']);
+
 function downloadTemplate() {
-  const header  = CSV_COLUMNS.map(c => c.header).join(',');
-  const example = CSV_COLUMNS.map(c => `"${c.example}"`).join(',');
+  const header  = CSV_COLUMNS.map(c => csvCell(c.header)).join(',');
+  const example = CSV_COLUMNS.map(c => ID_HEADERS.has(c.header) ? csvIdCell(c.example) : csvCell(c.example)).join(',');
   const blob = new Blob([header + '\n' + example + '\n'], { type: 'text/csv' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
@@ -47,16 +62,17 @@ function downloadTemplate() {
 }
 
 function exportToCSV(employees) {
-  const headers = ['Emp No','Name','MOL ID','Job Title','Department','Status','Basic Salary','Housing','Transport','Total Package','Bank','IBAN','Nationality','Visa Type','Visa Expiry','Passport Expiry','Emirates ID','EID Expiry','Labour Card Expiry'];
+  const headers = ['Emp No','Name','MOL ID','Job Title','Department','Status','Basic Salary','Housing','Transport','Total Package','Bank','Bank Routing Code','IBAN','Nationality','Visa Type','Visa Expiry','Passport Expiry','Emirates ID','EID Expiry','Labour Card Expiry'];
   const rows = employees.map(e => [
-    e.empNo, e.name, e.molId, e.jobTitle, e.department, e.employmentStatus,
-    e.basicSalary, e.housingAllowance, e.transportAllowance,
-    (parseFloat(e.basicSalary)||0)+(parseFloat(e.housingAllowance)||0)+(parseFloat(e.transportAllowance)||0)+(parseFloat(e.otherAllowances)||0),
-    e.bankName, e.iban, e.nationality, e.visaType,
-    formatDateUAE(e.visaExpiry), formatDateUAE(e.passportExpiry),
-    e.emiratesId, formatDateUAE(e.emiratesIdExpiry), formatDateUAE(e.labourCardExpiry),
+    csvCell(e.empNo), csvCell(e.name), csvIdCell(e.molId), csvCell(e.jobTitle), csvCell(e.department), csvCell(e.employmentStatus),
+    csvCell(e.basicSalary), csvCell(e.housingAllowance), csvCell(e.transportAllowance),
+    csvCell((parseFloat(e.basicSalary)||0)+(parseFloat(e.housingAllowance)||0)+(parseFloat(e.transportAllowance)||0)+(parseFloat(e.otherAllowances)||0)),
+    csvCell(e.bankName), csvIdCell(e.bankRoutingCode), csvCell(e.iban),
+    csvCell(e.nationality), csvCell(e.visaType),
+    csvCell(formatDateUAE(e.visaExpiry)), csvCell(formatDateUAE(e.passportExpiry)),
+    csvCell(e.emiratesId), csvCell(formatDateUAE(e.emiratesIdExpiry)), csvCell(formatDateUAE(e.labourCardExpiry)),
   ]);
-  const csv = [headers, ...rows].map(r => r.map(v => `"${v ?? ''}"`).join(',')).join('\n');
+  const csv = [headers.map(csvCell).join(','), ...rows.map(r => r.join(','))].join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
@@ -326,7 +342,7 @@ function ProbationModal({ employee, onClose, onConfirm, onExtend, onTerminate })
             {employee.probationEndDate && (
               <div style={{ marginTop: 10, padding: '8px 12px', background: days !== null && days <= 0 ? 'var(--danger-light)' : 'var(--warning-light, #fffbeb)', borderRadius: 8, fontSize: 13 }}>
                 <CalendarClock size={13} style={{ marginRight: 5, display: 'inline' }} />
-                Probation ends: <strong>{employee.probationEndDate}</strong>
+                Probation ends: <strong>{formatDateUAE(employee.probationEndDate)}</strong>
                 {days !== null && (
                   <span style={{ marginLeft: 8, fontWeight: 700, color: days <= 0 ? 'var(--danger)' : days <= 7 ? 'var(--warning)' : 'var(--gray-600)' }}>
                     {days < 0 ? `(${Math.abs(days)}d overdue)` : days === 0 ? '(ends today)' : `(${days}d remaining)`}
@@ -496,10 +512,10 @@ function EmployeeManagerInner() {
       for (const imp of imported) {
         const existing = updated.find(e => e.molId === imp.molId);
         if (existing) {
-          Object.assign(existing, { ...imp, id: existing.id, active: existing.active });
+          Object.assign(existing, { ...imp, id: existing.id, active: existing.active, companyId: existing.companyId || activeCompanyId });
           updatedCount++;
         } else {
-          updated.push({ ...imp, active: true });
+          updated.push({ ...imp, active: true, companyId: activeCompanyId });
           added++;
         }
       }

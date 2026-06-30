@@ -712,6 +712,16 @@ tr:hover td {
   margin-bottom: 10px;
 }
 
+.emp-card-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--glass-border);
+}
+.emp-card-header h3,
+.emp-card-header h4 { margin: 0; font-size: 15px; font-weight: 600; color: var(--gray-800); }
+.emp-card-header p  { margin: 4px 0 0; font-size: 12px; color: var(--gray-500); }
+
+.emp-card-body { padding: 16px 18px; }
+
 .emp-bottom-nav {
   position: fixed;
   bottom: 0; left: 0; right: 0;

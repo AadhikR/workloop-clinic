@@ -11,14 +11,19 @@ import {
 } from '../utils/notificationStorage';
 
 const TYPE_ICON = {
-  document_expiry:   '📄',
-  wps_deadline:      '⚠️',
-  insurance_expiry:  '🏥',
-  policy_renewal:    '🔄',
-  leave_approved:    '✅',
-  leave_rejected:    '❌',
-  leave_submitted:   '📝',
-  payslip_available: '💰',
+  document_expiry:          '📄',
+  wps_deadline:             '⚠️',
+  insurance_expiry:         '🏥',
+  policy_renewal:           '🔄',
+  leave_approved:           '✅',
+  leave_rejected:           '❌',
+  leave_submitted:          '📝',
+  payslip_available:        '💰',
+  clinical_credential_expiry: '🏥',
+  clinical_licence_expiry:  '🪪',
+  probation_ending:         '⏳',
+  contract_expiry:          '📋',
+  cert_expiry:              '🎓',
 };
 
 function timeAgo(dateStr) {
@@ -56,8 +61,13 @@ export default function NotificationBell() {
 
   useEffect(() => {
     refreshCount();
+    const handleExternalUpdate = () => refreshCount();
+    window.addEventListener('workloop-notifications-updated', handleExternalUpdate);
     pollRef.current = setInterval(refreshCount, 60000);
-    return () => clearInterval(pollRef.current);
+    return () => {
+      clearInterval(pollRef.current);
+      window.removeEventListener('workloop-notifications-updated', handleExternalUpdate);
+    };
   }, []);
 
   const handleMarkRead = async (n) => {

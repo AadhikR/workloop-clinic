@@ -2,19 +2,46 @@ import Papa from 'papaparse';
 
 /**
  * Parse the salary CSV file format used by this company.
- * Columns (0-indexed):
- * 0: No, 1: Month, 2: Name, 3: Labor card No (MOL ID),
- * 4: Bank, 5: Bank/Routing code, 6: Bank Account No (IBAN),
- * 7: Basic, 8: Allowance, 9: Increment, 10: Bonus/Incentive,
- * 11: Other pay, 12: DU Deduction, 13: Salary Deduction,
- * 14: Loan Deduction, 15: Other Deduction,
- * 16: WPS BASIC, 17: WPS ALLOW, 18: TOTAL
+ * Columns are matched by header name (case-insensitive), not fixed position —
+ * this tolerates reordered or user-edited columns from a saved Excel file.
  */
 
 // Strip thousand-separator commas and parse as float
 function parseNum(val) {
   if (val === undefined || val === null) return 0;
   return parseFloat(String(val).replace(/,/g, '').trim()) || 0;
+}
+
+// Strips the `="value"` Excel text-formula guard (used on export/template to stop
+// Excel mangling long numeric IDs into scientific notation) plus any stray quotes.
+function cleanId(val) {
+  if (val === undefined || val === null) return '';
+  let s = String(val).trim();
+  const m = s.match(/^="(.*)"$/);
+  if (m) s = m[1];
+  return s.replace(/^"+|"+$/g, '').trim();
+}
+
+const HEADER_ALIASES = {
+  empNo:       ['no', 'emp no', 'employee no', 'employee number'],
+  name:        ['name', 'employee name'],
+  molId:       ['labor card no', 'labour card no', 'mol id', 'mol employee id'],
+  bankName:    ['bank', 'bank name'],
+  bankRouting: ['bank / routing code', 'bank/routing code', 'routing code', 'bank routing code'],
+  iban:        ['bank account no', 'iban', 'bank account number'],
+  basic:       ['basic'],
+  allowance:   ['allowance'],
+  wpsBasic:    ['wps basic'],
+  wpsAllow:    ['wps allow'],
+};
+
+function buildHeaderIndex(headerRow) {
+  const normalized = (headerRow || []).map(h => String(h ?? '').trim().toLowerCase());
+  const index = {};
+  for (const [key, aliases] of Object.entries(HEADER_ALIASES)) {
+    index[key] = normalized.findIndex(h => aliases.includes(h)); // -1 if missing
+  }
+  return index;
 }
 
 export function parseCSV(fileContent) {
@@ -26,25 +53,31 @@ export function parseCSV(fileContent) {
   const rows = result.data;
   const employees = [];
   const payrollEntries = [];
+  if (rows.length < 2) return { employees, payrollEntries };
+
+  const idx = buildHeaderIndex(rows[0]);
+  const get = (row, key) => (idx[key] >= 0 ? row[idx[key]] : undefined);
 
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
-    const empNo = row[0]?.toString().trim();
-    const molId = row[3]?.toString().trim();
-    const name = row[2]?.toString().trim();
+    if (!row || row.every(c => c === '' || c === undefined || c === null)) continue;
+
+    const empNo = cleanId(get(row, 'empNo'));
+    const molId = cleanId(get(row, 'molId'));
+    const name  = String(get(row, 'name') ?? '').trim();
 
     // Only process rows that look like employee records
-    // (have a numeric employee number and a MOL ID that looks like a labor card)
+    // (have an employee number and a MOL ID that looks like a labor card)
     if (!empNo || !molId || !/^\d{10,}$/.test(molId)) continue;
-    if (!name || name === '') continue;
+    if (!name) continue;
 
-    const bankName = row[4]?.toString().trim() || '';
-    const bankRouting = row[5]?.toString().trim() || '';
-    const iban = row[6]?.toString().trim() || '';
-    const basic    = parseNum(row[7]);   // Basic
-    const rawAllow = parseNum(row[8]);   // Allowance
-    const wpsBasic = parseNum(row[16]);  // WPS BASIC
-    const wpsAllow = parseNum(row[17]);  // WPS ALLOW
+    const bankName    = String(get(row, 'bankName') ?? '').trim();
+    const bankRouting = cleanId(get(row, 'bankRouting'));
+    const iban        = String(get(row, 'iban') ?? '').trim();
+    const basic       = parseNum(get(row, 'basic'));   // Basic
+    const rawAllow    = parseNum(get(row, 'allowance')); // Allowance
+    const wpsBasic    = parseNum(get(row, 'wpsBasic'));  // WPS BASIC
+    const wpsAllow    = parseNum(get(row, 'wpsAllow'));  // WPS ALLOW
 
     // Employee master data
     employees.push({

@@ -10,6 +10,7 @@ import { useState, useEffect } from 'react';
 import { Receipt, AlertCircle, CheckCircle, Clock, X, Plus } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { getMyEmployeeRecord } from '../../utils/profileStorage';
+import { formatDateUAE } from '../../utils/uaeValidators';
 import { EXPENSE_CATEGORIES } from '../ExpensesManager';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -350,7 +351,7 @@ function ClaimSection({ title, titleColor, icon, claims, showReason = false }) {
               <div style={{ fontWeight: 600, fontSize: 14 }}>
                 {EXPENSE_CATEGORIES[c.category] || c.category}
                 <span style={{ fontWeight: 400, color: 'var(--gray-500)', marginLeft: 8, fontSize: 12 }}>
-                  {c.expenseDate}
+                  {formatDateUAE(c.expenseDate)}
                 </span>
               </div>
               {c.description && (

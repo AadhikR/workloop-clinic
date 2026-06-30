@@ -119,7 +119,9 @@ test.describe('Emiratization — Employee modal', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('.sidebar-logo')).toBeVisible({ timeout: 10000 });
-    await page.getByRole('button', { name: 'Employees' }).click();
+    // Scope to .sidebar-nav — Dashboard probation alerts add a "Manage in Employees" button
+    // causing a strict-mode violation with an unscoped getByRole.
+    await page.locator('.sidebar-nav').getByRole('button', { name: 'Employees' }).click();
     await page.waitForLoadState('networkidle');
   });
 

@@ -20,7 +20,7 @@ export default async function globalTeardown() {
 
   const envPath = '.playwright/env.json';
   if (!existsSync(envPath)) return;
-  const { adminId, empAuthId } = JSON.parse(readFileSync(envPath, 'utf8'));
+  const { adminId, empAuthId, mgrAuthId } = JSON.parse(readFileSync(envPath, 'utf8'));
 
   console.log('\n[teardown] Cleaning up test attendance data…');
   await db.from('attendance_records').delete().eq('user_id', adminId);
@@ -42,6 +42,10 @@ export default async function globalTeardown() {
     await db.from('payslips').delete().in('payroll_run_id', runIds);
     await db.from('payroll_runs').delete().eq('user_id', adminId);
   }
+
+  // Leave requests and leave types seeded by global-setup
+  console.log('[teardown] Cleaning up seeded leave data…');
+  await db.from('leave_requests').delete().eq('user_id', adminId).like('reason', '%PLAYWRIGHT_SEED%');
 
   console.log('[teardown] Cleaning up Feature 1–5 test data…');
   // Nafis reports created during Feature 1 tests
@@ -89,6 +93,35 @@ export default async function globalTeardown() {
   if (branches?.length > 1) {
     const extraIds = branches.slice(1).map(b => b.id);
     await db.from('companies').delete().in('id', extraIds);
+  }
+
+  console.log('[teardown] Cleaning up Clinic feature test data…');
+  // Clinic 1.3 — Letter requests
+  await db.from('letter_requests').delete().eq('user_id', adminId);
+  // Roster assignments (seeded by global-setup + created during tests)
+  await db.from('roster_assignments').delete().eq('user_id', adminId);
+  // Shift template seeded by global-setup (soft-deleted shifts stay but is_active=false)
+  await db.from('shifts').delete().eq('user_id', adminId).eq('name', 'PW Morning Shift');
+  // Clinic 3.1 — Seeded 'Engineering' department + test departments created by departments.spec.js
+  await db.from('departments').delete().eq('user_id', adminId).eq('name', 'Engineering');
+  await db.from('departments').delete().eq('user_id', adminId).like('name', 'Playwright Dept%');
+  // Clinic 3.2 — No expense claims created by manager-expense-queue.spec.js
+  // Clinic 6.1 — Seeded PW Test Cycle + test cycles created by appraisals.spec.js
+  // appraisals and appraisal_sections cascade-delete when their cycle is deleted
+  await db.from('appraisal_cycles').delete().eq('user_id', adminId).like('name', 'PW Test Cycle%');
+  await db.from('appraisal_cycles').delete().eq('user_id', adminId).like('name', 'Playwright Cycle%');
+  // Clinic 7.1 — Compliance overrides written during SIF/publish gate tests
+  await db.from('compliance_overrides').delete().eq('user_id', adminId);
+  // Clinic 7.2 — Staffing rules: seeded Engineering rule + rules created during departments.spec.js
+  await db.from('department_staffing_rules').delete().eq('user_id', adminId).eq('department', 'Engineering');
+  await db.from('department_staffing_rules').delete().eq('user_id', adminId).like('department', 'Playwright%');
+
+  // Seeded payroll run (period starts with 'PW-TEST-')
+  console.log('[teardown] Cleaning up seeded payroll data…');
+  const { data: seedRuns } = await db.from('payroll_runs').select('id').eq('user_id', adminId).like('period', 'PW-TEST-%');
+  if (seedRuns?.length) {
+    await db.from('payroll_entries').delete().in('payroll_run_id', seedRuns.map(r => r.id));
+    await db.from('payroll_runs').delete().in('id', seedRuns.map(r => r.id));
   }
 
   console.log('[teardown] Done.\n');

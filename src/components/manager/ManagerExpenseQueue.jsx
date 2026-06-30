@@ -13,6 +13,7 @@ import {
   managerRejectExpense,
 } from '../../utils/expenseStorage';
 import { EXPENSE_CATEGORIES } from '../ExpensesManager';
+import { formatDateUAE } from '../../utils/uaeValidators';
 
 const STATUS_BADGE = {
   pending:          'badge-amber',
@@ -170,7 +171,7 @@ export default function ManagerExpenseQueue() {
                         <td style={{ fontWeight: 600 }}>
                           AED {claim.amount.toLocaleString('en-AE', { minimumFractionDigits: 2 })}
                         </td>
-                        <td style={{ whiteSpace: 'nowrap' }}>{claim.expenseDate}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>{formatDateUAE(claim.expenseDate)}</td>
                         <td style={{ maxWidth: 200 }}>
                           <span title={claim.description} style={{
                             display: 'block', overflow: 'hidden',

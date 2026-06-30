@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Mail, CheckCircle, XCircle, Printer, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 import { getLetterRequests, completeLetterRequest, rejectLetterRequest } from '../utils/letterStorage';
-import { getCompany } from '../utils/storage';
+import { getCompany, getEmployees } from '../utils/storage';
 import { printLetter } from '../utils/letterTemplates';
 import { useCompany } from '../context/CompanyContext';
 
@@ -27,8 +27,14 @@ export default function LetterRequestsManager() {
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([getLetterRequests(), getCompany(activeCompanyId)])
-      .then(([reqs, co]) => { setRequests(reqs); setCompany(co); setLoading(false); });
+    Promise.all([getEmployees(activeCompanyId), getCompany(activeCompanyId)])
+      .then(([emps, co]) =>
+        getLetterRequests(emps).then(reqs => {
+          setRequests(reqs);
+          setCompany(co);
+          setLoading(false);
+        })
+      );
   }, [activeCompanyId]);
 
   const handleComplete = async (req) => {

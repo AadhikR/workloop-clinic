@@ -122,7 +122,9 @@ export async function createNotifications(notifs) {
     .from('notifications')
     .upsert(rows, { onConflict: 'recipient_user_id,type,related_entity_id', ignoreDuplicates: true });
 
-  if (error) console.error('createNotifications:', error);
+  if (error) { console.error('createNotifications:', error); return; }
+  // Signal the NotificationBell to refresh its unread count immediately.
+  window.dispatchEvent(new Event('workloop-notifications-updated'));
 }
 
 // ─── Expiry sweep ─────────────────────────────────────────────────────────────

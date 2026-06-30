@@ -280,7 +280,7 @@ export default function EmpHome({ onNavigate }) {
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 1 }}>
                     {[a.brand, a.model].filter(Boolean).join(' · ') || a.category}
-                    {' · '}Since {a.assignedDate}
+                    {' · '}Since {fmtDate(a.assignedDate)}
                   </div>
                 </div>
                 <span style={{

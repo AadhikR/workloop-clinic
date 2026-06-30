@@ -6,6 +6,7 @@
  */
 import Papa from 'papaparse';
 import { jsPDF } from 'jspdf';
+import { formatDateUAE } from './uaeValidators';
 
 // ─── CSV export ───────────────────────────────────────────────────────────────
 
@@ -131,7 +132,7 @@ export function buildPayrollCostReport(payrolls, employees) {
 export function payrollCostToRows(report) {
   return report.map(r => ({
     Period:           r.period,
-    'Payment Date':   r.paymentDate,
+    'Payment Date':   formatDateUAE(r.paymentDate),
     Employees:        r.employeeCount,
     'Basic (AED)':    fmt(r.totalBasic),
     'Allowances (AED)': fmt(r.totalAllow),
@@ -250,7 +251,7 @@ export function docExpiryToRows(report) {
     Employee:        r.employee,
     Department:      r.department,
     'Document Type': r.documentType,
-    'Expiry Date':   r.expiryDate,
+    'Expiry Date':   formatDateUAE(r.expiryDate),
     'Days Remaining': r.daysRemaining,
     Status:          r.status,
   }));
@@ -293,7 +294,7 @@ export function salaryMovementToRows(report) {
   return report.map(r => ({
     Employee:       r.employee,
     Department:     r.department,
-    Date:           r.changedAt,
+    Date:           formatDateUAE(r.changedAt),
     'Changed By':   r.changedBy,
     'Old Salary':   fmt(r.oldSalary),
     'New Salary':   fmt(r.newSalary),

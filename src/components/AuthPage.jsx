@@ -105,12 +105,12 @@ function Landing({ onSelect }) {
           onClick={() => onSelect('employee')}
         >
           <User size={16} />
-          Sign in as Employee
+          Sign in as Employee / Manager
         </button>
       </div>
 
       <p style={{ fontSize: 12, color: 'var(--gray-400)', textAlign: 'center', marginTop: 20 }}>
-        Employees: your HR admin must add your work email before you can sign in.
+        Employees &amp; managers: your HR admin must add your work email before you can sign in.
       </p>
     </Card>
   );
@@ -392,10 +392,10 @@ function EmployeeSignInForm({ onBack }) {
         <ArrowLeft size={14} /> Back
       </button>
       <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: 'var(--gray-900)' }}>
-        {isSignUp ? 'Employee Sign Up' : 'Employee Sign In'}
+        {isSignUp ? 'Employee Sign Up' : 'Employee / Manager Sign In'}
       </h2>
       <p style={{ fontSize: 13, color: 'var(--gray-500)', marginBottom: 24 }}>
-        {isSignUp ? 'Create your account using your work email' : 'Access your payslips, leave & attendance'}
+        {isSignUp ? 'Create your account using your work email' : 'Access your payslips, leave, attendance & more'}
       </p>
 
       <SuccessBanner msg={successMsg} />

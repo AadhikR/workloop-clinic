@@ -22,7 +22,9 @@ import { getEmployees, getAllEmployeeDocuments } from '../utils/storage';
 import { getRosterForMonth, getAttendanceRecords } from '../utils/attendanceStorage';
 import { getLeaveRequests } from '../utils/leaveStorage';
 import { getDepartments } from '../utils/departmentStorage';
+import { formatDateUAE } from '../utils/uaeValidators';
 import { CLINICAL_DOC_TYPES } from './EmployeeModal';
+import { useCompany } from '../context/CompanyContext';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -91,6 +93,7 @@ function DrillTable({ children, emptyText }) {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function ClinicalDashboard() {
+  const { activeCompanyId } = useCompany();
   const [employees,    setEmployees]    = useState([]);
   const [documents,    setDocuments]    = useState([]);
   const [roster,       setRoster]       = useState([]);
@@ -105,7 +108,7 @@ export default function ClinicalDashboard() {
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
     const [emps, docs, rosterData, depts, leaves, todayRecs] = await Promise.all([
-      getEmployees().catch(() => []),
+      getEmployees(activeCompanyId).catch(() => []),
       getAllEmployeeDocuments().catch(() => []),
       getRosterForMonth(now.getFullYear(), now.getMonth() + 1).catch(() => []),
       getDepartments().catch(() => []),
@@ -121,7 +124,7 @@ export default function ClinicalDashboard() {
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [activeCompanyId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Derived metrics ────────────────────────────────────────────────────────
 
@@ -524,7 +527,7 @@ export default function ClinicalDashboard() {
                     <tr key={d.id}>
                       <td style={{ fontWeight: 500 }}>{d.empName}</td>
                       <td>{d.documentType}</td>
-                      <td>{d.expiryDate}</td>
+                      <td>{formatDateUAE(d.expiryDate)}</td>
                       <td>
                         <span className={`badge ${d.daysLeft <= 30 ? 'badge-red' : 'badge-amber'}`}>
                           {d.daysLeft}d
@@ -555,7 +558,7 @@ export default function ClinicalDashboard() {
                     <tr key={d.id} style={{ background: '#fff5f5' }}>
                       <td style={{ fontWeight: 500 }}>{d.empName}</td>
                       <td>{d.documentType}</td>
-                      <td>{d.expiryDate}</td>
+                      <td>{formatDateUAE(d.expiryDate)}</td>
                       <td>
                         <span className="badge badge-red">{Math.abs(d.daysLeft)}d overdue</span>
                       </td>
@@ -657,7 +660,7 @@ export default function ClinicalDashboard() {
                       <td style={{ fontWeight: 500 }}>{e.name}</td>
                       <td>{e.jobTitle || '—'}</td>
                       <td>{e.department || '—'}</td>
-                      <td><span className="badge badge-blue">{e.joiningDate}</span></td>
+                      <td><span className="badge badge-blue">{formatDateUAE(e.joiningDate)}</span></td>
                     </tr>
                   ))}
                 </tbody>
@@ -676,7 +679,7 @@ export default function ClinicalDashboard() {
                     <tr key={e.id}>
                       <td style={{ fontWeight: 500 }}>{e.name}</td>
                       <td>{e.department || '—'}</td>
-                      <td>{e.dateOfBirth}</td>
+                      <td>{formatDateUAE(e.dateOfBirth)}</td>
                       <td>
                         {e.daysUntilBday === 0
                           ? <span className="badge badge-green">🎂 Today!</span>
@@ -705,7 +708,7 @@ export default function ClinicalDashboard() {
                         <td style={{ fontWeight: 500 }}>{e.name}</td>
                         <td>{e.department || '—'}</td>
                         <td>{req?.leaveType || '—'}</td>
-                        <td style={{ fontSize: 13, color: 'var(--gray-500)' }}>{req?.endDate || '—'}</td>
+                        <td style={{ fontSize: 13, color: 'var(--gray-500)' }}>{req?.endDate ? formatDateUAE(req.endDate) : '—'}</td>
                       </tr>
                     );
                   })}
@@ -725,8 +728,8 @@ export default function ClinicalDashboard() {
                     <tr key={r.id}>
                       <td style={{ fontWeight: 500 }}>{r.empName}</td>
                       <td>{r.leaveType}</td>
-                      <td>{r.startDate}</td>
-                      <td>{r.endDate}</td>
+                      <td>{formatDateUAE(r.startDate)}</td>
+                      <td>{formatDateUAE(r.endDate)}</td>
                       <td>
                         <span className={`badge ${r.status === 'ManagerApproved' ? 'badge-blue' : 'badge-amber'}`}>
                           {r.status === 'ManagerApproved' ? 'Mgr Approved' : 'Pending'}
@@ -764,9 +767,13 @@ export default function ClinicalDashboard() {
 
         {/* ── Department breakdown ── */}
         <div className="card mt-4">
-          <h3 style={{ marginBottom: 16, fontSize: 15, fontWeight: 600 }}>Department Headcount</h3>
+          <div className="card-header">
+            <h3>Department Headcount</h3>
+          </div>
           {deptBreakdown.length === 0 ? (
-            <p className="text-muted text-sm">No department data. Add employees or configure departments.</p>
+            <div style={{ padding: '16px 22px', color: 'var(--gray-400)', fontSize: 13 }}>
+              No department data. Add employees or configure departments.
+            </div>
           ) : (
             <table className="table">
               <thead>

@@ -13,6 +13,7 @@ import { calculatePayrollLeaveDeductions } from '../utils/leaveEngine';
 import { getLeaveRequests } from '../utils/leaveStorage';
 import { getAttendancePayrollData, getOvertimeFromRoster } from '../utils/attendanceStorage';
 import { getAdvances } from '../utils/storage';
+import { formatDateUAE } from '../utils/uaeValidators';
 import { getApprovedUnpaidExpenses, markExpensesPaid } from '../utils/expenseStorage';
 import { getPayrollSummaryFromAttendance, formatHours } from '../utils/attendanceEngine';
 
@@ -281,15 +282,21 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
   };
 
   const handleDownload = async () => {
-    // Feature 7.1 — Licence compliance gate: check for expired professional licences
+    // Compliance gate: check for expired professional licences, Emirates ID, and Visa
     const today = new Date().toISOString().split('T')[0];
-    const expiredStaff = entries
-      .filter(e => !e.excluded)
-      .map(e => employees.find(emp => emp.id === e.employeeId))
-      .filter(emp => emp && emp.licenceAuthority && emp.licenceAuthority !== 'None'
-                     && emp.licenceExpiry && emp.licenceExpiry < today);
-    if (expiredStaff.length > 0 && !licenceGate) {
-      setLicenceGate({ expiredStaff });
+    const violations = [];
+    entries.filter(e => !e.excluded).forEach(entry => {
+      const emp = employees.find(e => e.id === entry.employeeId);
+      if (!emp) return;
+      if (emp.licenceAuthority && emp.licenceAuthority !== 'None' && emp.licenceExpiry && emp.licenceExpiry < today)
+        violations.push({ emp, type: emp.licenceAuthority + ' Licence', expiry: emp.licenceExpiry });
+      if (emp.emiratesIdExpiry && emp.emiratesIdExpiry < today)
+        violations.push({ emp, type: 'Emirates ID', expiry: emp.emiratesIdExpiry });
+      if (emp.visaExpiry && emp.visaExpiry < today)
+        violations.push({ emp, type: 'Visa', expiry: emp.visaExpiry });
+    });
+    if (violations.length > 0 && !licenceGate) {
+      setLicenceGate({ violations });
       return; // show confirmation modal
     }
     if (licenceGate) {
@@ -301,7 +308,7 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
       try {
         await saveComplianceOverride({
           overrideType: 'payroll_sif',
-          employeeIds:  licenceGate.expiredStaff.map(e => e.id),
+          employeeIds:  [...new Set(licenceGate.violations.map(v => v.emp.id))],
           reason:       licenceOverrideReason.trim(),
         });
       } catch (err) {
@@ -1136,7 +1143,7 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                           {i === 0 ? emp?.name : ''}
                         </td>
                         <td style={{ textTransform:'capitalize' }}>{exp.category?.replace('_',' ')}</td>
-                        <td>{exp.expenseDate}</td>
+                        <td>{formatDateUAE(exp.expenseDate)}</td>
                         <td style={{ maxWidth:200, overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis' }}>
                           {exp.description}
                         </td>
@@ -1484,28 +1491,28 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
         />
       )}
 
-      {/* Feature 7.1 — Licence compliance override gate */}
+      {/* Compliance override gate — expired licences, Emirates ID, or Visa */}
       {licenceGate && (
         <div className="modal-overlay" style={{ zIndex: 2000 }}>
-          <div className="modal" style={{ maxWidth: 520 }}>
+          <div className="modal" style={{ maxWidth: 540 }}>
             <div className="modal-header" style={{ background: '#fff5f5', borderBottom: '1px solid #fecaca' }}>
               <h3 style={{ color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <AlertCircle size={18} /> Expired Professional Licences
+                <AlertCircle size={18} /> Expired Compliance Documents
               </h3>
             </div>
             <div className="modal-body">
               <p style={{ color: 'var(--gray-700)', marginBottom: 12 }}>
-                The following staff members have <strong>expired professional licences</strong>.
-                Generating a SIF for these employees may violate DHA/DOH/MOH regulations.
+                The following staff members have <strong>expired documents</strong> that may prevent legal employment.
+                Proceeding will be logged as a compliance override.
               </p>
               <table className="table" style={{ marginBottom: 16 }}>
-                <thead><tr><th>Employee</th><th>Authority</th><th>Expired</th></tr></thead>
+                <thead><tr><th>Employee</th><th>Document</th><th>Expired on</th></tr></thead>
                 <tbody>
-                  {licenceGate.expiredStaff.map(emp => (
-                    <tr key={emp.id} style={{ background: '#fff5f5' }}>
-                      <td style={{ fontWeight: 500 }}>{emp.name}</td>
-                      <td><span className="badge badge-red">{emp.licenceAuthority}</span></td>
-                      <td style={{ color: 'var(--danger)', fontSize: 13 }}>{emp.licenceExpiry}</td>
+                  {licenceGate.violations.map((v, i) => (
+                    <tr key={i} style={{ background: '#fff5f5' }}>
+                      <td style={{ fontWeight: 500 }}>{v.emp.name}</td>
+                      <td><span className="badge badge-red">{v.type}</span></td>
+                      <td style={{ color: 'var(--danger)', fontSize: 13 }}>{v.expiry}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1519,13 +1526,13 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                   rows={3}
                   value={licenceOverrideReason}
                   onChange={e => setLicenceOverrideReason(e.target.value)}
-                  placeholder="State the clinical justification for proceeding despite expired licences (min 10 characters)…"
+                  placeholder="State the justification for proceeding despite expired documents (min 10 characters)…"
                 />
               </div>
             </div>
             <div className="modal-footer">
               <button className="btn btn-outline" onClick={() => { setLicenceGate(null); setLicenceOverrideReason(''); }}>
-                Cancel — Resolve Licences First
+                Cancel — Resolve Documents First
               </button>
               <button className="btn btn-danger" onClick={handleDownload} disabled={licenceOverrideReason.trim().length < 10}>
                 <Download size={14} /> Override &amp; Download SIF

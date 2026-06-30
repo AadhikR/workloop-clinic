@@ -11,6 +11,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Edit2, Trash2, GraduationCap, Award, X, AlertTriangle, ExternalLink } from 'lucide-react';
 import { getEmployees } from '../utils/storage';
+import { formatDateUAE } from '../utils/uaeValidators';
 import {
   getTrainingRecords, saveTrainingRecord, deleteTrainingRecord,
   getCertifications,  saveCertification,  deleteCertification,
@@ -627,9 +628,9 @@ export default function TrainingManager() {
                           <td><span className="badge badge-gray">{typeLabel(r.trainingType)}</span></td>
                           <td style={{ color: 'var(--gray-500)', fontSize: 13 }}>{r.provider || '—'}</td>
                           <td style={{ fontSize: 13, whiteSpace: 'nowrap' }}>
-                            {r.startDate || '—'}
+                            {r.startDate ? formatDateUAE(r.startDate) : '—'}
                             {r.endDate && r.endDate !== r.startDate && (
-                              <span style={{ color: 'var(--gray-400)' }}> → {r.endDate}</span>
+                              <span style={{ color: 'var(--gray-400)' }}> → {formatDateUAE(r.endDate)}</span>
                             )}
                           </td>
                           <td style={{ fontSize: 13 }}>{r.durationHours != null ? `${r.durationHours}h` : '—'}</td>
@@ -780,8 +781,8 @@ export default function TrainingManager() {
                           </td>
                           <td style={{ fontSize: 13, color: 'var(--gray-600)' }}>{c.issuingBody || '—'}</td>
                           <td style={{ fontSize: 13, color: 'var(--gray-500)' }}>{c.certificateNo || '—'}</td>
-                          <td style={{ fontSize: 13 }}>{c.issuedDate || '—'}</td>
-                          <td style={{ fontSize: 13 }}>{c.expiryDate || <span style={{ color: 'var(--gray-400)' }}>No expiry</span>}</td>
+                          <td style={{ fontSize: 13 }}>{c.issuedDate ? formatDateUAE(c.issuedDate) : '—'}</td>
+                          <td style={{ fontSize: 13 }}>{c.expiryDate ? formatDateUAE(c.expiryDate) : <span style={{ color: 'var(--gray-400)' }}>No expiry</span>}</td>
                           <td><span className={`badge ${exSt.badge}`}>{exSt.label}</span></td>
                           <td>
                             <div style={{ display: 'flex', gap: 6 }}>

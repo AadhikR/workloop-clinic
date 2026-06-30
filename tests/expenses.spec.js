@@ -60,13 +60,14 @@ test.describe('Expenses — Admin portal (ExpensesManager)', () => {
     await expect(cards).toHaveCount(3, { timeout: 8000 });
   });
 
-  test('filter tabs All / Pending / Approved / Paid / Rejected render', async ({ page }) => {
+  test('filter tabs All / Pending / Mgr Approved / HR Approved / Paid / Rejected render', async ({ page }) => {
     await goToExpenses(page);
     await expect(page.locator('.stat-card').first()).toBeVisible({ timeout: 8000 });
 
-    for (const tab of ['All', 'Pending', 'Approved', 'Paid', 'Rejected']) {
+    // Clinic feature 3.2 renamed "Approved" → "HR Approved" and added "Mgr Approved"
+    for (const tab of ['All', 'Pending', 'Mgr Approved', 'HR Approved', 'Paid', 'Rejected']) {
       await expect(
-        page.locator('button').filter({ hasText: new RegExp(`^${tab}$`, 'i') }).first()
+        page.locator('button.tab-btn').filter({ hasText: new RegExp(tab, 'i') }).first()
       ).toBeVisible({ timeout: 5000 });
     }
   });
@@ -75,10 +76,10 @@ test.describe('Expenses — Admin portal (ExpensesManager)', () => {
     await goToExpenses(page);
     await expect(page.locator('.stat-card').first()).toBeVisible({ timeout: 8000 });
 
-    // Click Pending tab
-    await page.locator('button').filter({ hasText: /^Pending$/i }).first().click();
-    // The active tab should have a primary button style
-    const pendingBtn = page.locator('button').filter({ hasText: /^Pending$/i }).first();
+    // Click Pending tab — use button.tab-btn + substring because the tab may render a count badge
+    // (e.g. "Pending" + <span>1</span>), making anchored /^Pending$/i fail to match
+    await page.locator('button.tab-btn').filter({ hasText: 'Pending' }).first().click();
+    const pendingBtn = page.locator('button.tab-btn').filter({ hasText: 'Pending' }).first();
     const className = await pendingBtn.getAttribute('class');
     expect(className).toMatch(/primary|active/i);
   });

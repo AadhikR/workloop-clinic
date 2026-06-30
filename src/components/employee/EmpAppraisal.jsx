@@ -113,7 +113,7 @@ export default function EmpAppraisal({ emp }) {
                         <tbody>
                           {a.sections.map((s, i) => (
                             <tr key={i}>
-                              <td style={{ fontWeight: 500 }}>{s.section_name}</td>
+                              <td style={{ fontWeight: 500 }}>{s.sectionName}</td>
                               <td style={{ color: 'var(--gray-500)', fontSize: 13 }}>×{s.weight}</td>
                               <td>
                                 {s.rating ? (
@@ -152,7 +152,7 @@ export default function EmpAppraisal({ emp }) {
                   {a.reviewedBy && (
                     <p style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 12, marginBottom: 0 }}>
                       Reviewed by {a.reviewedBy}
-                      {a.reviewedAt ? ` on ${new Date(a.reviewedAt).toLocaleDateString()}` : ''}
+                      {a.reviewedAt ? ` on ${new Date(a.reviewedAt).toLocaleDateString('en-AE')}` : ''}
                     </p>
                   )}
                 </div>

@@ -11,6 +11,7 @@ import { useState, useEffect } from 'react';
 import { GraduationCap, Award, AlertTriangle, ExternalLink } from 'lucide-react';
 import { getMyEmployeeRecord } from '../../utils/profileStorage';
 import { getEmployeeTrainingRecords, getEmployeeCertifications } from '../../utils/trainingStorage';
+import { formatDateUAE } from '../../utils/uaeValidators';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -110,6 +111,7 @@ export default function EmpTraining() {
             marginBottom: 14,
             background: '#fef2f2',
             border: '1px solid #fecaca',
+            padding: '12px 16px',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
               <AlertTriangle size={16} color="#ef4444" />
@@ -125,7 +127,7 @@ export default function EmpTraining() {
               }}>
                 <strong>{c.certificationName}</strong>
                 {c.issuingBody && ` — ${c.issuingBody}`}
-                <span style={{ marginLeft: 6, opacity: 0.8 }}>expired {c.expiryDate}</span>
+                <span style={{ marginLeft: 6, opacity: 0.8 }}>expired {formatDateUAE(c.expiryDate)}</span>
               </div>
             ))}
           </div>
@@ -136,6 +138,7 @@ export default function EmpTraining() {
             marginBottom: 14,
             background: '#fffbeb',
             border: '1px solid #fde68a',
+            padding: '12px 16px',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
               <AlertTriangle size={16} color="#d97706" />
@@ -154,7 +157,7 @@ export default function EmpTraining() {
                   <strong>{c.certificationName}</strong>
                   {' — expires in '}
                   <strong>{days} day{days !== 1 ? 's' : ''}</strong>
-                  {' '}({c.expiryDate})
+                  {' '}({formatDateUAE(c.expiryDate)})
                 </div>
               );
             })}
@@ -183,7 +186,7 @@ export default function EmpTraining() {
 
         {/* ── Training Records ──────────────────────────────────────────────── */}
         <div className="emp-card" style={{ marginBottom: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, padding: '14px 16px 0' }}>
             <GraduationCap size={18} color="var(--primary)" />
             <h4 style={{ margin: 0, fontSize: 15 }}>Training Records</h4>
           </div>
@@ -193,7 +196,7 @@ export default function EmpTraining() {
               No training records yet. Your HR admin will add them here.
             </p>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '0 16px 16px' }}>
               {records.map(r => (
                 <div key={r.id} style={{
                   border: '1px solid var(--gray-200)',
@@ -219,8 +222,8 @@ export default function EmpTraining() {
                     <span>{TRAINING_TYPE_LABELS[r.trainingType] || r.trainingType}</span>
                     {r.startDate && (
                       <span>
-                        📅 {r.startDate}
-                        {r.endDate && r.endDate !== r.startDate ? ` → ${r.endDate}` : ''}
+                        📅 {formatDateUAE(r.startDate)}
+                        {r.endDate && r.endDate !== r.startDate ? ` → ${formatDateUAE(r.endDate)}` : ''}
                       </span>
                     )}
                     {r.durationHours != null && <span>⏱ {r.durationHours}h</span>}
@@ -249,7 +252,7 @@ export default function EmpTraining() {
 
         {/* ── Certifications ────────────────────────────────────────────────── */}
         <div className="emp-card">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, padding: '14px 16px 0' }}>
             <Award size={18} color="var(--primary)" />
             <h4 style={{ margin: 0, fontSize: 15 }}>Certifications</h4>
           </div>
@@ -259,7 +262,7 @@ export default function EmpTraining() {
               No certifications on record. Your HR admin will add them here.
             </p>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '0 16px 16px' }}>
               {certs.map(c => {
                 const { badge, label: statusLabel } = certBadge(c.expiryDate);
                 return (
@@ -296,9 +299,9 @@ export default function EmpTraining() {
                       flexWrap: 'wrap',
                     }}>
                       {c.certificateNo && <span>No: {c.certificateNo}</span>}
-                      {c.issuedDate    && <span>Issued: {c.issuedDate}</span>}
+                      {c.issuedDate    && <span>Issued: {formatDateUAE(c.issuedDate)}</span>}
                       {c.expiryDate
-                        ? <span>Expires: {c.expiryDate}</span>
+                        ? <span>Expires: {formatDateUAE(c.expiryDate)}</span>
                         : <span>No expiry date</span>}
                     </div>
                   </div>

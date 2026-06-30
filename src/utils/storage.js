@@ -157,7 +157,8 @@ export async function getEmployees(companyId) {
     .order('created_at', { ascending: true });
 
   if (companyId) {
-    query = query.eq('company_id', companyId);
+    // Include employees with matching company_id OR null company_id (pre-migration / CSV-imported employees).
+    query = query.or(`company_id.eq.${companyId},company_id.is.null`);
   }
 
   const { data, error } = await query;

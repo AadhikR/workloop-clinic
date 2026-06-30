@@ -10,6 +10,7 @@ import { useState, useEffect } from 'react';
 import { DollarSign, AlertCircle, Clock, CheckCircle, XCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { getAdvances } from '../../utils/storage';
+import { formatDateUAE } from '../../utils/uaeValidators';
 import { getMyEmployeeRecord } from '../../utils/profileStorage';
 
 const STATUS_ICON = {
@@ -234,7 +235,7 @@ export default function EmpAdvances() {
                     </div>
                     {adv.disbursedDate && (
                       <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 2 }}>
-                        Disbursed: {adv.disbursedDate}
+                        Disbursed: {formatDateUAE(adv.disbursedDate)}
                       </div>
                     )}
                   </div>

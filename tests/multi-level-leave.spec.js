@@ -45,7 +45,12 @@ test.describe('Leave Approval — Admin portal', () => {
   });
 
   test('Requests tab is visible and can be clicked', async ({ page }) => {
-    const requestsTab = page.getByRole('button', { name: /requests/i });
+    // Clinic feature 1.3 added "Letter Requests" nav item — /requests/i now matches both
+    // the sidebar nav button and the Leave module's "Requests" tab → strict mode violation.
+    // Scope to button.tab-btn to target only the Leave module tab.
+    // Label is dynamic: "Requests" when empty, "Requests (N)" when pending requests exist.
+    // Must use unanchored /Requests/ (no ^ or $) to match both forms.
+    const requestsTab = page.locator('button.tab-btn').filter({ hasText: /Requests/ });
     await expect(requestsTab).toBeVisible({ timeout: 6000 });
     await requestsTab.click();
     await page.waitForLoadState('networkidle');

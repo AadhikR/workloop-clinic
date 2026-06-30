@@ -27,6 +27,19 @@ export async function loginAsEmployee(page) {
   await page.waitForSelector('.emp-sidebar-logo', { timeout: 30000 });
 }
 
+/** Sign in as manager and wait for the manager shell to load. */
+export async function loginAsManager(page) {
+  const email    = process.env.TEST_MANAGER_EMAIL    || 'test.manager@workloop-test.local';
+  const password = process.env.TEST_MANAGER_PASSWORD || 'TestManager123!';
+  await page.goto('/');
+  await page.getByRole('button', { name: /sign in as employee/i }).click();
+  await page.locator('input[type="email"]').fill(email);
+  await page.locator('input[type="password"]').fill(password);
+  await page.locator('button[type="submit"]').click();
+  // ManagerShell renders .emp-sidebar-logo (same visual design as EmployeeShell)
+  await page.waitForSelector('.emp-sidebar-logo', { timeout: 30000 });
+}
+
 /** Navigate to a named admin section via the sidebar. */
 export async function goTo(page, section) {
   // section = 'Attendance' | 'Employees' | 'Payroll Module' | 'Leave' | 'Company Settings'

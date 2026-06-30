@@ -4,7 +4,7 @@
  */
 import { useState, useEffect } from 'react';
 import { X, UserCheck, Briefcase, CreditCard, Shield, FolderOpen, Upload, AlertCircle, Trash2, Heart, Plus, ShieldCheck, FileText, RefreshCw, CheckCircle, XCircle, Printer } from 'lucide-react';
-import { validateIBAN, validateEmiratesID, validateMolId, formatAED, formatDateUAE } from '../utils/uaeValidators';
+import { validateIBAN, validateEmiratesID, validateMolId, formatAED, formatDateUAE, daysUntil } from '../utils/uaeValidators';
 import { calculateGratuity } from '../utils/gratuityCalculator';
 import { getShifts } from '../utils/attendanceStorage';
 import {
@@ -309,7 +309,7 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
         employee.id,
         isFromUnlimited ? 'contract_converted' : 'contract_renewed',
         form.contractEndDate || form.contractType,
-        `Limited to ${renewForm.endDate}`,
+        `Limited to ${formatDateUAE(renewForm.endDate)}`,
         renewForm.notes,
       ).catch(() => {});
       setForm(prev => ({ ...prev, contractType:'Limited', contractEndDate:renewForm.endDate }));
@@ -438,34 +438,76 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
   const validate = () => {
     const e = {};
     if (!form.name.trim()) e.name = 'Required';
-    // Format-only checks — only run when the field has a value
-    if (form.molId) {
-      const molCheck = validateMolId(form.molId);
-      if (!molCheck.valid) e.molId = molCheck.message;
+
+    if (!String(form.empNo || '').trim()) {
+      e.empNo = 'Required';
+    } else {
+      const dupNo = (allEmployees || []).find(
+        emp => emp.empNo && String(emp.empNo).trim() === String(form.empNo).trim() && emp.id !== employee?.id
+      );
+      if (dupNo) e.empNo = `Employee No. already used by ${dupNo.name}`;
     }
-    if (form.iban) {
+
+    if (!form.workEmail || !form.workEmail.trim()) e.workEmail = 'Required';
+
+    // MOL ID — required, format-checked, and must be unique
+    if (!form.molId || !form.molId.trim()) {
+      e.molId = 'Required';
+    } else {
+      const molCheck = validateMolId(form.molId);
+      if (!molCheck.valid) {
+        e.molId = molCheck.message;
+      } else {
+        // Duplicate MOL ID check — skip for the employee being edited (same id)
+        const dup = (allEmployees || []).find(
+          emp => emp.molId && emp.molId === form.molId.trim() && emp.id !== employee?.id
+        );
+        if (dup) e.molId = `MOL ID already used by ${dup.name}`;
+      }
+    }
+
+    if (!form.bankName || !form.bankName.trim()) e.bankName = 'Required';
+    if (!String(form.bankRoutingCode || '').trim()) e.bankRoutingCode = 'Required';
+
+    if (!form.iban || !form.iban.trim()) {
+      e.iban = 'Required';
+    } else {
       const ibanCheck = validateIBAN(form.iban);
       if (!ibanCheck.valid) e.iban = ibanCheck.message;
     }
+
     if (form.emiratesId) {
       const eidCheck = validateEmiratesID(form.emiratesId);
       if (!eidCheck.valid) e.emiratesId = eidCheck.message;
     }
-    if (form.basicSalary && (isNaN(form.basicSalary) || Number(form.basicSalary) < 0)) {
-      e.basicSalary = 'Must be a positive number';
+
+    if (!form.basicSalary || isNaN(form.basicSalary) || Number(form.basicSalary) <= 0) {
+      e.basicSalary = 'Required — must be a positive number';
     }
+
     return e;
   };
 
   // Which tabs currently have errors (for cross-tab error banner)
   const TAB_FIELDS = {
-    personal:   ['name'],
+    personal:   ['name', 'empNo', 'workEmail'],
     job:        [],
-    salary:     ['basicSalary', 'iban', 'bankRoutingCode'],
+    salary:     ['basicSalary', 'iban', 'bankRoutingCode', 'bankName'],
     compliance: ['molId', 'emiratesId'],
     documents:  [],
     insurance:  [],
     contracts:  [],
+  };
+  const FIELD_LABELS = {
+    name:            'Full name',
+    empNo:           'Employee No.',
+    workEmail:       'Work email',
+    molId:           'MOL ID',
+    iban:            'IBAN',
+    bankName:        'Bank name',
+    bankRoutingCode: 'Bank routing code',
+    emiratesId:      'Emirates ID',
+    basicSalary:     'Basic salary',
   };
   const tabsWithErrors = (errs) =>
     Object.entries(TAB_FIELDS)
@@ -535,10 +577,20 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
 
           {/* Cross-tab error banner */}
           {Object.keys(errors).length > 0 && (() => {
-            const tabs = tabsWithErrors(errors);
-            return tabs.length > 0 ? (
-              <div style={{ background:'#fef2f2', border:'1px solid #fecaca', borderRadius:8, padding:'10px 14px', marginBottom:16, fontSize:13, color:'#991b1b', display:'flex', gap:8, alignItems:'flex-start' }}>
-                <span>⚠ Please fix errors on: <strong>{tabs.join(', ')}</strong></span>
+            const items = Object.entries(TAB_FIELDS).flatMap(([tabId, fields]) => {
+              const tabLabel = TABS.find(t => t.id === tabId)?.label;
+              return fields
+                .filter(fld => errors[fld])
+                .map(fld => ({ tabLabel, fieldLabel: FIELD_LABELS[fld] ?? fld, message: errors[fld] }));
+            });
+            return items.length > 0 ? (
+              <div style={{ background:'#fef2f2', border:'1px solid #fecaca', borderRadius:8, padding:'10px 14px', marginBottom:16, fontSize:13, color:'#991b1b' }}>
+                <div style={{ fontWeight:500, marginBottom: items.length > 1 ? 5 : 0 }}>⚠ Please fix the following:</div>
+                <ul style={{ margin:'4px 0 0', paddingLeft:18 }}>
+                  {items.map((item, i) => (
+                    <li key={i}><strong>{item.tabLabel}</strong> · {item.fieldLabel}: {item.message}</li>
+                  ))}
+                </ul>
               </div>
             ) : null;
           })()}
@@ -547,8 +599,9 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
           {tab === 'personal' && (
             <div className="form-grid form-grid-2">
               <div className="form-group">
-                <label>Employee No.</label>
+                <label>Employee No. *</label>
                 <input className="form-control" value={form.empNo} onChange={e => f('empNo', e.target.value)} placeholder="e.g. 1001"/>
+                {errors.empNo && <span className="text-danger text-sm">{errors.empNo}</span>}
               </div>
               <div className="form-group">
                 <label>Full Legal Name (as on passport) *</label>
@@ -560,8 +613,9 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
                 <input className="form-control" type="email" value={form.personalEmail} onChange={e => f('personalEmail', e.target.value)} placeholder="personal@email.com"/>
               </div>
               <div className="form-group">
-                <label>Work Email</label>
+                <label>Work Email *</label>
                 <input className="form-control" type="email" value={form.workEmail} onChange={e => f('workEmail', e.target.value)} placeholder="work@company.com"/>
+                {errors.workEmail && <span className="text-danger text-sm">{errors.workEmail}</span>}
               </div>
               <div className="form-group">
                 <label>Phone Number</label>
@@ -633,9 +687,11 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
                 <label>Reporting Manager</label>
                 <select className="form-control" value={form.reportingManagerId} onChange={e => f('reportingManagerId', e.target.value)}>
                   <option value="">None</option>
-                  {(allEmployees||[]).filter(e => e.id !== form.id).map(e => (
-                    <option key={e.id} value={e.id}>{e.name}</option>
-                  ))}
+                  {(allEmployees||[])
+                    .filter(e => e.id !== form.id && e.employmentStatus !== 'Terminated')
+                    .map(e => (
+                      <option key={e.id} value={e.id}>{e.name}</option>
+                    ))}
                 </select>
               </div>
               {/* Portal Role — only visible when employee has an activated portal account */}
@@ -888,8 +944,9 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
                 <label style={{ fontWeight:600, marginBottom:6, display:'block' }}>Bank Details (for WPS / Payslip)</label>
                 <div className="form-grid form-grid-2" style={{ gap:10 }}>
                   <div className="form-group">
-                    <label>Bank Name</label>
+                    <label>Bank Name *</label>
                     <input className="form-control" value={form.bankName} onChange={e => f('bankName', e.target.value)} placeholder="e.g. ENBD, FAB, ADCB"/>
+                    {errors.bankName && <span className="text-danger text-sm">{errors.bankName}</span>}
                   </div>
                   <div className="form-group">
                     <label>Bank / Routing Code *</label>
@@ -1056,12 +1113,16 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
                       onChange={e => f('licenceExpiry', e.target.value)}
                       disabled={form.licenceAuthority === 'None'}
                     />
-                    {form.licenceExpiry && form.licenceAuthority !== 'None' && (() => {
-                      const days = Math.ceil((new Date(form.licenceExpiry) - new Date()) / 86400000);
-                      if (days < 0) return <span className="hint" style={{ color:'var(--danger)' }}>⚠ Expired {Math.abs(days)}d ago — payroll SIF generation will require override</span>;
-                      if (days <= 30) return <span className="hint" style={{ color:'var(--warning)' }}>⚠ Expires in {days}d — renew soon</span>;
-                      return <span className="hint" style={{ color:'var(--success)' }}>Valid — {days}d remaining</span>;
-                    })()}
+                    {form.licenceAuthority !== 'None' && (
+                      form.licenceExpiry
+                        ? (() => {
+                            const days = daysUntil(form.licenceExpiry);
+                            if (days < 0) return <span className="hint" style={{ color:'var(--danger)' }}>⚠ Expired {Math.abs(days)}d ago — payroll SIF generation will require override</span>;
+                            if (days <= 30) return <span className="hint" style={{ color:'var(--warning)' }}>⚠ Expires in {days}d — renew soon</span>;
+                            return <span className="hint" style={{ color:'var(--success)' }}>Valid — {days}d remaining</span>;
+                          })()
+                        : <span className="hint" style={{ color:'var(--warning)' }}>⚠ Set a licence expiry date to track renewal</span>
+                    )}
                   </div>
                 </div>
               </div>

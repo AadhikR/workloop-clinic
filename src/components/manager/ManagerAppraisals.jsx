@@ -5,7 +5,6 @@
 import { useState, useEffect } from 'react';
 import { Star, ChevronDown, ChevronUp, Save, CheckCircle } from 'lucide-react';
 import { getMyTeamAppraisals, managerRateSection, RATING_LABELS } from '../../utils/appraisalStorage';
-import { getEmployees } from '../../utils/storage';
 
 const STATUS_BADGE = {
   pending:       'badge-amber',
@@ -41,7 +40,6 @@ function StarRating({ value, onChange, disabled }) {
 
 export default function ManagerAppraisals() {
   const [appraisals, setAppraisals] = useState([]);
-  const [employees,  setEmployees]  = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [expanded,   setExpanded]   = useState(null);
   const [sectionEdits, setSectionEdits] = useState({}); // { [sectionId]: { rating, comments } }
@@ -49,17 +47,10 @@ export default function ManagerAppraisals() {
   const [saved,  setSaved]  = useState({});
 
   useEffect(() => {
-    Promise.all([
-      getMyTeamAppraisals().catch(() => []),
-      getEmployees().catch(() => []),
-    ]).then(([apps, emps]) => {
-      setAppraisals(apps);
-      setEmployees(emps);
-      setLoading(false);
-    });
+    getMyTeamAppraisals()
+      .catch(() => [])
+      .then(apps => { setAppraisals(apps); setLoading(false); });
   }, []);
-
-  const empName = (empId) => employees.find(e => e.id === empId)?.name || '—';
 
   const handleSectionChange = (sectionId, field, val) => {
     setSectionEdits(prev => ({
@@ -77,7 +68,6 @@ export default function ManagerAppraisals() {
     try {
       await managerRateSection(section.id, { rating, comments });
       setSaved(prev => ({ ...prev, [section.id]: true }));
-      // Refresh appraisals to pick up the new rating
       const updated = await getMyTeamAppraisals().catch(() => appraisals);
       setAppraisals(updated);
       setTimeout(() => setSaved(prev => ({ ...prev, [section.id]: false })), 2000);
@@ -119,9 +109,9 @@ export default function ManagerAppraisals() {
                   onClick={() => setExpanded(prev => prev === a.id ? null : a.id)}
                 >
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600, fontSize: 15 }}>{empName(a.employeeId)}</div>
+                    <div style={{ fontWeight: 600, fontSize: 15 }}>{a.employeeName || '—'}</div>
                     <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 2 }}>
-                      {a.cycleName || 'Appraisal Cycle'}
+                      {a.jobTitle ? `${a.jobTitle} · ` : ''}{a.cycleName || 'Appraisal Cycle'}
                       {a.reviewFrom && a.reviewTo ? ` · ${a.reviewFrom} → ${a.reviewTo}` : ''}
                     </div>
                   </div>
@@ -157,7 +147,7 @@ export default function ManagerAppraisals() {
                           const isSaved  = saved[s.id];
                           return (
                             <tr key={s.id}>
-                              <td style={{ fontWeight: 500, minWidth: 160 }}>{s.section_name}</td>
+                              <td style={{ fontWeight: 500, minWidth: 160 }}>{s.sectionName}</td>
                               <td style={{ color: 'var(--gray-500)', fontSize: 13 }}>×{s.weight}</td>
                               <td>
                                 <StarRating

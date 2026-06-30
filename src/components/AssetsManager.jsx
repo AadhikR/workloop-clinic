@@ -9,6 +9,7 @@ import { useState, useEffect } from 'react';
 import { Package, Plus, X, Check, RefreshCw, AlertCircle, ChevronDown, ChevronUp, Pencil, Trash2 } from 'lucide-react';
 import { getEmployees } from '../utils/storage';
 import { getAssets, saveAsset, deleteAsset, getAssetAssignments, assignAsset, returnAsset } from '../utils/assetStorage';
+import { formatDateUAE } from '../utils/uaeValidators';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -599,10 +600,10 @@ export default function AssetsManager() {
                           )}
                         </td>
                         <td>{a.employeeName || '—'}</td>
-                        <td style={{ whiteSpace: 'nowrap' }}>{a.assignedDate}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>{formatDateUAE(a.assignedDate)}</td>
                         <td style={{ whiteSpace: 'nowrap' }}>
                           {a.returnDate
-                            ? a.returnDate
+                            ? formatDateUAE(a.returnDate)
                             : <span className="badge badge-blue" style={{ fontSize: 10 }}>Active</span>}
                         </td>
                         <td>

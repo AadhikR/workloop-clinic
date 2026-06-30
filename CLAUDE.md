@@ -43,9 +43,31 @@ npx playwright test assets                # Feature 16 — Asset Management
 npx playwright test payroll-approval      # Feature 17 — Payroll Approval (Maker-Checker)
 npx playwright test training              # Feature 19 — Training & Certification Records
 npx playwright test multi-company        # Feature 21 — Multi-Company / Branch Support
-npx playwright test employee-portal     # Employee portal — all 9 tabs comprehensive
+npx playwright test employee-portal     # Employee portal — all 12 tabs comprehensive
 npx playwright test payroll             # Payroll — full coverage (list, editor, SIF, repeat)
 npx playwright test leave               # Leave — full coverage (overview, requests, balances, settings)
+
+# Clinic HRMS feature specs (1.1–7.2)
+npx playwright test clinical-credentials        # Features 1.1 + 1.2 — Clinical creds & self-upload
+npx playwright test letter-requests             # Feature 1.3 — Letter & Certificate Requests
+npx playwright test clinical-rota               # Features 2.1 + 2.2 — Clinical duty rota & biometric import
+npx playwright test probation-leave-rules       # Features 2.3 + 2.4 — Probation leave & attachments
+npx playwright test departments                 # Feature 3.1 — Department hierarchy & staffing rules tab
+npx playwright test manager-expense-queue       # Feature 3.2 — Multi-level expense approvals
+npx playwright test clinical-dashboard          # Feature 4.1 — Clinical HR Dashboard (11 KPI cards)
+npx playwright test salary-compliance           # Feature 5.1 — MoHRE salary distribution thresholds
+npx playwright test appraisals                  # Feature 6.1 — Appraisal module
+npx playwright test professional-licences       # Features 7.1 + 7.2 — Licences, SIF gate, staffing compliance
+
+# Run all clinic specs together
+npx playwright test clinical-credentials letter-requests clinical-rota probation-leave-rules departments manager-expense-queue clinical-dashboard salary-compliance appraisals professional-licences
+
+# Additional coverage specs (auth, isolation, company settings, cross-portal workflows)
+npx playwright test auth                # Auth flows (email case, sign-in/out, session persistence)
+npx playwright test isolation           # Cross-profile data isolation and RLS enforcement
+npx playwright test company-settings    # Company Settings page and branch switcher (Feature 21)
+npx playwright test cross-profile       # Cross-portal workflows (all 3 sessions): leave/expense/advance/payroll/letter/doc/clinical
+npx playwright test manager-portal      # Manager Portal all 8 tabs (requires sql/034_manager_role.sql)
 
 # Run tests matching a name pattern across all files
 npx playwright test --grep "bell icon"
@@ -56,6 +78,7 @@ npx playwright test --grep "bell icon"
 Copy `.env.test.example` → `.env.test` and fill in:
 - `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` — same as `.env`
 - `SUPABASE_SERVICE_ROLE_KEY` — Supabase Dashboard → Project Settings → API → `service_role` key
+- `TEST_MANAGER_EMAIL` / `TEST_MANAGER_PASSWORD` / `TEST_MANAGER_NAME` — manager test account (defaults already in `.env.test.example`; account is auto-created by global-setup)
 
 The service role key is used only in `tests/global-setup.js` (Node.js, never the browser) to create test users and seed data. Before running tests for the first time, also run this in Supabase SQL Editor to grant the service role access to all tables:
 
@@ -64,15 +87,26 @@ GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO service_role;
 ```
 
-`global-setup.js` runs once before all tests: creates `test.admin@workloop-test.local` and `test.employee@workloop-test.local` auth users, seeds company/employee rows, then saves browser sessions to `.playwright/admin-session.json` and `.playwright/employee-session.json` so tests start pre-logged-in. `global-teardown.js` cleans test data from all feature tables: attendance, payroll (runs/entries/payslips/approval_log), nafis_reports, insurance, notifications, employee_documents, salary_advances, employee_contracts, offboarding_checklists (tasks cascade), expense_claims, asset_assignments + assets, training_records, certifications, and extra company branches (Feature 21 — keeps only the primary branch).
+**Required migration for manager portal tests**: `sql/034_manager_role.sql` must be applied before running `manager-portal.spec.js` or `cross-profile.spec.js`. Without it, the `user_profiles_role_check` constraint rejects `role='manager'`, causing `ManagerShell` to silently never render. The spec's `beforeEach` guard detects this and skips with the message: `"apply sql/034_manager_role.sql in Supabase SQL Editor"`.
+
+`global-setup.js` runs once before all tests: creates three test users (`test.admin@workloop-test.local`, `test.employee@workloop-test.local`, `test.manager@workloop-test.local`), seeds company/employee rows, links portal accounts, sets `test.employee`'s `reporting_manager_id` → test manager (enables queue tests), seeds deterministic test data (leave types/requests, expense claims, advances, assets, training, certifications, insurance policy, letter request, draft payroll run), then saves three browser sessions: `.playwright/admin-session.json`, `.playwright/employee-session.json`, `.playwright/manager-session.json`. Also writes `.playwright/env.json` with all seeded IDs for teardown. `global-teardown.js` cleans test data from all feature tables: attendance, payroll (runs/entries/payslips/approval_log), nafis_reports, insurance, notifications, employee_documents, salary_advances, employee_contracts, offboarding_checklists (tasks cascade), expense_claims, asset_assignments + assets, training_records, certifications, and extra company branches (Feature 21 — keeps only the primary branch).
 
 Test files in `tests/` use `storageState` to load saved sessions. Attendance tests open two browser contexts simultaneously (admin + employee) to verify cross-portal clock-in visibility.
+
+**Manager session and `user_profiles` deduplication**: During the manager browser login in `global-setup.js`, `signInAsEmployee`'s `linkEmployeeAccount()` call inserts a new `user_profiles` row with `role='employee'`. If a row already existed (from a prior service-role upsert), you now have **two rows** for the same `user_id`. When the test loads the saved session, `getProfile()` calls `.maybeSingle()` → PGRST116 (multiple rows) → returns null → auto-recovery runs `linkEmployeeAccount()` again → inserts yet another `role='employee'` row → ManagerShell never renders. Fix: in global-setup, after saving all sessions, use **delete-then-insert** (not upsert) to leave exactly ONE `user_profiles` row for the manager:
+```js
+await db.from('user_profiles').delete().eq('user_id', mgrUser.id);
+await db.from('user_profiles').insert(
+  { user_id: mgrUser.id, role: 'manager', company_user_id: adminUser.id, employee_id: managerEmpId }
+);
+```
+This must run AFTER `browser.close()` so it takes effect after the browser session file is saved.
 
 ### Playwright selector patterns (hard-won)
 
 **Shell selectors**: Admin shell renders `<div className="sidebar-logo">` → use `.sidebar-logo`. Employee shell renders `<div className="emp-sidebar-logo">` → use `.emp-sidebar-logo`. Never use `.sidebar-logo` for an employee-session page.
 
-**Auth submit buttons**: The auth page buttons say "Sign in as Admin" / "Sign in as Employee" (not "Sign in"). Always use `locator('button[type="submit"]')` for form submission — never `getByRole('button', { name: /^sign in$/i })`.
+**Auth submit buttons**: The auth page buttons say "Sign in as Admin" / "Sign in as Employee / Manager" (not "Sign in"). Always use `locator('button[type="submit"]')` for form submission — never `getByRole('button', { name: /^sign in$/i })`. Managers sign in through the Employee / Manager form — there is no separate manager sign-in button.
 
 **Components with loading guards**: Several components start with `useState(true)` and render ONLY a spinner until data loads:
 - `AttendanceManager`: `if (loading) return <div>Loading attendance module…</div>` — stat cards, Refresh button, Close Period button, and ALL page content are absent from the DOM while loading.
@@ -110,7 +144,59 @@ Each storage file already has a private `getSessionUser()` helper that wraps thi
 
 **`locator.isVisible()` is non-waiting**: Playwright's `isVisible()` returns `false` immediately if the element is not in the DOM — it does NOT retry or wait. Calling it right after `page.goto()` will return `false` while the app is still on its initial loading spinner. Use `.waitFor()` or `expect(locator).toBeVisible({ timeout: N })` when you need to wait for the element to appear.
 
+**`isVisible()` returns `true` for disabled buttons — use `isEnabled()` for conditional branching**: Playwright's `isVisible()` returns `true` for buttons that are in the DOM but have the `disabled` attribute. In `EmpAttendance`, the Clock In and Clock Out buttons are always rendered — they are never hidden, only `disabled={!canClockIn}` / `disabled={!canClockOut}`. Using `isVisible()` to decide whether to click the button will return `true` even when the button is disabled, causing the click to silently do nothing and subsequent assertions to time out. Use `isEnabled()` instead:
+```js
+// ❌ WRONG — returns true for disabled buttons
+if (!(await clockInBtn.isVisible({ timeout: 3000 }).catch(() => false))) { ... }
+
+// ✅ CORRECT — returns false for disabled buttons
+if (!(await clockInBtn.isEnabled({ timeout: 3000 }).catch(() => false))) { ... }
+```
+**Corollary — `canClockIn` never resets after clock-out**: `EmpAttendance` computes `const canClockIn = !todayRec?.clockInTime`. Once an employee clocks in today, `clockInTime` is set permanently for the day. Clocking out does NOT reset it. Tests that need a fresh clock-in must handle the "already clocked in today" case with a graceful return/skip, not try to force a second clock-in.
+
+**`waitForLoadState('networkidle')` hangs when components poll**: Three parts of the app have persistent polling that prevents networkidle from ever resolving:
+- `AttendanceManager` (admin): polls `loadAll(true)` every 30 seconds
+- `ManagerShell`: `NotificationBell` polls `getUnreadCount()` every 60 seconds
+- `EmployeeShell`: `NotificationBell` polls `getUnreadCount()` every 60 seconds
+
+Any test that calls `await page.waitForLoadState('networkidle')` after navigating to these portals will hang until the test timeout. Replace with a direct wait for the specific element you care about:
+```js
+// ❌ Hangs — AttendanceManager polls every 30s, networkidle never fires
+await adminPage.waitForLoadState('networkidle');
+await expect(adminPage.locator('.stat-card').first()).toBeVisible({ timeout: 5000 });
+
+// ✅ Wait for the element directly
+await expect(adminPage.locator('.stat-card').first()).toBeVisible({ timeout: 25000 });
+
+// ❌ Hangs — ManagerShell NotificationBell polls every 60s
+await page.waitForLoadState('networkidle');
+
+// ✅ Wait for specific manager portal heading
+await expect(page.locator('h2, h3').filter({ hasText: /expense queue/i })).toBeVisible({ timeout: 10000 });
+```
+
+**`waitForLoadState('domcontentloaded')` as a lightweight tab-transition wait**: When you just need a tab click to be processed (and don't want to hang on `networkidle` due to polling), use `'domcontentloaded'` as the lightest option. It does NOT guarantee data has loaded — always follow it with a specific element assertion. Useful in `ManagerShell` and `EmployeeShell` tab navigation:
+```js
+await page.locator('button.nav-item').filter({ hasText: /^Expense Queue$/ }).click();
+await page.waitForLoadState('domcontentloaded'); // ensures click was processed
+await expect(page.locator('.emp-card').first()).toBeVisible({ timeout: 10000 }); // waits for data
+```
+
 **Combined CSS + Playwright text selector is invalid**: `page.locator('.foo, text=/bar/i')` — Playwright treats the whole string as CSS and rejects the `text=` part. Use `.or()`: `page.locator('.foo').or(page.getByText(/bar/i))`.
+
+**`.first().or()` is an invalid chain — call `.first()` AFTER `.or()`, never before**: Calling `.or()` on a locator that already has `.first()` applied causes immediate test failures (strict-mode violations or silent empty resolution). This is a subtle error because the code looks reasonable:
+```js
+// ❌ WRONG — .or() on a .first() locator fails
+const row   = page.locator('.card').filter({ hasText: /foo/i }).first();
+const empty = page.locator('.empty-state').first();
+await expect(row.or(empty)).first().toBeVisible({ timeout: 8000 });
+
+// ✅ CORRECT — .first() comes last, after the union is formed
+const row   = page.locator('.card').filter({ hasText: /foo/i });
+const empty = page.locator('.empty-state');
+await expect(row.or(empty).first()).toBeVisible({ timeout: 8000 });
+```
+Never store a `.first()` result in a variable if you plan to call `.or()` on it later.
 
 **`option[value!=""]` is not valid CSS**: jQuery inequality attribute selector. Use `locator('option').count()` and treat a count of `<= 1` as "only the placeholder exists".
 
@@ -155,6 +241,10 @@ This pattern is used in `reports.spec.js` for all Reports tab buttons. The same 
 **`<option>` elements are "hidden" in Playwright**: Playwright's `toBeVisible()` returns `false` for `<option>` elements because they are not directly rendered — only the `<select>` parent is visible. To assert that a `<select>` contains specific placeholder text, check the `<select>` element itself: `page.locator('select').filter({ has: page.locator('option').filter({ hasText: /placeholder/i }) })`. Never call `.toBeVisible()` directly on an `<option>` locator.
 
 **Filter chips with count suffix — use substring `hasText`, not anchored regex**: AssetsManager filter chips render as `"Available (2)"` (status label + live count). The regex `/^Available$/i` never matches. Use `page.locator('button.tab-btn').filter({ hasText: 'Available' })` — Playwright's string `hasText` does a substring match. Always scope to `button.tab-btn` (the chip class) to avoid matching unrelated buttons that also contain "Available" in their text.
+
+**`AppraisalManager` Reviews tab renders a numeric badge — breaks exact-name assertions**: When appraisals are seeded, the Reviews tab button renders as `Reviews <span>N</span>`, making its accessible name "Reviews N" (e.g. "Reviews 1"). `getByRole('button', { name: 'Reviews', exact: true })` fails. Use substring `hasText` scoped to `button.tab-btn`: `page.locator('.page-body button.tab-btn').filter({ hasText: 'Reviews' })`. The same pattern applies to any tab that appends a count badge when data is seeded.
+
+**`EmpProfile` renders form inputs only in edit mode**: `EmpProfile` hides all form inputs and the Save button behind an `{editing && ...}` conditional — the Edit button toggles `editing = true`. Tests that assert inputs or the Save button must click the "Edit" button first; otherwise all inputs and the save button are absent from the DOM.
 
 **`modal-overlay` vs `modal-backdrop`**: Some components (AssetsManager, OffboardingModal) wrap their modals in `<div className="modal-overlay">` rather than `<div className="modal-backdrop">`. In both cases the inner modal uses `<div className="modal">` so `page.locator('.modal')` still works for asserting content. Only the backdrop selector matters when testing click-outside-to-close behaviour.
 
@@ -226,6 +316,8 @@ Clinic-specific migrations to run in order (if not already applied):
 - `sql/031_appraisal_module.sql` — creates `appraisal_cycles`, `appraisals`, `appraisal_sections` tables + RLS + admin policies. Employee self-read policy on `appraisals` and `appraisal_sections`.
 - `sql/032_roster_compliance.sql` — pre-cursor to staffing rules; superseded by 033 for the staffing rules table.
 - `sql/033_clinical_gaps.sql` — adds `licence_authority`, `licence_number`, `licence_expiry` to `employees`; creates `compliance_overrides` table + admin RLS; creates `department_staffing_rules` table + admin RLS; adds four manager-portal RLS policies on `appraisals`, `appraisal_sections`, `appraisal_cycles` for direct-reports access via `reporting_manager_id` chain.
+- `sql/034_manager_role.sql` — **required for ManagerShell to work**: drops and recreates `user_profiles_role_check` to include `'manager'`; updates `admin_set_employee_portal_role` RPC to accept `'manager'`; grants `user_profiles` to `service_role` (required for E2E test manager session setup). Without this migration, `role='manager'` inserts fail silently and `ManagerShell` never renders.
+- `sql/035_manager_employee_read.sql` — adds `employees_manager_read` SELECT policy so managers can read their direct reports' employee records (required for `ManagerAppraisals` name resolution and any future manager feature that needs employee details). Uses a `SECURITY DEFINER` helper `get_manager_employee_id()` to avoid infinite RLS recursion — **never** write a plain self-referencing subquery on `employees` inside an `employees` RLS policy; it causes `"infinite recursion detected in policy for relation employees"` for every query on that table.
 
 **Legacy pending migration**: `sql/021_multi_company.sql` adds `branch_name` to `companies`, `company_id FK` to `employees`/`payroll_runs`, and drops the unique constraint on `companies.user_id`. If employees show `company_id = NULL` in the multi-company tests, this migration has not been applied yet.
 
@@ -259,8 +351,8 @@ This fork is being extended into a **UAE clinic/hospital HRMS**. Clinic-specific
 - **3.2 Multi-Level Expense Approvals** (done) — adds `manager_approved_at`, `manager_approved_by`, `manager_rejection_reason` columns to `expense_claims` (`sql/030`); three SECURITY DEFINER RPCs: `manager_get_expense_queue`, `manager_approve_expense`, `manager_reject_expense`; new `getExpenseQueueForManager`, `managerApproveExpense`, `managerRejectExpense` in `expenseStorage.js`; `ManagerExpenseQueue.jsx` added to `ManagerShell` as "Expense Queue" tab; `ExpensesManager` updated with `manager_approved`/`manager_rejected` status badges and filter tab. Status flow: `pending` → `manager_approved` (manager pre-approves) → `approved` (HR final) → `paid`; or `manager_rejected` at any pre-paid point.
 - **4.1 Clinical HR Dashboard** (done) — `ClinicalDashboard.jsx` (nav item `'clinical-dashboard'`, Activity icon, second position after Dashboard); **11 clickable KPI cards** with drill-down expansion panels: Active Staff / Credential Compliance / Licences Expiring ≤90d / Expired Credentials / Today's Roster Coverage / On Probation / New Joiners This Month / Birthdays This Month / On Leave Today / Pending Leave Requests / Staff On Duty Now. Department Headcount table with per-dept compliance % and coverage progress bar. Uses `CLINICAL_DOC_TYPES` (imported from `EmployeeModal.jsx`) to filter clinical documents. Data sources: `getEmployees`, `getAllEmployeeDocuments`, `getRosterForMonth`, `getDepartments`, `getLeaveRequests({ status: 'Approved' })`, `getAttendanceRecords({ dateFrom, dateTo })` (today only).
 - **5.1 Salary Distribution Compliance** (done) — MoHRE salary distribution thresholds corrected in `EmployeeModal.jsx` Salary tab: Basic ≥60% (was ≥50%) = compliant green; 50–60% = warn amber; <50% = error red. Housing ≤25% (was ≤30%). Transport ≤10% (was ≤15%).
-- **6.1 Appraisal Module** (done) — `sql/031_appraisal_module.sql` creates `appraisal_cycles`, `appraisals`, `appraisal_sections` tables. `appraisalStorage.js` exports: `getAppraisalCycles`, `saveAppraisalCycle`, `deleteAppraisalCycle`, `getAppraisalsForCycle`, `getMyAppraisals`, `getMyTeamAppraisals` (manager RLS), `createAppraisalsForCycle`, `saveAppraisalReview`, `calibrateAppraisal`, `managerRateSection`. `AppraisalManager.jsx` (nav item `'appraisals'`, ClipboardList icon, between Training and Roster) — admin creates cycles, assigns staff, reviews ratings, calibrates scores. `EmpAppraisal.jsx` (employee portal "Appraisals" tab, 9th of 12 — between Training and Documents) — read-only expandable rows with star display. `ManagerAppraisals.jsx` (ManagerShell "Appraisals" tab, 3rd after Expense Queue) — interactive `StarRating` per section, locked when `status === 'calibrated'`. Manager access via `appraisals_manager_read` / `appraisal_sections_manager_update` RLS policies (migration 033). Dashboard shows blue alert for pending appraisals in active cycles.
-- **7.1 Professional Licence Tracking** (done) — `sql/033_clinical_gaps.sql` adds `licence_authority TEXT NOT NULL DEFAULT 'None'`, `licence_number TEXT`, `licence_expiry DATE` to `employees`; `storage.js` maps these to `licenceAuthority`/`licenceNumber`/`licenceExpiry` in `dbToEmployee`/`employeeToDb`. `EmployeeModal.jsx` UAE Compliance tab has "Professional Licence" section: authority `<select>` (None/DHA/DOH/MOH/HAAD/DHCC/Other), Licence Number input (disabled when None), Expiry date with inline valid/expiring/expired badge. **Hard block on SIF download** in `PayrollEditor.jsx`: `handleDownload()` checks for employees with `licenceAuthority !== 'None'` and `licenceExpiry < today` — shows `licenceGate` modal listing expired staff with override reason textarea (≥10 chars required); on override, calls `saveComplianceOverride({ overrideType: 'payroll_sif', employeeIds, reason })`. `compliance_overrides` table (migration 033) stores all override audit records. `notificationStorage.js` fires `clinical_licence_expiry` notifications at 60d/30d/14d using `${emp.id}_licence_${thr}d` deduplication key.
+- **6.1 Appraisal Module** (done) — `sql/031_appraisal_module.sql` creates `appraisal_cycles`, `appraisals`, `appraisal_sections` tables. `appraisalStorage.js` exports: `getAppraisalCycles`, `saveAppraisalCycle`, `deleteAppraisalCycle`, `getAppraisalsForCycle`, `getMyAppraisals`, `getMyTeamAppraisals` (manager RLS), `createAppraisalsForCycle`, `saveAppraisalReview`, `calibrateAppraisal`, `managerRateSection`. `AppraisalManager.jsx` (nav item `'appraisals'`, ClipboardList icon, between Training and Roster) — admin creates cycles, assigns staff, reviews ratings, calibrates scores. `EmpAppraisal.jsx` (employee portal "Appraisals" tab, 9th of 12 — between Training and Documents) — read-only expandable rows with star display. `ManagerAppraisals.jsx` (ManagerShell "Appraisals" tab, 3rd after Expense Queue) — interactive `StarRating` per section, locked when `status === 'calibrated'`. Manager access via `appraisals_manager_read` / `appraisal_sections_manager_update` RLS policies (migration 033). Dashboard shows blue alert for pending appraisals in active cycles. **Critical workflow**: just setting `reporting_manager_id` on an employee is not enough — the admin must also go to Appraisals → open cycle → Reviews tab → Assign Staff to create appraisal rows for those employees; only then will the manager see them. **Self-appraisal exclusion**: `getMyTeamAppraisals()` calls `supabase.rpc('get_manager_employee_id')` and filters `neq('employee_id', selfId)` to prevent the manager's own appraisal (visible via employee self-read policy) from leaking into the Team Appraisals view. **Section name field**: `dbToSection()` converts `section_name` → `sectionName` (camelCase); components must read `s.sectionName`, never `s.section_name`.
+- **7.1 Professional Licence Tracking** (done) — `sql/033_clinical_gaps.sql` adds `licence_authority TEXT NOT NULL DEFAULT 'None'`, `licence_number TEXT`, `licence_expiry DATE` to `employees`; `storage.js` maps these to `licenceAuthority`/`licenceNumber`/`licenceExpiry` in `dbToEmployee`/`employeeToDb`. `EmployeeModal.jsx` UAE Compliance tab has "Professional Licence" section: authority `<select>` (None/DHA/DOH/MOH/HAAD/DHCC/Other), Licence Number input (disabled when None), Expiry date with inline valid/expiring/expired badge. **Hard block on SIF download** in `PayrollEditor.jsx`: `handleDownload()` checks all three compliance dimensions — expired professional licence (`licenceAuthority !== 'None' && licenceExpiry < today`), expired Emirates ID (`emiratesIdExpiry < today`), and expired Visa (`visaExpiry < today`) — collects all into a `violations` array `[{ emp, type, expiry }]`, then shows the `licenceGate` modal (heading "Expired Compliance Documents") listing each violation with override reason textarea (≥10 chars required); on override, calls `saveComplianceOverride({ overrideType: 'payroll_sif', employeeIds, reason })`. `compliance_overrides` table (migration 033) stores all override audit records. `notificationStorage.js` fires `clinical_licence_expiry` notifications at 60d/30d/14d using `${emp.id}_licence_${thr}d` deduplication key.
 - **7.2 Minimum Staffing Rules** (done) — `sql/033_clinical_gaps.sql` creates `department_staffing_rules` table with `UNIQUE (user_id, department, shift_category)`. `staffingStorage.js` exports `getDeptStaffingRules`, `saveDeptStaffingRule`, `deleteDeptStaffingRule`. `DepartmentManager.jsx` gains a 3rd "Staffing Rules" tab (ShieldCheck icon) with inline add/edit form (department datalist, shift category select, min staff number) and delete buttons. **Hard block on roster publish** in `RosterManager.jsx`: `handlePublish()` loads staffing rules, computes per-day department × shift_category headcounts from `rosterData`, finds violations (count < minStaff), shows `publishGate` modal listing violations table with override reason textarea (≥10 chars required); `doPublish(overrideReason)` calls `saveComplianceOverride({ overrideType: 'roster_publish' })` before publishing. `CATEGORY_LABELS` constant added in `RosterManager.jsx`. **Staffing Compliance tab** added to `Reports.jsx` (8th tab, ShieldCheck icon): month picker fetches roster via `getRosterForMonth`, renders per-rule heatmap of 28×28px green/red day cells showing actual staff count.
 
 ### Three-portal structure
@@ -554,6 +646,8 @@ The **Save button is hidden** on Documents, Insurance, and Contracts tabs — en
 - **`utils/gratuityCalculator.js`** — End-of-service gratuity per UAE law.
 - **`utils/attendanceEngine.js`** — `ATTENDANCE_STATUS`, `STATUS_LABELS`, `STATUS_COLORS` constants + `deriveAttendanceStatus`.
 - **`utils/uaeValidators.js`** — UAE-specific field validation (IBAN, Emirates ID, MOL ID) + formatters.
+- **`utils/csvImport.js`** — `parseCSV(fileContent)` + `readFileAsText(file)`. Parses a company-specific salary CSV with fixed column offsets (col 0=EmpNo, 2=Name, 3=MOL ID, 4=Bank, 5=Routing, 6=IBAN, 7=Basic, 8=Allowance, 16=WPS BASIC, 17=WPS ALLOW). Used by `EmployeeManager` (bulk import employees) and `PayrollEditor` (import payroll entries from CSV). Rows where MOL ID is not ≥10 digits are skipped.
+- **`utils/featureFlags.js`** — `getAdvancedFeatures` / `setAdvancedFeatures` / `useAdvancedFeatures` — localStorage toggle (`'workloop-advanced-features'`) for a simplified SME view. **Not currently imported anywhere** — this is dead code and safe to delete if the feature is abandoned.
 
 ### Styling
 
@@ -566,3 +660,82 @@ Single CSS file: `src/index.css`. Solid-colour design system (glass/blur was rem
 - Nav pill: `linear-gradient(135deg, #2563EB 0%, #06B6D4 100%)` with spring animation (`cubic-bezier(0.34, 1.3, 0.64, 1)`)
 
 Admin shell uses `.page-header` / `.page-body` / `.card` classes. Employee portal uses `.emp-page-header` / `.emp-page-body` / `.emp-card` parallels.
+
+**`.emp-card` inner structure**: `.emp-card` has no default padding — content will touch the border unless the first child sets its own padding via inline style OR the component uses `.emp-card-header` / `.emp-card-body` helper classes (defined in `index.css`). `.emp-card-header` gives `14px 18px` padding + a bottom border; `.emp-card-body` gives `16px 18px`. Accordion-style cards (appraisals, expense queue) set `style={{ padding: 0 }}` on the outer card and manage padding themselves per-row.
+
+---
+
+## Manual Testing Workflow
+
+The project is being manually tested across all features and portals using a structured 12-day checklist in **`MANUAL_TEST_CHECKLIST.md`**. This section explains how to work with that checklist when the user asks for help.
+
+### 12-Day Schedule
+
+| Day | Area | Portal |
+|-----|------|--------|
+| 1 | Admin Auth · Dashboard · Clinical Dashboard | Admin |
+| 2 | Company Settings · Employees (basic CRUD, 4 tabs) | Admin |
+| 3 | Employees (advanced: Documents · Insurance · Contracts · Probation · Offboarding) | Admin |
+| 4 | Departments · Letter Requests | Admin |
+| 5 | Payroll (full cycle: create → approve → SIF → WPS) | Admin |
+| 6 | Advances · Expenses | Admin |
+| 7 | Leave (all 5 tabs) | Admin |
+| 8 | Attendance · Biometric Import · Assets | Admin |
+| 9 | Training · Appraisals | Admin |
+| 10 | Roster · Reports (all 8 tabs) | Admin |
+| 11 | Manager Portal (all 8 tabs) | Manager |
+| 12 | Employee Portal (all 12 tabs) · Cross-portal flows · Edge cases | Employee |
+
+### Checklist item format
+
+Each task in the checklist follows this exact structure:
+
+```
+### [ID] · [Short description] - [status]
+- **Profile**: which portal / who to be signed in as
+- **Setup**: prerequisites that must be true before starting
+- **Steps**: numbered actions the tester performs
+- **Pass**: what correct behaviour looks like
+- **Bug**: blank if no issue; user fills in what went wrong during testing
+  - **Fixed**: added by Claude after fixing — what was changed and why
+```
+
+**Status suffixes** appended to the heading by the user during testing:
+- *(blank)* — not yet tested
+- `- completed` — all steps passed, no issue
+- `- partial` — partially working; bug noted under **Bug**
+- `- bug` — fails; bug noted under **Bug**
+
+**⏭ DEFER** items cannot be tested on the current day because their prerequisite data is created on a later day. They are skipped and revisited when that day is reached.
+
+### When the user asks for daily instructions
+
+The user requests detailed instructions **one day at a time**. When asked for Day N's instructions:
+- Read the existing `MANUAL_TEST_CHECKLIST.md` in full — not just Day N's section
+- **Include deferred items**: scan all previous days (Days 1 through N-1) for any item marked **⏭ DEFER to Day N**. List those at the top of the day's output under a heading like `## Deferred from earlier days` before the regular Day N tasks. Expand them to full **Profile · Setup · Steps · Pass · Bug** format just like the other tasks.
+- Rewrite or expand each task for Day N to have full **Profile · Setup · Steps · Pass · Bug** fields
+- Steps must be explicit enough to follow cold: which button to click, which form field to fill, what value to type, what modal/confirmation to look for
+- Where a task depends on earlier tasks having been completed (e.g. an employee must exist), state the prerequisite in **Setup** and reference the task ID that creates it (e.g. "Employee from E-2 must exist")
+- Mark items that still cannot be tested as **⏭ DEFER to Day X** with a reason
+- **Do not generate instructions for days the user hasn't asked for**
+
+### Bug-fixing rules
+
+When the user reports a bug (either from the checklist or directly):
+
+1. **Find the root cause, not the symptom.** Read the relevant component(s), utility functions, and any SQL/RLS involved before writing a fix.
+2. **Fix the whole class of problem, not just the one instance.** Ask: does this same bug occur in other components, other queries, or other similar data flows? If yes, fix all of them in the same change.
+   - Example: a PostgREST implicit INNER JOIN silently dropping rows → fix every query in `letterStorage.js` that embeds the same join pattern, not just the one that surfaced the bug.
+   - Example: CSV-imported employees missing `companyId` → fix the import code AND the query that filters by `companyId` so both past (null) and new records work, not just the one broken screen.
+3. **Never patch around the symptom** (e.g. hardcoding a fallback value, suppressing an error, adding a special case). Fix the underlying data flow or logic.
+4. **After fixing, run `npm run build`** to confirm no new TypeScript/lint errors before reporting the fix as done.
+5. **Update the checklist** — add a `- **Fixed**: [one-line explanation of what was changed and why]` line under the **Bug** field for that item in `MANUAL_TEST_CHECKLIST.md`.
+
+### Common patterns found during Day 1 testing
+
+These were real bugs discovered and fixed during Day 1 — record them here so future sessions don't re-investigate the same root causes:
+
+- **PostgREST implicit INNER JOIN drops rows**: When a Supabase query embeds a related table (e.g. `employees(name, ...)`) and the embedded table's row is blocked by RLS or missing, PostgREST silently excludes the parent row. Fix: either use `!left` hint to force a LEFT JOIN, or (more reliably) do the lookup as a separate query and merge client-side. See `letterStorage.getLetterRequests()` for the two-query pattern.
+- **CSV import not stamping `companyId`**: Employees imported via CSV had `company_id = null`, so `getEmployees(activeCompanyId)` filtered them out (exact UUID match). Fix: (a) stamp `companyId: activeCompanyId` in `handleCSVImport`; (b) use `.or('company_id.eq.X,company_id.is.null')` in `getEmployees` for backward compatibility with pre-migration rows.
+- **Dashboard section hidden when data is empty**: Sections guarded by `{data.length >= 2 && (...)}` show nothing rather than an empty state. Fix: always render the section card; show a helpful empty state with a navigation link instead of hiding the entire block.
+- **Notification bell badge lags 60 seconds**: `NotificationBell` polls `getUnreadCount()` every 60s. When `generateExpiryNotifications` creates new rows immediately on Dashboard load, the badge doesn't update until the next poll. Fix: `createNotifications()` dispatches `window.dispatchEvent(new Event('workloop-notifications-updated'))` after the upsert; the bell listens for this event and calls `refreshCount()` immediately.

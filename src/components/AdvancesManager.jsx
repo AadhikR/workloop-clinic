@@ -12,6 +12,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Check, X, DollarSign, Clock, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
 import { getEmployees } from '../utils/storage';
 import { getAdvances, saveAdvance, getAdvanceRepayments } from '../utils/storage';
+import { formatDateUAE } from '../utils/uaeValidators';
 
 const STATUS_BADGE = {
   pending:   'badge-amber',
@@ -391,7 +392,7 @@ export default function AdvancesManager() {
                                 <tbody>
                                   {repayments[adv.id].map(rep => (
                                     <tr key={rep.id}>
-                                      <td style={{ padding: '4px 8px' }}>{rep.paidDate}</td>
+                                      <td style={{ padding: '4px 8px' }}>{formatDateUAE(rep.paidDate)}</td>
                                       <td style={{ textAlign: 'right', padding: '4px 8px', color: 'var(--danger)' }}>
                                         -{rep.amount.toLocaleString('en-AE', { minimumFractionDigits: 2 })}
                                       </td>

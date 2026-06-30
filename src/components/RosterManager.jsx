@@ -19,6 +19,7 @@ import {
   getRosterForMonth, saveRosterAssignment, deleteRosterAssignment, publishRoster,
   getShiftSwapRequests, updateShiftSwapRequest,
 } from '../utils/attendanceStorage';
+import { formatDateUAE } from '../utils/uaeValidators';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -1197,9 +1198,9 @@ export default function RosterManager() {
                       return (
                         <tr key={sw.id}>
                           <td style={{ fontWeight: 500 }}>{requester?.name || '—'}</td>
-                          <td>{sw.requesterDate}</td>
+                          <td>{formatDateUAE(sw.requesterDate)}</td>
                           <td>{target?.name || '—'}</td>
-                          <td>{sw.targetDate || '—'}</td>
+                          <td>{sw.targetDate ? formatDateUAE(sw.targetDate) : '—'}</td>
                           <td className="text-muted text-sm">{sw.reason || '—'}</td>
                           <td>
                             <span className={`badge ${
@@ -1262,7 +1263,7 @@ export default function RosterManager() {
                     <tbody>
                       {publishGate.violations.slice(0, 30).map((v, i) => (
                         <tr key={i} style={{ background: '#fff5f5' }}>
-                          <td style={{ fontSize: 13 }}>{v.date}</td>
+                          <td style={{ fontSize: 13 }}>{formatDateUAE(v.date)}</td>
                           <td style={{ fontWeight: 500 }}>{v.department}</td>
                           <td>{CATEGORY_LABELS[v.shiftCategory] || v.shiftCategory}</td>
                           <td><span className="badge badge-blue">{v.required}</span></td>
