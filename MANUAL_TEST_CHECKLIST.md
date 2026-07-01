@@ -1166,7 +1166,7 @@ Legend: `[ ]` = not tested · `[x]` = pass · `[!]` = bug found
 
 ---
 
-### DEP-10 · Org Chart expand and collapse — retest after DEP-9 fix
+### DEP-10 · Org Chart expand and collapse — retest after DEP-9 fix - bug 
 - **Profile**: Admin (signed in, on Departments → Org Chart tab)
 - **Setup**: A manager with at least one direct report must exist in the org chart
 - **Steps**:
@@ -1176,11 +1176,12 @@ Legend: `[ ]` = not tested · `[x]` = pass · `[!]` = bug found
   4. Click the **expand (►)** arrow
   5. Observe — child nodes should reappear
 - **Pass**: Children hide on collapse and reappear on expand. The arrow icon toggles between ► and ▼.
-- **Bug**:
+- **Bug**:expand and collapse button doesnt do anything 
+  - **Fixed**: `depts` prop was passed to the top-level root `OrgNode` call but omitted from the recursive child `OrgNode` calls inside `OrgNode` itself. Child nodes received `depts = undefined`, causing the dept-badge IIFE to throw a TypeError when calling `depts.find(...)`, which silently crashed child rendering and made expand/collapse appear to do nothing. Fixed by adding `depts={depts}` to the recursive `{reports.map(r => <OrgNode ... />)}` call in `DepartmentManager.jsx`.
 
 ---
 
-### DEP-11 · Org Chart department filter - partial 
+### DEP-11 · Org Chart department filter - completed  
 - **Profile**: Admin (signed in, on Departments → Org Chart tab)
 - **Setup**: Departments have been created (DEP-2/DEP-3) and at least one employee has a department assigned
 - **Steps**:
@@ -1191,7 +1192,7 @@ Legend: `[ ]` = not tested · `[x]` = pass · `[!]` = bug found
 
 ---
 
-### DEP-12 · Staffing Rules — add a rule
+### DEP-12 · Staffing Rules — add a rule - completed  
 - **Profile**: Admin (signed in, on Departments page)
 - **Setup**: At least one department exists (from DEP-2/DEP-3)
 - **Steps**:
@@ -1207,7 +1208,7 @@ Legend: `[ ]` = not tested · `[x]` = pass · `[!]` = bug found
 
 ---
 
-### DEP-13 · Staffing Rules — edit a rule
+### DEP-13 · Staffing Rules — edit a rule - completed 
 - **Profile**: Admin (signed in, on Departments → Staffing Rules tab)
 - **Setup**: DEP-12 must be done (at least one rule exists)
 - **Steps**:
@@ -1219,7 +1220,7 @@ Legend: `[ ]` = not tested · `[x]` = pass · `[!]` = bug found
 
 ---
 
-### DEP-14 · Staffing Rules — delete a rule
+### DEP-14 · Staffing Rules — delete a rule - completed 
 - **Profile**: Admin (signed in, on Departments → Staffing Rules tab)
 - **Setup**: At least one rule exists
 - **Steps**:
@@ -1230,7 +1231,7 @@ Legend: `[ ]` = not tested · `[x]` = pass · `[!]` = bug found
 
 ---
 
-### DEP-15 · Department autocomplete appears in EmployeeModal
+### DEP-15 · Department autocomplete appears in EmployeeModal - completed 
 - **Profile**: Admin (signed in)
 - **Setup**: At least one department exists in the Departments page (DEP-2/DEP-3). An employee exists.
 - **Steps**:
@@ -1245,17 +1246,18 @@ Legend: `[ ]` = not tested · `[x]` = pass · `[!]` = bug found
 
 ## 6. LETTER REQUESTS
 
-### LR-1 · Navigate to Letter Requests page
+### LR-1 · Navigate to Letter Requests page -bug 
 - **Profile**: Admin (signed in)
 - **Setup**: None (D-6's SQL seed should already have created one pending request — if not, run it now)
 - **Steps**:
   1. Click **"Letter Requests"** in the sidebar (between Employees and Payroll, envelope/mail icon)
 - **Pass**: The Letter Requests page loads. The page header says "Letter Requests". Tab buttons for **Pending / All / Completed / Rejected** are visible. The request seeded in D-6 appears in the Pending tab.
-- **Bug**:
+- **Bug**:i only see pending and , all requests , and the panel below the Letter REquets header is too close and not in line , make it neater  , and the column headers are not very legible 
+  - **Fixed**: (1) Added `Completed` and `Rejected` filter tabs alongside Pending and All Requests — filter state now covers all four statuses with per-tab counts. (2) Moved filter buttons out of `page-header` into a dedicated row below the header with `tab-btn` styling for visual consistency with other modules. (3) Added explicit `minWidth` on all column headers so they render at readable widths. (4) Switched date formatting to `formatDateUAE` (DD/MM/YYYY). All changes in `LetterRequestsManager.jsx`.
 
 ---
 
-### LR-2 · Filter tabs update the list
+### LR-2 · Filter tabs update the list - completed 
 - **Profile**: Admin (signed in, on Letter Requests)
 - **Setup**: LR-1 done — at least one pending request exists
 - **Steps**:
@@ -1269,7 +1271,7 @@ Legend: `[ ]` = not tested · `[x]` = pass · `[!]` = bug found
 
 ---
 
-### LR-3 · Complete & Print a letter request
+### LR-3 · Complete & Print a letter request - completed 
 - **Profile**: Admin (signed in, on Letter Requests → Pending tab)
 - **Setup**: A pending request exists (from D-6 SQL seed — letter type "Salary Certificate - Bank")
 - **Steps**:
@@ -1283,7 +1285,7 @@ Legend: `[ ]` = not tested · `[x]` = pass · `[!]` = bug found
 
 ---
 
-### LR-4 · Completed request appears in Completed tab
+### LR-4 · Completed request appears in Completed tab - cant be checked until LR-1 
 - **Profile**: Admin (signed in, on Letter Requests)
 - **Setup**: LR-3 done
 - **Steps**:
@@ -1293,7 +1295,7 @@ Legend: `[ ]` = not tested · `[x]` = pass · `[!]` = bug found
 
 ---
 
-### LR-5 · Seed a second pending request for rejection test
+### LR-5 · Seed a second pending request for rejection test - completed 
 - **Profile**: Admin (using Supabase SQL Editor)
 - **Setup**: The first request was completed in LR-3. We need a fresh pending request to test rejection.
 - **Steps**:
@@ -1313,7 +1315,7 @@ Legend: `[ ]` = not tested · `[x]` = pass · `[!]` = bug found
 
 ---
 
-### LR-6 · Reject a pending request — reason required
+### LR-6 · Reject a pending request — reason required - completed
 - **Profile**: Admin (signed in, on Letter Requests → Pending tab)
 - **Setup**: LR-5 done — the NOC pending request is visible
 - **Steps**:
@@ -1323,11 +1325,12 @@ Legend: `[ ]` = not tested · `[x]` = pass · `[!]` = bug found
   4. Now type a reason, e.g. `Pending further documentation from employee`
   5. Click Confirm / Submit
 - **Pass**: The rejection form either blocks submission with an empty reason (ideal) or accepts it. After submission the request row disappears from the Pending tab and status changes to **Rejected**.
-- **Bug**:
+- **Bug**: works, but make new column with the reason for rejection next to print in admin and next to status in employee in letter requests
+  - **Fixed**: Added a dedicated `Rejection Reason` column in admin `LetterRequestsManager.jsx` (7th column, between Status and Actions) and a `Reason` column in employee `EmpRequests.jsx` (5th column, after Status). Both show the rejection reason in red when rejected, `—` otherwise. Removed the old inline sub-text under the status badge since it now has its own column.
 
 ---
 
-### LR-7 · Rejection reason visible in Rejected tab
+### LR-7 · Rejection reason visible in Rejected tab - completed 
 - **Profile**: Admin (signed in, on Letter Requests)
 - **Setup**: LR-6 done
 - **Steps**:

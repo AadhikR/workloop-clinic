@@ -3,17 +3,13 @@ import { Mail, Clock, CheckCircle, XCircle, Send } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { getMyLetterRequests } from '../../utils/letterStorage';
 import { LETTER_TYPES } from '../../utils/letterTemplates';
+import { formatDateUAE } from '../../utils/uaeValidators';
 
 const STATUS_BADGE = {
   pending:   { cls: 'badge-amber', label: 'Pending Review', Icon: Clock },
   completed: { cls: 'badge-green', label: 'Ready',          Icon: CheckCircle },
   rejected:  { cls: 'badge-red',   label: 'Rejected',       Icon: XCircle },
 };
-
-function formatDate(iso) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-AE', { day: '2-digit', month: 'short', year: 'numeric' });
-}
 
 export default function EmpRequests() {
   const [requests,    setRequests]    = useState([]);
@@ -129,6 +125,7 @@ export default function EmpRequests() {
                   <th>Purpose</th>
                   <th>Requested</th>
                   <th>Status</th>
+                  <th>Reason</th>
                 </tr>
               </thead>
               <tbody>
@@ -138,19 +135,21 @@ export default function EmpRequests() {
                     <tr key={req.id}>
                       <td style={{ fontSize: 13, fontWeight: 500 }}>{req.letterType}</td>
                       <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{req.purpose || <span style={{ color: 'var(--gray-300)' }}>—</span>}</td>
-                      <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{formatDate(req.requestedAt)}</td>
+                      <td style={{ fontSize: 12, color: 'var(--gray-500)', whiteSpace: 'nowrap' }}>{formatDateUAE(req.requestedAt)}</td>
                       <td>
                         <span className={`badge ${cls}`} style={{ fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                           <Icon size={10} />{label}
                         </span>
                         {req.status === 'completed' && req.completedAt && (
                           <div style={{ fontSize: 10, color: 'var(--gray-400)', marginTop: 2 }}>
-                            Ready {formatDate(req.completedAt)} — collect from HR
+                            Ready {formatDateUAE(req.completedAt)} — collect from HR
                           </div>
                         )}
-                        {req.status === 'rejected' && req.rejectionReason && (
-                          <div style={{ fontSize: 11, color: 'var(--danger)', marginTop: 2 }}>{req.rejectionReason}</div>
-                        )}
+                      </td>
+                      <td style={{ fontSize: 12, color: 'var(--danger)' }}>
+                        {req.status === 'rejected' && req.rejectionReason
+                          ? req.rejectionReason
+                          : <span style={{ color: 'var(--gray-300)' }}>—</span>}
                       </td>
                     </tr>
                   );

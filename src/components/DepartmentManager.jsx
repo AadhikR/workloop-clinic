@@ -128,6 +128,7 @@ function OrgNode({ emp, allEmps, depts, deptColorMap, search, collapsed, onToggl
               key={r.id}
               emp={r}
               allEmps={allEmps}
+              depts={depts}
               deptColorMap={deptColorMap}
               search={search}
               collapsed={collapsed}

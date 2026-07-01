@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Mail, CheckCircle, XCircle, Printer, Clock, ChevronDown, ChevronUp } from 'lucide-react';
+import { Mail, XCircle, Printer } from 'lucide-react';
 import { getLetterRequests, completeLetterRequest, rejectLetterRequest } from '../utils/letterStorage';
 import { getCompany, getEmployees } from '../utils/storage';
 import { printLetter } from '../utils/letterTemplates';
 import { useCompany } from '../context/CompanyContext';
+import { formatDateUAE } from '../utils/uaeValidators';
 
 const STATUS_BADGE = {
   pending:   { cls: 'badge-amber', label: 'Pending' },
@@ -11,18 +12,20 @@ const STATUS_BADGE = {
   rejected:  { cls: 'badge-red',   label: 'Rejected' },
 };
 
-function formatDate(iso) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-AE', { day: '2-digit', month: 'short', year: 'numeric' });
-}
+const FILTERS = [
+  { key: 'pending',   label: 'Pending' },
+  { key: 'completed', label: 'Completed' },
+  { key: 'rejected',  label: 'Rejected' },
+  { key: 'all',       label: 'All Requests' },
+];
 
 export default function LetterRequestsManager() {
   const { activeCompanyId } = useCompany();
   const [requests, setRequests] = useState([]);
   const [company,  setCompany]  = useState(null);
   const [loading,  setLoading]  = useState(true);
-  const [filter,   setFilter]   = useState('pending'); // pending | all
-  const [rejectId,   setRejectId]   = useState(null);
+  const [filter,   setFilter]   = useState('pending');
+  const [rejectId,     setRejectId]     = useState(null);
   const [rejectReason, setRejectReason] = useState('');
 
   useEffect(() => {
@@ -59,11 +62,16 @@ export default function LetterRequestsManager() {
     }
   };
 
-  const visible = filter === 'pending'
-    ? requests.filter(r => r.status === 'pending')
-    : requests;
+  const counts = {
+    pending:   requests.filter(r => r.status === 'pending').length,
+    completed: requests.filter(r => r.status === 'completed').length,
+    rejected:  requests.filter(r => r.status === 'rejected').length,
+    all:       requests.length,
+  };
 
-  const pendingCount = requests.filter(r => r.status === 'pending').length;
+  const visible = filter === 'all'
+    ? requests
+    : requests.filter(r => r.status === filter);
 
   if (loading) return <div className="page-body"><div style={{ padding: 40, textAlign: 'center', color: 'var(--gray-400)' }}>Loading…</div></div>;
 
@@ -76,27 +84,37 @@ export default function LetterRequestsManager() {
             Generate and manage employee HR letter requests
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+      </div>
+
+      {/* Filter tabs */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+        {FILTERS.map(f => (
           <button
-            className={`btn ${filter === 'pending' ? 'btn-primary' : 'btn-ghost'}`}
-            onClick={() => setFilter('pending')}
+            key={f.key}
+            className={`btn tab-btn ${filter === f.key ? 'tab-btn-active' : ''}`}
+            onClick={() => setFilter(f.key)}
           >
-            Pending {pendingCount > 0 && <span className="badge badge-red" style={{ marginLeft: 6, fontSize: 11 }}>{pendingCount}</span>}
+            {f.label}
+            {counts[f.key] > 0 && (
+              <span
+                className={`badge ${f.key === 'pending' ? 'badge-amber' : f.key === 'rejected' ? 'badge-red' : 'badge-blue'}`}
+                style={{ marginLeft: 6, fontSize: 11 }}
+              >
+                {counts[f.key]}
+              </span>
+            )}
           </button>
-          <button
-            className={`btn ${filter === 'all' ? 'btn-primary' : 'btn-ghost'}`}
-            onClick={() => setFilter('all')}
-          >
-            All Requests
-          </button>
-        </div>
+        ))}
       </div>
 
       {visible.length === 0 ? (
         <div className="card" style={{ padding: '48px 24px', textAlign: 'center' }}>
           <Mail size={36} style={{ margin: '0 auto 12px', display: 'block', opacity: 0.25 }} />
           <p style={{ color: 'var(--gray-500)', fontSize: 14 }}>
-            {filter === 'pending' ? 'No pending letter requests.' : 'No letter requests yet.'}
+            {filter === 'pending'   ? 'No pending letter requests.' :
+         filter === 'completed' ? 'No completed requests yet.' :
+         filter === 'rejected'  ? 'No rejected requests.' :
+         'No letter requests yet.'}
           </p>
         </div>
       ) : (
@@ -105,12 +123,13 @@ export default function LetterRequestsManager() {
             <table>
               <thead>
                 <tr>
-                  <th>Employee</th>
-                  <th>Letter Type</th>
-                  <th>Purpose</th>
-                  <th>Requested</th>
-                  <th>Status</th>
-                  <th>Actions</th>
+                  <th style={{ minWidth: 140 }}>Employee</th>
+                  <th style={{ minWidth: 180 }}>Letter Type</th>
+                  <th style={{ minWidth: 140 }}>Purpose</th>
+                  <th style={{ minWidth: 100 }}>Requested</th>
+                  <th style={{ minWidth: 100 }}>Status</th>
+                  <th style={{ minWidth: 200 }}>Rejection Reason</th>
+                  <th style={{ minWidth: 120 }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -126,15 +145,17 @@ export default function LetterRequestsManager() {
                         </td>
                         <td style={{ fontSize: 13 }}>{req.letterType}</td>
                         <td style={{ fontSize: 12, color: 'var(--gray-500)', maxWidth: 180 }}>{req.purpose || <span style={{ color: 'var(--gray-300)' }}>—</span>}</td>
-                        <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{formatDate(req.requestedAt)}</td>
+                        <td style={{ fontSize: 12, color: 'var(--gray-500)', whiteSpace: 'nowrap' }}>{formatDateUAE(req.requestedAt)}</td>
                         <td>
                           <span className={`badge ${badge.cls}`} style={{ fontSize: 11 }}>{badge.label}</span>
                           {req.status === 'completed' && req.completedAt && (
-                            <div style={{ fontSize: 10, color: 'var(--gray-400)', marginTop: 2 }}>{formatDate(req.completedAt)}</div>
+                            <div style={{ fontSize: 10, color: 'var(--gray-400)', marginTop: 2 }}>{formatDateUAE(req.completedAt)}</div>
                           )}
-                          {req.status === 'rejected' && req.rejectionReason && (
-                            <div style={{ fontSize: 10, color: 'var(--danger)', marginTop: 2 }}>{req.rejectionReason}</div>
-                          )}
+                        </td>
+                        <td style={{ fontSize: 12, color: 'var(--danger)' }}>
+                          {req.status === 'rejected' && req.rejectionReason
+                            ? req.rejectionReason
+                            : <span style={{ color: 'var(--gray-300)' }}>—</span>}
                         </td>
                         <td>
                           {req.status === 'pending' && (
@@ -152,7 +173,7 @@ export default function LetterRequestsManager() {
                                 title="Reject request"
                                 onClick={() => { setRejectId(isRejectingThis ? null : req.id); setRejectReason(''); }}
                               >
-                                {isRejectingThis ? <ChevronUp size={13} /> : <XCircle size={13} />}
+                                <XCircle size={13} />
                               </button>
                             </div>
                           )}
@@ -170,7 +191,7 @@ export default function LetterRequestsManager() {
                       </tr>
                       {isRejectingThis && (
                         <tr key={`reject-${req.id}`}>
-                          <td colSpan={6} style={{ background: 'rgba(220,38,38,0.04)', padding: '10px 16px' }}>
+                          <td colSpan={7} style={{ background: 'rgba(220,38,38,0.04)', padding: '10px 16px' }}>
                             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                               <input
                                 className="form-control"
