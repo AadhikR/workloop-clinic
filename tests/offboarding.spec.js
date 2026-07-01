@@ -41,6 +41,10 @@ async function goToEmployees(page) {
 async function findOffboardingButton(page) {
   await goToEmployees(page);
 
+  // Terminated employees live in their own tab, not the main Employee List
+  await page.locator('button.tab-btn').filter({ hasText: /Terminated Employees/i }).click();
+  await page.waitForLoadState('domcontentloaded');
+
   // Look for a row that has a Terminated badge
   const terminatedRow = page.locator('tr').filter({
     has: page.locator('.badge', { hasText: /^Terminated$/i }),

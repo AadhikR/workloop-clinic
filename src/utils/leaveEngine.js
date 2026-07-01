@@ -14,6 +14,7 @@
  */
 
 import { servicePeriod } from './gratuityCalculator';
+import { formatDateUAE } from './uaeValidators';
 
 // ── Leave Type Definitions ────────────────────────────────────────────────────
 
@@ -569,7 +570,7 @@ export function calculatePayrollLeaveDeductions(approvedLeaves, periodStart, per
       // Unpaid leave: deduct full daily rate × days
       unpaidLeaveDays += overlapDays;
       lineItems.push({
-        label: `Unpaid Leave (${leave.startDate} – ${leave.endDate})`,
+        label: `Unpaid Leave (${formatDateUAE(leave.startDate)} – ${formatDateUAE(leave.endDate)})`,
         days:  overlapDays,
         amount: overlapDays * daily,
       });

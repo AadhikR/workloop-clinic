@@ -10,6 +10,7 @@
  */
 
 import { supabase } from '../lib/supabase';
+import { formatDateUAE } from './uaeValidators';
 
 async function getSessionUser() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -167,7 +168,7 @@ export async function generateExpiryNotifications(employees, _company, insurance
         notifs.push({
           type:               'document_expiry',
           title:              `${label} expiring — ${emp.name}`,
-          body:               `${label} expires in ${days} day${days !== 1 ? 's' : ''} (${date}). Update in the employee profile.`,
+          body:               `${label} expires in ${days} day${days !== 1 ? 's' : ''} (${formatDateUAE(date)}). Update in the employee profile.`,
           relatedEntityType:  'employee',
           relatedEntityId:    `${emp.id}_${key}_${thr}d`,
         });
@@ -193,9 +194,30 @@ export async function generateExpiryNotifications(employees, _company, insurance
       notifs.push({
         type:               'clinical_credential_expiry',
         title:              `${doc.documentType} expiring — ${empName}`,
-        body:               `${empName}'s ${doc.documentType} expires in ${days} day${days !== 1 ? 's' : ''} (${doc.expiryDate}). Renew in the employee Documents tab.`,
+        body:               `${empName}'s ${doc.documentType} expires in ${days} day${days !== 1 ? 's' : ''} (${formatDateUAE(doc.expiryDate)}). Renew in the employee Documents tab.`,
         relatedEntityType:  'employee_document',
         relatedEntityId:    `${doc.id}_${thr}d`,
+      });
+    });
+
+  // ── Uploaded document expiry — non-clinical types (Passport/Visa scans, Medical Fitness
+  // Certificate, Educational Certificate, NOC, etc. from the Documents tab) ──
+  // Uses the standard 60-day window. Each upload's own expiry_date is independent of the
+  // employee-level visaExpiry/passportExpiry/etc. fields checked above, so without this block
+  // a non-clinical uploaded document with a near expiry produces no alert anywhere.
+  (allEmployeeDocs || [])
+    .filter(doc => !CLINICAL_DOC_TYPES.has(doc.documentType) && doc.expiryDate && activeEmpIds.has(doc.employeeId))
+    .forEach(doc => {
+      const days = Math.ceil((new Date(doc.expiryDate) - today) / (1000 * 60 * 60 * 24));
+      if (days < 0 || days > 60) return;
+      const thr = days <= 14 ? 14 : days <= 30 ? 30 : 60;
+      const empName = empNameMap[doc.employeeId] || 'Employee';
+      notifs.push({
+        type:               'document_expiry',
+        title:              `${doc.documentType} expiring — ${empName}`,
+        body:               `${empName}'s ${doc.documentType} expires in ${days} day${days !== 1 ? 's' : ''} (${formatDateUAE(doc.expiryDate)}). Renew in the employee Documents tab.`,
+        relatedEntityType:  'employee_document',
+        relatedEntityId:    `${doc.id}_doc_${thr}d`,
       });
     });
 
@@ -226,7 +248,7 @@ export async function generateExpiryNotifications(employees, _company, insurance
       notifs.push({
         type:               'probation_ending',
         title:              `Probation ending soon — ${emp.name}`,
-        body:               `${emp.name}'s probation period ends in ${days} day${days !== 1 ? 's' : ''} (${emp.probationEndDate}). Confirm, extend, or terminate.`,
+        body:               `${emp.name}'s probation period ends in ${days} day${days !== 1 ? 's' : ''} (${formatDateUAE(emp.probationEndDate)}). Confirm, extend, or terminate.`,
         relatedEntityType:  'employee',
         relatedEntityId:    `${emp.id}_probation_${thr}d`,
       });
@@ -242,7 +264,7 @@ export async function generateExpiryNotifications(employees, _company, insurance
       notifs.push({
         type:               'contract_expiry',
         title:              `Contract expiring — ${emp.name}`,
-        body:               `${emp.name}'s limited contract expires in ${days} day${days !== 1 ? 's' : ''} (${emp.contractEndDate}). Renew, convert to unlimited, or begin offboarding.`,
+        body:               `${emp.name}'s limited contract expires in ${days} day${days !== 1 ? 's' : ''} (${formatDateUAE(emp.contractEndDate)}). Renew, convert to unlimited, or begin offboarding.`,
         relatedEntityType:  'employee',
         relatedEntityId:    `${emp.id}_contract_${thr}d`,
       });
@@ -258,7 +280,7 @@ export async function generateExpiryNotifications(employees, _company, insurance
     notifs.push({
       type:               'cert_expiry',
       title:              `Certification expiring — ${cert.employeeName || 'Employee'}`,
-      body:               `"${cert.certificationName}" expires in ${days} day${days !== 1 ? 's' : ''} (${cert.expiryDate}).${cert.issuingBody ? ` Issued by ${cert.issuingBody}.` : ''} Renew in Training & Certifications.`,
+      body:               `"${cert.certificationName}" expires in ${days} day${days !== 1 ? 's' : ''} (${formatDateUAE(cert.expiryDate)}).${cert.issuingBody ? ` Issued by ${cert.issuingBody}.` : ''} Renew in Training & Certifications.`,
       relatedEntityType:  'certification',
       relatedEntityId:    `${cert.id}_${thr}d`,
     });
@@ -276,7 +298,7 @@ export async function generateExpiryNotifications(employees, _company, insurance
       notifs.push({
         type:               'clinical_licence_expiry',
         title:              `${emp.licenceAuthority} Licence expiring — ${emp.name}`,
-        body:               `${emp.name}'s ${emp.licenceAuthority} professional licence expires in ${days} day${days !== 1 ? 's' : ''} (${emp.licenceExpiry}). Renew in the employee's UAE Compliance tab.`,
+        body:               `${emp.name}'s ${emp.licenceAuthority} professional licence expires in ${days} day${days !== 1 ? 's' : ''} (${formatDateUAE(emp.licenceExpiry)}). Renew in the employee's UAE Compliance tab.`,
         relatedEntityType:  'employee',
         relatedEntityId:    `${emp.id}_licence_${thr}d`,
       });

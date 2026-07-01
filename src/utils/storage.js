@@ -555,7 +555,7 @@ export async function getAllJobHistory() {
  * Uploads a file to Supabase Storage and saves its metadata to employee_documents.
  * Returns the saved document record (with signedUrl populated).
  */
-export async function uploadEmployeeDocument(employeeId, file, documentType, expiryDate, notes) {
+export async function uploadEmployeeDocument(employeeId, file, documentType, expiryDate, notes, documentNumber) {
   const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
 
@@ -572,14 +572,15 @@ export async function uploadEmployeeDocument(employeeId, file, documentType, exp
   const { data, error } = await supabase
     .from('employee_documents')
     .insert({
-      user_id:       user.id,
-      employee_id:   employeeId,
-      document_type: documentType,
-      file_name:     file.name,
-      file_size:     file.size,
-      storage_path:  storagePath,
-      expiry_date:   expiryDate || null,
-      notes:         notes || '',
+      user_id:         user.id,
+      employee_id:     employeeId,
+      document_type:   documentType,
+      document_number: documentNumber || '',
+      file_name:       file.name,
+      file_size:       file.size,
+      storage_path:    storagePath,
+      expiry_date:     expiryDate || null,
+      notes:           notes || '',
     })
     .select()
     .single();

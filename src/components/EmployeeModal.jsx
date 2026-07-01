@@ -93,7 +93,7 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
   const [shifts, setShifts]         = useState([]);
   const [docs, setDocs]             = useState([]);
   const [docsLoading, setDocsLoading] = useState(false);
-  const [uploadForm, setUploadForm] = useState({ type: 'Visa', expiryDate: '', notes: '', file: null });
+  const [uploadForm, setUploadForm] = useState({ type: 'Visa', documentNumber: '', expiryDate: '', notes: '', file: null });
   const [uploading, setUploading]   = useState(false);
   const [uploadErr, setUploadErr]   = useState('');
 
@@ -201,10 +201,11 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
         uploadForm.file,
         uploadForm.type,
         uploadForm.expiryDate || null,
-        uploadForm.notes
+        uploadForm.notes,
+        uploadForm.documentNumber
       );
       setDocs(prev => [doc, ...prev]);
-      setUploadForm(prev => ({ ...prev, file: null, notes: '', expiryDate: '' }));
+      setUploadForm(prev => ({ ...prev, file: null, notes: '', expiryDate: '', documentNumber: '' }));
     } catch (err) {
       setUploadErr(err.message || 'Upload failed. Ensure the employee-documents bucket exists in Supabase Storage.');
     } finally {
@@ -680,7 +681,14 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
                   placeholder="e.g. Nursing"
                 />
                 <datalist id="dept-suggestions">
-                  {deptList.map(d => <option key={d.id} value={d.name} />)}
+                  {deptList.map(d => {
+                    const parent = deptList.find(p => p.id === d.parentId);
+                    return (
+                      <option key={d.id} value={d.name}
+                        label={parent ? `${d.name} (under ${parent.name})` : d.name}
+                      />
+                    );
+                  })}
                 </datalist>
               </div>
               <div className="form-group">
@@ -1269,7 +1277,7 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
                                 <tr key={dep.id}>
                                   <td style={{ fontWeight:500 }}>{dep.name}</td>
                                   <td>{dep.relationship || '—'}</td>
-                                  <td style={{ fontSize:12, color:'var(--gray-500)' }}>{dep.dateOfBirth || '—'}</td>
+                                  <td style={{ fontSize:12, color:'var(--gray-500)' }}>{dep.dateOfBirth ? formatDateUAE(dep.dateOfBirth) : '—'}</td>
                                   <td style={{ fontSize:12, fontFamily:'monospace' }}>{dep.cardNumber || '—'}</td>
                                   <td>
                                     <button className="btn btn-ghost btn-icon btn-sm text-danger"
@@ -1307,6 +1315,10 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
                           </optgroup>
                         ))}
                       </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Document Number <span style={{ color:'var(--gray-400)', fontWeight:400 }}>(optional)</span></label>
+                      <input className="form-control" value={uploadForm.documentNumber} onChange={e => setUploadForm(p => ({ ...p, documentNumber: e.target.value }))} placeholder="e.g. passport / licence / certificate number" />
                     </div>
                     <div className="form-group">
                       <label>Expiry Date <span style={{ color:'var(--gray-400)', fontWeight:400 }}>(optional)</span></label>

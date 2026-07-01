@@ -2,14 +2,14 @@ import { useState, useEffect, useRef, Component } from 'react';
 import {
   Users, Plus, Trash2, X, Upload, AlertCircle, Search,
   FileDown, Info, Download, History, AlertTriangle, Calculator,
-  UserCheck, CalendarClock, ClipboardList
+  UserCheck, CalendarClock, ClipboardList, UserX
 } from 'lucide-react';
-import { getEmployees, saveEmployee, saveEmployees, archiveEmployee, getJobHistory, addJobHistoryEntry } from '../utils/storage';
+import { getEmployees, saveEmployee, saveEmployees, archiveEmployee, getJobHistory, addJobHistoryEntry, getAllEmployeeDocuments } from '../utils/storage';
 import { parseCSV, readFileAsText } from '../utils/csvImport';
 import { formatDateUAE, formatAED, daysUntil, expiryBadgeClass } from '../utils/uaeValidators';
 import { calculateGratuity } from '../utils/gratuityCalculator';
 import { useCompany } from '../context/CompanyContext';
-import EmployeeModal from './EmployeeModal';
+import EmployeeModal, { CLINICAL_DOC_TYPES } from './EmployeeModal';
 import EndOfServiceScreen from './EndOfServiceScreen';
 import OffboardingModal from './OffboardingModal';
 
@@ -148,8 +148,7 @@ function StatusBadge({ status }) {
 }
 
 // ── Document Expiry Panel ────────────────────────────────────────────────────
-function DocumentExpiryPanel({ employees }) {
-  const today = new Date();
+function DocumentExpiryPanel({ employees, allDocs = [] }) {
   const warnings = [];
 
   employees.forEach(emp => {
@@ -164,9 +163,22 @@ function DocumentExpiryPanel({ employees }) {
       if (!date) return;
       const days = daysUntil(date);
       if (days !== null && days <= 90) {
-        warnings.push({ emp: emp.name, empId: emp.id, label, date, daysLeft: days, warnDays });
+        warnings.push({ emp: emp.name, empId: emp.id, label, date, daysLeft: days, warnDays, group:'fixed' });
       }
     });
+  });
+
+  // Uploaded documents (Documents tab) — separate from the four fixed compliance fields above,
+  // since each upload has its own expiry_date and arbitrary document type.
+  const activeEmpIds = new Set(employees.filter(e => e.employmentStatus !== 'Terminated').map(e => e.id));
+  const empNameById  = Object.fromEntries(employees.map(e => [e.id, e.name]));
+  allDocs.forEach(doc => {
+    if (!doc.expiryDate || !activeEmpIds.has(doc.employeeId)) return;
+    const warnDays = CLINICAL_DOC_TYPES.has(doc.documentType) ? 90 : 60;
+    const days = daysUntil(doc.expiryDate);
+    if (days !== null && days <= warnDays) {
+      warnings.push({ emp: empNameById[doc.employeeId] || 'Employee', empId: doc.employeeId, label: doc.documentType, date: doc.expiryDate, daysLeft: days, warnDays, group:'uploaded' });
+    }
   });
 
   warnings.sort((a, b) => a.daysLeft - b.daysLeft);
@@ -189,6 +201,7 @@ function DocumentExpiryPanel({ employees }) {
     Passports:    warnings.filter(w => w.label === 'Passport'),
     'Emirates IDs': warnings.filter(w => w.label === 'Emirates ID'),
     'Labour Cards': warnings.filter(w => w.label === 'Labour Card'),
+    'Uploaded Documents': warnings.filter(w => w.group === 'uploaded'),
   };
 
   return (
@@ -214,6 +227,9 @@ function DocumentExpiryPanel({ employees }) {
                         {w.daysLeft < 0 ? 'EXPIRED' : `${w.daysLeft}d`}
                       </span>
                       <span style={{ fontWeight:500 }}>{w.emp}</span>
+                      {groupName === 'Uploaded Documents' && (
+                        <span style={{ color:'var(--gray-500)' }}>{w.label}</span>
+                      )}
                       <span style={{ color:'var(--gray-500)' }}>{formatDateUAE(w.date)}</span>
                     </div>
                   );
@@ -421,6 +437,7 @@ function ProbationModal({ employee, onClose, onConfirm, onExtend, onTerminate })
 function EmployeeManagerInner() {
   const { activeCompanyId } = useCompany();
   const [employees, setEmployees]         = useState([]);
+  const [allDocs, setAllDocs]             = useState([]);
   const [loading, setLoading]             = useState(true);
   const [modal, setModal]                 = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -435,7 +452,7 @@ function EmployeeManagerInner() {
   const [eosEmp, setEosEmp]               = useState(null); // end-of-service screen
   const [probationEmp, setProbationEmp]   = useState(null); // probation actions modal
   const [offboardingEmp, setOffboardingEmp] = useState(null); // offboarding checklist modal (Feature 13)
-  const [activeTab, setActiveTab]         = useState('list'); // 'list' | 'expiry'
+  const [activeTab, setActiveTab]         = useState('list'); // 'list' | 'expiry' | 'terminated'
   const fileRef = useRef();
 
   useEffect(() => {
@@ -444,6 +461,7 @@ function EmployeeManagerInner() {
       setEmployees(emps);
       setLoading(false);
     });
+    getAllEmployeeDocuments().then(setAllDocs).catch(() => setAllDocs([]));
   }, [activeCompanyId]); // Re-load when the active branch changes
 
   const handleSaveEmployee = async (emp) => {
@@ -545,22 +563,109 @@ function EmployeeManagerInner() {
   // Unique departments for filter
   const departments = [...new Set(employees.map(e => e.department).filter(Boolean))].sort();
 
-  const filtered = employees.filter(e => {
+  const matchesSearchAndDept = (e) => {
     const matchSearch = !search ||
       e.name?.toLowerCase().includes(search.toLowerCase()) ||
       e.molId?.includes(search) ||
       e.empNo?.includes(search) ||
       e.department?.toLowerCase().includes(search.toLowerCase());
+    const matchDept = !filterDept || e.department === filterDept;
+    return matchSearch && matchDept;
+  };
+
+  // Terminated employees live in their own tab — the main Employee List never
+  // includes them, regardless of the status filter.
+  const filtered = employees.filter(e => {
+    if ((e.employmentStatus || 'Active') === 'Terminated') return false;
     const matchStatus = !filterStatus || e.employmentStatus === filterStatus;
-    const matchDept   = !filterDept   || e.department === filterDept;
-    return matchSearch && matchStatus && matchDept;
+    return matchStatus && matchesSearchAndDept(e);
   });
+
+  const filteredTerminated = employees.filter(e =>
+    (e.employmentStatus || 'Active') === 'Terminated' && matchesSearchAndDept(e)
+  );
 
   // Defensive: employmentStatus may be undefined on pre-migration records
   const activeCount     = employees.filter(e => (e.employmentStatus || 'Active') !== 'Terminated' && e.active !== false).length;
   const terminatedCount = employees.filter(e => (e.employmentStatus || 'Active') === 'Terminated').length;
 
+  // Shared row renderer for both the Employee List and Terminated Employees tables.
+  const renderEmployeeRow = (emp) => {
+    const totalPkg = (parseFloat(emp.basicSalary)||0) + (parseFloat(emp.housingAllowance)||0) + (parseFloat(emp.transportAllowance)||0) + (parseFloat(emp.otherAllowances)||0);
+    return (
+      <tr key={emp.id}>
+        <td className="text-muted">{emp.empNo || '—'}</td>
+        <td style={{ fontWeight:500 }}>{emp.name}</td>
+        <td className="font-mono text-sm">{emp.molId}</td>
+        <td className="text-sm">{emp.jobTitle || '—'}</td>
+        <td className="text-sm">{emp.department || '—'}</td>
+        <td><StatusBadge status={emp.employmentStatus}/></td>
+        <td className="text-right">{Number(emp.basicSalary).toLocaleString('en-AE', { minimumFractionDigits:2 })}</td>
+        <td className="text-right">{totalPkg > 0 ? totalPkg.toLocaleString('en-AE', { minimumFractionDigits:2 }) : '—'}</td>
+        <td className="text-sm">{emp.bankName || '—'}</td>
+        <td><ExpiryBadge date={emp.visaExpiry}/></td>
+        <td><ExpiryBadge date={emp.emiratesIdExpiry}/></td>
+        <td>
+          <div className="flex gap-2">
+            <button
+              className="btn btn-ghost btn-icon btn-sm"
+              title="Edit employee"
+              onClick={() => setModal(emp)}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+            <button
+              className="btn btn-ghost btn-icon btn-sm"
+              title="Job history"
+              onClick={() => setHistoryEmp(emp)}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </button>
+            <button
+              className="btn btn-ghost btn-icon btn-sm"
+              title="End-of-service settlement"
+              style={{ color: 'var(--warning)' }}
+              onClick={() => setEosEmp(emp)}
+            >
+              <Calculator size={13}/>
+            </button>
+            {emp.employmentStatus === 'Probation' && (
+              <button
+                className="btn btn-ghost btn-icon btn-sm"
+                title="Probation actions"
+                style={{ color: 'var(--primary)' }}
+                onClick={() => setProbationEmp(emp)}
+              >
+                <UserCheck size={13}/>
+              </button>
+            )}
+            {emp.employmentStatus === 'Terminated' && (
+              <button
+                className="btn btn-ghost btn-icon btn-sm"
+                title="Offboarding checklist"
+                style={{ color: '#6366f1' }}
+                onClick={() => setOffboardingEmp(emp)}
+              >
+                <ClipboardList size={13}/>
+              </button>
+            )}
+            <button
+              className="btn btn-ghost btn-icon btn-sm text-danger"
+              title="Delete employee"
+              onClick={() => setDeleteConfirm(emp.id)}
+            >
+              <Trash2 size={13}/>
+            </button>
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
   // Count expiry alerts — defensive: handle employees without new fields (pre-migration)
+  const activeEmployeeIds = new Set(
+    employees.filter(e => (e.employmentStatus || 'Active') !== 'Terminated').map(e => e.id)
+  );
   const expiryAlerts = employees.reduce((count, emp) => {
     if ((emp.employmentStatus || 'Active') === 'Terminated') return count;
     const checks = [emp.visaExpiry, emp.passportExpiry, emp.emiratesIdExpiry, emp.labourCardExpiry];
@@ -568,6 +673,10 @@ function EmployeeManagerInner() {
       if (!d) return false;
       try { const days = daysUntil(d); return days !== null && days <= 60; } catch { return false; }
     }).length;
+  }, 0) + allDocs.reduce((count, doc) => {
+    if (!doc.expiryDate || !activeEmployeeIds.has(doc.employeeId)) return count;
+    const warnDays = CLINICAL_DOC_TYPES.has(doc.documentType) ? 90 : 60;
+    try { const days = daysUntil(doc.expiryDate); return days !== null && days <= warnDays ? count + 1 : count; } catch { return count; }
   }, 0);
 
   return (
@@ -605,7 +714,7 @@ function EmployeeManagerInner() {
             <div className="stat-label">Active</div>
             <div className="stat-value" style={{ color:'var(--success)' }}>{activeCount}</div>
           </div>
-          <div className="stat-card">
+          <div className="stat-card" style={{ cursor:'pointer' }} onClick={() => setActiveTab('terminated')}>
             <div className="stat-label">Terminated</div>
             <div className="stat-value" style={{ color:'var(--gray-400)' }}>{terminatedCount}</div>
           </div>
@@ -625,11 +734,15 @@ function EmployeeManagerInner() {
             <AlertTriangle size={13} style={{ marginRight:5 }}/>
             Document Expiry {expiryAlerts > 0 && <span className="badge badge-red" style={{ marginLeft:6, fontSize:10 }}>{expiryAlerts}</span>}
           </button>
+          <button className={`tab-btn ${activeTab==='terminated'?'active':''}`} onClick={() => setActiveTab('terminated')}>
+            <UserX size={13} style={{ marginRight:5 }}/>
+            Terminated Employees {terminatedCount > 0 && <span className="badge badge-gray" style={{ marginLeft:6, fontSize:10 }}>{terminatedCount}</span>}
+          </button>
         </div>
 
         {/* ── EXPIRY TAB ── */}
         {activeTab === 'expiry' && (
-          <DocumentExpiryPanel employees={employees}/>
+          <DocumentExpiryPanel employees={employees} allDocs={allDocs}/>
         )}
 
         {/* ── LIST TAB ── */}
@@ -669,7 +782,6 @@ function EmployeeManagerInner() {
                     <option value="Active">Active</option>
                     <option value="Probation">Probation</option>
                     <option value="On Leave">On Leave</option>
-                    <option value="Terminated">Terminated</option>
                   </select>
                   {/* Department filter */}
                   {departments.length > 0 && (
@@ -709,83 +821,74 @@ function EmployeeManagerInner() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filtered.map(emp => {
-                        const totalPkg = (parseFloat(emp.basicSalary)||0) + (parseFloat(emp.housingAllowance)||0) + (parseFloat(emp.transportAllowance)||0) + (parseFloat(emp.otherAllowances)||0);
-                        return (
-                          <tr key={emp.id}>
-                            <td className="text-muted">{emp.empNo || '—'}</td>
-                            <td style={{ fontWeight:500 }}>{emp.name}</td>
-                            <td className="font-mono text-sm">{emp.molId}</td>
-                            <td className="text-sm">{emp.jobTitle || '—'}</td>
-                            <td className="text-sm">{emp.department || '—'}</td>
-                            <td><StatusBadge status={emp.employmentStatus}/></td>
-                            <td className="text-right">{Number(emp.basicSalary).toLocaleString('en-AE', { minimumFractionDigits:2 })}</td>
-                            <td className="text-right">{totalPkg > 0 ? totalPkg.toLocaleString('en-AE', { minimumFractionDigits:2 }) : '—'}</td>
-                            <td className="text-sm">{emp.bankName || '—'}</td>
-                            <td><ExpiryBadge date={emp.visaExpiry}/></td>
-                            <td><ExpiryBadge date={emp.emiratesIdExpiry}/></td>
-                            <td>
-                              <div className="flex gap-2">
-                                <button
-                                  className="btn btn-ghost btn-icon btn-sm"
-                                  title="Edit employee"
-                                  onClick={() => setModal(emp)}
-                                >
-                                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                                </button>
-                                <button
-                                  className="btn btn-ghost btn-icon btn-sm"
-                                  title="Job history"
-                                  onClick={() => setHistoryEmp(emp)}
-                                >
-                                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                                </button>
-                                <button
-                                  className="btn btn-ghost btn-icon btn-sm"
-                                  title="End-of-service settlement"
-                                  style={{ color: 'var(--warning)' }}
-                                  onClick={() => setEosEmp(emp)}
-                                >
-                                  <Calculator size={13}/>
-                                </button>
-                                {emp.employmentStatus === 'Probation' && (
-                                  <button
-                                    className="btn btn-ghost btn-icon btn-sm"
-                                    title="Probation actions"
-                                    style={{ color: 'var(--primary)' }}
-                                    onClick={() => setProbationEmp(emp)}
-                                  >
-                                    <UserCheck size={13}/>
-                                  </button>
-                                )}
-                                {emp.employmentStatus === 'Terminated' && (
-                                  <button
-                                    className="btn btn-ghost btn-icon btn-sm"
-                                    title="Offboarding checklist"
-                                    style={{ color: '#6366f1' }}
-                                    onClick={() => setOffboardingEmp(emp)}
-                                  >
-                                    <ClipboardList size={13}/>
-                                  </button>
-                                )}
-                                <button
-                                  className="btn btn-ghost btn-icon btn-sm text-danger"
-                                  title="Delete employee"
-                                  onClick={() => setDeleteConfirm(emp.id)}
-                                >
-                                  <Trash2 size={13}/>
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
+                      {filtered.map(renderEmployeeRow)}
                     </tbody>
                   </table>
                 </div>
               )}
             </div>
           </>
+        )}
+
+        {/* ── TERMINATED EMPLOYEES TAB ── */}
+        {activeTab === 'terminated' && (
+          <div className="card">
+            <div className="card-header">
+              <h3><UserX size={16} style={{ display:'inline', marginRight:6 }}/>Terminated Employees ({filteredTerminated.length})</h3>
+              <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+                <div style={{ position:'relative' }}>
+                  <Search size={14} style={{ position:'absolute', left:9, top:'50%', transform:'translateY(-50%)', color:'var(--gray-400)' }}/>
+                  <input
+                    className="form-control"
+                    style={{ paddingLeft:28, width:200 }}
+                    placeholder="Search name, MOL ID, dept…"
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                  />
+                </div>
+                {departments.length > 0 && (
+                  <select className="form-control" style={{ width:160 }} value={filterDept} onChange={e => setFilterDept(e.target.value)}>
+                    <option value="">All Departments</option>
+                    {departments.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                )}
+              </div>
+            </div>
+
+            {loading ? (
+              <div className="empty-state"><p style={{ color:'var(--gray-400)' }}>Loading employees…</p></div>
+            ) : filteredTerminated.length === 0 ? (
+              <div className="empty-state">
+                <UserX size={40}/>
+                <h3>No terminated employees</h3>
+                <p>Employees moved here automatically when their status is set to Terminated.</p>
+              </div>
+            ) : (
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>No.</th>
+                      <th>Name</th>
+                      <th>MOL ID</th>
+                      <th>Job Title</th>
+                      <th>Department</th>
+                      <th>Status</th>
+                      <th>Basic (AED)</th>
+                      <th>Total Pkg (AED)</th>
+                      <th>Bank</th>
+                      <th>Visa Expiry</th>
+                      <th>EID Expiry</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredTerminated.map(renderEmployeeRow)}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         )}
       </div>
 

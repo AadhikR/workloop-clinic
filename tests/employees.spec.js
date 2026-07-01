@@ -85,7 +85,7 @@ test.describe('Employees — List view', () => {
     await searchInput.fill('');
   });
 
-  test('status filter has Active, Probation, Terminated options', async ({ page }) => {
+  test('status filter has Active and Probation options, not Terminated', async ({ page }) => {
     await goToEmployees(page);
     const statusSelect = page.locator('select').filter({
       has: page.locator('option').filter({ hasText: /active|probation/i })
@@ -95,23 +95,21 @@ test.describe('Employees — List view', () => {
     const lower = opts.map(o => o.toLowerCase().trim());
     expect(lower.some(o => o.includes('active'))).toBe(true);
     expect(lower.some(o => o.includes('probation'))).toBe(true);
-    expect(lower.some(o => o.includes('terminated'))).toBe(true);
+    // Terminated employees live in their own tab, not as a status-filter option
+    // on the main Employee List — see "Terminated Employees tab" tests below.
+    expect(lower.some(o => o.includes('terminated'))).toBe(false);
   });
 
-  test('selecting "Terminated" status filter shows only terminated employees', async ({ page }) => {
+  test('Terminated Employees tab shows only terminated employees', async ({ page }) => {
     await goToEmployees(page);
-    const statusSelect = page.locator('select').filter({
-      has: page.locator('option').filter({ hasText: /terminated/i })
-    }).first();
-    await expect(statusSelect).toBeVisible({ timeout: 6000 });
-    await statusSelect.selectOption({ label: 'Terminated' });
-    await page.waitForTimeout(500);
-    // Either rows with "Terminated" badge or an empty state
-    const hasTerminated = await page.locator('td').filter({ hasText: /terminated/i }).first().isVisible({ timeout: 3000 }).catch(() => false);
-    const hasNoMatch = await page.locator('text=/no employee|no match|no result/i').first().isVisible({ timeout: 3000 }).catch(() => false);
-    expect(hasTerminated || hasNoMatch).toBe(true);
-    // Reset
-    await statusSelect.selectOption({ index: 0 });
+    await page.locator('button.tab-btn').filter({ hasText: /Terminated Employees/i }).click();
+    await page.waitForLoadState('domcontentloaded');
+    await expect(page.locator('h3').filter({ hasText: /Terminated Employees/i })).toBeVisible({ timeout: 8000 });
+    // Either rows with "Terminated" badge or an empty state — never an "Active" badge
+    const hasTerminated = await page.locator('td').filter({ hasText: /^Terminated$/ }).first().isVisible({ timeout: 3000 }).catch(() => false);
+    const hasEmpty = await page.locator('text=/No terminated employees/i').first().isVisible({ timeout: 3000 }).catch(() => false);
+    expect(hasTerminated || hasEmpty).toBe(true);
+    await expect(page.locator('td').filter({ hasText: /^Active$/ })).toHaveCount(0);
   });
 
   test('document expiry tab renders when present', async ({ page }) => {
@@ -183,7 +181,7 @@ test.describe('Employees — Add, edit, archive', () => {
     await expect(page.locator('.alert-danger')).not.toBeVisible({ timeout: 5000 });
   });
 
-  test('archive employee changes status to Terminated', async ({ page }) => {
+  test('archive employee moves them out of the Employee List into Terminated Employees', async ({ page }) => {
     await goToEmployees(page);
     const row = page.locator('tr').filter({ hasText: UNIQUE }).first();
     if (!(await row.isVisible({ timeout: 6000 }).catch(() => false))) {
@@ -194,7 +192,16 @@ test.describe('Employees — Add, edit, archive', () => {
     await expect(page.locator('h3').filter({ hasText: /Archive Employee/i })).toBeVisible({ timeout: 5000 });
     await page.getByRole('button', { name: 'Archive Employee' }).click();
     await expect(page.locator('h3').filter({ hasText: /Archive Employee/i })).toBeHidden({ timeout: 5000 });
-    await expect(row.locator('text=Terminated')).toBeVisible({ timeout: 8000 });
+
+    // No longer in the main Employee List
+    await expect(page.locator('tr').filter({ hasText: UNIQUE })).toHaveCount(0, { timeout: 8000 });
+
+    // Shows up in the Terminated Employees tab with a Terminated badge
+    await page.locator('button.tab-btn').filter({ hasText: /Terminated Employees/i }).click();
+    await page.waitForLoadState('domcontentloaded');
+    const termRow = page.locator('tr').filter({ hasText: UNIQUE }).first();
+    await expect(termRow).toBeVisible({ timeout: 8000 });
+    await expect(termRow.locator('text=Terminated')).toBeVisible();
   });
 });
 

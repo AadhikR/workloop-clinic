@@ -7,7 +7,7 @@
 import { useState, useEffect } from 'react';
 import {
   GitBranch, Users, Plus, Pencil, Trash2, Check, X,
-  ChevronRight, ChevronDown, Search, AlertCircle, ShieldCheck,
+  ChevronRight, ChevronDown, Search, AlertCircle, ShieldCheck, RefreshCw,
 } from 'lucide-react';
 import { getDepartments, saveDepartment, deleteDepartment } from '../utils/departmentStorage';
 import { getDeptStaffingRules, saveDeptStaffingRule, deleteDeptStaffingRule } from '../utils/staffingStorage';
@@ -34,11 +34,21 @@ function flattenTree(depts, parentId = null, level = 0) {
 
 // ── Org Chart node (recursive) ────────────────────────────────────────────────
 
-function OrgNode({ emp, allEmps, deptColorMap, search, collapsed, onToggle }) {
+/** Recursively checks whether any descendant matches the search string. */
+function hasMatchingDescendant(emp, allEmps, search) {
+  const reports = allEmps.filter(e => e.reportingManagerId === emp.id);
+  return reports.some(r =>
+    r.name.toLowerCase().includes(search) ||
+    (r.jobTitle || '').toLowerCase().includes(search) ||
+    hasMatchingDescendant(r, allEmps, search)
+  );
+}
+
+function OrgNode({ emp, allEmps, depts, deptColorMap, search, collapsed, onToggle }) {
   const reports    = allEmps.filter(e => e.reportingManagerId === emp.id);
   const color      = deptColorMap[emp.department] || '#94a3b8';
   const matchSearch = !search || emp.name.toLowerCase().includes(search) || (emp.jobTitle || '').toLowerCase().includes(search);
-  const hasVisibleDesc = reports.some(r => !search || r.name.toLowerCase().includes(search) || (r.jobTitle || '').toLowerCase().includes(search));
+  const hasVisibleDesc = search ? hasMatchingDescendant(emp, allEmps, search) : reports.length > 0;
 
   if (search && !matchSearch && !hasVisibleDesc) return null;
 
@@ -77,17 +87,25 @@ function OrgNode({ emp, allEmps, deptColorMap, search, collapsed, onToggle }) {
           </div>
         </div>
 
-        {/* Dept badge */}
-        {emp.department && (
-          <span style={{
-            background: color + '22', color,
-            border: `1px solid ${color}44`,
-            borderRadius: 999, padding: '2px 8px', fontSize: 11, fontWeight: 500,
-            whiteSpace: 'nowrap', flexShrink: 0,
-          }}>
-            {emp.department}
-          </span>
-        )}
+        {/* Dept badge — shows parent dept in tooltip when applicable */}
+        {emp.department && (() => {
+          const deptRecord = depts.find(d => d.name === emp.department);
+          const parentDept = deptRecord?.parentId ? depts.find(d => d.id === deptRecord.parentId) : null;
+          return (
+            <span
+              title={parentDept ? `${parentDept.name} › ${emp.department}` : emp.department}
+              style={{
+                background: color + '22', color,
+                border: `1px solid ${color}44`,
+                borderRadius: 999, padding: '2px 8px', fontSize: 11, fontWeight: 500,
+                whiteSpace: 'nowrap', flexShrink: 0, cursor: parentDept ? 'help' : 'default',
+              }}
+            >
+              {parentDept && <span style={{ opacity: 0.6, marginRight: 3 }}>{parentDept.name} ›</span>}
+              {emp.department}
+            </span>
+          );
+        })()}
 
         {/* Expand/collapse */}
         {reports.length > 0 && (
@@ -147,7 +165,7 @@ export default function DepartmentManager() {
   const [staffingRules, setStaffingRules] = useState([]);
   const [staffingForm,  setStaffingForm]  = useState(null);  // null = hidden
   const EMPTY_STAFFING = { department: '', shiftCategory: 'morning', minStaff: 1 };
-  const SHIFT_CATEGORY_LABELS = { morning: '☀ Morning', afternoon: '🌤 Afternoon', night: '🌙 Night' };
+  const SHIFT_CATEGORY_LABELS = { morning: '☀ Morning', afternoon: '🌤 Afternoon', night: '🌙 Night', flexible: '⟳ Flexible' };
 
   useEffect(() => {
     Promise.all([getDepartments(), getEmployees(), getDeptStaffingRules().catch(() => [])])
@@ -476,7 +494,10 @@ export default function DepartmentManager() {
               <select className="form-control" style={{ width: 200 }} value={orgDeptFilter}
                 onChange={e => setOrgDeptFilter(e.target.value)}>
                 <option value="">All Departments</option>
-                {[...new Set(employees.map(e => e.department).filter(Boolean))].sort().map(d => (
+                {[...new Set([
+                  ...depts.map(d => d.name),
+                  ...employees.map(e => e.department).filter(Boolean),
+                ])].sort().map(d => (
                   <option key={d} value={d}>{d}</option>
                 ))}
               </select>
@@ -485,6 +506,10 @@ export default function DepartmentManager() {
               </button>
               <button className="btn btn-outline btn-sm" onClick={() => setCollapsed(new Set(employees.map(e => e.id)))}>
                 Collapse All
+              </button>
+              <button className="btn btn-outline btn-sm" title="Reload employee data"
+                onClick={() => getEmployees().then(e => setEmployees(e.filter(x => x.employmentStatus !== 'Terminated'))).catch(() => {})}>
+                <RefreshCw size={13} /> Refresh
               </button>
             </div>
 
@@ -522,7 +547,8 @@ export default function DepartmentManager() {
                   <OrgNode
                     key={emp.id}
                     emp={emp}
-                    allEmps={orgDeptFilter ? employees : employees}
+                    allEmps={employees}
+                    depts={depts}
                     deptColorMap={deptColorMap}
                     search={orgSearch}
                     collapsed={collapsed}
@@ -591,6 +617,7 @@ export default function DepartmentManager() {
                       <option value="morning">☀ Morning</option>
                       <option value="afternoon">🌤 Afternoon</option>
                       <option value="night">🌙 Night</option>
+                      <option value="flexible">⟳ Flexible</option>
                     </select>
                   </div>
                   <div className="form-group">

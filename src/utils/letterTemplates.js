@@ -2,6 +2,7 @@
  * letterTemplates.js — UAE-standard HR letter HTML templates (Feature 1.3)
  * Printed via window.open() + document.write(), matching the EndOfServiceScreen pattern.
  */
+import { formatDateUAE } from './uaeValidators';
 
 function todayUAE() {
   return new Date().toLocaleDateString('en-AE', { day: '2-digit', month: 'long', year: 'numeric' });
@@ -86,7 +87,7 @@ export function nocLetter(req, company) {
     <h2>NO OBJECTION CERTIFICATE</h2>
     <p>To Whom It May Concern,</p>
     <p>This is to certify that <span class="highlight">${req.employeeName}</span>, ${req.jobTitle ? `${req.jobTitle}, ` : ''}is a valued employee of
-    <span class="highlight">${company?.name || 'our company'}</span>${req.joinDate ? ` since <span class="highlight">${req.joinDate}</span>` : ''}.</p>
+    <span class="highlight">${company?.name || 'our company'}</span>${req.joinDate ? ` since <span class="highlight">${formatDateUAE(req.joinDate)}</span>` : ''}.</p>
     <p>We have no objection to the bearer${purposeNote}.</p>
     <p>We wish ${req.employeeName.split(' ')[0] || 'the employee'} all the best and confirm that they are in good standing with our organisation.</p>
     ${signature(company)}
@@ -102,7 +103,7 @@ export function experienceLetter(req, company) {
     <p>To Whom It May Concern,</p>
     <p>This is to certify that <span class="highlight">${req.employeeName}</span> has been employed with
     <span class="highlight">${company?.name || 'our company'}</span>
-    ${req.joinDate ? `from <span class="highlight">${req.joinDate}</span> to <span class="highlight">${toDate}</span>` : `up to ${toDate}`}
+    ${req.joinDate ? `from <span class="highlight">${formatDateUAE(req.joinDate)}</span> to <span class="highlight">${toDate}</span>` : `up to ${toDate}`}
     in the capacity of <span class="highlight">${req.jobTitle || 'Employee'}</span>${req.department ? ` in the ${req.department} Department` : ''}.</p>
     <p>During their tenure, ${req.employeeName.split(' ')[0] || 'the employee'} has demonstrated professionalism, dedication, and a high standard of work. We wish them continued success in their future endeavours.</p>
     <p>This letter is issued upon request for whatever purpose it may serve.</p>
@@ -119,7 +120,7 @@ export function employmentCertificateLetter(req, company) {
     <p>To Whom It May Concern,</p>
     <p>This is to certify that <span class="highlight">${req.employeeName}</span> is currently employed with
     <span class="highlight">${company?.name || 'our company'}</span>
-    ${req.joinDate ? `since <span class="highlight">${req.joinDate}</span>` : ''}
+    ${req.joinDate ? `since <span class="highlight">${formatDateUAE(req.joinDate)}</span>` : ''}
     as a <span class="highlight">${req.jobTitle || 'Employee'}</span>
     ${req.department ? `in the <span class="highlight">${req.department}</span> Department` : ''}.</p>
     <p>This letter is issued${purposeNote} upon the employee's request.</p>

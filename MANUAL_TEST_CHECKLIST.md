@@ -184,9 +184,14 @@ Legend: `[ ]` = not tested · `[x]` = pass · `[!]` = bug found
 
 ---
 
-### A-13 · Notification bell shows unread count badge
+### A-13 · Notification bell shows unread count badge — ⏭ deferred from Day 1, do this now
 - **Profile**: Admin (signed in)
-- **Setup**: ⏭ **DEFER to Day 3** — this badge only appears when notifications exist. Notifications are auto-generated when the Dashboard loads and finds employees with expiring documents, visas, or certifications. Since no employees exist yet, come back to this check after Day 3 when employees with expiry dates have been created. At that point: navigate to Dashboard, wait a few seconds for expiry checks to run, then look at the bell icon for a red count badge.
+- **Setup**: Do this **after** finishing DOC-2 below (Day 3), so a document-expiry notification exists alongside the probation/contract ones already generated from Day 1's D-7/D-8 setup.
+- **Steps**:
+  1. Navigate to **Dashboard** (this is what triggers `generateExpiryNotifications`)
+  2. Wait 2–3 seconds for the async expiry check to run
+  3. Look at the bell icon in the sidebar
+- **Pass**: A red count badge appears on the bell showing at least 1 unread notification. Click the bell — the panel lists entries such as "Probation ending soon", "Contract expiring", and (after DOC-2) a document-expiry alert, each with the correct icon (⏳ probation, 📋 contract, 📄 document).
 - **Bug**:
 
 ---
@@ -316,8 +321,11 @@ Legend: `[ ]` = not tested · `[x]` = pass · `[!]` = bug found
 
 ---
 
-### D-10 · Document expiry alert
-- **Setup**: ⏭ **DEFER to Day 3** — employee documents with expiry dates are added on Day 3. Return here after uploading a document with an expiry date within 60 days.
+### D-10 · Document expiry alert — ⏭ deferred from Day 1, covered by DOC-2 on Day 3
+- **Profile**: Admin
+- **Setup**: Completed as part of **DOC-2** in the Day 3 section below — upload a document with an expiry date within 60 days, then return to Dashboard.
+- **Steps**: see DOC-2.
+- **Pass**: see DOC-2's Pass criteria, plus: a "Doc Expiry Alerts" or document-expiry related alert/count is visible on the Dashboard or Employees page after the upload.
 - **Bug**:
 
 ---
@@ -546,8 +554,8 @@ Legend: `[ ]` = not tested · `[x]` = pass · `[!]` = bug found
 - **Profile**: Admin (signed in, on Employees)
 - **Setup**: An employee in a non-Active status helps (e.g. the Probation employee from D-7)
 - **Steps**:
-  1. Click through the status filter: **All Statuses → Active → Probation → Terminated**
-- **Pass**: List updates to show only matching employees at each step; "All Statuses" restores everyone.
+  1. Click through the status filter: **All Statuses → Active → Probation → On Leave**
+- **Pass**: List updates to show only matching employees at each step; "All Statuses" restores everyone (minus any Terminated employees — see EC-5 fix below, the status filter no longer offers "Terminated" since those employees live in their own tab).
 - **Bug**:
 
 ---
@@ -574,7 +582,8 @@ Legend: `[ ]` = not tested · `[x]` = pass · `[!]` = bug found
   3. Select a **Reporting Manager** if any employees exist; set **Start Date** and **Contract Type** (Limited/Unlimited)
 - **Pass**: Department field offers autocomplete but accepts free text. All fields retain their values when switching tabs.
 - **Bug**: if an  employee has been terminated , it should be moved to another list for terminated , and now come in the employee list or any other place like reporting manager in the employee set up modal 
-  - **Fixed**: Checked both pickers that list "all employees". `DepartmentManager.jsx`'s Department Head dropdown was already correctly filtering out Terminated employees at load time. The real gap was `EmployeeModal.jsx`'s **Reporting Manager** dropdown, which only excluded the employee being edited (`e.id !== form.id`) and listed Terminated staff alongside active ones — fixed to also filter `e.employmentStatus !== 'Terminated'`. The main Employees list intentionally still shows Terminated employees with a badge (not removed) — that's documented soft-delete behavior in CLAUDE.md backed by existing Playwright assertions, so it was left unchanged.
+  - **Fixed (pickers)**: Checked both pickers that list "all employees". `DepartmentManager.jsx`'s Department Head dropdown was already correctly filtering out Terminated employees at load time. `EmployeeModal.jsx`'s **Reporting Manager** dropdown only excluded the employee being edited (`e.id !== form.id`) and listed Terminated staff alongside active ones — fixed to also filter `e.employmentStatus !== 'Terminated'`.
+  - **Fixed (employee list)**: per a follow-up request, Terminated employees are now fully moved out of the main Employee List rather than staying badge-visible there. `EmployeeManager.jsx` gained a third tab, **"Terminated Employees"** (alongside Employee List / Document Expiry, `UserX` icon, clickable from the existing "Terminated" stat card), and the Employee List's `filtered` array now always excludes Terminated rows — the status filter dropdown no longer offers a "Terminated" option there. Archiving an employee now makes them disappear from the Employee List and reappear under the Terminated Employees tab, with the same row actions (incl. the offboarding checklist icon). Updated `tests/employees.spec.js` (status-filter options, new tab assertions, archive-flow assertions) and `tests/offboarding.spec.js` (`findOffboardingButton` now switches to the Terminated Employees tab first) to match. Updated the corresponding note in `CLAUDE.md`.
 
 ---
 
@@ -603,6 +612,7 @@ Legend: `[ ]` = not tested · `[x]` = pass · `[!]` = bug found
   - **Fixed (licence badge)**: replaced the ad-hoc `Math.ceil((new Date(expiry) - new Date()) / 86400000)` inline calc with the existing timezone-safe `daysUntil()` helper from `uaeValidators.js` (midnight-to-midnight comparison, avoids off-by-one rounding near day boundaries). Also added a visible amber prompt ("Set a licence expiry date to track renewal") when an Authority is selected but no expiry date has been entered yet, instead of showing nothing.
   - **Fixed (date format)**: audited the whole codebase — most `toLocaleDateString` calls already used the `'en-AE'` locale (correct day-first order); the gap was ~25 places displaying raw `YYYY-MM-DD` strings directly (ClinicalDashboard drill-downs, EmployeeManager probation banner, ExpensesManager/ManagerExpenseQueue/PayrollEditor expense tables, Reports.jsx Payroll Cost/Doc Expiry/Salary History tabs (+ matching CSV/PDF export rows in `reportUtils.js`), RosterManager swap requests + staffing-gate table, TrainingManager records/certifications, the employee portal's Advances/Expenses/Training tabs, and a leave-approval notification body). All now go through `formatDateUAE()` → `DD/MM/YYYY`. Left two things untouched on purpose: `<input type="date">` fields (must stay ISO — that's the HTML spec, not a display string) and the literal `EDR,...`/`SCR,...` lines in the SIF Preview modal (that's a byte-for-byte preview of the actual bank file, reformatting it would misrepresent the file).
   - **Fixed (mandatory fields)**: see EC-4 above — required-field validation was strengthened in the same change.
+  - **Fixed (date format, round 2)**: a follow-up pass caught date displays that the first sweep missed because they live in template-literal strings (`${...}`) rather than JSX braces, so the earlier JSX-only search didn't catch them: the dependant DOB column in the Insurance tab's dependants table (`EmployeeModal.jsx`); all 6 expiry-notification body strings in `notificationStorage.js` (document/clinical-credential/probation/contract/certification/professional-licence expiry alerts — the raw date sat in parentheses inside the notification text, e.g. "expires in 12 days (2026-07-15)"); `req.joinDate` in 3 of the printed HR letter templates (`letterTemplates.js` — NOC, Experience Letter, Employment Certificate); and the "Unpaid Leave (start – end)" line-item label in `leaveEngine.js`'s payroll deduction breakdown. Re. the native `<input type="date">` for **Date of Birth** specifically: its on-screen display format (e.g. showing as MM/DD/YYYY) is controlled by the browser/OS locale setting, not by application code — the underlying `value` is always ISO `YYYY-MM-DD` regardless of how it's drawn, and no CSS/JS can override that rendering across browsers. Making the DOB *input* itself always render DD/MM/YYYY would require replacing the native picker with a custom date-input component — a separate, much larger UI undertaking, not done here. All *static/read-only* DOB displays (e.g. in tables) do already show DD/MM/YYYY via `formatDateUAE()`.
 
 ---
 
@@ -678,60 +688,333 @@ Legend: `[ ]` = not tested · `[x]` = pass · `[!]` = bug found
 
 # DAY 3 — Employees (advanced tabs · Probation · Offboarding)
 
-## 4. EMPLOYEES — Advanced tabs
+> **Before you start**
+> Be signed in as **Admin**. All tests below use the Admin profile unless stated otherwise.
+> **Deferred from earlier days handled today**: A-13 (Day 1) and D-10 (Day 1) — both expanded in place in the Day 1 section above. Do A-13 *after* DOC-2 below so a document-expiry notification exists alongside the probation/contract ones.
+> Most tasks below need an **existing** employee (Documents/Insurance/Contracts tabs only render `employee?.id` is set — i.e. not on a brand-new unsaved employee). Use the employee created in Day 2's EC-8, or any other existing employee.
 
-### Documents tab (existing employee)
-- [ ] Open employee modal → Documents tab
-- [ ] Upload a file → select document type from grouped dropdown (UAE Residency / Clinical Credentials / General)
-- [ ] Enter document number, expiry date, notes → Submit
-- [ ] New row appears with "Pending Review" status badge
-- [ ] Clinical credential type (e.g. DHA Licence) shows cyan "Clinical" badge + 90-day amber threshold
-- [ ] Verify document (✓ button) → status changes to Verified
-- [ ] Reject document (✗ button) → enter rejection reason → status changes to Rejected
+---
 
-### Insurance tab (existing employee)
-- [ ] Open Insurance tab
-- [ ] Select insurance policy from dropdown, enter Member ID, Card Number, effective/expiry dates
-- [ ] Click Assign Coverage → saved, form resets
-- [ ] Add Dependant → name, relationship, DOB → appears in dependants table
-- [ ] Delete dependant → confirmed, removed
+## 4. EMPLOYEES — Advanced tabs (Documents · Insurance · Contracts)
 
-### Contracts tab (existing employee)
-- [ ] Open Contracts tab
-- [ ] Current contract type, end date countdown, start date all visible
-- [ ] **Limited contract**: click Renew → inline confirmation form with new dates → confirm → history row added
-- [ ] Convert to Unlimited → confirm → contract type updates, history row added
-- [ ] Not Renewing → confirm → history row added
-- [ ] **Unlimited contract**: Convert to Limited → confirm
-- [ ] Print Letter button → letter opens in new window
+### DOC-1 · Upload a document - partial 
+- **Profile**: Admin (signed in)
+- **Setup**: An existing employee (e.g. from EC-8)
+- **Steps**:
+  1. Open the employee → **Documents** tab
+  2. Select a document type from the grouped dropdown (optgroups: UAE Residency & Work / Clinical Credentials / General) — pick a non-clinical type, e.g. **Passport**
+  3. Enter a document number, an expiry date a few months out, and a note
+  4. Click the visible "Click to choose file" drop-zone and pick any small file (the underlying `input[type="file"]` is hidden by design)
+  5. Click **Submit**
+- **Pass**: New row appears in the documents table with a **"Pending Review"** status badge (admin-uploaded docs do **not** show a "Self-submitted" label — that's only for employee self-uploads). No clinical badge on a non-clinical type.
+- **Bug**: cant  enter document number anywhere , should it be randomly generated ? , 
+  - **Fixed**: The admin "Upload New Document" form in `EmployeeModal.jsx` genuinely had no Document Number input at all (the field only existed in the DB schema and in `dbToDocument`'s read mapping — never wired up for writes). It's not auto-generated; admin types it in manually (e.g. the passport/licence/certificate number printed on the document), matching how the employee self-upload path already works. Added the field to `uploadForm` state, the form JSX, `handleUpload`'s call, and `uploadEmployeeDocument()` in `storage.js` (new `documentNumber` parameter, now inserted as `document_number`).
 
-### Portal Role (Job & Contract tab, employee with activated portal)
-- [ ] Portal Role dropdown visible only when employee has linked their portal account
-- [ ] Change role Employee → Manager → RPC call updates role (no Save button needed)
-- [ ] Change back Manager → Employee
+---
 
-## Probation actions (Probation employees only)
-- [ ] Blue UserCheck icon appears only on rows with Probation status
-- [ ] Click → ProbationModal opens showing days remaining / overdue
-- [ ] Confirm Active → status changes to Active, probation end date cleared
-- [ ] Extend → date picker → confirm → `probationExtended` flag set, new end date saved
-- [ ] Terminate → UAE 14-day notice warning shown → confirm → employee archived (Terminated badge)
+### DOC-2 · Document expiry triggers the amber/red badge + Dashboard alert - partial 
+- **Profile**: Admin (signed in)
+- **Setup**: Same employee as DOC-1
+- **Steps**:
+  1. Repeat DOC-1's upload, this time setting the **expiry date within 60 days** of today (e.g. 30 days out) for a **non-clinical** type (clinical types use a 90-day threshold instead — see DOC-3)
+  2. Submit, then look at the new row's expiry badge
+  3. Navigate to **Dashboard**
+- **Pass**: The document row shows an **amber** "Xd left" badge (≤60d, non-clinical). On the Dashboard, a document-expiry related signal appears (Doc Expiry count on the Employees page stat card, and/or a notification — see A-13 above, which should now also show this alert in the bell panel).
+- **Bug**: expirey status shows in the uploaded documents modal , but doesnt come as a notification , outside , like the document expirey page 
+  - **Fixed**: Root cause — `generateExpiryNotifications()` in `notificationStorage.js` only ever checked the four **employee-level** compliance fields (`visaExpiry`/`passportExpiry`/`emiratesIdExpiry`/`labourCardExpiry`) for its `document_expiry` notification type, plus a separate `clinical_credential_expiry` check that only looked at `employee_documents` rows whose type was in the clinical set (DHA/DOH/MOH Licence, BLS/ACLS/PALS/NRP/CME). A document uploaded with a *general* type (Passport, Visa, Medical Fitness Certificate, etc.) has its own independent `expiry_date` in the `employee_documents` table — completely disconnected from the employee-level fields — so it never matched either check and produced zero notifications. Same gap existed in `EmployeeManager.jsx`'s **Document Expiry** tab (`DocumentExpiryPanel`) — it also only scanned the four employee-level fields, never `employee_documents` rows, so there was no "document expiry page" surfacing it either, exactly as reported. Fixed both: added a new non-clinical document-expiry notification block (60d/30d/14d thresholds, same pattern as the clinical one), and extended `DocumentExpiryPanel` with a new "Uploaded Documents" group covering all `employee_documents` rows (90d threshold for clinical types, 60d for everything else), including a live count in the "Document Expiry" tab badge.
 
-## Archive employee
-- [ ] Trash icon (Delete employee) → "Archive Employee" confirmation dialog
-- [ ] Confirm → employee stays in list with Terminated badge (not deleted from list)
+---
 
-## Offboarding (Terminated employees only)
-- [ ] Indigo ClipboardList icon appears only on Terminated rows
-- [ ] Click → OffboardingModal opens, checklist created/loaded automatically
-- [ ] Toggle task completion (click row) → checkbox toggles optimistically (instant UI, then DB write)
-- [ ] Add custom task → appears in checklist
-- [ ] Delete task (trash icon) → removed
-- [ ] Visa Cancellation Status dropdown → change → save
-- [ ] Open EOS Calculator → EndOfServiceScreen renders with gratuity breakdown (UAE law)
-- [ ] Outstanding advances auto-populated from Advances module
-- [ ] Print Settlement letter → new window with letter
-- [ ] Print NOC / Experience Letter → new window
+### DOC-3 · Clinical credential type uses the 90-day threshold + Clinical badge - completed 
+- **Profile**: Admin (signed in)
+- **Setup**: Same employee
+- **Steps**:
+  1. Upload another document, this time selecting a **Clinical Credentials** optgroup type (e.g. **DHA Licence**)
+  2. Set the expiry date to **70 days** from today — far enough that a normal document would still be green, but within the clinical 90-day window
+  3. Submit
+- **Pass**: The new row shows a cyan **"Clinical"** badge, and the expiry badge is **amber** at 70 days remaining (clinical threshold is 90d, not the normal 60d) — compare against DOC-1/DOC-2's non-clinical document, which would still be green at 70 days.
+- **Bug**:
+
+---
+
+### DOC-4 · Verify a pending document - bug → not a bug, retest on Day 12
+- **Profile**: Admin (signed in)
+- **Setup**: ⏭ **DEFER to Day 12** — see Fixed note below for why.
+- **Steps**:
+  1. Click the **✓** (verify) button on a pending document row
+- **Pass**: Status badge changes to **Verified**.
+- **Bug**:after uploading document it is already verified , could it be becuase a admin is uplaoding ?
+  - **Fixed**: You guessed the cause correctly — it's by design, not a bug. `sql/024_employee_self_upload.sql` sets `status TEXT NOT NULL DEFAULT 'verified'` on `employee_documents`, and the admin-upload path (`uploadEmployeeDocument()`) never overrides that default. The reasoning: if HR/Admin is the one uploading the document, they've already reviewed it by virtue of uploading it — there's nothing left to verify. The **Verify/Reject** buttons exist specifically for the *employee self-upload* workflow: when an employee uploads their own document via the Employee Portal's Documents tab, that goes through the `employee_submit_document` RPC instead, which explicitly sets `status='pending', submitted_by='employee'` — only those rows need admin review. Since no employee has an activated portal account yet (that happens via self-registration on Day 12), there's currently no way to produce a genuinely-pending document to test against. **Deferred to Day 12**: after an employee registers and uploads a document via their portal, come back here, open that document in the admin Documents tab, and verify it shows "Pending Review" + a "Self-submitted" label, then test ✓ Verify.
+
+---
+
+### DOC-5 · Reject a pending document - bug → not a bug, retest on Day 12
+- **Profile**: Admin (signed in)
+- **Setup**: ⏭ **DEFER to Day 12** — same root cause as DOC-4.
+- **Steps**:
+  1. Click the **✗** (reject) button on a pending document row
+  2. Enter a rejection reason
+  3. Confirm
+- **Pass**: Status badge changes to **Rejected**, and the rejection reason is visible on the row.
+- **Bug**:after uploading document it is already verified , could it be becuase a admin is uplaoding ?
+  - **Fixed**: Same as DOC-4 — admin uploads are auto-verified by design, not a bug. Deferred to Day 12 for the same reason: needs an employee-submitted (`status='pending'`) document, which requires portal self-registration first.
+
+---
+
+### INS-1 · Assign insurance coverage - completed 
+- **Profile**: Admin (signed in)
+- **Setup**: At least one insurance policy must exist (Day 2's CS-5 — if it was deleted in CS-7, go create one in Company Settings first)
+- **Steps**:
+  1. Open the employee → **Insurance** tab
+  2. Select the policy from the dropdown
+  3. Enter Member ID, Card Number, effective date, expiry date
+  4. Click **Assign/Update Coverage**
+- **Pass**: Saved successfully, the form resets, and an "Assigned" badge appears on the Coverage Assignment card. Reopening the tab pre-populates the form from the saved record.
+- **Bug**:
+
+---
+
+### INS-2 · Add a dependant - completed 
+- **Profile**: Admin (signed in)
+- **Setup**: Same employee, on the Insurance tab
+- **Steps**:
+  1. Fill the dependant form: Name, Relationship, Date of Birth, Card Number
+  2. Click **Add Dependant**
+- **Pass**: New row appears in the dependants table with the entered details. The Date of Birth column displays as **DD/MM/YYYY** (formatted via `formatDateUAE`).
+- **Bug**:
+
+---
+
+### INS-3 · Delete a dependant - completed 
+- **Profile**: Admin (signed in)
+- **Setup**: At least one dependant exists (INS-2)
+- **Steps**:
+  1. Click the delete icon on a dependant row
+  2. Confirm
+- **Pass**: Dependant row disappears from the table.
+- **Bug**:
+
+---
+
+### CON-1 · View current contract status - completed 
+- **Profile**: Admin (signed in)
+- **Setup**: Same employee, on the **Contracts** tab
+- **Steps**:
+  1. Open the Contracts tab
+- **Pass**: A status card shows the current contract type (Limited/Unlimited), start date, and — for Limited — an end-date countdown. Below it, a contract history table (empty on a fresh employee).
+- **Bug**:
+
+---
+
+### CON-2 · Renew a Limited contract - completed 
+- **Profile**: Admin (signed in)
+- **Setup**: Employee's contract type must be **Limited** (set on Job & Contract tab if not already)
+- **Steps**:
+  1. On Contracts tab, click **Renew**
+  2. An inline confirmation form appears — enter new start/end dates and optional notes
+  3. Confirm
+- **Pass**: Contract end date updates, a new row appears in the contract history table (action = "renewed"), and the modal stays open (action calls `saveEmployee` directly, not `onSave`).
+- **Bug**:
+
+---
+
+### CON-3 · Convert Limited → Unlimited- completed 
+- **Profile**: Admin (signed in)
+- **Setup**: Employee's contract type is Limited
+- **Steps**:
+  1. Click **Convert to Unlimited** → confirm
+- **Pass**: Contract type badge updates to Unlimited, history row added (action = "converted").
+- **Bug**:
+
+---
+
+### CON-4 · Not Renewing (Limited contract) - compkleted 
+- **Profile**: Admin (signed in)
+- **Setup**: A **different** Limited-contract employee than CON-2/CON-3 (so you don't collide with their renewed/converted state) — or re-set this employee back to Limited first
+- **Steps**:
+  1. Click **Not Renewing** → confirm
+- **Pass**: History row added (action = "not_renewed"). Contract status reflects the decision.
+- **Bug**:
+
+---
+
+### CON-5 · Convert Unlimited → Limited - completed 
+- **Profile**: Admin (signed in)
+- **Setup**: An Unlimited-contract employee (e.g. the one from CON-3 after conversion)
+- **Steps**:
+  1. Click **Convert to Limited** → fill in the new end date → confirm
+- **Pass**: Contract type badge updates to Limited, history row added.
+- **Bug**:
+
+---
+
+### CON-6 · Print contract letter - completed 
+- **Profile**: Admin (signed in)
+- **Setup**: Same employee, Contracts tab
+- **Steps**:
+  1. Click **Print Letter**
+- **Pass**: A new browser window/tab opens with a formatted letter referencing the employee's contract. Any date shown in the letter (e.g. join date, contract end date) is in **DD/MM/YYYY**.
+- **Bug**:
+
+---
+
+### PORTAL-1 · Portal Role dropdown
+- **Profile**: Admin
+- **Setup**: ⏭ **DEFER to Day 12** — the Portal Role `<select>` only renders when `employee?.authUserId` is set, which happens when an employee completes self-registration via "Sign in as Employee / Manager → Register as Employee" — that flow is tested on Day 12. Return here after Day 12's employee registration step: open that employee's Job & Contract tab and confirm the Portal Role dropdown (Employee/Manager) appears and updates immediately on change (no Save button needed — it's a direct RPC call to `setEmployeePortalRole`).
+- **Bug**:
+
+---
+
+## 5. PROBATION ACTIONS (Probation employees only)
+
+### PROB-1 · Probation action icon visibility -completed 
+- **Profile**: Admin (signed in)
+- **Setup**: A Probation-status employee exists (Day 1's D-7 employee, if not already actioned — otherwise create a new one: Add Employee → Job & Contract tab → Employment Status = Probation, Probation End Date = a future date)
+- **Steps**:
+  1. Go to Employees → Employee List
+  2. Locate the Probation employee's row
+- **Pass**: A blue **UserCheck** icon button ("Probation actions") appears only on rows with Probation status — not on Active/On Leave rows.
+- **Bug**:
+
+---
+
+### PROB-2 · Confirm Active - completed 
+- **Profile**: Admin (signed in)
+- **Setup**: PROB-1's employee
+- **Steps**:
+  1. Click the Probation actions icon → ProbationModal opens, showing days remaining/overdue
+  2. Click **Confirm Active**
+- **Pass**: Employee's status changes to Active, Probation End Date is cleared, row updates in the list.
+- **Bug**:
+
+---
+
+### PROB-3 · Extend probation - completed 
+- **Profile**: Admin (signed in)
+- **Setup**: A Probation-status employee (create a fresh one if PROB-2 already confirmed the last one Active)
+- **Steps**:
+  1. Open Probation actions → click **Extend**
+  2. A date picker appears — choose a new, later end date
+  3. Click **Save Extension**
+- **Pass**: `probationExtended` flag is set, the new end date is saved and reflected on the employee record.
+- **Bug**:
+
+---
+
+### PROB-4 · Terminate from probation - completed 
+- **Profile**: Admin (signed in)
+- **Setup**: A Probation-status employee (create a fresh one — don't reuse PROB-2/PROB-3's employee)
+- **Steps**:
+  1. Open Probation actions → click **Terminate**
+  2. UAE 14-day notice warning is shown → click **Confirm Terminate**
+- **Pass**: Employee is archived (`employmentStatus = 'Terminated'`), disappears from the Employee List tab, and now appears in the **Terminated Employees** tab with a Terminated badge.
+- **Bug**:
+
+---
+
+## 6. ARCHIVE EMPLOYEE (direct, non-probation path)
+
+### ARC-1 · Archive an Active employee
+- **Profile**: Admin (signed in)
+- **Setup**: Any Active employee not already used in PROB-4
+- **Steps**:
+  1. Click the **trash icon** ("Delete employee") on the row
+  2. Confirmation dialog titled **"Archive Employee"** appears → confirm
+- **Pass**: Employee disappears from the Employee List tab and appears in the **Terminated Employees** tab with a Terminated badge — not deleted outright (soft-delete: `active=false, employmentStatus='Terminated'`).
+- **Bug**:
+
+---
+
+## 7. OFFBOARDING (Terminated Employees tab only) - completed
+
+### OFF-1 · Open the offboarding checklist - completed 
+- **Profile**: Admin (signed in)
+- **Setup**: A Terminated employee exists (from PROB-4 or ARC-1)
+- **Steps**:
+  1. Switch to the **Terminated Employees** tab (third tab, `UserX` icon — or click the "Terminated" stat card)
+  2. Click the indigo **ClipboardList** icon on a Terminated row (this icon appears only on Terminated rows)
+- **Pass**: OffboardingModal opens; a checklist is auto-created/loaded with default clearance tasks (9 hardcoded items, or admin-configured templates if any exist).
+- **Bug**:
+
+---
+
+### OFF-2 · Toggle task completion - completed 
+- **Profile**: Admin (signed in, OffboardingModal open)
+- **Setup**: None
+- **Steps**:
+  1. Click a task row to toggle it complete
+- **Pass**: Checkbox/icon toggles **instantly** (optimistic UI update) before the DB write completes. Reload the modal — the state persists.
+- **Bug**:
+
+---
+
+### OFF-3 · Add a custom task - completed 
+- **Profile**: Admin (signed in, OffboardingModal open)
+- **Setup**: None
+- **Steps**:
+  1. Use the add-task form to enter a custom task name → submit
+- **Pass**: New task appears in the checklist.
+- **Bug**:
+
+---
+
+### OFF-4 · Delete a task- completed 
+- **Profile**: Admin (signed in, OffboardingModal open)
+- **Setup**: At least one task exists
+- **Steps**:
+  1. Click the trash icon on a task row
+- **Pass**: Task is removed from the checklist.
+- **Bug**:
+
+---
+
+### OFF-5 · Visa Cancellation Status- completed 
+- **Profile**: Admin (signed in, OffboardingModal open)
+- **Setup**: None
+- **Steps**:
+  1. Change the **Visa Cancellation Status** dropdown (not_started → initiated → submitted_gdrfa → cancelled)
+- **Pass**: Selection saves without error.
+- **Bug**:
+
+---
+
+### OFF-6 · EOS Calculator - completed 
+- **Profile**: Admin (signed in, OffboardingModal open)
+- **Setup**: None
+- **Steps**:
+  1. Click **EOS Calculator**
+- **Pass**: `EndOfServiceScreen` renders (replaces the modal content — the only modal-within-modal pattern in the app) showing a gratuity breakdown per UAE labour law, based on the employee's service period and basic salary.
+- **Bug**:
+
+---
+
+### OFF-7 · Outstanding advances auto-populate DEFF to Day 6 
+- **Profile**: Admin (signed in, EndOfServiceScreen open from OFF-6)
+- **Setup**: The Terminated employee has an active salary advance with an outstanding balance (create one in Advances if needed — covered properly on Day 6, skip this check if none exists yet and note it)
+- **Steps**:
+  1. Look at the "Outstanding Salary Advances" field
+- **Pass**: Field is pre-populated from the Advances module with hint text "Auto-loaded from Advances module. Edit to override." Field remains editable.
+- **Bug**:
+
+---
+
+### OFF-8 · Print Settlement letter - completed 
+- **Profile**: Admin (signed in, EndOfServiceScreen open)
+- **Setup**: None
+- **Steps**:
+  1. Click **Print Settlement**
+- **Pass**: New browser window opens with the settlement letter, dates shown in DD/MM/YYYY.
+- **Bug**:
+
+---
+
+### OFF-9 · Print NOC / Experience Letter - completed 
+- **Profile**: Admin (signed in, back in OffboardingModal)
+- **Setup**: None
+- **Steps**:
+  1. Click **Print NOC**, then separately **Print Experience Letter**
+- **Pass**: Each opens a new browser window with the correct letter content; the join date (if shown) is in DD/MM/YYYY.
+- **Bug**:
 
 ---
 
@@ -739,41 +1022,320 @@ Legend: `[ ]` = not tested · `[x]` = pass · `[!]` = bug found
 
 # DAY 4 — Departments · Letter Requests
 
+> **Before you start**
+> Be signed in as **Admin**.
+> You need at least one employee to exist (e.g. from Day 2's EC-8). Have the Supabase SQL Editor open in a separate tab — you'll need it to seed a test letter request for the LR tests and to unblock the deferred D-6 check.
+
+---
+
+## Deferred from earlier days
+
+### D-6 · Pending letter requests alert and navigation — ⏭ deferred from Day 1, do this now - ui issue , the table bellow the header seems messy too close to the top bad , space it correctly , and make it neater 
+- **Profile**: Admin
+- **Setup**: Run this SQL in **Supabase Dashboard → SQL Editor** to seed a pending letter request (no employee portal needed):
+  ```sql
+  INSERT INTO letter_requests (user_id, employee_id, letter_type, purpose, status, requested_at)
+  SELECT auth.uid(), e.id, 'Salary Certificate - Bank', 'Home loan application', 'pending', now()
+  FROM employees e
+  WHERE e.user_id = auth.uid()
+    AND e.active = true
+  LIMIT 1;
+  ```
+  Then navigate to the **Dashboard** to trigger `generateExpiryNotifications` and refresh the pending letter count.
+- **Steps**:
+  1. Run the SQL above in Supabase SQL Editor
+  2. Return to the app and navigate to **Dashboard** (click "Dashboard" in the sidebar)
+  3. Look for an amber alert card near the top of the Dashboard that mentions pending letter requests
+  4. Read the alert text
+  5. Click the **"View Letter Requests"** link / button inside that alert
+- **Pass**: The amber alert says something like "1 letter request pending. Employees are waiting for HR letters to be generated." and clicking it navigates directly to the **Letter Requests** admin page.
+- **Bug**:
+
+---
+
 ## 5. DEPARTMENTS
 
-### Departments tab (default)
-- [ ] Navigate → Departments
-- [ ] Department list loads as indented tree (child depts show `└` prefix)
-- [ ] Add Department → enter name, select Parent (leave blank for root), choose colour swatch (10 colours), optionally set Head Employee → Save → appears in tree at correct level
-- [ ] Edit Department → change name or head → Save
-- [ ] Delete Department → guard modal if employees are assigned, else confirms deletion
-- [ ] Colour swatches render and selecting one updates the row colour chip
+### DEP-1 · Navigate to Departments page - partial  
+- **Profile**: Admin (signed in)
+- **Setup**: None
+- **Steps**:
+  1. In the sidebar, click **"Departments"** (GitBranch / network icon, between **Employees** and **Letter Requests**)
+- **Pass**: The Departments page loads. The page header shows "Departments". Three tab buttons are visible: **Departments**, **Org Chart**, **Staffing Rules**.
+- **Bug**: "+" sign in add department is too high , make it in line with the add department button
 
-### Org Chart tab
-- [ ] Switch to Org Chart tab
-- [ ] Org tree renders employee cards grouped by reporting structure
-- [ ] Search box → type employee name → matching nodes highlighted/filtered
-- [ ] Department filter dropdown → narrows chart to selected dept
-- [ ] Click expand arrow (►) on a node → children expand
-- [ ] Click collapse (▼) → children collapse
+---
 
-### Staffing Rules tab (3rd tab, ShieldCheck icon)
-- [ ] Switch to Staffing Rules tab
-- [ ] Rules table loads (department, shift category, min staff, effective dates)
-- [ ] Add Rule: Department field (datalist autocomplete from departments), Shift Category dropdown (Morning / Afternoon / Night / Flexible), Min Staff number, optional dates → Save → row appears
-- [ ] Edit rule inline → Save
-- [ ] Delete rule (trash icon) → confirmed, removed
+### DEP-2 · Add a root-level department - maybe bug 
+- **Profile**: Admin (signed in, on Departments page, Departments tab active)
+- **Setup**: None — starting with an empty or existing list is fine
+- **Steps**:
+  1. Click the **"+ Add Department"** button (or equivalent inline form)
+  2. Enter a department name, e.g. `Emergency Department`
+  3. Leave the **Parent Department** field blank (root level)
+  4. Click one of the 10 colour swatches (e.g. red)
+  5. Optionally set a **Head Employee** by typing an employee name
+  6. Click **Save**
+- **Pass**: The new department appears in the tree table at the root level (no `└` prefix). The colour chip in the row matches the swatch you selected.
+- **Bug**:
+
+---
+
+### DEP-3 · Add a child department (nested under a parent) - completed 
+- **Profile**: Admin (signed in, on Departments → Departments tab)
+- **Setup**: DEP-2 must be done so a parent department exists
+- **Steps**:
+  1. Click **"+ Add Department"**
+  2. Enter name `ICU`
+  3. Select **Emergency Department** (from DEP-2) as the parent
+  4. Pick a different colour swatch
+  5. Click **Save**
+- **Pass**: `ICU` appears in the tree directly under `Emergency Department` with a `└` prefix indentation. No other rows shift position unexpectedly.
+- **Bug**:
+
+---
+
+### DEP-4 · Edit a department (name and head employee) - completed 
+- **Profile**: Admin (signed in, on Departments → Departments tab)
+- **Setup**: At least one department exists (e.g. Emergency Department from DEP-2)
+- **Steps**:
+  1. Click the **edit / pencil** icon on the `Emergency Department` row
+  2. Change the name to `Emergency & Trauma`
+  3. Set or change the Head Employee to any active employee
+  4. Click **Save**
+- **Pass**: The row now shows `Emergency & Trauma` with the chosen head employee. The child `ICU` row still shows its `└` prefix under the renamed parent.
+- **Bug**:
+
+---
+
+### DEP-5 · Colour swatch updates row chip - completed 
+- **Profile**: Admin (signed in, on Departments → Departments tab)
+- **Setup**: At least one department exists
+- **Steps**:
+  1. Click the edit icon on any department row
+  2. Click a different colour swatch than the current one
+  3. Click Save
+- **Pass**: The colour chip / badge on the department row changes to the new colour immediately after save.
+- **Bug**:
+
+---
+
+### DEP-6 · Delete department with no employees — succeeds - completed 
+- **Profile**: Admin (signed in, on Departments → Departments tab)
+- **Setup**: Create a throwaway department with no employees assigned (e.g. `Test Dept`). Ensure no employee has their Department field set to `Test Dept`.
+- **Steps**:
+  1. Click the **trash / delete** icon on the `Test Dept` row
+  2. Read the confirmation dialog
+  3. Confirm the deletion
+- **Pass**: `Test Dept` is removed from the tree. No error message.
+- **Bug**:
+
+---
+
+### DEP-7 · Delete department that has employees — guard flash message - completed 
+- **Profile**: Admin (signed in, on Departments → Departments tab)
+- **Setup**: At least one employee must have their **Department** field set to one of your departments (e.g. set it in EmployeeModal → Job & Contract → Department). Then return to Departments.
+- **Steps**:
+  1. Click the trash icon on the department that has employees assigned (shows inline confirm buttons ✓ / ✗)
+  2. Click the ✓ confirm button
+  3. Observe what happens
+- **Pass**: A red **flash alert** appears at the top of the page (e.g. "Cannot delete: 1 employee(s) and/or 0 sub-department(s) are still assigned."). The department is **not** deleted. (This is a flash message, not a modal.)
+- **Bug**:
+
+---
+
+### DEP-8 · Org Chart tab renders - partial 
+- **Profile**: Admin (signed in, on Departments page)
+- **Setup**: At least one employee with a Reporting Manager set (so a hierarchy exists). The employees from Day 2 / Day 3 should suffice.
+- **Steps**:
+  1. Click the **"Org Chart"** tab
+- **Pass**: An org chart renders with at least one employee node. Each node shows the employee's name and department. If no reporting relationships exist, a single root node or a flat list is shown.
+- **Bug**: no way of seeing that a person is also under a parent deparment , if their under a child , i added ICU under departments but doesnt come in emplyee modal , make sure new deparments are visible , and org chart doesnt change from original department doesnt update , fix these root causes and adress any other issue in this are , be detailed. 
+  - **Fixed**: Three root causes addressed: (1) EmployeeModal datalist now shows parent dept context in the suggestion label — "ICU (under Emergency & Trauma)" — while still filling the field with just "ICU" on select; (2) OrgNode dept badge now shows "Emergency & Trauma › ICU" inline when the employee's dept is a child dept, making the hierarchy visible without opening anything; (3) Added a **Refresh** button in the Org Chart toolbar — clicking it reloads employee data from the DB so changes made in EmployeeModal (dept assignment updates) appear without navigating away from DepartmentManager.
+
+---
+
+### DEP-9 · Org Chart search filters nodes - partial 
+- **Profile**: Admin (signed in, on Departments → Org Chart tab)
+- **Setup**: Org Chart is visible with multiple employee nodes
+- **Steps**:
+  1. Type part of an employee's name in the **search box** (e.g. first 3 letters)
+  2. Observe the chart
+- **Pass**: Only the matching employee node(s) remain visible / highlighted. Nodes that do not match are hidden or dimmed.
+- **Bug**: new department doesnt show up in filters 
+  - **Fixed**: Org Chart department filter dropdown was built exclusively from `employees.department` strings — departments created in the Departments tab but not yet assigned to any employee were invisible. Fixed by merging both sources: `[...new Set([...depts.map(d => d.name), ...employees.map(e => e.department).filter(Boolean)])]`. New departments now appear in the filter immediately after creation.
+
+---
+
+### DEP-10 · Org Chart expand and collapse — retest after DEP-9 fix
+- **Profile**: Admin (signed in, on Departments → Org Chart tab)
+- **Setup**: A manager with at least one direct report must exist in the org chart
+- **Steps**:
+  1. Find a node that has child nodes (a manager)
+  2. Click the **collapse (▼)** arrow / chevron on that node
+  3. Observe — child nodes should hide
+  4. Click the **expand (►)** arrow
+  5. Observe — child nodes should reappear
+- **Pass**: Children hide on collapse and reappear on expand. The arrow icon toggles between ► and ▼.
+- **Bug**:
+
+---
+
+### DEP-11 · Org Chart department filter - partial 
+- **Profile**: Admin (signed in, on Departments → Org Chart tab)
+- **Setup**: Departments have been created (DEP-2/DEP-3) and at least one employee has a department assigned
+- **Steps**:
+  1. Click the **department filter dropdown**
+  2. Select a specific department (e.g. `Emergency & Trauma`)
+- **Pass**: The org chart narrows to show only employees whose department matches the selected one. Employees in other departments are hidden.
+- **Bug**:
+
+---
+
+### DEP-12 · Staffing Rules — add a rule
+- **Profile**: Admin (signed in, on Departments page)
+- **Setup**: At least one department exists (from DEP-2/DEP-3)
+- **Steps**:
+  1. Click the **"Staffing Rules"** tab (ShieldCheck icon, 3rd tab)
+  2. The rules table loads (may be empty on first use)
+  3. In the Add Rule form: type a department name in the **Department** field (the datalist should suggest your departments)
+  4. Select **Shift Category** = `Morning`
+  5. Set **Min Staff** = `2`
+  6. Leave Effective From / To blank
+  7. Click **Save**
+- **Pass**: A new row appears in the table: the department name, `Morning`, minimum `2`, no dates. No error.
+- **Bug**:
+
+---
+
+### DEP-13 · Staffing Rules — edit a rule
+- **Profile**: Admin (signed in, on Departments → Staffing Rules tab)
+- **Setup**: DEP-12 must be done (at least one rule exists)
+- **Steps**:
+  1. Click the **edit / pencil** icon on the rule from DEP-12
+  2. Change **Min Staff** from `2` to `3`
+  3. Click **Save**
+- **Pass**: The rule row updates to show min staff = `3`. No duplicate row is created (upsert on department + shift category).
+- **Bug**:
+
+---
+
+### DEP-14 · Staffing Rules — delete a rule
+- **Profile**: Admin (signed in, on Departments → Staffing Rules tab)
+- **Setup**: At least one rule exists
+- **Steps**:
+  1. Click the **trash** icon on any rule row
+  2. Confirm if prompted
+- **Pass**: The rule row disappears from the table.
+- **Bug**:
+
+---
+
+### DEP-15 · Department autocomplete appears in EmployeeModal
+- **Profile**: Admin (signed in)
+- **Setup**: At least one department exists in the Departments page (DEP-2/DEP-3). An employee exists.
+- **Steps**:
+  1. Open any existing employee (click the pencil / edit icon)
+  2. Go to the **Job & Contract** tab
+  3. Click inside the **Department** text field
+  4. Type the first letter(s) of your department name (e.g. `Em`)
+- **Pass**: A dropdown datalist suggestion appears showing the matching department(s) (e.g. `Emergency & Trauma`). Selecting it fills the field. Free-text entry still works if you ignore the suggestions.
+- **Bug**:
+
+---
 
 ## 6. LETTER REQUESTS
 
-- [ ] Navigate → Letter Requests
-- [ ] Pending requests list loads with employee name, letter type, purpose, date
-- [ ] Filter tabs: Pending / All / Completed / Rejected → list updates
-- [ ] **Complete & Print** (printer icon on a pending request)
-  - [ ] Letter HTML renders in new browser window (correct template for the requested type)
-  - [ ] Status changes to "Completed" in the list
-- [ ] **Reject** (X icon) → rejection reason input appears → enter reason → confirm → status changes to Rejected
-- [ ] Rejected reason visible in the row
+### LR-1 · Navigate to Letter Requests page
+- **Profile**: Admin (signed in)
+- **Setup**: None (D-6's SQL seed should already have created one pending request — if not, run it now)
+- **Steps**:
+  1. Click **"Letter Requests"** in the sidebar (between Employees and Payroll, envelope/mail icon)
+- **Pass**: The Letter Requests page loads. The page header says "Letter Requests". Tab buttons for **Pending / All / Completed / Rejected** are visible. The request seeded in D-6 appears in the Pending tab.
+- **Bug**:
+
+---
+
+### LR-2 · Filter tabs update the list
+- **Profile**: Admin (signed in, on Letter Requests)
+- **Setup**: LR-1 done — at least one pending request exists
+- **Steps**:
+  1. Click the **Pending** tab — confirm the seeded request is listed
+  2. Click **All** — same request should still appear
+  3. Click **Completed** — list should be empty (nothing completed yet)
+  4. Click **Rejected** — list should be empty
+  5. Click **Pending** again to return to the default view
+- **Pass**: Each tab shows only the matching status records. Completed and Rejected are empty at this stage.
+- **Bug**:
+
+---
+
+### LR-3 · Complete & Print a letter request
+- **Profile**: Admin (signed in, on Letter Requests → Pending tab)
+- **Setup**: A pending request exists (from D-6 SQL seed — letter type "Salary Certificate - Bank")
+- **Steps**:
+  1. On the pending request row, click the **printer / Complete** icon
+  2. A new browser window or tab opens
+  3. Read the content of the letter
+  4. If the print dialog appears automatically — close it (or let it open)
+  5. Switch back to the admin tab and check the request list
+- **Pass**: The new window contains a properly formatted **Salary Certificate (Bank)** letter with the employee's name, company name, salary details, and today's date in DD/MM/YYYY format. Back in the admin tab, the request's status has changed from **Pending** to **Completed**. It no longer appears in the Pending tab.
+- **Bug**:
+
+---
+
+### LR-4 · Completed request appears in Completed tab
+- **Profile**: Admin (signed in, on Letter Requests)
+- **Setup**: LR-3 done
+- **Steps**:
+  1. Click the **Completed** tab
+- **Pass**: The request completed in LR-3 appears with status "Completed" and a completion timestamp.
+- **Bug**:
+
+---
+
+### LR-5 · Seed a second pending request for rejection test
+- **Profile**: Admin (using Supabase SQL Editor)
+- **Setup**: The first request was completed in LR-3. We need a fresh pending request to test rejection.
+- **Steps**:
+  1. In **Supabase SQL Editor**, run:
+     ```sql
+     INSERT INTO letter_requests (user_id, employee_id, letter_type, purpose, status, requested_at)
+     SELECT auth.uid(), e.id, 'NOC', 'Visa renewal', 'pending', now()
+     FROM employees e
+     WHERE e.user_id = auth.uid()
+       AND e.active = true
+     LIMIT 1;
+     ```
+  2. Return to the Letter Requests page and refresh (or switch tabs to trigger a reload)
+  3. Click the **Pending** tab
+- **Pass**: A new row appears for "NOC" letter type with purpose "Visa renewal" and status Pending.
+- **Bug**:
+
+---
+
+### LR-6 · Reject a pending request — reason required
+- **Profile**: Admin (signed in, on Letter Requests → Pending tab)
+- **Setup**: LR-5 done — the NOC pending request is visible
+- **Steps**:
+  1. Click the **reject / X** icon on the NOC request
+  2. A rejection reason input field appears inline (or a small form)
+  3. Try clicking Confirm/Submit **without** entering a reason — observe if it is blocked
+  4. Now type a reason, e.g. `Pending further documentation from employee`
+  5. Click Confirm / Submit
+- **Pass**: The rejection form either blocks submission with an empty reason (ideal) or accepts it. After submission the request row disappears from the Pending tab and status changes to **Rejected**.
+- **Bug**:
+
+---
+
+### LR-7 · Rejection reason visible in Rejected tab
+- **Profile**: Admin (signed in, on Letter Requests)
+- **Setup**: LR-6 done
+- **Steps**:
+  1. Click the **Rejected** tab
+  2. Find the rejected NOC request
+  3. Look for the rejection reason text in the row or an expandable detail
+- **Pass**: The rejection reason `Pending further documentation from employee` (or whatever you entered) is visible in the row or tooltip.
+- **Bug**:
 
 ---
 
