@@ -9,7 +9,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Edit2, Trash2, GraduationCap, Award, X, AlertTriangle, ExternalLink } from 'lucide-react';
+import { Plus, Edit2, Trash2, GraduationCap, Award, X, AlertTriangle, ExternalLink, CheckCircle, XCircle } from 'lucide-react';
 import { getEmployees } from '../utils/storage';
 import { formatDateUAE } from '../utils/uaeValidators';
 import {
@@ -445,6 +445,12 @@ export default function TrainingManager() {
     showFlash('success', 'Certification deleted.');
   };
 
+  const handleCertReview = async (cert, newStatus) => {
+    const saved = await saveCertification({ ...cert, status: newStatus });
+    setCerts(prev => prev.map(c => c.id === cert.id ? saved : c));
+    showFlash('success', newStatus === 'verified' ? 'Certification verified.' : 'Certification rejected.');
+  };
+
   // ── Derived / filtered data ──
   const filteredRecords = records.filter(r => {
     if (empFilter    && r.employeeId !== empFilter) return false;
@@ -455,6 +461,7 @@ export default function TrainingManager() {
   const filteredCerts = certs.filter(c => {
     if (certEmpFilter && c.employeeId !== certEmpFilter) return false;
     if (certExpiryFilter !== 'all') {
+      if (certExpiryFilter === 'pending') return c.status === 'pending_review';
       const { days } = certExpiryInfo(c.expiryDate);
       if (certExpiryFilter === 'expired'  && (days === null || days >= 0))         return false;
       if (certExpiryFilter === 'expiring' && (days === null || days < 0 || days > 60)) return false;
@@ -462,6 +469,8 @@ export default function TrainingManager() {
     }
     return true;
   });
+
+  const pendingCertCount = certs.filter(c => c.status === 'pending_review').length;
 
   // Training stats
   const totalCost          = records.reduce((s, r) => s + (r.cost || 0), 0);
@@ -723,10 +732,11 @@ export default function TrainingManager() {
 
               <div style={{ display: 'flex', gap: 4 }}>
                 {[
-                  { v: 'all',      l: 'All'          },
-                  { v: 'expired',  l: 'Expired'      },
-                  { v: 'expiring', l: 'Expiring Soon' },
-                  { v: 'active',   l: 'Active'        },
+                  { v: 'all',      l: 'All'           },
+                  { v: 'pending',  l: `Pending Review${pendingCertCount ? ` (${pendingCertCount})` : ''}` },
+                  { v: 'expired',  l: 'Expired'       },
+                  { v: 'expiring', l: 'Expiring Soon'  },
+                  { v: 'active',   l: 'Active'         },
                 ].map(f => (
                   <button
                     key={f.v}
@@ -767,8 +777,10 @@ export default function TrainingManager() {
                       </tr>
                     ) : filteredCerts.map(c => {
                       const exSt = certExpiryInfo(c.expiryDate);
+                      const isPending = c.status === 'pending_review';
+                      const isRejected = c.status === 'rejected';
                       return (
-                        <tr key={c.id}>
+                        <tr key={c.id} style={isPending ? { background: '#fffbeb' } : undefined}>
                           <td style={{ fontWeight: 500 }}>{c.employeeName}</td>
                           <td>
                             {c.certificationName}
@@ -778,14 +790,35 @@ export default function TrainingManager() {
                                 <ExternalLink size={12} />
                               </a>
                             )}
+                            {isPending && <span style={{ fontSize: 10, color: '#92400e', marginLeft: 6 }}>Self-submitted</span>}
                           </td>
                           <td style={{ fontSize: 13, color: 'var(--gray-600)' }}>{c.issuingBody || '—'}</td>
                           <td style={{ fontSize: 13, color: 'var(--gray-500)' }}>{c.certificateNo || '—'}</td>
                           <td style={{ fontSize: 13 }}>{c.issuedDate ? formatDateUAE(c.issuedDate) : '—'}</td>
                           <td style={{ fontSize: 13 }}>{c.expiryDate ? formatDateUAE(c.expiryDate) : <span style={{ color: 'var(--gray-400)' }}>No expiry</span>}</td>
-                          <td><span className={`badge ${exSt.badge}`}>{exSt.label}</span></td>
+                          <td>
+                            {isPending
+                              ? <span className="badge badge-amber">Pending Review</span>
+                              : isRejected
+                                ? <span className="badge badge-red">Rejected</span>
+                                : <span className={`badge ${exSt.badge}`}>{exSt.label}</span>}
+                          </td>
                           <td>
                             <div style={{ display: 'flex', gap: 6 }}>
+                              {isPending && (
+                                <>
+                                  <button className="btn btn-ghost btn-sm" title="Verify"
+                                    style={{ color: 'var(--success)' }}
+                                    onClick={() => handleCertReview(c, 'verified')}>
+                                    <CheckCircle size={14} />
+                                  </button>
+                                  <button className="btn btn-ghost btn-sm" title="Reject"
+                                    style={{ color: 'var(--danger)' }}
+                                    onClick={() => handleCertReview(c, 'rejected')}>
+                                    <XCircle size={14} />
+                                  </button>
+                                </>
+                              )}
                               <button className="btn btn-ghost btn-sm" title="Edit"
                                 onClick={() => setCertModal(c)}>
                                 <Edit2 size={14} />

@@ -3,12 +3,15 @@ import { X, Plus, Trash2, Info } from 'lucide-react';
 
 /**
  * Compute Final Allowance for an entry (= variable allowance sent via WPS SIF):
- * = allowance + increment + bonus + otherPay + sum(additionalAllowances) - sum(deductions) - duCost
+ * = housing + transport + allowance + increment + bonus + otherPay + sum(additionalAllowances)
+ *   - sum(deductions) - duCost - leaveDeduction
  *
- * DU Cost is subtracted because it is a cost borne by the employer (e.g. telecom/utility)
- * that reduces the net variable allowance transferred to the employee via WPS.
+ * Housing and transport are included here so the SIF variable allowance reflects the full
+ * package. DU Cost is subtracted (employer-borne cost that reduces net employee transfer).
  */
 export function computeFinalAllowance(entry) {
+  const housing   = parseFloat(entry.housingAllowance) || 0;
+  const transport = parseFloat(entry.transportAllowance) || 0;
   const base   = parseFloat(entry.allowance) || 0;
   const inc    = parseFloat(entry.increment) || 0;
   const bon    = parseFloat(entry.bonus) || 0;
@@ -18,7 +21,7 @@ export function computeFinalAllowance(entry) {
   const leaveDed = parseFloat(entry.leaveDeduction) || 0;
   const addAllow = (entry.additionalAllowances || []).reduce((s, a) => s + (parseFloat(a.amount) || 0), 0);
   const deds     = (entry.deductions || []).reduce((s, d) => s + (parseFloat(d.amount) || 0), 0);
-  return base + inc + bon + oth + addAllow - deds - du - leaveDed;
+  return housing + transport + base + inc + bon + oth + addAllow - deds - du - leaveDed;
 }
 
 export default function AllowDeductPanel({ entries, employees, onClose, onSave }) {

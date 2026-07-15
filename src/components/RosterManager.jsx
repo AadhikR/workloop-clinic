@@ -316,11 +316,13 @@ export default function RosterManager() {
         setRosterData(prev => { const n = { ...prev }; delete n[cellKey]; return n; });
       } else {
         const sh = shifts.find(s => s.id === shiftId);
+        const existing = rosterData[cellKey];
         const saved = await saveRosterAssignment({
           employeeId:   empId,
           shiftId,
           date:         dateStr,
           plannedHours: sh?.expectedHours ?? null,
+          published:    existing?.published ?? false,
         });
         setRosterData(prev => ({ ...prev, [cellKey]: saved }));
       }
@@ -339,12 +341,11 @@ export default function RosterManager() {
       for (let d = 1; d <= daysInMonth; d++) {
         const dateStr = `${rYear}-${pad2(rMonth)}-${pad2(d)}`;
         for (const rule of staffingRules) {
-          // Count assigned employees in this department + shift_category on this date
-          const count = Object.entries(rosterData).filter(([empId, byDate]) => {
-            const assignment = byDate[dateStr];
+          // rosterData is a flat map: `${empId}_${dateStr}` → assignment
+          const count = employees.filter(emp => {
+            if (emp.department !== rule.department) return false;
+            const assignment = rosterData[`${emp.id}_${dateStr}`];
             if (!assignment || !assignment.shiftId) return false;
-            const emp = employees.find(e => e.id === empId);
-            if (!emp || emp.department !== rule.department) return false;
             const shift = shifts.find(s => s.id === assignment.shiftId);
             return shift?.shiftCategory === rule.shiftCategory;
           }).length;
@@ -859,7 +860,7 @@ export default function RosterManager() {
                       {Array.from({ length: daysInMonth }).map((_, i) => {
                         const day = i + 1;
                         const dow = new Date(`${rYear}-${pad2(rMonth)}-${pad2(day)}`).toLocaleString('en-AE', { weekday: 'short' });
-                        const isWeekend = dow === 'Fri' || dow === 'Sat';
+                        const isWeekend = dow === 'Sat' || dow === 'Sun';
                         return (
                           <th key={day} style={{
                             padding: '4px 1px', textAlign: 'center',

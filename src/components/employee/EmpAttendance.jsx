@@ -23,7 +23,7 @@ function fmtDate(iso) {
   return new Date(iso).toLocaleDateString('en-AE', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
-const RECENT_DAYS = 14;
+const RECENT_DAYS = 30;
 
 export default function EmpAttendance() {
   const { profile } = useAuth();

@@ -40,6 +40,7 @@ export const DEFAULT_LEAVE_TYPES = [
     autoApprove: false,
     carryForwardAllowed: true,
     carryForwardMaxDays: 15,
+    probationEligible: false, // annual leave not available during probation (Art. 29)
     lawReference: 'Art. 29 — Federal Decree-Law No. 33 of 2021',
   },
   {
@@ -132,6 +133,7 @@ export const DEFAULT_LEAVE_TYPES = [
     carryForwardMaxDays: 0,
     minServiceMonths: 24, // 2 years service required
     oncePerCareer: true,
+    probationEligible: false, // Hajj leave requires min 2 years service
     lawReference: 'Art. 29 (Hajj) — Federal Decree-Law No. 33 of 2021',
   },
   {
@@ -179,6 +181,7 @@ export const DEFAULT_LEAVE_TYPES = [
     autoApprove: false,
     carryForwardAllowed: false,
     carryForwardMaxDays: 0,
+    probationEligible: false, // study leave not available during probation (Art. 36)
     lawReference: 'Art. 36 — Federal Decree-Law No. 33 of 2021',
   },
   {

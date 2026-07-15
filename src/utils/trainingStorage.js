@@ -54,6 +54,7 @@ function dbToCertification(row) {
     expiryDate:        row.expiry_date,
     certificateUrl:    row.certificate_url,
     notes:             row.notes,
+    status:            row.status || 'verified',
     createdAt:         row.created_at,
   };
 }
@@ -196,6 +197,7 @@ export async function saveCertification(cert) {
     expiry_date:        cert.expiryDate         || null,
     certificate_url:    cert.certificateUrl     || '',
     notes:              cert.notes              || '',
+    status:             cert.status             || 'verified',
   };
 
   if (cert.id) {
@@ -243,4 +245,212 @@ export async function getEmployeeCertifications(employeeId) {
     .order('expiry_date', { ascending: true, nullsFirst: false });
   if (error) { console.error('getEmployeeCertifications:', error); return []; }
   return (data || []).map(r => dbToCertification({ ...r, employees: null }));
+}
+
+// ─── Manager — Training for direct reports ──────────────────────────────────
+
+/**
+ * Manager: fetch training records for direct reports.
+ * Uses training_records_manager_all RLS policy (migration 040).
+ */
+export async function getTeamTrainingRecords() {
+  const { data: selfId } = await supabase.rpc('get_manager_employee_id');
+  let q = supabase
+    .from('training_records')
+    .select('*, employees(name)')
+    .order('start_date', { ascending: false });
+  if (selfId) q = q.neq('employee_id', selfId);
+  const { data, error } = await q;
+  if (error) { console.error('getTeamTrainingRecords:', error); return []; }
+  return (data || []).map(dbToTraining);
+}
+
+/**
+ * Manager: fetch certifications for direct reports.
+ * Uses certifications_manager_all RLS policy (migration 040).
+ */
+export async function getTeamCertifications() {
+  const { data: selfId } = await supabase.rpc('get_manager_employee_id');
+  let q = supabase
+    .from('certifications')
+    .select('*, employees(name)')
+    .order('expiry_date', { ascending: true, nullsFirst: false });
+  if (selfId) q = q.neq('employee_id', selfId);
+  const { data, error } = await q;
+  if (error) { console.error('getTeamCertifications:', error); return []; }
+  return (data || []).map(dbToCertification);
+}
+
+/**
+ * Manager: save training record for a direct report.
+ * user_id is set to the manager's auth uid (RLS allows via reporting_manager_id chain).
+ */
+export async function saveTeamTrainingRecord(rec) {
+  const user = await getSessionUser();
+  if (!user) throw new Error('Not authenticated');
+  const row = {
+    user_id:         user.id,
+    employee_id:     rec.employeeId,
+    training_title:  rec.trainingTitle  || '',
+    training_type:   rec.trainingType   || 'external',
+    provider:        rec.provider       || '',
+    start_date:      rec.startDate      || null,
+    end_date:        rec.endDate        || null,
+    duration_hours:  rec.durationHours  ? parseFloat(rec.durationHours) : null,
+    cost:            parseFloat(rec.cost) || 0,
+    status:          rec.status         || 'planned',
+    score:           rec.score          || '',
+    passed:          rec.passed         ?? null,
+    certificate_url: rec.certificateUrl || '',
+    notes:           rec.notes          || '',
+  };
+  if (rec.id) {
+    const { data, error } = await supabase
+      .from('training_records').update(row).eq('id', rec.id)
+      .select('*, employees(name)').single();
+    if (error) throw error;
+    return dbToTraining(data);
+  }
+  const { data, error } = await supabase
+    .from('training_records').insert(row)
+    .select('*, employees(name)').single();
+  if (error) throw error;
+  return dbToTraining(data);
+}
+
+/**
+ * Manager: delete a training record for a direct report.
+ */
+export async function deleteTeamTrainingRecord(id) {
+  const { error } = await supabase.from('training_records').delete().eq('id', id);
+  if (error) throw error;
+}
+
+/**
+ * Manager: save certification for a direct report.
+ */
+export async function saveTeamCertification(cert) {
+  const user = await getSessionUser();
+  if (!user) throw new Error('Not authenticated');
+  const row = {
+    user_id:            user.id,
+    employee_id:        cert.employeeId,
+    certification_name: cert.certificationName || '',
+    issuing_body:       cert.issuingBody       || '',
+    certificate_no:     cert.certificateNo     || '',
+    issued_date:        cert.issuedDate        || null,
+    expiry_date:        cert.expiryDate        || null,
+    certificate_url:    cert.certificateUrl    || '',
+    notes:              cert.notes             || '',
+  };
+  if (cert.id) {
+    const { data, error } = await supabase
+      .from('certifications').update(row).eq('id', cert.id)
+      .select('*, employees(name)').single();
+    if (error) throw error;
+    return dbToCertification(data);
+  }
+  const { data, error } = await supabase
+    .from('certifications').insert(row)
+    .select('*, employees(name)').single();
+  if (error) throw error;
+  return dbToCertification(data);
+}
+
+/**
+ * Manager: delete a certification for a direct report.
+ */
+export async function deleteTeamCertification(id) {
+  const { error } = await supabase.from('certifications').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ─── Employee self-service — create/update training ─────────────────────────
+
+/**
+ * Employee: create a training record for self (self-enrollment).
+ * Uses training_records_employee_insert RLS policy (migration 040).
+ */
+export async function employeeSaveTrainingRecord(rec) {
+  const user = await getSessionUser();
+  if (!user) throw new Error('Not authenticated');
+  const row = {
+    user_id:         user.id,
+    employee_id:     rec.employeeId,
+    training_title:  rec.trainingTitle  || '',
+    training_type:   rec.trainingType   || 'external',
+    provider:        rec.provider       || '',
+    start_date:      rec.startDate      || null,
+    end_date:        rec.endDate        || null,
+    duration_hours:  rec.durationHours  ? parseFloat(rec.durationHours) : null,
+    cost:            parseFloat(rec.cost) || 0,
+    status:          rec.status         || 'planned',
+    score:           rec.score          || '',
+    passed:          rec.passed         ?? null,
+    certificate_url: rec.certificateUrl || '',
+    notes:           rec.notes          || '',
+  };
+  if (rec.id) {
+    const { data, error } = await supabase
+      .from('training_records').update(row).eq('id', rec.id)
+      .select('*').single();
+    if (error) throw error;
+    return dbToTraining({ ...data, employees: null });
+  }
+  const { data, error } = await supabase
+    .from('training_records').insert(row)
+    .select('*').single();
+  if (error) throw error;
+  return dbToTraining({ ...data, employees: null });
+}
+
+// ─── Employee self-service — certifications ─────────────────────────────────
+
+/**
+ * Employee: submit a certification for review (status = pending_review).
+ * Uses certifications_employee_insert / certifications_employee_update RLS (migration 042).
+ */
+export async function employeeSaveCertification(cert) {
+  const user = await getSessionUser();
+  if (!user) throw new Error('Not authenticated');
+  const row = {
+    user_id:            user.id,
+    employee_id:        cert.employeeId,
+    certification_name: cert.certificationName || '',
+    issuing_body:       cert.issuingBody       || '',
+    certificate_no:     cert.certificateNo     || '',
+    issued_date:        cert.issuedDate        || null,
+    expiry_date:        cert.expiryDate        || null,
+    certificate_url:    cert.certificateUrl    || '',
+    notes:              cert.notes             || '',
+    status:             'pending_review',
+  };
+  if (cert.id) {
+    const { data, error } = await supabase
+      .from('certifications').update(row).eq('id', cert.id)
+      .select('*').single();
+    if (error) throw error;
+    return dbToCertification({ ...data, employees: null });
+  }
+  const { data, error } = await supabase
+    .from('certifications').insert(row)
+    .select('*').single();
+  if (error) throw error;
+  return dbToCertification({ ...data, employees: null });
+}
+
+/**
+ * Manager: fetch list of direct reports (id + name) for employee dropdown.
+ */
+export async function getManagerDirectReports() {
+  const { data: selfId } = await supabase.rpc('get_manager_employee_id');
+  if (!selfId) return [];
+  const { data, error } = await supabase
+    .from('employees')
+    .select('id, name, job_title')
+    .eq('reporting_manager_id', selfId)
+    .eq('active', true)
+    .order('name');
+  if (error) { console.error('getManagerDirectReports:', error); return []; }
+  return data || [];
 }

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Mail, Clock, CheckCircle, XCircle, Send } from 'lucide-react';
+import { Mail, Clock, CheckCircle, XCircle, Send, Download } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { getMyLetterRequests } from '../../utils/letterStorage';
-import { LETTER_TYPES } from '../../utils/letterTemplates';
+import { LETTER_TYPES, printLetter } from '../../utils/letterTemplates';
 import { formatDateUAE } from '../../utils/uaeValidators';
+import { getMyEmployeeRecord, getMyCompany } from '../../utils/profileStorage';
 
 const STATUS_BADGE = {
   pending:   { cls: 'badge-amber', label: 'Pending Review', Icon: Clock },
@@ -17,10 +18,18 @@ export default function EmpRequests() {
   const [form,        setForm]        = useState({ type: LETTER_TYPES[0], purpose: '' });
   const [submitting,  setSubmitting]  = useState(false);
   const [toast,       setToast]       = useState(null);
+  const [emp,         setEmp]         = useState(null);
+  const [company,     setCompany]     = useState(null);
 
   const load = () => getMyLetterRequests().then(r => { setRequests(r); setLoading(false); });
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    Promise.all([getMyEmployeeRecord(), getMyCompany()]).then(([e, c]) => {
+      setEmp(e);
+      setCompany(c);
+    });
+  }, []);
 
   const showToast = (type, msg) => {
     setToast({ type, msg });
@@ -140,9 +149,33 @@ export default function EmpRequests() {
                         <span className={`badge ${cls}`} style={{ fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                           <Icon size={10} />{label}
                         </span>
-                        {req.status === 'completed' && req.completedAt && (
-                          <div style={{ fontSize: 10, color: 'var(--gray-400)', marginTop: 2 }}>
-                            Ready {formatDateUAE(req.completedAt)} — collect from HR
+                        {req.status === 'completed' && (
+                          <div style={{ marginTop: 4 }}>
+                            {emp && company && (
+                              <button
+                                className="btn btn-ghost btn-sm"
+                                style={{ fontSize: 11, padding: '3px 8px', color: 'var(--primary)', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                                onClick={() => printLetter({
+                                  letterType:   req.letterType,
+                                  purpose:      req.purpose,
+                                  employeeName: emp.name,
+                                  jobTitle:     emp.job_title,
+                                  department:   emp.department,
+                                  basicSalary:  parseFloat(emp.basic_salary) || 0,
+                                  allowance:    parseFloat(emp.housing_allowance || 0) + parseFloat(emp.transport_allowance || 0) + parseFloat(emp.other_allowance || 0),
+                                  passportNumber: emp.passport_number,
+                                  nationality: emp.nationality,
+                                  employmentStartDate: emp.employment_start_date,
+                                }, company)}
+                              >
+                                <Download size={11} /> View Letter
+                              </button>
+                            )}
+                            {req.completedAt && (
+                              <span style={{ fontSize: 10, color: 'var(--gray-400)', marginLeft: 4 }}>
+                                Ready {formatDateUAE(req.completedAt)}
+                              </span>
+                            )}
                           </div>
                         )}
                       </td>

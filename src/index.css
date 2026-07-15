@@ -206,11 +206,13 @@ body {
 .page-header {
   background: #ffffff;
   border: 1px solid rgba(100,116,139,0.14);
-  padding: 0 22px;
-  height: var(--header-h);
+  padding: 10px 22px;
+  min-height: var(--header-h);
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  row-gap: 6px;
   position: sticky;
   top: var(--sidebar-gap);
   z-index: 50;
@@ -219,7 +221,7 @@ body {
   margin: var(--sidebar-gap) var(--sidebar-gap) 0;
 }
 .page-header h2 { font-size: 18px; font-weight: 600; color: var(--gray-900); letter-spacing: -0.3px; }
-.page-header-actions { display: flex; gap: 8px; align-items: center; }
+.page-header-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; row-gap: 6px; }
 
 .page-body { padding: 20px var(--sidebar-gap) 28px; flex: 1; }
 
@@ -397,7 +399,8 @@ tr:hover td {
 .alert-danger  { background: rgba(220,38,38,0.09); color: #991B1B; border: 1px solid rgba(220,38,38,0.18); }
 
 /* ── Modals ───────────────────────────────────────────────────────────────── */
-.modal-overlay {
+.modal-overlay,
+.modal-backdrop {
   position: fixed; inset: 0;
   background: rgba(8,18,46,0.50);
   z-index: 200;
@@ -548,6 +551,7 @@ tr:hover td {
 .mt-2 { margin-top: 8px; }
 .mt-3 { margin-top: 12px; }
 .mt-4 { margin-top: 16px; }
+.mb-3 { margin-bottom: 12px; }
 .mb-4 { margin-bottom: 16px; }
 .text-sm { font-size: 12.5px; }
 .text-muted { color: var(--gray-500); }
@@ -754,11 +758,32 @@ tr:hover td {
 .emp-tab-btn.active     { color: #2563EB; }
 .emp-tab-btn.active svg { stroke: #2563EB; }
 
+/* Collapsed emp-sidebar */
+.emp-sidebar { transition: width 0.28s cubic-bezier(0.4, 0, 0.2, 1); }
+.emp-sidebar-collapsed { width: var(--sidebar-w-collapsed) !important; }
+.emp-sidebar-collapsed .nav-item { justify-content: center; padding: 8px 0; }
+
 @media (min-width: 768px) {
   .emp-shell      { flex-direction: row; }
   .emp-sidebar    { display: flex; }
   .emp-bottom-nav { display: none; }
-  .emp-main       { margin-left: calc(228px + var(--sidebar-gap) * 2); padding-bottom: 0; }
+  .emp-main       { margin-left: calc(228px + var(--sidebar-gap) * 2); padding-bottom: 0; transition: margin-left 0.28s cubic-bezier(0.4, 0, 0.2, 1); }
+  .emp-main-collapsed { margin-left: calc(var(--sidebar-w-collapsed) + var(--sidebar-gap) * 2); }
   .emp-page-header { padding: 18px 26px; margin: var(--sidebar-gap) var(--sidebar-gap) 0; border-radius: 18px; position: sticky; top: var(--sidebar-gap); }
   .emp-page-body   { padding: 22px 26px; }
 }
+
+@media print {
+  body * { visibility: hidden; }
+  #calendar-print-area,
+  #calendar-print-area * { visibility: visible; }
+  #calendar-print-area {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+  }
+}
+
+/* ─── Spinner animation ──────────────────────────────────────────── */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 1s linear infinite; }

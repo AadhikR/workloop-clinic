@@ -7,7 +7,7 @@ Legend: `[ ]` = not tested · `[x]` = pass · `[!]` = bug found
 
 ---
 
-## 12-DAY SCHEDULE
+## 13-DAY SCHEDULE
 
 | Day | Area | Portal |
 |-----|------|--------|
@@ -21,8 +21,9 @@ Legend: `[ ]` = not tested · `[x]` = pass · `[!]` = bug found
 | 8 | Attendance · Biometric Import · Assets | Admin |
 | 9 | Training · Appraisals | Admin |
 | 10 | Roster · Reports (all 8 tabs) | Admin |
-| 11 | Manager Portal (all 8 tabs) | Manager |
-| 12 | Employee Portal (all 12 tabs) · Cross-portal flows · Edge cases | Employee |
+| 11 | Manager Portal (queue tabs · auth · appraisals · home · leave · schedule · attendance) | Manager |
+| 12 | Manager Portal (remaining) · Employee Auth · Employee tabs E-1 through E-7 · Deferred DOC-4/5, PORTAL-1 | Manager + Employee |
+| 13 | Employee tabs E-8 through E-12 · Cross-portal flows X-1 through X-8 · Edge cases | Employee + Cross-portal |
 
 ---
 
@@ -315,8 +316,9 @@ Legend: `[ ]` = not tested · `[x]` = pass · `[!]` = bug found
 
 ---
 
-### D-9 · Certification expiry alert and navigation
-- **Setup**: ⏭ **DEFER to Day 9** — certifications are created in the Training module on Day 9. Return here after adding a certification with an expiry date within 60 days.
+### D-9 · Certification expiry alert and navigation — ⏭ DEFER to Day 9
+- **Profile**: Admin
+- **Setup**: ⏭ **DEFER to Day 9** — certifications are created in TR-4. After TR-4 (BLS cert with 30-day expiry added), return to Dashboard and complete the steps in the **D-9** section at the top of the Day 9 block.
 - **Bug**:
 
 ---
@@ -330,8 +332,9 @@ Legend: `[ ]` = not tested · `[x]` = pass · `[!]` = bug found
 
 ---
 
-### D-11 · Pending appraisals alert and navigation
-- **Setup**: ⏭ **DEFER to Day 9** — appraisal cycles and staff assignments are created on Day 9. Return here after an active cycle has pending appraisals.
+### D-11 · Pending appraisals alert and navigation — ⏭ DEFER to Day 9
+- **Profile**: Admin
+- **Setup**: ⏭ **DEFER to Day 9** — appraisal cycles and staff assignments are created in AP-4. After AP-4 (staff assigned to an open/active cycle), return to Dashboard and complete the steps in the **D-11** section at the top of the Day 9 block.
 - **Bug**:
 
 ---
@@ -1030,7 +1033,7 @@ Legend: `[ ]` = not tested · `[x]` = pass · `[!]` = bug found
 
 ## Deferred from earlier days
 
-### D-6 · Pending letter requests alert and navigation — ⏭ deferred from Day 1, do this now - ui issue , the table bellow the header seems messy too close to the top bad , space it correctly , and make it neater 
+### D-6 · Pending letter requests alert and navigation — ⏭ deferred from Day 1, do this now - completed
 - **Profile**: Admin
 - **Setup**: Run this SQL in **Supabase Dashboard → SQL Editor** to seed a pending letter request (no employee portal needed):
   ```sql
@@ -1049,7 +1052,8 @@ Legend: `[ ]` = not tested · `[x]` = pass · `[!]` = bug found
   4. Read the alert text
   5. Click the **"View Letter Requests"** link / button inside that alert
 - **Pass**: The amber alert says something like "1 letter request pending. Employees are waiting for HR letters to be generated." and clicking it navigates directly to the **Letter Requests** admin page.
-- **Bug**:
+- **Bug**: ui issue — the table below the header was too close to the top, messy layout, column headers not legible
+  - **Fixed**: Resolved as part of LR-1 — filter buttons moved out of `page-header` into a dedicated tab-btn row below, column headers given `minWidth`, Completed/Rejected tabs added.
 
 ---
 
@@ -1062,6 +1066,7 @@ Legend: `[ ]` = not tested · `[x]` = pass · `[!]` = bug found
   1. In the sidebar, click **"Departments"** (GitBranch / network icon, between **Employees** and **Letter Requests**)
 - **Pass**: The Departments page loads. The page header shows "Departments". Three tab buttons are visible: **Departments**, **Org Chart**, **Staffing Rules**.
 - **Bug**: "+" sign in add department is too high , make it in line with the add department button
+  - **Fixed**: Changed button to `display: inline-flex` with `alignItems: center`, increased Plus icon to size 14 with `flexShrink: 0`, tightened gap to 5px in `DepartmentManager.jsx`.
 
 ---
 
@@ -1346,44 +1351,217 @@ Legend: `[ ]` = not tested · `[x]` = pass · `[!]` = bug found
 
 # DAY 5 — Payroll (full cycle)
 
+> **Before you start**
+> At least two active employees must exist with salary data filled in (Basic Salary > 0, Bank Name, Bank Routing Code, IBAN, MOL ID all set). Company MOL Employer ID must also be set in Company Settings.
+> All tests use the **Admin** profile.
+
+---
+
 ## 7. PAYROLL MODULE
 
-- [ ] Navigate → Payroll Module
-- [ ] Payroll List loads: all past runs with period, status, employee count, WPS status badge
+### PAY-1 · Navigate to Payroll Module -c 
+- **Profile**: Admin (signed in)
+- **Setup**: None
+- **Steps**:
+  1. Click **"Payroll Module"** in the sidebar
+- **Pass**: The Payroll List page loads. A table (or empty state if no runs yet) is visible with columns for Period, Name, Status, Employees, Approval Status, WPS Status. A **`+` New Run** button is present.
+- **Bug**:
 
-### Create & edit a payroll run
-- [ ] Click `+` → select period (month/year), enter Payroll Name → Create → opens PayrollEditor
-- [ ] Employee rows load with current salary breakdown (basic, housing, transport, allowances, deductions)
-- [ ] Edit Basic Salary for one employee → net pay total updates
-- [ ] Add allowance via AllowDeductPanel → amount added to total
-- [ ] Add deduction → amount deducted from total
-- [ ] Leave deductions column shows calculated deductions for employees who took leave this period
-- [ ] Advance repayments panel lists active advances
-- [ ] Approved unpaid expenses auto-loaded in expense reimbursements column
+---
 
-### Maker-Checker approval flow
-- [ ] Click "Submit for Approval" → `approval_status` → `pending_approval`, all salary inputs disabled (locked)
-- [ ] Click "Recall" → returns to `draft`, inputs unlock
-- [ ] Re-submit → click "Approve" → status `approved`, green banner shows
-- [ ] Click "Reject" (while pending) → enter rejection reason (≥1 char) → returns to draft, amber rejection notice shown
-- [ ] With `approved` status: click "Generate Payroll" → `status = generated`, fully locked, lock banner shown
+### PAY-2 · Create a new payroll run - bug 
+- **Profile**: Admin (on Payroll Module / Payroll List)
+- **Setup**: At least two employees with complete salary and bank data exist
+- **Steps**:
+  1. Click the **`+` New Run** (or **"Create Payroll Run"**) button
+  2. Select the current month and year from the period pickers
+  3. Enter a payroll name (e.g. `June 2026 Payroll`)
+  4. Click **Create**
+- **Pass**: The PayrollEditor opens. Every active employee appears as a row. Each row shows their Basic Salary, Housing Allowance, Transport Allowance, and a Net Pay total. The run header shows the period and name you entered. The run is in **Draft** status.
+- **Bug**:when the nav bar is extended , the payroll module goes off screen , make it so it is also fuly viewable when the nav bar is extended 
+  - **Fixed**: Changed `.page-header` from `height` (fixed 64px) to `min-height` + `flex-wrap: wrap; row-gap: 6px; padding: 10px 22px` so the header expands and action buttons wrap to a second line when the sidebar is extended. Same `flex-wrap/row-gap` applied to `.page-header-actions`.
 
-### SIF download & compliance gate
-- [ ] Click "Download SIF" on an approved/generated run
-  - [ ] **No expired compliance docs** → `.sif` file downloads immediately (check filename format: `{MOLID}{YYMMDD}{HHMMSS}.sif`)
-  - [ ] **Expired licence/EID/Visa present** → "Expired Compliance Documents" modal fires
-    - [ ] Each violation listed: employee name, doc type, expiry date
-    - [ ] Override reason textarea (must be ≥10 chars) — short reason blocked
-    - [ ] Enter valid reason → submit → SIF downloads, override record saved to `compliance_overrides`
-- [ ] "View SIF" preview → parsed table shows all employees with amounts
-- [ ] "Download Payslips" → PDF generated per employee (company header, salary breakdown)
+---
 
-### WPS Tracking (after SIF downloaded)
-- [ ] WPS status auto-sets to `sif_generated` after download
-- [ ] Enter WPS Reference No, Submission Date → "Save WPS Status" → saved
-- [ ] Change status to Submitted → Saved
-- [ ] Change status to Confirmed → Saved
-- [ ] Set one employee's payment status to `rejected` → "Download Corrected SIF" button appears → downloads
+### PAY-3 · Edit salary entries in the run - c 
+- **Profile**: Admin (in PayrollEditor, run in Draft)
+- **Setup**: PAY-2 done
+- **Steps**:
+  1. Find one employee row and click into their **Basic Salary** field
+  2. Change the value (e.g. add 500)
+  3. Observe the **Net Pay** column for that row
+  4. Click **Save** (or the save icon)
+- **Pass**: Net Pay updates immediately when you change the salary value. After saving, refreshing the page shows the changed value persisted.
+- **Bug**:
+
+---
+
+### PAY-4 · Add an allowance and a deduction - bug
+- **Profile**: Admin (in PayrollEditor, run in Draft)
+- **Setup**: PAY-3 done
+- **Steps**:
+  1. Click the **Allowances / Deductions** button (or expand the panel) for one employee
+  2. Add an **allowance** with a label (e.g. `Overtime`) and an amount (e.g. `200`)
+  3. Confirm the Net Pay for that employee increases by 200
+  4. Add a **deduction** with a label (e.g. `Parking`) and an amount (e.g. `100`)
+  5. Confirm Net Pay decreases by 100 from the previous step
+- **Pass**: Net Pay = Basic + Housing + Transport + Allowances − Deductions. Both the allowance and deduction are visible in the panel. Values are saved.
+- **Bug**:the housing and transport columns do not make a difference , is that by design or a bug , also on a side not , when the save draft button is clicked nothing idicates it is saved.
+  - **Fixed**: (a) Added `housingAllowance` and `transportAllowance` to `computeFinalAllowance()` in `AllowDeductPanel.jsx` — they are now included in the WPS SIF variable allowance and per-row Net Pay total. (b) `handleSaveDraft` in `PayrollEditor.jsx` now calls `setAutoSaved(true)` with a 2-second timeout, showing the "Auto-saved ✓" indicator in the header when Save Draft is clicked.
+
+---
+
+### PAY-5 · Submit for approval (Maker-Checker) - not sure 
+- **Profile**: Admin (in PayrollEditor, run in Draft)
+- **Setup**: PAY-4 done. Run must still be in Draft status.
+- **Steps**:
+  1. Click **"Submit for Approval"**
+- **Pass**: Approval status changes to **Pending Approval**. A blue info banner appears saying the run is pending approval. All salary input fields become disabled (greyed out — cannot be edited). The **Submit for Approval** button is replaced by **Recall** and **Approve** / **Reject** buttons.
+- **Bug**: after clicking submit for aproval , the values are still editable , is that by deisng or a bug
+  - **Fixed**: All 8 salary input fields (basicSalary, housingAllowance, transportAllowance, allowance, increment, bonus, otherPay, leaveDeduction) and the +/- click-cells now use `disabled={editingLocked || entry.excluded}` instead of `isLocked`. `editingLocked = isLocked || approvalLocked`, so they lock during both Pending Approval and Approved states, not just after Generate.
+
+---
+
+### PAY-6 · Recall from pending approval -c 
+- **Profile**: Admin (in PayrollEditor, run Pending Approval)
+- **Setup**: PAY-5 done
+- **Steps**:
+  1. Click **"Recall"**
+- **Pass**: Approval status returns to **Draft**. Salary input fields become editable again. The "Submit for Approval" button reappears.
+- **Bug**:
+
+---
+
+### PAY-7 · Reject while pending (with reason) - add feature 
+- **Profile**: Admin (in PayrollEditor)
+- **Setup**: Re-submit for approval after PAY-6 (so run is Pending Approval again)
+- **Steps**:
+  1. Click **"Reject"**
+  2. An inline rejection reason field appears — enter a reason (e.g. `Incorrect advance deductions`)
+  3. Click **Confirm Reject**
+- **Pass**: Status returns to **Draft**. An amber rejection banner appears showing the rejection reason. Salary fields are editable again.
+- **Bug**: add a feature , where a button on the top bar next to preview SIF , which says , View Changes , which shows all the changes made in teh file withthe name & id of the emplyee with what changes was made 
+  - **Fixed**: Added **"View Changes"** button (GitCompare icon) in the PayrollEditor header toolbar. Opens a modal listing every field that differs from the employee's profile defaults, showing Employee name, Field, Default value, This Run value, and Δ (delta). Includes basic salary, housing, transport, allowance, increment, bonus, leave deductions, and any extra allowances/deductions added in the panel. Rows with no changes across all employees show "All entries match employee profile defaults".
+
+---
+
+### PAY-8 · Approve the run - bug 
+- **Profile**: Admin (in PayrollEditor, run in Draft after rejection)
+- **Setup**: PAY-7 done
+- **Steps**:
+  1. Click **"Submit for Approval"** again
+  2. Click **"Approve"**
+- **Pass**: Approval status becomes **Approved**. A green banner appears. Salary fields remain locked (cannot edit an approved run). The **"Generate Payroll"** button becomes visible.
+- **Bug**: after being apporved it is still editable 
+  - **Fixed**: Same fix as PAY-5 — `editingLocked` now covers Approved state too, so all salary inputs are disabled immediately on Approve.
+
+---
+
+### PAY-9 · Generate payroll (lock the run) -c 
+- **Profile**: Admin (in PayrollEditor, run Approved)
+- **Setup**: PAY-8 done
+- **Steps**:
+  1. Click **"Generate Payroll"**
+  2. Confirm any prompt that appears
+- **Pass**: Run status changes to **Generated** (irreversible). A lock banner appears ("Payroll finalised — locked."). All inputs remain disabled. The WPS Tracking card appears below the lock banner.
+- **Bug**:
+
+---
+
+### PAY-10 · Download SIF — clean run (no compliance violations) - feature add 
+- **Profile**: Admin (in PayrollEditor, run Generated)
+- **Setup**: PAY-9 done. Ensure all employees have valid (non-expired) Emirates ID, Visa, and either no professional licence or a non-expired one.
+- **Steps**:
+  1. Click **"Download SIF"**
+- **Pass**: A `.sif` file downloads immediately. Filename format: `{MOL_EMPLOYER_ID}{YYMMDD}{HHMMSS}.sif`. No modal or warning appeared. WPS status auto-advances to **sif_generated**.
+- **Bug**: in the payroll editor if an employee has soemthing that is expiring , it shoild show a warning , as well as whrn genrating the payroll 
+  - **Fixed**: Added amber ⚠ warning icon in the employee name cell for any employee whose Visa, Emirates ID, Passport, Labour Card, or Professional Licence expires within 90 days or is already expired. Hovering the icon shows a tooltip listing each expiring document and its date. The existing compliance gate (PAY-11) already blocks SIF download for expired docs; this warning gives earlier visibility during payroll editing.
+
+---
+
+### PAY-11 · Download SIF — compliance gate (expired document) - c
+- **Profile**: Admin (in PayrollEditor, run Generated)
+- **Setup**: PAY-9 done. Before clicking Download SIF, go to Employees → open one employee → UAE Compliance tab → set their Emirates ID Expiry to a past date (e.g. `01/01/2024`) and Save. Return to the payroll run.
+- **Steps**:
+  1. Click **"Download SIF"**
+  2. The **"Expired Compliance Documents"** modal opens listing the violation
+  3. Enter a short reason (e.g. `ok`) — try to submit
+  4. Enter a valid reason of 10+ characters (e.g. `Employee renewal in progress`)
+  5. Click **Override & Download**
+- **Pass**: Step 3 — short reason is blocked (button disabled or error shown, minimum 10 characters required). Step 5 — SIF downloads successfully. The override is recorded (check `compliance_overrides` table in Supabase if needed). After testing, restore the employee's Emirates ID expiry to a valid future date.
+- **Bug**:
+
+---
+
+### PAY-12 · Preview SIF -c
+- **Profile**: Admin (in PayrollEditor, run Generated, SIF already downloaded)
+- **Setup**: PAY-10 done
+- **Steps**:
+  1. Click **"Preview SIF"** (eye icon button in the top toolbar)
+- **Pass**: A parsed preview table appears showing each employee's MOL ID, name, IBAN, bank routing code, and net pay amount in AED. All employees from the run are listed.
+- **Bug**:
+
+---
+
+### PAY-13 · Download all payslips -c
+- **Profile**: Admin (in PayrollEditor, run Generated)
+- **Setup**: PAY-9 done
+- **Steps**:
+  1. Click **"All Payslips"** (document icon button in the top toolbar)
+- **Pass**: A PDF is generated (or a separate PDF per employee). Each payslip shows the company name, employee name, period, and a salary breakdown (basic, housing, transport, allowances, deductions, net pay). Dates are in DD/MM/YYYY format.
+- **Bug**:
+
+---
+
+### PAY-14 · WPS Tracking — submit and confirm - feature add  
+- **Profile**: Admin (in PayrollEditor, run Generated, WPS status sif_generated)
+- **Setup**: PAY-10 done
+- **Steps**:
+  1. In the **WPS Tracking** section, enter a **WPS Reference No** (e.g. `WPS-2026-001`)
+  2. Enter today's date as the **Submission Date**
+  3. Click **"Save WPS Status"** — confirm it saves
+  4. Change the WPS status dropdown to **Submitted** → Save
+  5. Change to **Confirmed** → enter a **Confirmation Date** → Save
+- **Pass**: Each save persists — refreshing the page shows the saved WPS reference, dates, and status. Status badge in PayrollList updates accordingly.
+- **Bug**: , make it so you can set all to "paid" , and you can searhc for specific employees 
+  - **Fixed**: Added a **"✓ Mark All Paid"** button and a **search/filter input** above the per-employee WPS payment status list. "Mark All Paid" sets every active employee's WPS status to `paid` in one click. The search input filters the displayed employees by name in real-time (does not affect save — all statuses still persist including filtered-out employees).
+
+---
+
+### PAY-15 · WPS partial rejection — corrected SIF
+- **Profile**: Admin (in PayrollEditor, WPS status Confirmed)
+- **Setup**: PAY-14 done
+- **Steps**:
+  1. In the per-employee WPS payment status table, change one employee's payment status to **Rejected**
+  2. Optionally enter a rejection reason for that employee
+  3. Click **"Save WPS Status"**
+  4. Look for a **"Download Corrected SIF"** button
+  5. Click it
+- **Pass**: A corrected SIF file downloads containing only the rejected employee(s). Filename is prefixed with `CORRECTED_` followed by the standard format: `CORRECTED_{MOLID}{YYMMDD}{HHMMSS}.sif`.
+- **Bug**:
+
+---
+
+### PAY-16 · Run appears in Payroll List with correct status -c 
+- **Profile**: Admin
+- **Setup**: PAY-15 done
+- **Steps**:
+  1. Click **"Payroll Module"** in the sidebar to return to the Payroll List
+- **Pass**: The run created today appears in the list. Columns show: period (e.g. `June 2026`), status badge **Generated**, approval status **Approved**, WPS status badge. Clicking the row re-opens the PayrollEditor.
+- **Bug**:
+
+---
+
+### PAY-17 · Dashboard reflects pending approval (regression check) -c 
+- **Profile**: Admin
+- **Setup**: Create a **second** new payroll run for a different month and submit it for approval but do NOT approve it — leave it in Pending Approval state.
+- **Steps**:
+  1. Click **Dashboard** in the sidebar
+  2. Look for a blue info alert about pending payroll approval
+- **Pass**: A blue alert card is visible on the Dashboard saying there is a payroll run pending approval, with a link to navigate to it.
+- **Bug**:
+
+---
 
 ---
 
@@ -1391,35 +1569,285 @@ Legend: `[ ]` = not tested · `[x]` = pass · `[!]` = bug found
 
 # DAY 6 — Advances · Expenses
 
+> **Before you start**
+> Be signed in as **Admin**. Make sure the dev server is running (`npm run dev`) — all Day 5 fixes are now in the codebase.
+> Clear the "Deferred from earlier days" section first, then proceed to Advances (ADV-1) and Expenses (EXP-1).
+
+---
+
+## Deferred from earlier days
+
+### A-13 · Notification bell shows unread count badge — ⏭ overdue from Day 3 -c
+- **Profile**: Admin (signed in)
+- **Setup**: DOC-2 must be done (a document with an expiry within 60 days was uploaded, so a `document_expiry` notification was created). The probation/contract/credential notifications were generated during Day 1's D-7/D-8 setup. Navigate to Dashboard once before testing the bell — Dashboard load is what triggers `generateExpiryNotifications` async.
+- **Steps**:
+  1. Click **Dashboard** in the sidebar (this triggers `generateExpiryNotifications` in the background)
+  2. Wait **3 seconds** for the async notification check to run (it fires after `setLoading(false)`)
+  3. Look at the **bell icon (🔔)** in the sidebar — does a red count badge appear on it?
+  4. Click the bell icon — the notification panel slides in from the right
+  5. Read the list of notifications: look for entries about document expiry, probation ending, contract expiry, and/or payslip available
+  6. Click one notification entry to mark it as read
+  7. Confirm: the red dot on that entry disappears, and the badge count on the bell icon decrements
+  8. Click **"Mark all read"** (if available) and confirm the badge clears
+- **Pass**: A red badge with a count (≥ 1) appears on the bell icon. Clicking it opens a right-side panel listing notifications grouped with emoji prefixes (📄 doc expiry, ⏳ probation, 📋 contract, etc.). Individual notifications can be marked read — the count badge decrements. "Mark all read" clears the badge entirely.
+- **Bug**:
+
+---
+
+### PAY-RETEST · Re-verify Day 5 fixes and new features before continuing -c
+- **Profile**: Admin (signed in, on Payroll Module)
+- **Setup**: The payroll run generated on Day 5 (PAY-9) must exist. A second run in Pending Approval state may exist from PAY-17. All fixes below were applied this session — you need to run the app to verify them.
+- **Steps** — work through each fix in order:
+  1. **PAY-2 (header overflow)**: Expand the sidebar by hovering over it so it shows full nav labels. Open the PayrollEditor for the generated run. Confirm the top toolbar (with Download, Preview, All Payslips, View Changes, etc.) wraps onto a second line if needed rather than spilling outside the page.
+  2. **PAY-4a (housing/transport → net pay)**: Create a **new Draft** payroll run (different period). In the salary table, change one employee's **Housing Allowance** or **Transport Allowance** value. Confirm the **Net Pay** column for that employee updates immediately.
+  3. **PAY-4b (Save Draft feedback)**: Click **Save Draft**. Confirm a short green **"Saved!"** message or flash appears in the toolbar for ~2 seconds, then disappears.
+  4. **PAY-7 (View Changes modal)**: In the same Draft run, modify at least one employee's salary or add a bonus. Click the **View Changes** button (GitCompare icon, in the toolbar). Confirm a modal opens showing a table with columns: Employee, Field, Default, This Run, Δ. The delta column shows the difference in green (positive) or red (negative).
+  5. **PAY-5 (inputs lock on Submit)**: Click **Submit for Approval**. After the run moves to Pending Approval, try to edit any salary input in the table. Confirm all inputs are **greyed out / disabled** (the `editingLocked` flag is now true for both Pending and Approved states).
+  6. **PAY-8 (inputs still locked on Approve)**: Click **✓ Approve**. After the run moves to Approved, again try to edit any salary input. Confirm inputs remain disabled.
+  7. **PAY-10 (expiry warnings)**: If any employee has a document with an expiry within 90 days (e.g. the one uploaded in DOC-2/DOC-3), locate that employee's row in the payroll table. Confirm a **yellow ⚠ warning icon** appears next to their name. Hover over it to see the tooltip listing which document is expiring and when.
+  8. **PAY-14 (WPS — Mark All Paid + search)**: Open the Day 5 generated run. In the WPS Tracking section, confirm a **search input** and a **"✓ Mark All Paid"** button appear above the per-employee status list. Type part of an employee name to filter the list. Click Mark All Paid and confirm all status dropdowns switch to `paid`.
+- **Pass**: Each sub-step passes without errors. Inputs are disabled exactly when `isLocked || approvalLocked` is true. Net pay reflects housing and transport. View Changes modal shows meaningful rows.
+- **Bug**:
+
+---
+
+### PAY-12, PAY-13, PAY-15 · Untested Day 5 items — complete these before advancing -c 
+- **Profile**: Admin
+- **Setup**: The generated run from PAY-9 must exist (WPS status at least `sif_generated` if PAY-14 was completed).
+- **Note**: These items have no completion marker in the Day 5 checklist. Tick them off here, then mark them complete in the Day 5 section above.
+- **Steps**:
+  1. **PAY-12 (Preview SIF)**: Open the generated run → click the **eye icon** ("Preview SIF") in the toolbar. A parsed preview table must appear showing each employee's MOL ID, name, IBAN, bank routing code, and net pay in AED.
+  2. **PAY-13 (Download all payslips)**: Click the **"All Payslips"** button (document icon). A PDF (or ZIP of PDFs) must download. Each payslip must show company name, employee name, period, and salary breakdown. Dates must be **DD/MM/YYYY**.
+  3. **PAY-15 (WPS partial rejection → corrected SIF)**: In the WPS Tracking section, change one employee's payment status to **Rejected**, add an optional rejection reason, click **Save WPS Status**. A **"Download Corrected SIF"** button must appear. Click it — a SIF file downloads with the `CORRECTED_` prefix in the filename, containing only the rejected employee.
+- **Pass**: All three sub-items pass as described.
+- **Bug**:
+
+---
+
 ## 8. ADVANCES
 
-- [ ] Navigate → Advances
-- [ ] List loads with filter tabs: All / Pending / Active / Settled / Cancelled
-- [ ] **Create Advance** (`+` button)
-  - [ ] Select employee, enter amount, repayment months → monthly deduction auto-calculated (amount ÷ months)
-  - [ ] Save → new advance appears as Active
-- [ ] **Approve a pending advance** (e.g. one created via employee portal)
-  - [ ] Click Approve (✓) → status Active
-  - [ ] Click Reject (✗) → status Cancelled
-- [ ] **Expand advance row** (chevron icon) → repayment schedule table visible with monthly amounts
-- [ ] **Settle advance** (when balance is zero or manual settle) → status Settled
-- [ ] **Cancel active advance** → status Cancelled
-- [ ] Filter tabs update counts correctly after each action
+### ADV-1 · Navigate to Advances — list and stat cards -c
+- **Profile**: Admin
+- **Setup**: At least one active employee exists (from Day 2)
+- **Steps**:
+  1. Click **Advances** in the sidebar
+  2. Wait for the page to load
+- **Pass**: Three stat cards visible: **Pending Requests** (count, amber if > 0), **Active Advances** (count), **Total Outstanding** (AED balance). A **+ New Advance** button is in the top-right. If no advances exist yet, the list area shows an empty state rather than an error.
+- **Bug**:
+
+---
+
+### ADV-2 · Create an admin-initiated advance -c
+- **Profile**: Admin (on Advances page)
+- **Setup**: ADV-1 done. At least one active employee exists.
+- **Steps**:
+  1. Click **+ New Advance**
+  2. Select any active employee from the **Employee** dropdown
+  3. Enter **Amount**: `3000`
+  4. Leave **Repayment Months** as `3` (default)
+  5. Observe the **Monthly Deduction** field — it should auto-calculate
+  6. Enter **Reason**: `Salary advance for home repairs`
+  7. Click **Save Advance**
+- **Pass**: Monthly deduction auto-shows `1000.00` (3000 ÷ 3). After saving, the form closes, the advance appears in the list with status **Active** (blue badge). The **Active Advances** stat card increments by 1. The **Total Outstanding** increases by 3000.
+- **Bug**:
+
+---
+
+### ADV-3 · Expand advance row — view repayment schedule -c
+- **Profile**: Admin (on Advances page)
+- **Setup**: ADV-2 done (at least one active advance exists)
+- **Steps**:
+  1. Find the advance created in ADV-2
+  2. Click the **chevron / expand icon** on that row
+- **Pass**: A repayment sub-table appears below the row. It may be empty (no payroll run has processed the deduction yet) or show processed months. The monthly deduction amount matches what was set (e.g. AED 1,000.00 per month). Clicking the chevron again collapses the row.
+- **Bug**:
+
+---
+
+### ADV-4 · Approve a pending advance request - employee potal advances ui issue 
+- **Profile**: Admin (on Advances page)
+- **Setup**: ADV-1 done. Run this SQL in **Supabase SQL Editor** to seed a pending advance (simulates an employee self-request):
+
+  ```sql
+  INSERT INTO salary_advances
+    (user_id, employee_id, amount, repayment_months, monthly_deduction, outstanding_balance, reason, status)
+  SELECT c.user_id, e.id, 2000, 4, 500.00, 2000,
+         'Employee-requested advance for school fees', 'pending'
+  FROM employees e
+  JOIN companies c ON c.user_id = e.user_id
+  WHERE e.employment_status NOT IN ('Terminated')
+  ORDER BY e.name LIMIT 1;
+  ```
+
+- **Steps**:
+  1. Refresh the Advances page (or navigate away and back)
+  2. Locate the **Pending** advance in the list (amber badge)
+  3. Click the **✓ Approve** button on that row
+- **Pass**: A confirm dialog appears. Confirming changes the status to **Active** (blue badge). The **Pending Requests** stat card decrements by 1. The **Active Advances** stat card increments by 1.
+- **Bug**: i know you gave the sql but i used the employee portal anyways , the advances module , the panels are sized correctly , text comes outside the panels , and despite not having any monthly deductions bring done , the progress bar is already preogressed , make the ui neater 
+  - **Fixed**: All `emp-card` sections in `EmpAdvances.jsx` now have `padding: '16px 18px'` so content no longer touches the card edges. Progress bar formula changed from `Math.max(5, ...)` to `Math.max(0, ...)` — a brand-new advance with no repayments now correctly shows 0% instead of 5%. Dates in pending/historical sections now use `formatDateUAE()` instead of `toLocaleDateString('en-AE')`. Rejection reason shown in cancelled past advances if one was recorded.
+
+---
+
+### ADV-5 · Reject (cancel) a pending advance request
+- **Profile**: Admin (on Advances page)
+- **Setup**: ADV-4 done. Seed a second pending advance using the same SQL as ADV-4 (re-run it to insert a second row).
+- **Steps**:
+  1. Locate the second pending advance (amber badge)
+  2. Click the **✗ Reject** button on that row
+- **Pass**: A confirm dialog asks "Reject advance request for AED 2,000?" Confirming changes the status to **Cancelled** (grey badge). The **Pending Requests** stat card decrements.
+- **Bug**:
+
+---
+
+### ADV-6 · Cancel an active advance - add feature 
+- **Profile**: Admin (on Advances page)
+- **Setup**: ADV-2 done (at least one Active advance exists)
+- **Steps**:
+  1. Find an **Active** advance (the one created in ADV-2 OR the one approved in ADV-4)
+  2. Click the **✗ Cancel** button on that row
+- **Pass**: A confirm dialog appears ("Cancel this advance? This cannot be undone."). Confirming changes the status to **Cancelled**. The **Active Advances** stat card decrements. Total Outstanding reduces accordingly.
+- **Bug**: when rejecting add a reason to be rejected 
+  - **Fixed**: Replaced `window.confirm()` for both Reject (pending advances) and Cancel (active advances) with an inline form row that expands below the advance row. The form has a text input for an optional reason and a confirm button. The reason is stored in a new `rejection_reason` column on `salary_advances` (run `sql/036_advance_rejection_reason.sql` in Supabase SQL Editor). Employees see the rejection reason next to cancelled advances in their portal's "Past Advances" section.
+
+---
+
+### ADV-7 · Manually settle an active advance -c 
+- **Profile**: Admin (on Advances page)
+- **Setup**: At least one **Active** advance must remain (do not cancel all of them — if ADV-6 cancelled the only active one, create another via ADV-2)
+- **Steps**:
+  1. Find an **Active** advance
+  2. Click the **✓ Settle** button on that row
+- **Pass**: A confirm dialog appears ("Mark this advance as fully settled?"). Confirming changes the status to **Settled** (green badge). The **Total Outstanding** balance reduces by the advance's outstanding amount.
+- **Bug**:
+
+---
+
+### ADV-8 · Filter tabs update correctly -c 
+- **Profile**: Admin (on Advances page)
+- **Setup**: ADV-2 through ADV-7 done (various statuses now exist)
+- **Steps**:
+  1. Click each filter tab: **All** · **Pending** · **Active** · **Settled** · **Cancelled**
+- **Pass**: Each tab shows only advances with the matching status. The "All" tab shows everything. Counts displayed in each tab match the actual records visible.
+- **Bug**:
+
+---
 
 ## 9. EXPENSES
 
-- [ ] Navigate → Expenses
-- [ ] Stat cards load: Pending count, Approved total (AED), Paid total (AED)
-- [ ] Filter tabs: All / Pending / Manager Approved / Approved / Paid / Rejected → list filters
-- [ ] **Approve expense claim** (✓ button)
-  - [ ] Claim must be Pending or Manager Approved
-  - [ ] Status changes to Approved
-- [ ] **Reject expense claim** (✗ button)
-  - [ ] Inline reason field appears → enter reason → confirm
-  - [ ] Status changes to Rejected
-- [ ] **View receipt** (external link icon) → opens receipt URL in new tab
-- [ ] **Delete expense** (trash icon) → confirmation → removed
-- [ ] Status badge colours correct: `pending` amber · `manager_approved` blue · `approved` green · `paid` green · `rejected` / `manager_rejected` red
+### EXP-1 · Navigate to Expenses — stat cards and empty / seeded state -c 
+- **Profile**: Admin
+- **Setup**: ADV-8 done (Expenses nav item is between Advances and Leave)
+- **Steps**:
+  1. Click **Expenses** in the sidebar
+  2. Wait for page to load
+- **Pass**: Three stat cards: **Pending Claims** (count + AED total if > 0), **Approved (Unpaid)** (AED total), **Total Paid** (AED, all time). Filter tabs visible: All · Pending · Mgr Approved · HR Approved · Paid · Rejected. If no claims exist yet, the Pending tab shows an empty state with a note saying employees can submit via their portal.
+- **Bug**:
+
+---
+
+### EXP-2 · Seed test expense data - ui issues in expenses for employee protal 
+- **Profile**: Admin
+- **Setup**: EXP-1 done. Run both SQL statements below in **Supabase SQL Editor** to insert test claims:
+
+  ```sql
+  -- Claim 1: pending
+  INSERT INTO expense_claims
+    (user_id, employee_id, category, amount, expense_date, description, status)
+  SELECT c.user_id, e.id, 'meals', 350, CURRENT_DATE - INTERVAL '2 days',
+         'Team lunch — manual test', 'pending'
+  FROM employees e JOIN companies c ON c.user_id = e.user_id
+  WHERE e.employment_status NOT IN ('Terminated') ORDER BY e.name LIMIT 1;
+
+  -- Claim 2: manager_approved (simulates multi-level flow)
+  INSERT INTO expense_claims
+    (user_id, employee_id, category, amount, expense_date, description,
+     status, manager_approved_at, manager_approved_by)
+  SELECT c.user_id, e.id, 'transportation', 180, CURRENT_DATE - INTERVAL '3 days',
+         'Taxi to client — manual test', 'manager_approved',
+         NOW() - INTERVAL '1 day', 'Manager Portal (seeded)'
+  FROM employees e JOIN companies c ON c.user_id = e.user_id
+  WHERE e.employment_status NOT IN ('Terminated') ORDER BY e.name LIMIT 1;
+  ```
+
+- **Steps**:
+  1. Refresh the Expenses page
+  2. Check the **Pending** tab and **Mgr Approved** tab
+- **Pass**: Claim 1 appears in the Pending tab with status badge **Pending** (amber). Claim 2 appears in the Mgr Approved tab with status badge **Mgr Approved** (blue). The **Pending Claims** stat card now shows count = 1 with AED 350.00. Filter tabs highlight with counts.
+- **Bug**: same ui issue text come outside boxes , when new clain etc clicked , make it neater 
+  - **Fixed**: Added `padding: '16px 18px'` to the summary card, form card, and all `ClaimSection` cards in `EmpExpenses.jsx`. Also added `manager_approved` and `manager_rejected` to `STATUS_BADGE` / `STATUS_LABEL` maps and added separate sections for each in the portal view — claims in those states previously showed no label and no section heading. HR-approved claims now show "HR Approved — Awaiting Payroll" to distinguish them from manager-only approval.
+
+---
+
+### EXP-3 · Approve a pending expense claim (HR approval) -c , but add to a recheck later list 
+- **Profile**: Admin (on Expenses page, Pending tab)
+- **Setup**: EXP-2 done
+- **Steps**:
+  1. Stay on the **Pending** filter tab
+  2. Find the `meals / AED 350` claim
+  3. Click the **✓ Approve** button on that row
+- **Pass**: A green success flash appears ("Claim approved."). The claim's status badge changes to **HR Approved** (green). It disappears from the Pending tab. Switching to the HR Approved tab shows it there. The **Approved (Unpaid)** stat card increases by AED 350.00.
+- **Bug**:
+
+---
+
+### EXP-4 · Approve a Manager-Approved claim (final HR sign-off) deffer to when manager portal work is being done 
+- **Profile**: Admin (on Expenses page, Mgr Approved tab)
+- **Setup**: EXP-2 done (the `transportation / AED 180` claim has status `manager_approved`)
+- **Steps**:
+  1. Click the **Mgr Approved** filter tab
+  2. Find the `transportation / AED 180` claim
+  3. Click the **✓ Approve** button
+- **Pass**: Claim moves to HR Approved status. Flash message confirms success. The Mgr Approved badge count clears.
+- **Bug**:
+
+---
+
+### EXP-5 · Reject an expense claim (with reason)  -c
+- **Profile**: Admin (on Expenses page)
+- **Setup**: EXP-3 done. Seed one more pending expense first:
+
+  ```sql
+  INSERT INTO expense_claims
+    (user_id, employee_id, category, amount, expense_date, description, status)
+  SELECT c.user_id, e.id, 'other', 500, CURRENT_DATE, 'Extra test claim', 'pending'
+  FROM employees e JOIN companies c ON c.user_id = e.user_id
+  WHERE e.employment_status NOT IN ('Terminated') ORDER BY e.name LIMIT 1;
+  ```
+
+- **Steps**:
+  1. Go to the **Pending** tab — the extra claim should appear
+  2. Click the **✗ Reject** icon on that claim
+  3. An inline form row appears — leave the reason blank and try to confirm
+  4. Enter a reason: `Duplicate submission`
+  5. Click **Reject**
+- **Pass**: Step 3 — the Reject button is disabled (blank reason not accepted). Step 5 — success flash appears. Claim status changes to **Rejected** (red badge). The claim disappears from Pending tab and appears in the Rejected tab. The rejection reason is stored (visible if you query `expense_claims.rejection_reason`).
+- **Bug**:
+
+---
+
+### EXP-6 · Delete an expense claim -c
+- **Profile**: Admin (on Expenses page)
+- **Setup**: EXP-5 done. At least one claim should remain visible (e.g. the approved ones from EXP-3/4).
+- **Steps**:
+  1. Click **All** filter tab to see all claims
+  2. Find the **Rejected** claim from EXP-5
+  3. Click the **trash icon** (Delete) on that row
+  4. A confirmation dialog appears — click **Delete** / confirm
+- **Pass**: Claim is permanently removed from the list. Flash message confirms "Claim deleted." The All tab count decrements.
+- **Bug**:
+
+---
+
+### EXP-7 · Filter tabs and stat card accuracy -c
+- **Profile**: Admin (on Expenses page)
+- **Setup**: EXP-3 through EXP-6 done (various statuses now exist)
+- **Steps**:
+  1. Click each filter tab in sequence: **All** · **Pending** · **Mgr Approved** · **HR Approved** · **Paid** · **Rejected**
+  2. Note the counts shown on each tab
+  3. Verify the stat cards match: **Pending Claims** count, **Approved (Unpaid)** AED total, **Total Paid** AED total
+- **Pass**: Each tab shows only claims with that status. Badge counts on Pending and Mgr Approved tabs match the actual visible rows. Stat card values match the filtered totals. The Paid tab is likely empty (expenses become "Paid" only when payroll runs mark them paid — covered in a later payroll cycle).
+- **Bug**:
 
 ---
 
@@ -1427,46 +1855,320 @@ Legend: `[ ]` = not tested · `[x]` = pass · `[!]` = bug found
 
 # DAY 7 — Leave (all 5 tabs)
 
+> **Before you start**
+> All tests use the **Admin** profile unless stated otherwise.
+> Employees from Days 2–3 must exist. The test data seeds below create leave requests in various states — run each SQL block in **Supabase SQL Editor** before the step that needs it.
+
+---
+
+## Deferred from earlier days
+
+No items were explicitly deferred to Day 7 from Days 1–6.
+*(EXP-4 — Manager-Approved expense HR sign-off — is deferred to Day 11 when the Manager Portal is tested.)*
+
+---
+
 ## 10. LEAVE
 
-### Overview tab (default)
-- [ ] Navigate → Leave
-- [ ] Leave type stat cards load: Annual, Sick, Hajj, etc. with days taken / balance
-- [ ] Today's absences section lists employees currently on approved leave
+### L-1 · Navigate to Leave — Overview tab loads -c 
 
-### Requests tab
-- [ ] Switch to Requests tab
-- [ ] All leave requests load: employee name, type, dates, days, status badge
-- [ ] **Approve** (✓) a Pending request → status Approved, leave balance deducted
-- [ ] **Reject** (✗) → enter rejection comment → status Rejected
-- [ ] **Final OK** on a ManagerApproved request (HR gives final sign-off) → status Approved
-- [ ] Status badges correct: Pending (amber) · ManagerApproved (blue) · Approved (green) · Rejected / ManagerRejected (red)
-- [ ] `Mgr: {name}` shown in Approved By column for manager-pre-approved requests
+- **Profile**: Admin
+- **Setup**: At least one active employee exists (from Day 2). No leave data needed — the module should render cleanly even with no requests.
+- **Steps**:
+  1. Click **Leave** in the sidebar
+  2. Wait for the page to load (the default tab is **Overview**)
+  3. Observe the stat card area at the top
+  4. Observe the **"Today's Absences"** section below
+- **Pass**: Stat cards render for each leave type (Annual Leave, Sick Leave, Hajj Leave, etc.) showing "X days taken" and "Balance: Y days" (or computed accrual). If no leave has been taken, values are 0 but cards are visible. The "Today's Absences" section either shows a list of employees on approved leave today, or an empty-state message — it never shows an error.
+- **Bug**:
 
-### Calendar tab
-- [ ] Switch to Calendar tab
-- [ ] Monthly grid renders with colour-coded leave bars per employee per day
-- [ ] Navigate months with ◄ ► buttons → grid updates
-- [ ] Department filter dropdown → only that dept's employees shown
-- [ ] Print button → browser print dialog opens scoped to calendar area
+---
 
-### Balances tab
-- [ ] Switch to Balances tab
-- [ ] Table: all employees × all leave types showing days taken and remaining
-- [ ] Numbers match Requests tab approvals
+### L-2 · Seed leave test data -c 
 
-### Settings tab
-- [ ] Switch to Settings tab
-- [ ] Leave year period fields (start/end month)
-- [ ] Weekend config (Sat–Sun or Fri–Sat)
-- [ ] Carry-forward rules toggle/amount
-- [ ] **Add Leave Type** → name, allowed days, paid/unpaid, annual/on-request → Save → appears in list
-- [ ] Edit leave type → change days → Save
-- [ ] Delete leave type → confirmed, removed
-- [ ] **Probation Leave Eligibility card**: toggle off Hajj → `probation_eligible = false` saved · toggle back on
-- [ ] **Requires Attachment toggle**: enable for Sick Leave → `requires_attachment = true` saved
-- [ ] **Public Holidays**: Add holiday → date + name → appears in list · Delete holiday → removed
-- [ ] **Approval Delegation card**: Add delegate (absent manager + covering colleague + date range) → Save · Delete delegate
+- **Profile**: Admin
+- **Setup**: L-1 done. Run all three SQL blocks below in **Supabase SQL Editor**. Each targets the first non-Terminated employee's Annual Leave type.
+- **Steps**:
+
+  ```sql
+  -- Block A: One Pending request (starts 10 days from now)
+  INSERT INTO leave_requests
+    (user_id, employee_id, leave_type_id, leave_type_code, start_date, end_date,
+     days_requested, status, reason)
+  SELECT c.user_id, e.id, lt.id, lt.code,
+         CURRENT_DATE + INTERVAL '10 days',
+         CURRENT_DATE + INTERVAL '11 days',
+         2, 'Pending', 'Manual test — Pending leave'
+  FROM employees e
+  JOIN companies c ON c.user_id = e.user_id
+  JOIN leave_types lt ON lt.user_id = c.user_id AND lt.name ILIKE '%Annual%'
+  WHERE e.employment_status NOT IN ('Terminated')
+  ORDER BY e.name LIMIT 1;
+  ```
+
+  ```sql
+  -- Block B: One ManagerApproved request (starts 20 days from now)
+  INSERT INTO leave_requests
+    (user_id, employee_id, leave_type_id, leave_type_code, start_date, end_date,
+     days_requested, status, reason,
+     manager_approved_at, manager_approved_by, approval_level_required)
+  SELECT c.user_id, e.id, lt.id, lt.code,
+         CURRENT_DATE + INTERVAL '20 days',
+         CURRENT_DATE + INTERVAL '22 days',
+         3, 'ManagerApproved', 'Manual test — ManagerApproved leave',
+         NOW() - INTERVAL '1 day', 'Test Manager', 2
+  FROM employees e
+  JOIN companies c ON c.user_id = e.user_id
+  JOIN leave_types lt ON lt.user_id = c.user_id AND lt.name ILIKE '%Annual%'
+  WHERE e.employment_status NOT IN ('Terminated')
+  ORDER BY e.name LIMIT 1;
+  ```
+
+  ```sql
+  -- Block C: One already-Approved request (starts 5 days ago — so it shows on Calendar)
+  INSERT INTO leave_requests
+    (user_id, employee_id, leave_type_id, leave_type_code, start_date, end_date,
+     days_requested, status, reason)
+  SELECT c.user_id, e.id, lt.id, lt.code,
+         CURRENT_DATE - INTERVAL '5 days',
+         CURRENT_DATE - INTERVAL '4 days',
+         2, 'Approved', 'Manual test — past Approved leave'
+  FROM employees e
+  JOIN companies c ON c.user_id = e.user_id
+  JOIN leave_types lt ON lt.user_id = c.user_id AND lt.name ILIKE '%Annual%'
+  WHERE e.employment_status NOT IN ('Terminated')
+  ORDER BY e.name LIMIT 1;
+  ```
+
+  4. After running all three blocks, refresh the Leave page (navigate away and back)
+  5. Click the **Requests** tab
+- **Pass**: Three leave requests appear in the Requests table — one with a **Pending** amber badge, one with a **ManagerApproved** blue badge, and one with an **Approved** green badge. The Overview stat cards now show days taken > 0 for Annual Leave (the past Approved request counts).
+- **Bug**:
+
+---
+
+### L-3 · Requests tab — Approve a Pending leave request -c 
+
+- **Profile**: Admin (on Leave → Requests tab)
+- **Setup**: L-2 done (the Pending request from Block A must be visible)
+- **Steps**:
+  1. Locate the **Pending** request (amber badge, dated ~10 days from now)
+  2. Click the **✓ Approve** button on that row
+  3. Observe the status badge and the Approved By column
+- **Pass**: The status badge changes to **Approved** (green). The **Approved By** column shows the admin's name or email. The **Pending** count in the Overview stat card decrements. No page error.
+- **Bug**:
+
+---
+
+### L-4 · Requests tab — Reject a Pending leave request (with comment) - bug
+
+- **Profile**: Admin (on Leave → Requests tab)
+- **Setup**: L-3 done. Seed a second Pending request by re-running Block A from L-2 (it will insert another row).
+- **Steps**:
+  1. Refresh the Requests tab — a new Pending request should appear
+  2. Click the **✗ Reject** button on the new Pending row
+  3. A text area / comment field appears — leave it blank and try to confirm
+  4. Enter comment: `Annual leave quota exceeded this period`
+  5. Click **Reject** / confirm
+- **Pass**: Step 3 — the reject confirmation is blocked or the button is disabled when the comment is empty (comment is required). Step 5 — the status changes to **Rejected** (red badge). The rejection comment appears in the row (or in a tooltip). The employee's leave balance is **not** deducted for a rejected request.
+- **Bug**: there are two columns of each leaeve in the balnacens pannel and calender , and the balancecs are not updating 
+  - **Fixed**: React 18 StrictMode double-mounts components, causing two concurrent `loadAll()` calls → two concurrent `seedDefaultLeaveTypes()` → duplicate rows inserted. Fixed with a module-level `_seedingTypes` boolean lock in `leaveStorage.js` and code-level deduplication in `getLeaveTypes()` (filters by code using a Set). Also moved `initialiseLeaveModule()` out of `loadAll()` (was running on every approval/refresh) into the `useEffect` so it only runs once on mount.
+
+---
+
+### L-5 · Requests tab — Final OK on a ManagerApproved request -c 
+
+- **Profile**: Admin (on Leave → Requests tab)
+- **Setup**: L-2 done (the ManagerApproved request from Block B must be visible with blue badge)
+- **Steps**:
+  1. Locate the **ManagerApproved** request (blue badge, dated ~20 days from now)
+  2. Confirm the row shows **"Mgr: Test Manager"** (or similar) in the Approved By column
+  3. Click the **"Final OK"** button (HR final sign-off) on that row
+- **Pass**: Status changes to **Approved** (green). The Approved By column now shows the HR admin's name for final sign-off. The employee's leave balance is deducted. The blue ManagerApproved badge is gone.
+- **Bug**:
+
+---
+
+### L-6 · Requests tab — Status badge colours and Approved By column -c
+
+- **Profile**: Admin (on Leave → Requests tab)
+- **Setup**: L-3 through L-5 done (you now have Approved, Rejected, and possibly a ManagerApproved row)
+- **Steps**:
+  1. Scan all visible rows and their status badges:
+     - Pending → amber badge
+     - ManagerApproved → blue badge (if any remain)
+     - Approved → green badge
+     - Rejected → red badge
+  2. For any Approved row that was pre-approved by manager, check the **Approved By** column shows `Mgr: Test Manager`
+- **Pass**: All badge colours match the legend. Rows approved via manager-pre-approval show the `Mgr: {name}` prefix in the Approved By column. No badge shows a raw status string like `"ManagerApproved"` (must be human-readable).
+- **Bug**:
+  - **Fixed**: The **Status** filter dropdown in the Requests tab was missing `Manager Approved` and `Manager Rejected` options — these statuses existed in the data but were unreachable via the filter. Added both options to the `<select>` in `LeaveManager.jsx`.
+
+---
+
+### L-7 · Calendar tab — monthly grid renders with approved leave -c
+
+- **Profile**: Admin (on Leave)
+- **Setup**: L-3 and L-5 done (at least 2 Approved requests now exist — one past, one future)
+- **Steps**:
+  1. Click the **Calendar** tab (third tab)
+  2. Observe the monthly grid
+  3. Navigate to the **current month** if not already shown
+- **Pass**: The grid shows a row per employee with their name on the left. Days with Approved leave are highlighted in the leave type's colour (e.g. Annual Leave might be blue). The past approved request (Block C) shows as coloured cells if the current month contains those dates (or navigate to the correct month). The grid has day-number headers across the top.
+- **Bug**:
+
+---
+
+### L-8 · Calendar tab — month navigation and department filter -c
+
+- **Profile**: Admin (on Leave → Calendar tab)
+- **Setup**: L-7 done
+- **Steps**:
+  1. Click the **◄** (previous) button — the grid redraws for the previous month
+  2. Click **►** (next) twice — forward two months
+  3. Confirm the month/year label updates with each click
+  4. Open the **Department** dropdown — select a department that has employees
+  5. Confirm only employees from that department appear in the grid
+  6. Reset department to "All"
+- **Pass**: Month navigation works without errors — the grid re-renders for each month. The department filter hides employees from other departments. "All" restores all employees. No blank or broken grid at any point.
+- **Bug**:
+
+---
+
+### L-9 · Calendar tab — print - bug 
+
+- **Profile**: Admin (on Leave → Calendar tab)
+- **Setup**: L-7 done (calendar is visible with data)
+- **Steps**:
+  1. Click the **Print** button in the Calendar tab toolbar
+- **Pass**: The browser print dialog opens. The print preview shows the calendar grid scoped to the `#calendar-print-area` div — sidebar and other page chrome are not included in the print area.
+- **Bug**: print format is messed up , search panels  header etc still visible , need just the calender 
+  - **Fixed**: Added `id="calendar-print-area"` to the calendar `<div className="card">` in `LeaveManager.jsx`. Added `@media print` CSS at the end of `index.css` that hides `body *` and shows only `#calendar-print-area` and its children, positioned absolutely to fill the page.
+
+---
+
+### L-10 · Balances tab — loads and reflects approvals - bug
+
+- **Profile**: Admin (on Leave)
+- **Setup**: L-3 and L-5 done (at least 2 requests Approved — total ≥ 5 days taken for Annual Leave)
+- **Steps**:
+  1. Click the **Balances** tab
+  2. Observe the table: one row per employee, one column per leave type
+  3. Find the employee whose requests you approved — check their **Annual Leave** row
+- **Pass**: The table loads without error. Each cell shows days taken + remaining balance. The Annual Leave "days taken" for the test employee reflects the approvals from L-3 and L-5 (2 + 3 = 5 days taken). Numbers are consistent with the Requests tab — no discrepancy.
+- **Bug**: doesnt work (duplicate leave type columns prevented balance display)
+  - **Fixed**: Root cause was the same as L-4 — duplicate rows from React 18 double-mount. The deduplication + init-once fixes for L-4 resolve this too. Balances now recalculate from the correct single set of leave types.
+
+---
+
+### L-11 · Settings tab — leave year, weekend, and carry-forward config - bug 
+
+- **Profile**: Admin (on Leave)
+- **Setup**: L-1 done
+- **Steps**:
+  1. Click the **Settings** tab
+  2. Locate the **Leave Year** period fields — note the current start and end month
+  3. Change the **weekend** config from **Fri–Sat** to **Sat–Sun** (or vice versa) and click Save
+  4. Confirm the setting is persisted (navigate away and back to Settings)
+  5. Change the **carry-forward** rules — toggle or adjust the max carry-over days
+  6. Save and confirm persisted
+  7. Revert both settings back to their original values and save
+- **Pass**: Each save operation shows a success toast/flash. After navigating away and returning, the saved values are still in place. No error when saving any of these config fields.
+- **Bug**: UAE weekend definition is only saturday and sunday 
+  - **Fixed**: Changed default `weekendDefinition` from `'fri-sat'` to `'sat-sun'` in `LeaveManager.jsx` (UAE changed to Sat-Sun for government/healthcare in Jan 2022). Updated dropdown labels to `"Saturday – Sunday (UAE since Jan 2022)"` and `"Friday – Saturday (traditional / pre-2022)"`. Sat-Sun is now the first and default option.
+  - **Fixed (propagation)**: The admin's saved `weekendDef` was not being passed to the Employee Portal `EmpLeave.jsx` — that component was hardcoding `'fri-sat'` everywhere. Fixed by: loading `getLeaveSettings()` in the employee leave `Promise.all`, storing result as `weekendDef` state, and passing it to `countLeaveDays`, `validateLeaveRequest`, and the employee mini-calendar weekend highlight check. The `fmtDate` helper inside `EmpLeave.jsx` was also updated to use `formatDateUAE` (DD/MM/YYYY) from `uaeValidators.js` instead of `toLocaleDateString('en-AE', ...)` which produces locale-dependent output.
+
+---
+
+### L-12 · Settings tab — Add / Edit / Delete a leave type -bug 
+
+- **Profile**: Admin (on Leave → Settings tab)
+- **Setup**: L-11 done
+- **Steps**:
+  1. Click **+ Add Leave Type** (or the add button in the Leave Types section)
+  2. Fill in:
+     - **Name**: `Emergency Leave`
+     - **Allowed Days**: `3`
+     - **Paid**: Yes (toggle on)
+     - **Type**: Annual (or as applicable)
+  3. Click **Save** — the new type appears in the list
+  4. Find `Emergency Leave` in the list — click **Edit** (pencil icon)
+  5. Change **Allowed Days** to `5` → Save
+  6. Confirm the list now shows `Emergency Leave — 5 days`
+  7. Click **Delete** (trash icon) on `Emergency Leave` → confirm deletion
+  8. Confirm `Emergency Leave` is no longer in the list
+- **Pass**: All three CRUD operations succeed with visible feedback. The list updates immediately after each action. The deleted type does not reappear on page refresh.
+- **Bug**: no place to add allowed days , paid etc , no place to edit after making leave type 
+  - **Fixed**: Added a full Leave Types management card to the Settings tab in `LeaveManager.jsx` (positioned between Leave Configuration and Public Holidays). The card has: a table listing all leave types with Name, Paid, Days/Year, Probation OK, Needs Doc columns plus Edit (pencil) and Delete (trash) icon buttons; an inline add/edit form (toggled by "+ Add Leave Type" or pencil) with Name, Colour picker, Paid/Unpaid, Unlimited/Fixed, Annual Entitlement Days fields. Extended `saveLeaveType()` in `leaveStorage.js` to support full INSERT (new type) and full UPDATE (all user-editable fields), not just the 2 boolean patches. Added `deleteLeaveType(id)` as a soft-delete (sets `is_active = false`).
+
+---
+
+### L-13 · Settings tab — Probation Leave Eligibility toggle -c 
+
+- **Profile**: Admin (on Leave → Settings tab)
+- **Setup**: L-12 done. A probation employee must exist (from Day 3) — but the toggle test only requires that Hajj Leave exists as a leave type.
+- **Steps**:
+  1. Scroll to the **"Probation Leave Eligibility"** card in Settings
+  2. Find **Hajj Leave** in the list — note its current toggle state (should default to ON / eligible)
+  3. Toggle **Hajj Leave** to **OFF** (probation_eligible = false)
+  4. Observe: a success indicator appears
+  5. Navigate away from Settings and back — Hajj Leave toggle should still be OFF
+  6. Toggle it back **ON** and confirm persisted
+- **Pass**: The toggle saves optimistically (UI updates immediately). After a re-navigation, the saved state is correct. Toggling back ON restores the default. No error toast.
+- **Bug**:
+  - **Fixed**: `seedDefaultLeaveTypes()` in `leaveStorage.js` was not mapping the `probation_eligible` column when inserting default leave types, so all types got the DB default (`true`). Fixed by adding `probation_eligible: lt.probationEligible ?? true` to the rows mapping. Also added `probationEligible: false` to ANNUAL, HAJJ, and STUDY in `DEFAULT_LEAVE_TYPES` (`leaveEngine.js`). Additionally, `saveLeaveType()` for new custom types now checks for code collisions before INSERT (appends `_1`, `_2`, etc. if needed), preventing DB unique constraint errors when two types share similar names.
+
+---
+
+### L-14 · Settings tab — Requires Attachment toggle -c
+
+- **Profile**: Admin (on Leave → Settings tab)
+- **Setup**: L-13 done
+- **Steps**:
+  1. Find **Sick Leave** in the leave type list (or whichever type you want to test)
+  2. Locate the **"Requires Attachment"** toggle next to it (may be in the same Probation card or a separate card)
+  3. Toggle **Sick Leave** to require an attachment
+  4. Confirm: a success indicator appears
+  5. Navigate away and back — Sick Leave still shows attachment required
+  6. Toggle it back **OFF** and save
+- **Pass**: Toggle saves and persists. No error. The toggle state is correctly read back on re-render.
+- **Bug**:
+
+---
+
+### L-15 · Settings tab — Public Holidays CRUD -c
+
+- **Profile**: Admin (on Leave → Settings tab)
+- **Setup**: L-14 done
+- **Steps**:
+  1. Scroll to the **Public Holidays** section
+  2. Click **+ Add Holiday**
+  3. Enter:
+     - **Date**: pick any future date (e.g. 2 December — UAE National Day)
+     - **Name**: `UAE National Day (Test)`
+  4. Click **Save** / Add — the holiday appears in the list with date formatted DD/MM/YYYY
+  5. Click **Delete** (trash icon) on the holiday just added → confirm
+  6. Confirm the holiday is removed from the list
+- **Pass**: Holiday appears in the list immediately after adding, with the date in DD/MM/YYYY format. Deleting removes it without page refresh. No error during either operation.
+- **Bug**:
+
+---
+
+### L-16 · Settings tab — Approval Delegation card -c
+
+- **Profile**: Admin (on Leave → Settings tab)
+- **Setup**: L-15 done. At least two employees must exist (one to be the "absent manager" and one to be the "delegate").
+- **Steps**:
+  1. Scroll to the **"Approval Delegation"** card
+  2. Select an **Approver** (the absent manager) from the first dropdown
+  3. Select a **Delegate** (the covering colleague) from the second dropdown
+  4. Set a **From Date**: today
+  5. Set a **To Date**: 2 weeks from today
+  6. Click **Add Delegate** / Save
+  7. Confirm the delegation row appears in the list with both names and the date range
+  8. Click **Delete** (trash icon) on the delegation just created → confirm removal
+- **Pass**: The delegation is saved and appears in the list immediately. Both the approver and delegate names are shown. Deleting removes the row. No error. If the `leave_approval_delegates` table has not been created yet, this card may show an empty state or a load error — note it in the Bug field.
+- **Bug**:
 
 ---
 
@@ -1474,49 +2176,265 @@ Legend: `[ ]` = not tested · `[x]` = pass · `[!]` = bug found
 
 # DAY 8 — Attendance · Biometric Import · Assets
 
-## 11. ATTENDANCE
+> **Before you start**
+> Attendance data is most meaningful if employees have clocked in/out at some point. If your test employee has not clocked in via the Employee portal yet, do the clock-in steps first (Employee portal → Attendance tab → Clock In) before running the admin-side tests below.
 
-- [ ] Navigate → Attendance
-- [ ] Stat cards load: Present Today, Absent, Late, Missing Clock-Out (do not assert loading spinner — wait directly for stat cards)
-- [ ] Month navigation (◄ ►) → data reloads, stat cards update
-- [ ] Refresh button → loading spinner appears then cards reload
-- [ ] Close Period button (if visible at month end) → period locked for payroll
+---
 
-### Employee attendance grid
-- [ ] Each employee row shows daily status chips: PRESENT / ABSENT / LATE / WEEKEND / HOLIDAY
-- [ ] Click on a day cell → regularisation form opens for that employee + date
-- [ ] Submit regularisation → pending record created
+## ATTENDANCE
 
-### Regularisation approvals
-- [ ] View pending regularisation requests
-- [ ] Approve a regularisation → attendance record updated
-- [ ] Reject a regularisation → record unchanged
+### AT-1 · Attendance module loads and stat cards render -c 
+- **Profile**: Admin
+- **Setup**: None
+- **Steps**:
+  1. Click **"Attendance"** in the sidebar
+  2. Wait for the module to finish loading (do NOT look for a loading spinner — wait directly for the stat cards)
+  3. Observe the four stat cards at the top
+- **Pass**: Four stat cards visible: **Present Today**, **Absent**, **Late**, **Missing Clock-Out**. Each shows a number. No blank white box, no JS error.
+- **Bug**:
 
-### Biometric Import tab
-- [ ] Switch to Biometric Import tab
-- [ ] Upload a CSV file (ZKTeco Report format, ZKTeco Simple format, or Generic format)
-- [ ] Parser auto-detects format → preview of parsed punches shown (employee, date, time, type)
-- [ ] Unmatched badge numbers listed as chips → click a chip → pre-fills the badge mapping form
-- [ ] Map badge number to employee → Save mapping
-- [ ] Confirm Import → new clock events inserted, duplicates at same minute skipped
-- [ ] "Unmatched Badges" count reduces as mappings are added
+---
 
-## 12. ASSETS
+### AT-2 · Month navigation reloads data - bug no arrows for navigation
+- **Profile**: Admin (on Attendance)
+- **Setup**: AT-1 done
+- **Steps**:
+  1. Note the current month shown in the header
+  2. Click the **◄** (previous) button — the grid redraws for the previous month
+  3. Click **►** (next) twice — forward to next month
+  4. Confirm the month/year label updates with each click and stat cards re-render
+- **Pass**: Month navigation works without errors. Stat cards update for each month. Grid rows (if any) reflect that month's data. No spinner that never resolves (the module polls every 30 s — do not use networkidle).
+- **Bug**: no arrows for navigation
+  - **Fixed**: Added `ChevronLeft` / `ChevronRight` arrow buttons flanking the month dropdown in `AttendanceManager.jsx`. Previous arrow steps back one month freely; next arrow is capped at the current month so future months cannot be navigated to. Also expanded the dropdown from 12 to 24 months of history.
 
-### Assets tab (default)
-- [ ] Navigate → Assets
-- [ ] Asset list loads with status chips: Available / Assigned / Under Repair / Retired / Lost
-- [ ] Filter chips show count in parentheses (e.g. "Available (4)") — click each to filter
-- [ ] **Add Asset** (`+`) → modal: name, category, serial number, purchase date, value, condition → Save → appears as Available
-- [ ] **Edit Asset** (pencil icon, `title="Edit asset"`) → change description or value → Save
-- [ ] **Assign Asset** → select employee, set condition at handover → Assign → status → Assigned
-- [ ] **Return Asset** → condition at return → Return → status → Available
-- [ ] **Delete Asset** (`title="Delete asset"`) → if open assignment exists: guard error · else: confirmed, removed
+---
 
-### Assignment History tab
-- [ ] Switch to Assignment History tab
-- [ ] Full log: asset name, employee, assigned date, returned date, condition at each stage
-- [ ] Open (current) assignments show no return date
+### AT-3 · Refresh button reloads data -c 
+- **Profile**: Admin (on Attendance)
+- **Setup**: AT-1 done
+- **Steps**:
+  1. Click the **Refresh** button (circular arrow icon in the header)
+  2. Observe whether a loading state briefly appears then resolves
+- **Pass**: Data reloads. Stat cards update. No error shown.
+- **Bug**:
+
+---
+
+### AT-4 · Employee attendance grid — daily status chips
+- **Profile**: Admin (on Attendance, current month)
+- **Setup**: AT-1 done. At least one employee exists and has clocked in at some point this month (or use any past month where clock-in data exists).
+- **Steps**:
+  1. Navigate to the current month (or a month that has clock-in data)
+  2. Look at the grid — rows = employees, columns = days
+  3. Observe the colour-coded status chips in each cell
+- **Pass**: Cells show status chips appropriate for each day: **PRESENT** (green), **ABSENT** (red), **LATE** (amber), **WEEKEND** (grey), **HOLIDAY** (yellow), or blank for future dates. No cell shows a raw database string or `undefined`.
+- **Bug**:
+
+---
+
+### AT-5 · Regularisation — submit a correction request
+- **Profile**: Admin (on Attendance)
+- **Setup**: AT-4 done. A past day with an ABSENT or missing record must be visible in the grid.
+- **Steps**:
+  1. Click on a past day cell for any employee (an ABSENT or empty cell works best)
+  2. A regularisation form appears — fill in:
+     - **Clock In Time**: `09:00`
+     - **Clock Out Time**: `18:00`
+     - **Reason**: `Manual correction — system missed punch`
+  3. Click **Submit**
+- **Pass**: The form closes or shows a success message. A pending regularisation request is created (visible in the Regularisation tab / pending list).
+- **Bug**:
+
+---
+
+### AT-6 · Regularisation — approve and reject
+- **Profile**: Admin (on Attendance)
+- **Setup**: AT-5 done (a pending regularisation exists)
+- **Steps**:
+  1. Navigate to the **Regularisation** or **Pending** section
+  2. Find the request submitted in AT-5
+  3. Click **Approve** → confirm
+  4. Verify the attendance record for that day updates (status chip changes to PRESENT)
+  5. Submit another regularisation for a different day (repeat AT-5 steps)
+  6. Click **Reject** on the new pending request
+  7. Confirm the attendance record for that day is unchanged
+- **Pass**: Approved regularisation updates the day's status chip. Rejected regularisation leaves the day's status as it was. Both actions show appropriate success feedback.
+- **Bug**:
+  - **Fixed**: `approveRegularisationRequest()` in `attendanceStorage.js` only updated the `regularisation_requests` status — it never patched the `attendance_records` row with the corrected clock times. Fixed by: (1) fetching the request row first to get `correct_clock_in`/`correct_clock_out`; (2) computing `total_hours` from the corrected times (with a 1-hour break deduction); (3) upserting `attendance_records` with the corrected clock times, total_hours, and re-derived status (`PRESENT`/`MISSING_CLOCK_OUT`/`ABSENT`). Also fixed `attendanceEngine.js` `isPast` check: `recordDate <= today` was treating today as a past day, causing employees with no clock-in yet today to show as `UNEXPLAINED_ABSENCE` instead of `ABSENT`. Changed to `recordDate < today`.
+
+---
+
+### AT-7 · Close Period
+- **Profile**: Admin (on Attendance)
+- **Setup**: AT-1 done. You must be viewing the **current or past month** (Close Period is disabled for future months).
+- **Steps**:
+  1. Confirm the **"Close Period"** button is visible in the header
+  2. Click it — a confirmation prompt should appear
+  3. Confirm the action
+- **Pass**: The period status changes to closed/locked. The button is now disabled or replaced with a "Period Closed" indicator. A closed period cannot be re-opened without special action.
+- **Bug**:
+
+---
+
+## BIOMETRIC IMPORT
+
+### BIO-1 · Biometric Import tab loads -c
+- **Profile**: Admin (on Attendance)
+- **Setup**: AT-1 done
+- **Steps**:
+  1. Click the **"Biometric Import"** tab within the Attendance page
+- **Pass**: The Biometric Import panel loads. You see a file upload area ("Choose file" or drag-and-drop), a Badge Mappings table (may be empty), and an Import button.
+- **Bug**:
+
+---
+
+### BIO-2 · Upload and parse a biometric CSV -c 
+- **Profile**: Admin (on Attendance → Biometric Import tab)
+- **Setup**: BIO-1 done. A ready-made test file is at `test-data/biometric_test.csv` in the project root. It contains 2 badge numbers (101, 102) with clock-in/out pairs across 2 days in Generic format.
+
+- **Steps**:
+  1. Click **Choose File** (or drag the CSV onto the upload area)
+  2. Select the test CSV file
+  3. Observe the preview area
+- **Pass**: The parser auto-detects the format (shown as "Generic" or "ZKTeco"). A preview table appears listing parsed punches: Badge No, Employee (matched or "Unmatched"), Date, Time, Type. No JS error.
+- **Bug**:
+
+---
+
+### BIO-3 · Badge mapping — map an unmatched badge to an employee - bug
+- **Profile**: Admin (on Attendance → Biometric Import tab)
+- **Setup**: BIO-2 done with at least one unmatched badge number (badge `101` if you used the example above and haven't mapped it yet)
+- **Steps**:
+  1. In the **Unmatched Badges** section, find the chip for badge `101`
+  2. Click the chip — it pre-fills the badge mapping form
+  3. In the **Employee** dropdown, select any active employee
+  4. Click **Save Mapping**
+  5. Confirm the chip disappears from Unmatched and the badge now maps to that employee in the Badge Mappings table
+- **Pass**: Mapping is saved and persists. The chip disappears from Unmatched Badges. The table shows Badge No → Employee Name.
+- **Bug**: still shows terminated employees
+  - **Fixed**: Added `.filter(e => e.employmentStatus !== 'Terminated')` to the employee `<select>` in `BiometricImport.jsx`. Terminated employees no longer appear in the badge mapping dropdown.
+
+---
+
+### BIO-4 · Confirm Import — new punches inserted, duplicates skipped - bug
+- **Profile**: Admin (on Attendance → Biometric Import tab)
+- **Setup**: BIO-3 done (badge 101 mapped to an employee)
+- **Steps**:
+  1. With the CSV still loaded (re-upload if needed), click **Confirm Import**
+  2. Observe the import result summary
+  3. Re-upload and import the same CSV a second time
+  4. Observe the result — duplicate punches should be skipped
+- **Pass**: First import: clock events are inserted for the mapped employee. Result shows count of punches imported. Second import: result shows 0 new punches (all duplicates skipped at the minute level — same employee + event type + minute already exists).
+- **Bug**: duplicates not being skipped on second import
+  - **Fixed**: Deduplication in `importBiometricPunches()` was comparing raw timestamp strings — the DB stores times in UTC while the parser generates eventTime with `+04:00` offset, so `substring(0,16)` produced `2026-07-01T05:02` (DB) vs `2026-07-01T09:02` (new punch), which never matched. Fixed by normalising both sides through `new Date(...).toISOString()` before taking the substring, ensuring both are UTC before comparison.
+
+---
+
+## ASSETS
+
+### ASS-1 · Assets module loads - ui is crampped , between the assests button and the filters below it especiaplly 
+- **Profile**: Admin
+- **Setup**: None
+- **Steps**:
+  1. Click **"Assets"** in the sidebar
+  2. Observe the page
+- **Pass**: The Assets page loads. **Assets** tab is active by default. The asset list (or an empty state) is visible. Filter chips at the top show status labels (Available, Assigned, etc.).
+- **Bug**: UI cramped between the assets button and the filters below it
+  - **Fixed**: Added missing `.mb-3` CSS utility class (`margin-bottom: 12px`) to `index.css`. This class was used in 14 places across 9 components (AssetsManager, AppraisalManager, AdvancesManager, ExpensesManager, etc.) but had no CSS definition — all those spacing declarations were silently doing nothing. Now tab bars and filter chips have proper vertical spacing.
+
+---
+
+### ASS-2 · Add a new asset -c 
+- **Profile**: Admin (on Assets)
+- **Setup**: ASS-1 done
+- **Steps**:
+  1. Click **+ Add Asset** (or the plus button)
+  2. Fill in the modal:
+     - **Name**: `Dell Laptop 001`
+     - **Category**: `Laptop`
+     - **Serial Number**: `SN-TEST-001`
+     - **Purchase Date**: any past date
+     - **Purchase Value (AED)**: `4500`
+     - **Condition**: `New`
+  3. Click **Save**
+- **Pass**: Modal closes. The asset appears in the list with status badge **Available** (green). The "Available" filter chip count increments by 1.
+- **Bug**:
+
+---
+
+### ASS-3 · Edit an asset -c 
+- **Profile**: Admin (on Assets)
+- **Setup**: ASS-2 done (Dell Laptop 001 exists)
+- **Steps**:
+  1. Find `Dell Laptop 001` in the list
+  2. Click the **Edit** button (`title="Edit asset"`, pencil icon)
+  3. Change the Purchase Value to `4800`
+  4. Click **Save**
+- **Pass**: The modal closes. The updated value is reflected in the list. Status remains **Available** (the status dropdown in Edit does NOT include "Assigned" — that is managed only via Assign/Return).
+- **Bug**:
+
+---
+
+### ASS-4 · Assign an asset to an employee -c 
+- **Profile**: Admin (on Assets)
+- **Setup**: ASS-2 done. At least one active employee must exist.
+- **Steps**:
+  1. Find `Dell Laptop 001` in the list (status: Available)
+  2. Click the **Assign** button
+  3. Select an employee from the dropdown
+  4. Set **Condition at Handover**: `Good`
+  5. Add **Notes**: `Assigned for remote work`
+  6. Click **Assign**
+- **Pass**: Status badge changes to **Assigned** (amber/orange). The asset moves to the "Assigned" filter. The employee name appears in the asset row. The Available count decrements.
+- **Bug**:
+
+---
+
+### ASS-5 · Return an asset -c 
+- **Profile**: Admin (on Assets)
+- **Setup**: ASS-4 done (Dell Laptop 001 assigned)
+- **Steps**:
+  1. Find `Dell Laptop 001` (status: Assigned)
+  2. Click the **Return** button
+  3. Set **Condition at Return**: `Good`
+  4. Click **Return**
+- **Pass**: Status returns to **Available**. The Assigned badge is gone. The Available count increments. An entry is added to the Assignment History tab.
+- **Bug**:
+
+---
+
+### ASS-6 · Delete asset — guard when assigned -c 
+- **Profile**: Admin (on Assets)
+- **Setup**: ASS-4 done. Re-assign Dell Laptop 001 (repeat ASS-4) so it has an open assignment.
+- **Steps**:
+  1. Find `Dell Laptop 001` (status: Assigned)
+  2. Click the **Delete** button (`title="Delete asset"`)
+  3. Confirm the deletion attempt
+- **Pass**: Deletion is blocked — an error message appears: "Cannot delete an asset with an active assignment. Return it first." The asset is not removed.
+- **Bug**:
+
+---
+
+### ASS-7 · Delete asset — succeeds when not assigned -c 
+- **Profile**: Admin (on Assets)
+- **Setup**: ASS-5 done (Dell Laptop 001 back to Available, no open assignment)
+- **Steps**:
+  1. Click **+ Add Asset** → add a second asset: Name `Test Asset To Delete`, Category `Equipment`, Serial `SN-DEL-001`
+  2. Find it in the list (status: Available)
+  3. Click **Delete** → confirm
+- **Pass**: The asset is removed from the list immediately. No error.
+- **Bug**:
+
+---
+
+### ASS-8 · Assignment History tab -c
+- **Profile**: Admin (on Assets)
+- **Setup**: ASS-5 done (at least one completed assignment exists — Dell Laptop 001 was assigned and returned)
+- **Steps**:
+  1. Click the **"Assignment History"** tab
+  2. Find the Dell Laptop 001 record
+- **Pass**: The log shows: Asset Name, Employee Name, Assigned Date, Returned Date, Condition at Handover, Condition at Return. The Dell Laptop row shows a return date (from ASS-5). Any currently assigned assets show no return date.
+- **Bug**:
 
 ---
 
@@ -1524,46 +2442,263 @@ Legend: `[ ]` = not tested · `[x]` = pass · `[!]` = bug found
 
 # DAY 9 — Training · Appraisals
 
-## 13. TRAINING
+> **Before you start**
+> Be signed in as **Admin**. All tests below use the Admin profile unless stated otherwise.
+> **Deferred items handled today**: D-9 (Day 1 — cert expiry alert) and D-11 (Day 1 — pending appraisals alert). Do D-9 **after TR-4** and D-11 **after AP-4**.
 
-### Training Records tab (default)
-- [ ] Navigate → Training
-- [ ] Records load (list by employee or flat table)
-- [ ] **Add Training Record** → select employee, title, type (Internal / External / Online / Conference), provider, start/end dates, duration hours, initial status (Planned) → Save
-- [ ] **Edit** (pencil) → change status to Completed, add score, set Passed/Failed → Save
-- [ ] **Delete** (trash) → confirmed, removed
-- [ ] Status badges correct: Planned (grey) · In Progress (blue) · Completed (green) · Cancelled (red)
-- [ ] Filter by employee or status works
+---
 
-### Certifications tab
-- [ ] Switch to Certifications tab
-- [ ] Cert list loads with expiry badges: Expired (red) / Xd left (red ≤30d · yellow ≤60d) / Active (green) / No Expiry (grey)
-- [ ] **Add Certification** → employee, cert name, issuing body, cert number, issued date, expiry date (blank = No Expiry), certificate URL → Save
-- [ ] **Edit Certification** → change expiry date to within 30 days → badge updates to red
-- [ ] **Delete Certification** → confirmed, removed
-- [ ] Expiring Soon / Expired filter toggles
+## Deferred from earlier days
 
-## 14. APPRAISALS
+### D-9 · Certification expiry alert on Dashboard - c 
+- **Profile**: Admin
+- **Setup**: TR-4 must be completed first — it creates a certification expiring within 30 days, which is what triggers this Dashboard alert.
+- **Steps**:
+  1. After completing TR-4, click **Dashboard** in the sidebar
+  2. Wait for stat cards to fully load
+  3. Look for an amber alert mentioning certifications expiring soon (e.g. "1 certification expiring within 60 days")
+  4. Click the link or button inside the alert
+  5. Also open the notification bell (🔔) and check for a `cert_expiry` notification
+- **Pass**: Dashboard shows an amber certification-expiry alert with the count of near-expiry certs. Clicking it navigates to the **Training** module (Certifications tab). The notification bell shows at least one unread notification for the cert expiry.
+- **Bug**:
 
-### Cycles tab (default)
-- [ ] Navigate → Appraisals
-- [ ] Cycle list loads: name, review period, status badge (Draft / Open / Active / Closed)
-- [ ] **Add Cycle** (`+`) → name, review_from date, review_to date, status → Save → appears in list
-- [ ] **Edit Cycle** (pencil) → change status to Active → Save
-- [ ] **Delete Cycle** (trash) → confirmed if no appraisals exist for it
+---
 
-### Reviews tab (click into a cycle)
-- [ ] Cycle detail opens showing assigned appraisals (or empty + Assign Staff button)
-- [ ] **Assign Staff** → select one or more employees → confirm → appraisal rows created with 5 default sections seeded
-- [ ] Appraisal rows list: employee name, overall rating (star display), status badge
-- [ ] **Open Review** (clipboard icon) → review form opens
-  - [ ] 5 sections shown: Clinical Competency · Patient Care Quality · Communication & Teamwork · Punctuality & Attendance · Professional Development
-  - [ ] Set star rating (1–5) per section via star widget
-  - [ ] Add reviewer comments per section
-  - [ ] Add overall development plan text
-  - [ ] Save Review → overall weighted average rating computed, status → `reviewed`
-- [ ] **Calibrate** → override overall rating field → submit → status → `calibrated`, star inputs locked
-- [ ] **Delete Appraisal** (trash) → confirmed, removed
+### D-11 · Pending appraisals alert on Dashboard - c
+- **Profile**: Admin
+- **Setup**: AP-4 must be completed first — it creates an active cycle with assigned staff in "Pending" status, which is what triggers this alert.
+- **Steps**:
+  1. After completing AP-4, click **Dashboard** in the sidebar
+  2. Wait for stat cards to fully load
+  3. Look for a blue info alert about pending appraisals (e.g. "X pending appraisals in active cycle")
+  4. Click the link/button inside the alert
+- **Pass**: Dashboard shows a blue alert referencing the pending appraisals in the active "2026 Mid-Year Review" cycle. Clicking it navigates to the **Appraisals** module.
+- **Bug**:
+
+---
+
+## TRAINING
+
+### TR-1 · Navigate to Training module -c 
+- **Profile**: Admin
+- **Setup**: Be signed in as Admin
+- **Steps**:
+  1. Click **"Training"** in the sidebar (between Assets and Roster)
+- **Pass**: Training module loads. Two tabs are visible: **Training Records** (default) and **Certifications**. A **+ Add Record** (or similar) button is visible. No error, no blank screen.
+- **Bug**:
+
+---
+
+### TR-2 · Add a Training Record - bug 
+- **Profile**: Admin (on Training → Training Records tab)
+- **Setup**: TR-1 done. At least one active employee exists.
+- **Steps**:
+  1. Click **+ Add Record**
+  2. Fill in:
+     - **Employee**: select any active employee
+     - **Training Title / Course**: `Fire Safety Training`
+     - **Type**: `Internal`
+     - **Provider / Trainer**: `HR Department`
+     - **Start Date**: today's date
+     - **End Date**: today's date
+     - **Duration (hours)**: `4`
+     - **Status**: `Planned`
+  3. Click **Save**
+- **Pass**: The new record appears in the list with a grey **Planned** badge. Employee name, title, type, and dates are all visible. No error toast.
+- **Bug**: panel comes on the side not middle 
+  - **Fixed**: `TrainingModal` used `className="modal-backdrop"` which had no CSS definition — the overlay div had no positioning, centering, or background. Added `.modal-backdrop` as an alias of `.modal-overlay` in `index.css` (same `position:fixed; inset:0; display:flex; align-items:center; justify-content:center` rules). This fixes all modals using `modal-backdrop` across `TrainingManager.jsx`, `AppraisalManager.jsx`, and `App.jsx`.
+
+---
+
+### TR-3 · Edit a Training Record — mark as Completed -c 
+- **Profile**: Admin (on Training → Training Records tab)
+- **Setup**: TR-2 done (Fire Safety Training record exists)
+- **Steps**:
+  1. Find the **"Fire Safety Training"** row
+  2. Click the **pencil (Edit)** icon
+  3. Change **Status** to `Completed`
+  4. Set **Score**: `85`
+  5. Toggle **Passed** to **Yes** (if a toggle exists)
+  6. Click **Save**
+- **Pass**: Row shows a green **Completed** badge. Score and Passed status are reflected. No error.
+- **Bug**:
+
+---
+
+### TR-4 · Add a Certification with near-expiry date (needed for D-9) -c 
+- **Profile**: Admin (on Training)
+- **Setup**: TR-1 done. At least one active employee exists.
+- **Steps**:
+  1. Click the **Certifications** tab
+  2. Click **+ Add Certification**
+  3. Fill in:
+     - **Employee**: same employee as TR-2
+     - **Certification Name**: `BLS / Basic Life Support`
+     - **Issuing Body**: `American Heart Association`
+     - **Certificate No.**: `BLS-2024-001`
+     - **Issued Date**: `2025-07-06` (approximately 1 year ago)
+     - **Expiry Date**: **30 days from today** (e.g. `2026-08-05`) — this triggers the amber Dashboard alert
+     - **Certificate URL**: leave blank
+  4. Click **Save**
+- **Pass**: Certification appears in the list. Its expiry badge shows **red "Xd left"** (≤30 days). No error toast.
+- **Bug**:
+
+> **Now do D-9** (deferred from Day 1): click Dashboard, check for the certification expiry amber alert, and click its link.
+
+---
+
+### TR-5 · Edit a Certification — change expiry, verify badge updates - ui bug
+- **Profile**: Admin (on Training → Certifications tab)
+- **Setup**: TR-4 done (BLS cert with near-expiry)
+- **Steps**:
+  1. Click the **pencil (Edit)** icon on the BLS certification row
+  2. Change **Expiry Date** to **6 months from today** (e.g. `2027-01-06`)
+  3. Click **Save** — badge should update to green **Active**
+  4. Edit the same cert again and revert the expiry back to **30 days from today**
+  5. Save again
+- **Pass**: Badge changes from red near-expiry to green Active after the first edit, then back to red near-expiry after the revert. Each save closes the form without error.
+- **Bug**: same issue panel come on the left corner not middle
+  - **Fixed**: Same root cause as TR-2 — `CertModal` uses `className="modal-backdrop"` which now has proper centering CSS.
+
+---
+
+### TR-6 · Delete a Training Record - bug
+- **Profile**: Admin (on Training → Training Records tab)
+- **Setup**: TR-3 done. Optionally add a second disposable record first (so TR-3's record can remain for reference).
+- **Steps**:
+  1. Add a second record: **"Test Delete Record"**, type Internal, today's dates, status Planned → Save
+  2. Click the **trash (Delete)** icon on **"Test Delete Record"**
+  3. Confirm the deletion in the prompt
+- **Pass**: Row disappears from the list immediately. No error. All other records are unaffected.
+- **Bug**: panel comes on left again
+  - **Fixed**: Same root cause as TR-2 — the delete confirmation dialog in `TrainingManager` uses `className="modal-backdrop"` which now has proper centering CSS.
+
+---
+
+### TR-7 · Certifications — Expiring Soon / Expired filter -c 
+- **Profile**: Admin (on Training → Certifications tab)
+- **Setup**: TR-4 done (BLS cert has expiry ≤30 days)
+- **Steps**:
+  1. Look for filter tabs or buttons such as **"Expiring Soon"** and/or **"Expired"**
+  2. Click the **Expiring Soon** filter — only near-expiry or expired certs should remain visible
+  3. Click **All** (or the default tab) to return to the full list
+- **Pass**: Expiring Soon filter narrows the list to only certs with imminent expiry (≤60 days). Switching back to All restores the complete list. No error.
+- **Bug**:
+
+---
+
+## APPRAISALS
+
+### AP-1 · Navigate to Appraisals module -c 
+- **Profile**: Admin
+- **Setup**: Be signed in as Admin
+- **Steps**:
+  1. Click **"Appraisals"** in the sidebar (ClipboardList icon, between Training and Roster)
+- **Pass**: Appraisals module loads. A **Cycles** tab is visible (default) with a list or empty state and a **+ Add Cycle** button. No error, no blank screen.
+- **Bug**:
+
+---
+
+### AP-2 · Add an Appraisal Cycle -c 
+- **Profile**: Admin (on Appraisals → Cycles tab)
+- **Setup**: AP-1 done
+- **Steps**:
+  1. Click **+ Add Cycle**
+  2. Fill in:
+     - **Cycle Name**: `2026 Mid-Year Review`
+     - **Review From**: `2026-01-01`
+     - **Review To**: `2026-06-30`
+     - **Status**: `Active`
+  3. Click **Save**
+- **Pass**: The cycle appears in the list with an **Active** status badge. Name and date range are shown. No error.
+- **Bug**:
+
+---
+
+### AP-3 · Open cycle detail — Reviews tab is empty with Generate Appraisals button - c 
+- **Profile**: Admin (on Appraisals → Cycles tab)
+- **Setup**: AP-2 done ("2026 Mid-Year Review" cycle exists)
+- **Steps**:
+  1. Click the **"2026 Mid-Year Review"** row (or its name/open button) to enter the cycle detail view
+  2. Locate the **Reviews** tab within the cycle detail
+  3. Confirm the list is empty (no appraisal rows yet)
+  4. Confirm a **"Generate Appraisals"** button is visible
+- **Pass**: Cycle detail opens cleanly. Reviews tab shows an empty state with a Generate Appraisals button. The Reviews tab label shows no count badge (or "0"). No error.
+- **Bug**: Checklist originally said "Assign Staff" but the actual button text is "Generate Appraisals" — not a code bug, corrected checklist wording.
+
+---
+
+### AP-4 · Assign Staff to cycle -c 
+- **Profile**: Admin (on Appraisals, inside "2026 Mid-Year Review" cycle, Reviews tab)
+- **Setup**: AP-3 done. At least 2 active employees must exist (use employees from Day 2).
+- **Steps**:
+  1. Click **"Generate Appraisals"**
+  2. All active employees get appraisal rows generated automatically
+  3. Confirm rows appear
+- **Pass**: Appraisal rows appear in the Reviews list — one row per selected employee. Each row shows: employee name, overall rating (empty/zero), status badge **Pending**, and 5 default sections seeded. The Reviews tab label now shows a count badge (e.g. "Reviews 2").
+- **Bug**:
+
+> **Now do D-11** (deferred from Day 1): click Dashboard, check for the pending appraisals blue info alert, click its link.
+
+---
+
+### AP-5 · Fill in an Appraisal Review (admin reviewer role) - bug 
+- **Profile**: Admin (on Appraisals, inside "2026 Mid-Year Review" cycle, Reviews tab)
+- **Setup**: AP-4 done (at least one employee row visible in Pending status)
+- **Steps**:
+  1. Find any employee's appraisal row
+  2. Click the **Review** (clipboard icon) to open the review form
+  3. The form shows 5 sections — for each section, select **4 stars**:
+     - **Clinical Competency** → 4 stars
+     - **Patient Care Quality** → 4 stars
+     - **Communication & Teamwork** → 4 stars
+     - **Punctuality & Attendance** → 4 stars
+     - **Professional Development** → 4 stars
+  4. In the **Comments** field of the first section, type: `Excellent performance this period`
+  5. In the **Development Plan** field (bottom of the form), type: `Attend advanced clinical training in Q3`
+  6. Click **Save Review**
+- **Pass**: The appraisal row's status updates to **Reviewed**. The overall weighted average rating shows approximately 4.0 stars. Reviewer comments and development plan are saved. No error.
+- **Bug**: review panel comes below left , same issue as training , not centered 
+  - **Fixed**: Same root cause as TR-2 — `AppraisalModal` uses `className="modal-backdrop"` which had no CSS. Now `.modal-backdrop` is defined as an alias of `.modal-overlay` with full centering styles.
+
+---
+
+### AP-6 · Calibrate an Appraisal -c 
+- **Profile**: Admin (on Appraisals, inside "2026 Mid-Year Review" cycle, Reviews tab)
+- **Setup**: AP-5 done (at least one appraisal in "Reviewed" status)
+- **Steps**:
+  1. Find the reviewed appraisal row (status: Reviewed)
+  2. Click the **Calibrate** button
+  3. An override field appears for the overall rating — click **3 stars** (or enter `3`)
+  4. Confirm / click **Calibrate**
+- **Pass**: Row status changes to **Calibrated**. Overall rating now shows the calibrated 3-star value. Section star inputs are **locked** (read-only — you cannot change them). No error.
+- **Bug**:
+
+---
+
+### AP-7 · Delete an Appraisal row - c 
+- **Profile**: Admin (on Appraisals, inside "2026 Mid-Year Review" cycle, Reviews tab)
+- **Setup**: AP-4 done. At least 2 employees were assigned, so you can delete one and keep the other (the calibrated one from AP-6).
+- **Steps**:
+  1. Find the **second employee's** appraisal row (the one that was NOT reviewed/calibrated — still in Pending status)
+  2. Click the **trash (Delete)** icon
+  3. Confirm deletion
+- **Pass**: The row disappears. The calibrated appraisal row from AP-6 is unaffected. The Reviews badge count decrements by 1. No error.
+- **Bug**:
+
+---
+
+### AP-8 · Edit Cycle and delete a disposable Cycle -c 
+- **Profile**: Admin (on Appraisals → Cycles tab)
+- **Setup**: AP-2 done. Create a second disposable cycle: click + Add Cycle → name: `Test Delete Cycle`, dates: today to today, status: `Draft` → Save.
+- **Steps**:
+  1. Find **"Test Delete Cycle"** in the Cycles list
+  2. Click the **pencil (Edit)** icon → change name to `Test Cycle (edited)` → Save
+  3. Confirm the updated name is shown
+  4. Click the **trash (Delete)** icon on `Test Cycle (edited)` → confirm deletion
+  5. Confirm the "2026 Mid-Year Review" cycle and its appraisals are unaffected
+- **Pass**: Edit saves and the updated name is shown. Deletion removes the row. The "2026 Mid-Year Review" cycle with its calibrated appraisal still exists. No error.
+- **Bug**:
 
 ---
 
@@ -1571,355 +2706,1643 @@ Legend: `[ ]` = not tested · `[x]` = pass · `[!]` = bug found
 
 # DAY 10 — Roster · Reports
 
-## 15. ROSTER
+> **Before you start**
+> Be signed in as **Admin**. All tests below use the Admin profile.
+> **No deferred items for Day 10** — no previous-day items point here.
+> **Prerequisite data**: At least 2–3 active employees should exist (from Day 2). If staffing rules were configured in Day 4 (Departments → Staffing Rules tab), those will be tested during Roster publish. If not, the compliance gate test (RO-8) will be skipped.
 
-### Templates tab (default)
-- [ ] Navigate → Roster
-- [ ] Shift templates list: name, start/end time, short code, category, colour, expected hours
-- [ ] **Add Template** → name, start time, end time (expected hours auto-calculates), short code (max 3 chars, e.g. D/N/M/A), category (Morning / Afternoon / Night / Flexible), colour picker → Save
-- [ ] **Edit Template** (pencil) → change code or times → Save
-- [ ] **Delete Template** (trash) → confirmed
+---
 
-### Roster tab
-- [ ] Switch to Roster tab
-- [ ] Monthly grid: employees as rows, days as columns
-- [ ] Each assigned cell shows coloured shift code badge (not a full-name dropdown)
-- [ ] Cells before an employee's joining date are greyed with "–" (non-interactive)
-- [ ] **Assign shift**: click empty cell → select code from dropdown → cell updates
-- [ ] **Clear assignment**: select blank option → cell clears
-- [ ] **Total Hrs column** (right edge) shows sum of planned hours per employee
-- [ ] **Footer rows** show counts per day: ☀ Morning / 🌤 Afternoon / 🌙 Night / ○ Unassigned
-- [ ] Navigate months (◄ ►) → grid updates
-- [ ] **Export CSV** → downloads DMUH-format CSV (employee rows, day codes, M/A/N/O totals, planned hours)
-- [ ] **Publish Roster**
-  - [ ] If staffing rules violated (headcount < minStaff on any day) → Staffing Compliance Gate modal appears with violations table
-  - [ ] Override reason (≥10 chars required) → Confirm Publish → assignments set to `published = true`, override logged
-  - [ ] If no violations → publishes directly, no modal
+## ROSTER
 
-### Swaps tab
-- [ ] Switch to Swaps tab
-- [ ] Pending swap requests: requester, target employee, dates, reason
-- [ ] **Approve** (✓) → assignments swapped, status approved
-- [ ] **Reject** (✗) → optional reason → status rejected
+### RO-1 · Navigate to Roster module -c
+- **Profile**: Admin
+- **Setup**: None
+- **Steps**:
+  1. Click **"Roster"** in the sidebar (between Attendance and Assets)
+- **Pass**: Roster module loads. Three tabs visible: **Templates** (default active), **Roster**, **Swaps**. A **+ New Shift** button is visible. No error, no blank screen.
+- **Bug**:
 
-## 16. REPORTS
+---
 
-- [ ] Navigate → Reports
-- [ ] **Headcount tab** (default) — breakdowns by dept, nationality, gender, contract type · Export CSV / PDF
-- [ ] **Payroll Cost tab** — period-by-period bars, total and avg per employee · Export CSV / PDF
-- [ ] **Leave Usage tab** — per-employee days taken vs. entitlement, filter by leave type · Export CSV / PDF
-- [ ] **Attendance tab** — Present / Absent / Late counts per employee, date range filter · Export CSV / PDF
-- [ ] **Doc Expiry tab** — documents expiring within N days (threshold selector 30/60/90) · Export CSV / PDF
-- [ ] **Salary History tab** — salary change events (employee, old/new salary, date, changed by) · Export CSV / PDF
-- [ ] **Staff Turnover tab** — joiners and leavers for a date range, net headcount change · Export CSV / PDF
-- [ ] **Staffing Compliance tab** (8th, ShieldCheck icon) — month picker → per-rule heatmap of green/red day cells showing actual vs. minStaff · Export CSV / PDF
+### RO-2 · Add a Shift Template -c
+- **Profile**: Admin (on Roster → Templates tab)
+- **Setup**: RO-1 done
+- **Steps**:
+  1. Click **+ New Shift**
+  2. An inline form appears — fill in:
+     - **Shift Name**: `Morning`
+     - **Short Code**: `D` (max 3 chars, auto-uppercased)
+     - **Category**: `Morning`
+     - **Color**: pick any bright colour from the palette (e.g. green)
+     - **Start Time**: `07:00`
+     - **End Time**: `15:00`
+     - **Break (minutes)**: `60`
+     - Observe **Expected Hours** auto-computes to `7.0`
+  3. Click **Create Shift**
+  4. Repeat to add a second template:
+     - **Name**: `Night`, **Code**: `N`, **Category**: `Night`, **Start**: `19:00`, **End**: `07:00`, **Break**: `60`, colour: pick blue/dark
+     - Click **Create Shift**
+- **Pass**: Both templates appear in the list with their name, code badge, category, colour swatch, start/end times, and expected hours. No error.
+- **Bug**:
+
+---
+
+### RO-3 · Edit a Shift Template -c 
+- **Profile**: Admin (on Roster → Templates tab)
+- **Setup**: RO-2 done
+- **Steps**:
+  1. Find the **Morning** row
+  2. Click the **pencil (Edit)** icon
+  3. The form pre-fills with the template's data
+  4. Change **Short Code** from `D` to `M`
+  5. Click **Update Shift**
+- **Pass**: The template row updates — code badge now shows `M`. No error.
+- **Bug**:
+
+---
+
+### RO-4 · Delete a Shift Template -c
+- **Profile**: Admin (on Roster → Templates tab)
+- **Setup**: RO-2 done. Create a disposable template: **Name**: `Test Delete`, **Code**: `X`, **Category**: `Flexible`, any times → Create Shift
+- **Steps**:
+  1. Find **Test Delete** in the list
+  2. Click the **trash (Delete)** icon
+  3. Confirm the deletion
+- **Pass**: Row disappears. The Morning and Night templates remain. No error.
+- **Bug**:
+
+---
+
+### RO-5 · Roster grid loads and shows employee rows -c
+- **Profile**: Admin (on Roster)
+- **Setup**: RO-2 done (at least 1 shift template exists). At least 2 employees exist.
+- **Steps**:
+  1. Click the **Roster** tab
+  2. Observe the monthly grid: rows = employees, columns = days of the current month
+  3. Check the right edge for a **Total Hrs** column
+  4. Check the bottom for **footer rows**: ☀ Morning / 🌤 Afternoon / 🌙 Night / ○ Unassigned
+- **Pass**: Grid renders with employee names as row headers and day numbers as column headers. Total Hrs column shows `0` (no assignments yet). Footer rows show day-by-day counts (all zeroes initially). No error, no blank grid.
+- **Bug**:
+
+---
+
+### RO-6 · Assign and clear a shift in the roster grid -c 
+- **Profile**: Admin (on Roster → Roster tab)
+- **Setup**: RO-5 done
+- **Steps**:
+  1. Find the first employee row
+  2. Click on a cell for today (or any non-greyed day)
+  3. A dropdown appears showing the shift codes — select **M** (Morning)
+  4. Cell updates to show the coloured `M` code badge
+  5. Check the **Total Hrs** column for that employee — should now show `7.0`
+  6. Check the footer ☀ Morning row for that day — count should be `1`
+  7. Click the same cell again → select the blank/empty option
+  8. Cell clears
+- **Pass**: Assignment creates a coloured code badge in the cell. Total Hrs updates. Footer Morning count increments. Clearing the cell reverses both. No error.
+- **Bug**:
+
+---
+
+### RO-7 · Roster features — greyed pre-join cells, month nav, CSV export -c 
+- **Profile**: Admin (on Roster → Roster tab)
+- **Setup**: RO-5 done
+- **Steps**:
+  1. Look for any employee whose **Joining Date** is mid-month or later this month — cells before their join date should be greyed out with `–`
+  2. Click **◄** (previous month arrow) — grid redraws for the prior month
+  3. Click **►** twice to return to the current month
+  4. Assign a few shifts across 2–3 employees for several days (use `M` and `N` codes)
+  5. Click the **Export CSV** button
+  6. Open the downloaded CSV file
+- **Pass**: Pre-join cells show `–` and are non-interactive. Month navigation works without errors. CSV downloads in DMUH format: employee rows with day-by-day codes, M/A/N/O totals, and planned hours per employee.
+- **Bug**:
+
+---
+
+### RO-8 · Publish Roster — with and without staffing compliance gate -bug 
+- **Profile**: Admin (on Roster → Roster tab)
+- **Setup**: RO-7 done (some shift assignments exist). If staffing rules were created in Day 4 (Departments → Staffing Rules tab), at least one rule exists.
+- **Steps**:
+  1. Click **Publish Roster**
+  2. **If staffing rules exist AND any day/category is below the minimum**:
+     - A "Staffing Compliance" modal appears listing violations (department × shift × date × actual count vs required)
+     - In the **Override Reason** textarea, type at least 10 characters: `Short-staffed due to leave approvals`
+     - Click **Confirm Publish**
+  3. **If no staffing rules exist OR all rules are met**:
+     - Roster publishes directly with no modal
+  4. Confirm a success message appears
+- **Pass**: After publish, assignments are marked `published = true`. If override was required, it is logged to `compliance_overrides`. No error. (Published assignments become visible to employees on their Schedule tab — tested on Day 12.)
+- **Bug**: minimum staff required was set to one for morning, but when trying to publish it says 0 assigned even though shifts are assigned in the grid.
+  - **Fixed**: `handlePublish()` iterated `Object.entries(rosterData)` treating it as a nested `empId → {date → assignment}` map, but `rosterData` is actually a flat map with keys `${empId}_${dateStr}` → assignment. `byDate[dateStr]` was always `undefined`, so `count` was always 0. Rewrote the loop to iterate `employees` and look up each assignment via the correct flat key `rosterData[\`${emp.id}_${dateStr}\`]`.
+
+> **Note**: If no staffing rules are configured, skip the compliance gate sub-steps. You can still verify basic publish works.
+
+---
+
+### RO-9 · Swaps tab — view pending requests deffer to employee testing days 
+- **Profile**: Admin (on Roster)
+- **Setup**: RO-8 done
+- **Steps**:
+  1. Click the **Swaps** tab
+  2. Observe the list
+- **Pass**: If swap requests exist (submitted from employee portal), each row shows: requester name, target employee, dates, reason, status. Approve (✓) and Reject (✗) buttons visible for pending requests. If no swaps exist, an empty state message is shown. No error.
+- **Bug**:
+
+> **Note**: Swap requests are submitted from the Employee portal Schedule tab (Day 12). If none exist yet, verify the tab loads cleanly and note that the approve/reject flow will be tested after Day 12.
 
 ---
 
 ---
 
-# DAY 11 — Manager Portal (all 8 tabs)
+## REPORTS
+
+### RP-1 · Navigate to Reports module -c 
+- **Profile**: Admin
+- **Setup**: None
+- **Steps**:
+  1. Click **"Reports"** in the sidebar (last item)
+- **Pass**: Reports module loads. Eight tab buttons visible in a row: **Headcount**, **Payroll Cost**, **Leave Usage**, **Attendance**, **Doc Expiry**, **Salary History**, **Staff Turnover**, **Staffing Compliance**. Headcount is active by default. No error.
+- **Bug**:
+
+---
+
+### RP-2 · Headcount tab — breakdowns and export -c 
+- **Profile**: Admin (on Reports → Headcount tab)
+- **Setup**: RP-1 done. At least 2 employees exist.
+- **Steps**:
+  1. Observe the Headcount report — breakdown cards by Department, Nationality, Gender, Contract Type
+  2. Each breakdown card shows a table with category, count, and share percentage
+  3. Click **Export CSV** — a CSV file downloads
+  4. Click **Export PDF** — a PDF file downloads
+- **Pass**: Breakdowns show correct counts matching the number of active employees. CSV and PDF both download without error. The CSV contains rows like `Department, Group, Count, Share %`.
+- **Bug**:
+
+---
+
+### RP-3 · Payroll Cost tab -c 
+- **Profile**: Admin (on Reports)
+- **Setup**: At least one payroll run must have been created (from Day 5). If none exist, this tab shows an empty state — note it and skip.
+- **Steps**:
+  1. Click the **Payroll Cost** tab button
+  2. Observe the report — period-by-period table with columns: Period, Payment Date, Employees, Basic, Allowances, Bonus/Other, Total Cost
+  3. Click **Export CSV**
+  4. Click **Export PDF**
+- **Pass**: Table shows payroll cost breakdown per period. Totals make sense. CSV and PDF download. No error.
+- **Bug**:
+
+---
+
+### RP-4 · Leave Usage tab -bug 
+- **Profile**: Admin (on Reports)
+- **Setup**: At least one approved leave request should exist (from Day 7). If none exist, the table is empty — note it and move on.
+- **Steps**:
+  1. Click the **Leave Usage** tab button
+  2. A year selector is visible — leave it at the current year
+  3. Observe the per-employee table: Employee, Department, Requests count, Total Days Taken, Leave Types used
+  4. Click **Export CSV**
+- **Pass**: Table shows leave utilization per employee. Export downloads. No error.
+- **Bug**: leaves were given , not registering in this module 
+  - **Fixed**: Three root causes: (1) Reports fetched only `status='Approved'` leaves, missing `ManagerApproved` — changed to fetch all leave requests and filter in the report builder. (2) `buildLeaveUtilizationReport` read `req.days` (non-existent field) instead of `req.daysRequested` — all days computed as 0. (3) Leave type display always fell back to 'Annual' because it read `req.leaveType` (missing) instead of `req.leaveTypeCode`.
+
+---
+
+### RP-5 · Attendance tab -bug 
+- **Profile**: Admin (on Reports)
+- **Setup**: Some attendance records should exist (from Day 8). If none exist, the table is empty — note it.
+- **Steps**:
+  1. Click the **Attendance** tab button
+  2. A month/period picker is visible — select the current month
+  3. Observe per-employee table: Employee, Department, Days, Present, Absent, Late, Early Departure, Hours
+  4. Click **Export CSV**
+- **Pass**: Table shows attendance summary per employee for the selected period. Export downloads. No error.
+- **Bug**: same issue not registering 
+  - **Investigated**: Code logic is correct — `getAttendanceRecords()` fetches all records for the admin's employees, and `buildAttendanceSummaryReport` filters by the selected month. Ensure the month picker matches when records were created (e.g. if biometric import was for a past month, select that month). No code bug found — re-test after selecting the correct period.
+
+---
+
+### RP-6 · Doc Expiry tab -c
+- **Profile**: Admin (on Reports)
+- **Setup**: At least one employee document with an expiry date should exist (from Day 3).
+- **Steps**:
+  1. Click the **Doc Expiry** tab button
+  2. A threshold selector appears (30 / 60 / 90 days) — select **90**
+  3. Observe the table: Employee, Department, Document Type, Expiry Date, Days Remaining, Status (expired / expiring / OK)
+  4. Click **Export CSV**
+- **Pass**: Table lists documents expiring within 90 days. Status badges show colour-coded expiry state. Export downloads. No error.
+- **Bug**:
+
+---
+
+### RP-7 · Salary History tab -bug 
+- **Profile**: Admin (on Reports)
+- **Setup**: At least one salary change should have been recorded (auto-logged from employee edits on Day 2/3 via job history).
+- **Steps**:
+  1. Click the **Salary History** tab button
+  2. Observe the table: Employee, Department, Old Salary, New Salary, Change Date, Changed By
+  3. Click **Export CSV**
+- **Pass**: Table shows salary change events. Export downloads. No error.
+- **Bug**:salary was chnaged not registering 
+  - **Fixed**: `buildSalaryMovementReport` filtered for `changeType === 'salary'` but the actual stored value is `'salary_change'` (set by `EmployeeManager.handleSaveEmployee`). Changed filter to match `'salary_change'`.
+
+---
+
+### RP-8 · Staff Turnover tab -bug 
+- **Profile**: Admin (on Reports)
+- **Setup**: At least one employee should have been hired (joining date exists).
+- **Steps**:
+  1. Click the **Staff Turnover** tab button
+  2. A date range picker appears — select a range that covers the last 12 months
+  3. Observe two sections: **Joiners** (employees hired in range) and **Leavers** (employees terminated in range)
+  4. A net headcount change summary is visible
+  5. Click **Export CSV**
+- **Pass**: Joiners and leavers tables render. Net headcount change makes sense (joiners − leavers). Export downloads. No error.
+- **Bug**: not showing leavers/terminated 
+  - **Fixed**: `archiveEmployee()` set `employment_status='Terminated'` and `active=false` but never set `termination_date`. The turnover report filters leavers by `e.terminationDate` — always null, so no leavers ever appeared. Now `archiveEmployee()` also sets `termination_date` to today's date. Employees terminated before this fix will still show no termination date — edit them and set the date manually if needed.
+
+---
+
+### RP-9 · Staffing Compliance tab - bug 
+- **Profile**: Admin (on Reports)
+- **Setup**: Staffing rules must have been created (Day 4 — Departments → Staffing Rules tab). If none exist, the tab shows "No staffing rules defined" — note it and skip.
+- **Steps**:
+  1. Click the **Staffing Compliance** tab button (8th, ShieldCheck icon)
+  2. A **month picker** appears — select the current month (or the month where RO-7/RO-8 roster was published)
+  3. Observe the heatmap: one row per staffing rule (Department × Shift Category), columns = days of the month
+  4. Each cell is a small coloured square:
+     - **Green** = actual staff count ≥ minStaff (compliant)
+     - **Red** = actual staff count < minStaff (violation)
+  5. Hover or inspect cells for actual counts
+- **Pass**: Heatmap renders with the correct number of rules. Days where shifts were assigned in the roster show green cells; unassigned or under-staffed days show red. If no roster is published for the selected month, an empty state message appears. No error.
+- **Bug**: not working 
+  - **Fixed**: `StaffingComplianceTab` compared `r.shiftCategory` on roster assignments, but that field doesn't exist — the shift category is nested at `r.shift.shiftCategory` (from the embedded shifts join). All day counts were 0, making every cell red. Changed to `r.shift?.shiftCategory`.
+
+> **Note**: This tab requires both staffing rules (from Day 4 Departments) AND published roster data (from RO-8). If either is missing, you'll see an appropriate empty state.
+
+---
+
+---
+
+# DAY 11 — Manager Portal (queue tabs · auth · appraisals · home · leave · schedule · attendance)
+
+> **Before you start**
+> The Manager Portal has **14 tabs**: 4 manager-specific tabs + 10 employee self-service tabs.
+>
+> You must have a manager account set up. This means:
+> 1. An employee exists in the admin portal with a valid `work_email`
+> 2. That employee has registered via "Sign in as Employee / Manager" → "Register as Employee"
+> 3. The admin has set that employee's **Portal Role** to "Manager" (EmployeeModal → Job & Contract tab → Portal Role dropdown)
+> 4. That employee has at least one **direct report** (another employee whose `Reporting Manager` is set to the manager)
+>
+> If you don't have a manager set up yet, do these steps first:
+> - Admin portal → Employees → pick an employee → Job & Contract tab → set **Reporting Manager** to the person who will be the manager
+> - Open the manager employee's record → Job & Contract tab → Portal Role dropdown → select **Manager** (only visible if that employee has already registered via the employee portal — if the dropdown doesn't appear, the employee hasn't registered yet; do that first via "Sign in as Employee / Manager" → Register)
+>
+> The manager's direct reports must also exist and ideally have portal accounts registered so cross-portal flows work.
+>
+> **Tab order in sidebar** (14 tabs):
+> 1. Home · 2. Leave Queue · 3. Expense Queue · 4. Appraisals (team + my sub-views) · 5. Training (team + my sub-views) · 6. My Leave · 7. Schedule · 8. Attendance · 9. Payslips · 10. Advances · 11. Expenses (own) · 12. Documents · 13. Requests · 14. Profile
+>
+> **SQL prerequisites** (run in Supabase SQL Editor before testing):
+> - `sql/039_shifts_read_policy.sql` — shift names visible in roster for non-admin users
+> - `sql/040_training_manager_policies.sql` — manager CRUD on training/certs for direct reports + employee self-enrollment
+
+---
+
+## Deferred from earlier days
+
+### EXP-4 · Approve a Manager-Approved claim (final HR sign-off) - bug
+- **Profile**: Admin (sign in as Admin)
+- **Setup**: From Day 6, EXP-2 seeded a `transportation / AED 180` claim with status `manager_approved`. If that claim no longer exists, re-seed it:
+  ```sql
+  INSERT INTO expense_claims
+    (user_id, employee_id, category, amount, expense_date, description,
+     status, manager_approved_at, manager_approved_by)
+  SELECT c.user_id, e.id, 'transportation', 180, CURRENT_DATE - INTERVAL '3 days',
+         'Taxi to client — manual test', 'manager_approved',
+         NOW() - INTERVAL '1 day', 'Manager Portal (seeded)'
+  FROM employees e JOIN companies c ON c.user_id = e.user_id
+  WHERE e.employment_status NOT IN ('Terminated') ORDER BY e.name LIMIT 1;
+  ```
+- **Steps**:
+  1. Sign in as **Admin**
+  2. Click **Expenses** in the sidebar
+  3. Click the **Mgr Approved** filter tab
+  4. Find the `transportation / AED 180` claim
+  5. Click the **✓ Approve** button on that row
+- **Pass**: A green success flash appears ("Claim approved."). The claim's status badge changes to **HR Approved** (green). It disappears from the Mgr Approved tab. Switching to the **HR Approved** tab shows it there. The **Approved (Unpaid)** stat card increases by AED 180.00.
+- **Bug**: manager cant see which employee sent the expense request , new clain button in expense clain tab is too close for bnoth manmaher nad employee , refresh button not styled and too cramped in manager and employee portal 
+  - **Fixed**: (1) `ManagerExpenseQueue` now loads employees via `getEmployees()` and merges names into claims (RPC returns flat data without employee name). (2) Both `EmpExpenses` and `ManagerExpenseQueue` headers now use `display: flex; justify-content: space-between` wrapper to space title and button properly.
+
+---
 
 ## Manager AUTH
 
-- [ ] Go to login page → use "Sign in as Employee / Manager" form (not Admin form)
-- [ ] Enter manager credentials → lands on ManagerShell, Leave Queue tab active
-- [ ] Sidebar shows "Manager Portal" sub-label below manager's name
-- [ ] Sidebar shows manager name (bold) and job title — NOT email address
-- [ ] Notification bell visible and functional
-- [ ] Sign Out → returns to login
+### MA-1 · Manager sign-in -c 
+- **Profile**: Manager (use the employee/manager sign-in form, NOT the admin form)
+- **Setup**: Manager account must be set up (see "Before you start" above). Sign out of any current session first.
+- **Steps**:
+  1. Go to the login page
+  2. Use the **"Sign in as Employee / Manager"** form on the right side (NOT the admin form on the left)
+  3. Enter the manager's email and password
+  4. Click the **Sign in** button (or `button[type="submit"]`)
+- **Pass**: Lands on the **ManagerShell** with the **Leave Queue** tab active (tab 1). The sidebar shows **15 tabs** in order: Leave Queue, Expense Queue, Appraisals, Home, My Leave, Schedule, Attendance, Payslips, Advances, Expenses, Training, My Appraisals, Documents, Requests, Profile. The sidebar shows "Manager Portal" sub-label. The sidebar footer shows the manager's **name** (bold) and **job title** — NOT an email address. The notification bell icon is visible.
+- **Bug**:
 
-## M-1. LEAVE QUEUE
+---
 
-- [ ] Tab loads direct reports' pending leave requests
-- [ ] Each request shows: employee name, leave type, dates, days, reason
-- [ ] **Approve** (✓) → status changes to ManagerApproved (or Approved if single-level config)
-- [ ] **Reject** (✗) → inline reason input appears → enter reason → confirm → status ManagerRejected
-- [ ] **History section** (toggle chevron) → previously approved / rejected requests visible
-- [ ] Empty state "No pending leave requests" when queue is clear
+### MA-2 · Manager sign-out -c 
+- **Profile**: Manager (signed in from MA-1)
+- **Setup**: MA-1 done
+- **Steps**:
+  1. Click **Sign Out** in the sidebar footer
+- **Pass**: Returns to the login page. No errors in the console.
+- **Bug**:
 
-## M-2. EXPENSE QUEUE
+> **After testing MA-2, sign back in as the manager for the remaining tests.**
 
-- [ ] Switch to Expense Queue tab
-- [ ] Direct reports' pending expense claims load: employee, category, amount, date, description
-- [ ] **Approve** (✓) → status → `manager_approved` (awaits HR final sign-off)
-- [ ] **Reject** (✗) → enter reason → status → `manager_rejected`
-- [ ] View receipt link opens in new tab (if provided)
-- [ ] Empty state when no pending expenses
+---
 
-## M-3. APPRAISALS
+## M-1. LEAVE QUEUE (tab 1)
 
-- [ ] Switch to Appraisals tab
-- [ ] Team appraisals load (direct reports only — manager's own appraisal must NOT appear)
-- [ ] Each row shows: employee name, job title, cycle name, review period, status badge, overall rating stars
-- [ ] **Expand row** → 5 sections visible with current ratings and comments
-- [ ] **Star Rating** per section (1–5, interactive) → click to rate
-- [ ] Enter comment per section
-- [ ] **Save** → ratings persisted via `appraisal_sections_manager_update` RLS policy
-- [ ] Calibrated appraisal (`calibrated` status) → star inputs disabled (locked)
-- [ ] Empty state if no direct reports assigned to any open cycle
+### M1-1 · Leave Queue — view pending requests - bug - show the leave warnings for the manager as well ,
+- **Profile**: Manager (signed in)
+- **Setup**: The **Leave Queue** tab should be active by default after sign-in. The manager must have at least one direct report. Ideally, seed a pending leave request from a direct report. You can do this from the **employee portal** (sign in as the direct report employee, go to Leave tab, submit a leave request) or seed via SQL:
+  ```sql
+  INSERT INTO leave_requests
+    (user_id, employee_id, leave_type_code, start_date, end_date, days_requested, reason, status)
+  SELECT e.user_id, e.id, 'ANNUAL', CURRENT_DATE + INTERVAL '7 days',
+         CURRENT_DATE + INTERVAL '9 days', 3, 'Family visit — manual test', 'Pending'
+  FROM employees e
+  WHERE e.reporting_manager_id IS NOT NULL
+    AND e.employment_status NOT IN ('Terminated')
+  LIMIT 1;
+  ```
+- **Steps**:
+  1. Confirm you're on the **Leave Queue** tab (first tab, CheckSquare icon)
+  2. Look at the pending requests list
+- **Pass**: Pending leave requests from direct reports are shown. Each request displays: **employee name**, **leave type**, **start/end dates**, **days requested**, **reason**, and **status badge**. If no direct reports have submitted leave, an empty state message appears ("No pending leave requests" or similar).
+- **Bug**:manager not getting leave requests , from employee side showing they have 0 anual leaves remaining as well 
+  - **Fixed**: Root cause: `leave_requests` table had no RLS policy for managers — managers could only read their own leave requests, not their direct reports'. Created `sql/037_leave_manager_read.sql` which adds: (1) `leave_requests_manager_read` policy for manager to SELECT direct reports' requests; (2) `leave_balances_manager_read` for manager to see direct reports' balances; (3) `leave_types_authenticated_read` so all authenticated users can read active leave types (fixes the 0-balance issue — `getLeaveTypes()` was returning `[]` for non-admin users, falling back to hardcoded defaults). **Action required**: run `sql/037_leave_manager_read.sql` in Supabase SQL Editor, then run `GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;`. Also fixed nested `<tr>` HTML error in `ManagerLeaveQueue` Row component.
 
-## M-4. MY LEAVE
+---
 
-- [ ] Switch to My Leave tab
-- [ ] Leave balances per type, accrued days shown
-- [ ] **Apply** button → inline form appears (inside emp-card, not a modal)
-  - [ ] Leave type dropdown shows available types
-  - [ ] Set Start and End Date
-  - [ ] If type has `requires_attachment = true` → file upload UI appears with hint text
-  - [ ] Enter reason
-  - [ ] Submit → success toast, form hides, request appears in history table
-- [ ] **My Requests table**: status badges visible
-- [ ] **Cancel** a Pending request → status Cancelled
+### M1-2 · Leave Queue — approve a request -c 
+- **Profile**: Manager (on Leave Queue tab)
+- **Setup**: M1-1 done, at least one pending request visible
+- **Steps**:
+  1. Find a **Pending** leave request in the queue
+  2. Click the **✓ Approve** button on that row
+- **Pass**: Success flash appears. The request's status changes to **ManagerApproved** (blue badge) if 2-level approval is configured, or **Approved** (green) if single-level. The request moves out of the pending section.
+- **Bug**:
 
-## M-5. SCHEDULE
+---
 
-- [ ] Switch to Schedule tab
-- [ ] Monthly roster loads (published assignments only)
-- [ ] Each shift card shows: date, shift name, colour pill, start/end times
-- [ ] **Request Swap** on an upcoming shift → SwapModal opens
-  - [ ] Target colleague dropdown (colleagues from same company)
-  - [ ] Target date
-  - [ ] Reason
-  - [ ] Submit → swap request created, appears in admin Swaps tab
+### M1-3 · Leave Queue — reject a request (with reason) -bug 
+- **Profile**: Manager (on Leave Queue tab)
+- **Setup**: At least one more pending request exists. If none, seed another:
+  ```sql
+  INSERT INTO leave_requests
+    (user_id, employee_id, leave_type_code, start_date, end_date, days_requested, reason, status)
+  SELECT e.user_id, e.id, 'SICK', CURRENT_DATE + INTERVAL '14 days',
+         CURRENT_DATE + INTERVAL '14 days', 1, 'Medical appointment — manual test', 'Pending'
+  FROM employees e
+  WHERE e.reporting_manager_id IS NOT NULL
+    AND e.employment_status NOT IN ('Terminated')
+  LIMIT 1;
+  ```
+- **Steps**:
+  1. Find a **Pending** request
+  2. Click the **✗ Reject** button
+  3. An inline reason form appears — enter reason: `Insufficient coverage during that period`
+  4. Click **Reject** / confirm
+- **Pass**: Success flash. Request status changes to **ManagerRejected** (red badge). The rejection reason is stored.
+- **Bug**: doesnt let me type more than one letter at a time for the reason , need to click each time for next letter. 
+  - **Fixed**: `RejectModal` was defined as an inner function component inside `ManagerLeaveQueue` — React created a new function identity on every parent re-render (each keystroke), causing the textarea to unmount/remount and lose focus. Inlined the modal JSX directly in the component's return statement so React preserves the textarea DOM node across re-renders.
 
-## M-6. ATTENDANCE
+---
 
-- [ ] Switch to Attendance tab
-- [ ] Today's card shows current clock status
-- [ ] **Clock In** (enabled only if not yet clocked in today) → click → status PRESENT, button switches to Clock Out
-- [ ] **Clock Out** (enabled after clock in) → click → total hours shown
-- [ ] Clock In button disabled (not just hidden) after already clocking in today
-- [ ] Attendance history table: past days with in/out times, hours, status chips
-- [ ] **Request Regularisation** → form with date, expected times, reason → Submit → pending for admin
+### M1-4 · Leave Queue — history toggle -c 
+- **Profile**: Manager (on Leave Queue tab)
+- **Setup**: M1-2 and M1-3 done (at least one approved and one rejected request exist)
+- **Steps**:
+  1. Look for a **chevron toggle** button (ChevronDown/ChevronUp) below the pending section
+  2. Click it to expand the **History** section
+- **Pass**: Previously approved (ManagerApproved) and rejected (ManagerRejected) requests are visible with their status badges and reasons. Clicking the chevron again collapses the section.
+- **Bug**:
 
-## M-7. PAYSLIPS
+---
 
-- [ ] Switch to Payslips tab
-- [ ] Payslip list: period, basic salary, net pay, status
-- [ ] **Download Payslip** (PDF button) → PDF downloads with company logo and salary breakdown
-- [ ] Empty state if no payslips generated yet
+## M-2. EXPENSE QUEUE (tab 2)
 
-## M-8. PROFILE
+### M2-1 · Expense Queue — view pending expenses -c 
+- **Profile**: Manager (signed in)
+- **Setup**: Switch to the **Expense Queue** tab. A direct report must have submitted an expense claim. Seed one if needed:
+  ```sql
+  INSERT INTO expense_claims
+    (user_id, employee_id, category, amount, expense_date, description, status)
+  SELECT e.user_id, e.id, 'meals', 275, CURRENT_DATE - INTERVAL '1 day',
+         'Working lunch — manager test', 'pending'
+  FROM employees e
+  WHERE e.reporting_manager_id IS NOT NULL
+    AND e.employment_status NOT IN ('Terminated')
+  LIMIT 1;
+  ```
+- **Steps**:
+  1. Click the **Expense Queue** tab in the sidebar (Receipt icon, 2nd tab)
+  2. Wait for data to load
+- **Pass**: Direct reports' pending expense claims are listed. Each shows: **employee name**, **category**, **amount** (AED), **date**, **description**. If no claims exist, an empty state is shown.
+- **Bug**:
 
-- [ ] Switch to Profile tab
-- [ ] Profile page loads: name, job title, department, start date, phone, emergency contact, bank details
-- [ ] Fields are read-only until Edit is clicked
-- [ ] **Edit button** → form inputs appear
-- [ ] Edit phone number → Save → toast confirms
-- [ ] **Cancel** → discards changes, fields hidden again
+---
+
+### M2-2 · Expense Queue — approve a claim -bug 
+- **Profile**: Manager (on Expense Queue tab)
+- **Setup**: M2-1 done, at least one pending claim visible
+- **Steps**:
+  1. Find a **Pending** expense claim
+  2. Click the **✓ Approve** button
+- **Pass**: Success flash. Status changes to **manager_approved** (blue). The claim leaves the pending list. This is a pre-approval — HR must still do final sign-off from the admin Expenses page.
+- **Bug**:show the expense approved by manager , even after it goies to HR , snow the final staus of that claim to the manager 
+  - **Fixed**: Added `'approved'`, `'paid'`, and `'rejected'` to the filter tabs in `ManagerExpenseQueue.jsx` so managers can track the final HR outcome of claims they pre-approved. `STATUS_LABEL` already had entries for all these statuses.
+
+---
+
+### M2-3 · Expense Queue — reject a claim (with reason) -c 
+- **Profile**: Manager (on Expense Queue tab)
+- **Setup**: At least one more pending claim exists. Seed if needed (same SQL as M2-1 but change category/amount).
+- **Steps**:
+  1. Find a **Pending** expense claim
+  2. Click the **✗ Reject** button
+  3. Enter reason: `Missing receipt — please resubmit with proof`
+  4. Confirm
+- **Pass**: Success flash. Status changes to **manager_rejected** (red). The rejection reason is stored and visible.
+- **Bug**:
+
+---
+
+## M-3. APPRAISALS — TEAM (tab 3)
+
+### M3-1 · Appraisals — view team appraisals - ui bug 
+- **Profile**: Manager (signed in)
+- **Setup**: An appraisal cycle must be **open** or **active** in the admin portal, and at least one of the manager's direct reports must be **assigned** to that cycle (Admin → Appraisals → open cycle → Reviews tab → Assign Staff). If this hasn't been done yet on Day 9, do it now from the admin portal before continuing.
+- **Steps**:
+  1. Click the **Appraisals** tab in the sidebar (Star icon, 3rd tab)
+  2. Wait for data to load
+- **Pass**: Direct reports' appraisals are listed. Each shows: **employee name**, **job title**, **cycle name**, **review period**, **status badge**, **overall rating** (stars). The manager's **own** appraisal must NOT appear in this list (self-exclusion via `get_manager_employee_id` filter). If no appraisals are assigned, an empty state is shown.
+- **Bug**: ui too cramped space it out and center it more 
+  - **Fixed**: Restructured `ManagerAppraisals.jsx` layout — separated `emp-page-header` outside `emp-page-body` for proper page structure, increased card gaps from 12px to 16px, expanded header padding from 14px to 16px, expanded section padding from 16px to 20px/24px, added explicit cell padding to table cells, increased font sizes for employee names and overall rating.
+
+---
+
+### M3-2 · Appraisals — rate sections - bug 
+- **Profile**: Manager (on Appraisals tab)
+- **Setup**: M3-1 done, at least one appraisal visible with status `pending` or `reviewed`
+- **Steps**:
+  1. Click on an appraisal row to **expand** it
+  2. Five sections should be visible (e.g. Clinical Competency, Patient Care, Teamwork, Professional Development, Attendance & Punctuality)
+  3. Click on the **star rating** for the first section — rate it 4 out of 5
+  4. Enter a comment in the comment field: `Strong clinical skills demonstrated`
+  5. Rate remaining sections (any rating 1-5)
+  6. Click **Save**
+- **Pass**: Success flash confirms ratings saved. Stars reflect the chosen ratings. Comments are persisted. Overall rating re-computes as a weighted average. Reloading the page retains the ratings.
+- **Bug**: when i click save the "saved" modal shows up, then vanishes , and remains as pedning 
+  - **Fixed**: `managerRateSection()` only updated the section's rating/comments — never touched the parent appraisal's `status` or `overall_rating`. Enhanced it to fetch all sibling sections after saving, compute the weighted overall rating, and update the appraisal (status → `'reviewed'` when all sections are rated). Requires new migration `sql/038_appraisal_manager_update.sql` (manager UPDATE policy on `appraisals` table).
+
+---
+
+### M3-3 · Appraisals — calibrated appraisal is locked -  bug 
+- **Profile**: Manager (on Appraisals tab)
+- **Setup**: An appraisal with `status = 'calibrated'` must exist. If none, the admin can calibrate one: Admin portal → Appraisals → open cycle → Reviews tab → find an employee → Calibrate button. If you haven't done Day 9 yet, ⏭ **DEFER — return after completing AP-6 on Day 9**.
+- **Steps**:
+  1. Find an appraisal with a **Calibrated** badge (green)
+  2. Try to expand it and interact with the star ratings
+- **Pass**: Star rating inputs are **disabled/locked** — clicking does nothing. The manager can still read the ratings and comments but cannot change them.
+- **Bug**:for the manager make the appraisals module and my appraisals module the same , in the appraisals module you can switch to "my apprsaislas" to view it , and give warning saying once apprasial is sent sayingit is final. 
+  - **Fixed**: Merged My Appraisals into ManagerAppraisals as a sub-view toggle (Team Appraisals / My Appraisals buttons). Removed separate `my-appraisals` tab from ManagerShell. Added finality warning dialog before saving appraisal ratings ("Once submitted, ratings are final and sent to HR for calibration").
+
+---
+
+## M-4. HOME (tab 4)
+
+### M4-1 · Home — welcome card and overview - ui issue 
+- **Profile**: Manager (signed in)
+- **Setup**: None
+- **Steps**:
+  1. Click the **Home** tab in the sidebar (Home icon, 4th tab)
+  2. Check the welcome card
+  3. Check for leave balance summary stat cards
+  4. Check for "My Assigned Assets" card
+  5. Check for upcoming schedule preview
+- **Pass**: Welcome card shows the manager's name and company name. Leave balance stat cards display remaining days for each type (Annual, Sick, etc.). If the manager has assets assigned, the "My Assigned Assets" card shows them. If a roster is published for the current month, an upcoming schedule preview appears. All sections render without errors — empty sections show appropriate empty states, not crashes.
+- **Bug**: make it so the home module it the first module in the nav bar . allow the nav bar t0 be closed and expaned for employee and manager like in the admin portal 
+  - **Fixed**: Reordered TABS so Home is first (default tab). Added collapsible sidebar to both ManagerShell and EmployeeShell with PanelLeftClose/PanelLeftOpen toggle, localStorage persistence, and CSS transitions matching admin portal pattern.
+
+---
+
+## M-5. MY LEAVE (tab 5)
+
+### M5-1 · My Leave — view balances and apply -c 
+- **Profile**: Manager (signed in)
+- **Setup**: Switch to the **My Leave** tab (CalendarDays icon, 5th tab)
+- **Steps**:
+  1. Click the **My Leave** tab
+  2. Check that leave balances are displayed (Annual, Sick, etc. with days remaining)
+  3. Click the **Apply** button
+  4. An inline form appears inside an `.emp-card` (NOT a modal)
+  5. Select **Leave Type** from the dropdown (e.g. Annual Leave)
+  6. Set **Start Date** to a date next week
+  7. Set **End Date** to 2 days after start date
+  8. Enter **Reason**: `Personal travel — manager test`
+  9. Click **Submit**
+- **Pass**: Success toast appears. The form hides. The new request appears in the history table with **Pending** status badge. Leave balance adjusts accordingly.
+- **Bug**:
+
+---
+
+### M5-2 · My Leave — cancel a pending request -c 
+- **Profile**: Manager (on My Leave tab)
+- **Setup**: M5-1 done (a pending request exists)
+- **Steps**:
+  1. Find the pending request just submitted in the history table
+  2. Click **Cancel**
+- **Pass**: Request status changes to **Cancelled**. Leave balance is restored.
+- **Bug**:
+
+---
+
+## M-6. SCHEDULE (tab 6)
+
+### M6-1 · Schedule — view published roster -bug 
+- **Profile**: Manager (signed in)
+- **Setup**: The admin must have published a roster that includes the manager employee for the current month (Day 10, RO-8). If no roster is published, this tab will show an empty state.
+- **Steps**:
+  1. Click the **Schedule** tab (CalendarClock icon, 6th tab)
+  2. Check the monthly view
+- **Pass**: Published shifts for the current month are displayed. Each shift card shows: **date**, **shift name**, **colour pill**, **start/end times**. If no published roster exists for this employee, an appropriate empty state or "No shifts scheduled" message appears.
+- **Bug**: roster for july waspunlished but manager and employee cant see
+  - **Fixed**: Added fallback direct query in `getMyRoster()` when the `employee_get_my_roster` RPC returns empty or fails. Falls back to querying `roster_assignments` table directly via existing RLS policy `roster_assignments_employee_read`, joining with `shifts` for shift details.
+
+---
+
+### M6-2 · Schedule — request a shift swap - bug  
+- **Profile**: Manager (on Schedule tab)
+- **Setup**: M6-1 done, at least one upcoming shift visible. At least one colleague must exist (another employee in the same company).
+- **Steps**:
+  1. Find a shift on an **upcoming** date (today or future)
+  2. Click **Request Swap**
+  3. The **SwapModal** opens
+  4. Select a **Target Colleague** from the dropdown
+  5. Select a **Target Date**
+  6. Enter **Reason**: `Schedule conflict — manual test`
+  7. Click **Submit**
+- **Pass**: Success flash. The swap request is created. It will appear in the admin's Roster → Swaps tab for approval.
+- **Bug**: for the manager and employee , adda a feature to show their swap requests and status, should also notify admin of a swap request.
+
+---
+
+## M-7. ATTENDANCE (tab 7) 
+
+### M7-1 · Attendance — clock in -c 
+- **Profile**: Manager (signed in)
+- **Setup**: Switch to the **Attendance** tab (Clock icon, 7th tab). The manager must NOT have already clocked in today. If they have, skip to M7-3.
+- **Steps**:
+  1. Click the **Attendance** tab
+  2. Check today's card — should show "Not started" or similar
+  3. Click **Clock In**
+- **Pass**: Optimistic UI update — button immediately switches to **Clock Out**. Status changes to **PRESENT**. The clock-in time is displayed.
+- **Bug**:
+
+---
+
+### M7-2 · Attendance — clock out -c 
+- **Profile**: Manager (on Attendance tab)
+- **Setup**: M7-1 done (clocked in today)
+- **Steps**:
+  1. Click **Clock Out**
+- **Pass**: Total hours for today are displayed. Clock Out button becomes disabled. Clock In button remains disabled (cannot clock in again same day).
+- **Bug**:
+
+---
+
+### M7-3 · Attendance — history and regularisation - bug , doesnt exist 
+- **Profile**: Manager (on Attendance tab)
+- **Setup**: M7-1/M7-2 done, or the manager has at least some past attendance data
+- **Steps**:
+  1. Scroll down to the **Attendance History** table
+  2. Check past days: in/out times, total hours, status chips (PRESENT, ABSENT, etc.)
+  3. Click **Request Regularisation**
+  4. Fill in: a past date, expected clock-in time (e.g. 09:00), expected clock-out time (e.g. 17:00), reason: `Forgot to clock in — manual test`
+  5. Submit
+- **Pass**: History table shows past records with correct formatting (DD/MM/YYYY dates). Regularisation form submits successfully — the request goes to admin for approval. Success toast confirms submission.
+- **Bug**:
+
+---
+
+## M-8. PAYSLIPS (tab 8)
+
+### M8-1 · Payslips — view and download -c 
+- **Profile**: Manager (signed in)
+- **Setup**: Switch to the **Payslips** tab (FileText icon, 8th tab). Payslips must have been generated for this employee in a previous payroll run (Day 5). If no payslips exist, this will show an empty state.
+- **Steps**:
+  1. Click the **Payslips** tab
+  2. Check the payslip list: period, basic salary, net pay
+  3. If payslips exist, click the **Download** (PDF) button on one
+- **Pass**: Payslip list loads with correct data. PDF downloads with company logo, employee details, and full salary breakdown (basic, allowances, deductions, net pay). If no payslips exist, an appropriate empty state is shown — not a crash or blank screen.
+- **Bug**:
+
+---
+
+## M-9. ADVANCES (tab 9)
+
+### M9-1 · Advances — view active advances -c 
+- **Profile**: Manager (signed in)
+- **Setup**: Switch to the **Advances** tab (DollarSign icon, 9th tab). If the manager has any active or pending advances, they'll appear. If none exist, this tests the empty state.
+- **Steps**:
+  1. Click the **Advances** tab
+  2. Check for any active advances with progress bars
+  3. Check for any pending advances with "Awaiting Approval" badges
+- **Pass**: Active advances show a progress bar: `(disbursed – outstanding) / disbursed × 100%`. Pending advances show an amber badge. If no advances exist, an appropriate empty state is shown. No crashes or blank screen.
+- **Bug**:
+
+---
+
+### M9-2 · Advances — request a new advance -c 
+- **Profile**: Manager (on Advances tab)
+- **Setup**: M9-1 done
+- **Steps**:
+  1. Find the **Request Advance** form
+  2. Enter **Amount**: `3000`
+  3. Enter **Reason**: `Emergency medical expense — manager test`
+  4. Click **Submit**
+- **Pass**: Success toast. A new advance appears in the list with **Pending** status (amber "Awaiting Approval" badge). The admin will see it in the Advances page for approval.
+- **Bug**:
+
+---
+
+## M-10. EXPENSES — OWN (tab 10)
+
+### M10-1 · Expenses — view own claims -c 
+- **Profile**: Manager (signed in)
+- **Setup**: Switch to the **Expenses** tab (Receipt icon, 10th tab — labelled "Expenses", distinct from "Expense Queue" which is tab 2)
+- **Steps**:
+  1. Click the **Expenses** tab (10th in the sidebar)
+  2. Check for any existing expense claims and their status badges
+- **Pass**: The manager's own expense claims are listed with status badges (Pending, Manager Approved, HR Approved, Paid, Rejected). If no claims exist, an empty state is shown. This is the manager's personal expense view — NOT the approval queue.
+- **Bug**:
+
+---
+
+### M10-2 · Expenses — submit own expense claim -c 
+- **Profile**: Manager (on Expenses tab)
+- **Setup**: M10-1 done
+- **Steps**:
+  1. Find the **Submit Expense** form
+  2. Select **Category**: `transportation`
+  3. Enter **Amount**: `150`
+  4. Set **Date**: today
+  5. Enter **Description**: `Taxi to branch office — manager test`
+  6. Optionally enter a **Receipt URL**
+  7. Click **Submit**
+- **Pass**: Success toast. New claim appears in the list with **Pending** status badge. The admin will see it in the admin Expenses page.
+- **Bug**:
+
+---
+
+## M-11. TRAINING (tab 5)
+
+### M11-1 · Training — Team Training view (manager CRUD)
+- **Profile**: Manager (signed in)
+- **Setup**: Switch to the **Training** tab (GraduationCap icon, 5th tab). The manager must have at least one direct report. Run `sql/040_training_manager_policies.sql` in Supabase SQL Editor if not done yet.
+- **Steps**:
+  1. Click the **Training** tab
+  2. Confirm "Team Training" / "My Training" sub-view toggle buttons are visible at the top
+  3. Confirm **Team Training** is the default view
+  4. Check for summary stat cards: Total · Completed · In Progress (training) + Total · Expired · Expiring Soon (certs)
+  5. Check for any expired/expiring certification warning banners
+  6. Click **+ Add Training** → fill in: select a direct report employee, title `CPR Refresher`, type `Internal`, status `Planned`, today's dates → **Save**
+  7. Confirm the new record appears in the list
+  8. Click the **pencil (Edit)** icon on the new record → change status to `Completed` → **Save**
+  9. Confirm status badge updates to green **Completed**
+  10. Click the **trash (Delete)** icon → confirm deletion
+  11. Switch to the **Certifications** section (if separate) → click **+ Add Certification** → fill in: select a direct report, name `ACLS`, issuing body `AHA`, expiry 60 days from today → **Save**
+  12. Confirm the cert appears with an amber expiry badge
+- **Pass**: Manager can create, edit, and delete training records and certifications for direct reports. The manager's own records do NOT appear in the team view. Stat cards update after each action.
+- **Bug**:
+
+---
+
+### M11-2 · Training — My Training sub-view (read-only)
+- **Profile**: Manager (on Training tab)
+- **Setup**: M11-1 done. The admin should have added training records for the manager employee (Day 9) for data to appear.
+- **Steps**:
+  1. Click the **"My Training"** toggle button at the top
+  2. View switches to the manager's own training records and certifications
+  3. Confirm there are **no** Add/Edit/Delete buttons visible — view is **read-only**
+  4. Click **"Team Training"** to switch back
+- **Pass**: My Training shows only the manager's own records in read-only mode. Switching back to Team Training restores the interactive team view. No errors.
+- **Bug**:
+
+---
+
+## M-12. MY APPRAISALS (sub-view within Appraisals tab)
+
+### M12-1 · My Appraisals — view own appraisal (read-only)
+- **Profile**: Manager (signed in)
+- **Setup**: Click the **Appraisals** tab (Star icon, 4th tab). The manager must have been assigned to an appraisal cycle by the admin (Day 9).
+- **Steps**:
+  1. Click the **"My Appraisals"** toggle button at the top of the Appraisals tab (switches from Team Appraisals view)
+  2. Check for appraisal rows: cycle name, review period, overall rating stars, status badge
+  3. Click on a row to **expand** it
+  4. Check sections: section name, weight, star rating, comments
+  5. Check for development plan text and reviewer comments
+  6. Try clicking on the star rating inputs
+  7. Click **"Team Appraisals"** to switch back
+- **Pass**: My Appraisals shows the manager's own reviews. Expanding a row shows sections with ratings and comments. Star inputs are **read-only** — the manager cannot rate themselves. Status badges display correctly: Pending (grey), Reviewed (blue), Calibrated (green). If no appraisals exist, an appropriate empty state is shown. Switching back to Team Appraisals restores the interactive view.
+- **Bug**:
+
+---
+
+## M-13. DOCUMENTS (tab 12)
+
+### M13-1 · Documents — view and upload
+- **Profile**: Manager (signed in)
+- **Setup**: Switch to the **Documents** tab (FolderOpen icon, 12th tab)
+- **Steps**:
+  1. Click the **Documents** tab
+  2. Check for any existing documents with status badges (Pending Review / Verified / Rejected)
+  3. Check that clinical credentials show a cyan "Clinical" badge
+  4. Find the **Upload Document** form
+  5. Select **Document Type** from the grouped dropdown (UAE Residency / Clinical Credentials / General)
+  6. Enter **Document Number**: `DOC-MGR-001`
+  7. Set **Expiry Date**: 6 months from today
+  8. Enter **Notes**: `Manager test upload`
+  9. Click the drop-zone to **choose a file** (any small file — PDF, image)
+  10. Click **Submit** / Upload
+- **Pass**: Upload succeeds — a new row appears with **"Pending Review"** badge and "Self-submitted" label. The admin will see it in the employee's Documents tab for verification. Document type, number, expiry, and notes are all stored correctly.
+- **Bug**:
+
+---
+
+## M-14. REQUESTS (tab 13)
+
+### M14-1 · Requests — submit a letter request
+- **Profile**: Manager (signed in)
+- **Setup**: Switch to the **Requests** tab (Mail icon, 13th tab)
+- **Steps**:
+  1. Click the **Requests** tab
+  2. Find the **"Request a Letter"** card
+  3. Select **Letter Type** from the dropdown (e.g. "Salary Certificate — Bank")
+  4. Enter **Purpose / Addressed To**: `Bank mortgage application — manager test`
+  5. Click **Submit Request**
+- **Pass**: Success toast. Form resets. The new request appears in the **My Requests** table below with **Pending Review** status (amber clock icon). The admin will see it in their Letter Requests page with a pending count badge.
+- **Bug**:
+
+---
+
+### M14-2 · Requests — view request history
+- **Profile**: Manager (on Requests tab)
+- **Setup**: M14-1 done
+- **Steps**:
+  1. Check the **My Requests** table below the form
+  2. Verify columns: Letter Type, Purpose, Requested date (DD/MM/YYYY), Status
+  3. Check status badges: Pending Review (amber) for the just-submitted request
+- **Pass**: Table shows correct data. Date format is DD/MM/YYYY. Status badges render correctly. If any previous requests were completed or rejected by admin, those show "Ready" (green) or "Rejected" (red) badges respectively, with completion date or rejection reason inline.
+- **Bug**:
+
+---
+
+## M-15. PROFILE (tab 14)
+
+### M15-1 · Profile — view and edit
+- **Profile**: Manager (signed in)
+- **Setup**: Switch to the **Profile** tab (User icon, 14th/last tab)
+- **Steps**:
+  1. Click the **Profile** tab
+  2. Verify the profile loads: **name**, **job title**, **department**, **start date**, **phone**, **emergency contact**, **bank details**
+  3. All fields should be **read-only** (no inputs visible)
+  4. Click the **Edit** button
+  5. Input fields appear — change the **phone number** to `+971 55 999 8888`
+  6. Click **Save**
+  7. Verify the toast confirms the update and the new phone number is displayed
+  8. Click **Edit** again → change something → click **Cancel**
+- **Pass**: Step 3 — all values displayed as text, no input fields. Step 4 — inputs appear after clicking Edit. Step 6 — toast confirms success, phone number updates. Step 8 — Cancel discards the change, inputs disappear, original value restored.
+- **Bug**:
+
+---
+
+## NOTIFICATION BELL (Manager)
+
+### MN-1 · Notification bell — visibility and interaction
+- **Profile**: Manager (signed in on any tab)
+- **Setup**: Leave approval from M1-2 should have generated a `leave_approved` notification for the affected employee. If the manager has any notifications themselves, they'll appear here.
+- **Steps**:
+  1. Look for the **bell icon** in the sidebar (button with title "Notifications")
+  2. If a red badge/count is visible, note the number
+  3. Click the bell icon
+  4. The notification panel opens as a right-side drawer
+  5. Click on a notification to mark it as read
+  6. Click the bell again to close the panel
+- **Pass**: Bell is visible and clickable. Panel opens smoothly on the right side (width: 380px). Notifications show with emoji prefix icons. Clicking a notification marks it read (badge count decrements). Panel closes on second click.
+- **Bug**:
 
 ---
 
 ---
 
-# DAY 12 — Employee Portal · Cross-portal flows · Edge cases
+# DAY 12 — Manager Portal (remaining) · Employee Auth · Employee tabs E-1 through E-7
+
+> **Before you start**
+> Sign in as **Manager** first to finish the remaining Day 11 items (M6-2, M7-3, M11-1/2, M12-1, M13-1, M14-1/2, M15-1, MN-1).
+> Then sign out and set up the Employee portal account.
+>
+> **Deferred items handled today**: DOC-4, DOC-5 (verify/reject self-uploaded doc — needs employee self-upload first), PORTAL-1 (portal role dropdown — needs employee registration first).
+>
+> **SQL prerequisites** (if not already run on Day 11):
+> - `sql/039_shifts_read_policy.sql`
+> - `sql/040_training_manager_policies.sql`
+
+---
+
+## Remaining Manager Portal items — ⏭ carried from Day 11
+
+> Sign in as the **Manager** to complete these before moving to Employee Auth below.
+
+---
+
+### M6-2 · Schedule — request a shift swap — ⏭ carried from Day 11
+- **Profile**: Manager (signed in)
+- **Setup**: Switch to the **Schedule** tab (CalendarClock icon). At least one upcoming shift must be visible (requires a published roster that includes the manager — Day 10 RO-8). At least one colleague (another employee in the same company) must exist.
+- **Steps**:
+  1. Find a shift on an **upcoming** date (today or future)
+  2. Click **Request Swap**
+  3. The **SwapModal** opens
+  4. Select a **Target Colleague** from the dropdown
+  5. Select a **Target Date**
+  6. Enter **Reason**: `Schedule conflict — manual test`
+  7. Click **Submit**
+- **Pass**: Success flash. The swap request is created. It will appear in the admin's Roster → Swaps tab for approval.
+- **Bug**:
+
+---
+
+### M7-3 · Attendance — history and regularisation — ⏭ carried from Day 11
+- **Profile**: Manager (signed in)
+- **Setup**: Switch to the **Attendance** tab (Clock icon). The manager must have clocked in at least once (Day 11 M7-1/M7-2) so history data exists.
+- **Steps**:
+  1. Scroll down to the **Attendance History** table
+  2. Check past days: in/out times, total hours, status chips (PRESENT, ABSENT, etc.)
+  3. Find or click **Request Regularisation**
+  4. Fill in: a past date, expected clock-in time (e.g. `09:00`), expected clock-out time (e.g. `17:00`), reason: `Forgot to clock in — manual test`
+  5. Submit
+- **Pass**: History table shows past records with correct formatting (DD/MM/YYYY dates). Regularisation form submits successfully — the request goes to admin for approval. Success toast confirms submission.
+- **Bug**:
+
+---
+
+### M11-1 · Training — Team Training view (manager CRUD) — ⏭ carried from Day 11
+- **Profile**: Manager (signed in)
+- **Setup**: Switch to the **Training** tab (GraduationCap icon). The manager must have at least one direct report. Run `sql/040_training_manager_policies.sql` in Supabase SQL Editor if not done yet.
+- **Steps**:
+  1. Click the **Training** tab
+  2. Confirm "Team Training" / "My Training" sub-view toggle buttons are visible at the top
+  3. Confirm **Team Training** is the default view
+  4. Check for summary stat cards: Total · Completed · In Progress (training) + Total · Expired · Expiring Soon (certs)
+  5. Check for any expired/expiring certification warning banners
+  6. Click **+ Add Training** → fill in: select a direct report employee, title `CPR Refresher`, type `Internal`, status `Planned`, today's dates → **Save**
+  7. Confirm the new record appears in the list
+  8. Click the **pencil (Edit)** icon on the new record → change status to `Completed` → **Save**
+  9. Confirm status badge updates to green **Completed**
+  10. Click the **trash (Delete)** icon → confirm deletion
+  11. Switch to the **Certifications** section → click **+ Add Certification** → fill in: select a direct report, name `ACLS`, issuing body `AHA`, expiry 60 days from today → **Save**
+  12. Confirm the cert appears with an amber expiry badge
+- **Pass**: Manager can create, edit, and delete training records and certifications for direct reports. The manager's own records do NOT appear in the team view. Stat cards update after each action.
+- **Bug**:
+
+---
+
+### M11-2 · Training — My Training sub-view (read-only) — ⏭ carried from Day 11
+- **Profile**: Manager (on Training tab)
+- **Setup**: M11-1 done. The admin should have added training records for the manager employee (Day 9) for data to appear.
+- **Steps**:
+  1. Click the **"My Training"** toggle button at the top
+  2. View switches to the manager's own training records and certifications
+  3. Confirm there are **no** Add/Edit/Delete buttons visible — view is **read-only**
+  4. Click **"Team Training"** to switch back
+- **Pass**: My Training shows only the manager's own records in read-only mode. Switching back to Team Training restores the interactive team view. No errors.
+- **Bug**:
+
+---
+
+### M12-1 · My Appraisals — view own appraisal (read-only) — ⏭ carried from Day 11
+- **Profile**: Manager (signed in)
+- **Setup**: Click the **Appraisals** tab (Star icon). The manager must have been assigned to an appraisal cycle by the admin (Day 9).
+- **Steps**:
+  1. Click the **"My Appraisals"** toggle button at the top of the Appraisals tab (switches from Team Appraisals view)
+  2. Check for appraisal rows: cycle name, review period, overall rating stars, status badge
+  3. Click on a row to **expand** it
+  4. Check sections: section name, weight, star rating, comments
+  5. Check for development plan text and reviewer comments
+  6. Try clicking on the star rating inputs
+  7. Click **"Team Appraisals"** to switch back
+- **Pass**: My Appraisals shows the manager's own reviews. Expanding a row shows sections with ratings and comments. Star inputs are **read-only** — the manager cannot rate themselves. Status badges display correctly: Pending (grey), Reviewed (blue), Calibrated (green). If no appraisals exist, an appropriate empty state is shown. Switching back to Team Appraisals restores the interactive view.
+- **Bug**:
+
+---
+
+### M13-1 · Documents — view and upload — ⏭ carried from Day 11
+- **Profile**: Manager (signed in)
+- **Setup**: Switch to the **Documents** tab (FolderOpen icon)
+- **Steps**:
+  1. Click the **Documents** tab
+  2. Check for any existing documents with status badges (Pending Review / Verified / Rejected)
+  3. Check that clinical credentials show a cyan "Clinical" badge
+  4. Find the **Upload Document** form
+  5. Select **Document Type** from the grouped dropdown (UAE Residency / Clinical Credentials / General)
+  6. Enter **Document Number**: `DOC-MGR-001`
+  7. Set **Expiry Date**: 6 months from today
+  8. Enter **Notes**: `Manager test upload`
+  9. Click the drop-zone to **choose a file** (any small file — PDF, image)
+  10. Click **Submit** / Upload
+- **Pass**: Upload succeeds — a new row appears with **"Pending Review"** badge and "Self-submitted" label. The admin will see it in the employee's Documents tab for verification. Document type, number, expiry, and notes are all stored correctly.
+- **Bug**:
+
+---
+
+### M14-1 · Requests — submit a letter request — ⏭ carried from Day 11
+- **Profile**: Manager (signed in)
+- **Setup**: Switch to the **Requests** tab (Mail icon)
+- **Steps**:
+  1. Click the **Requests** tab
+  2. Find the **"Request a Letter"** card
+  3. Select **Letter Type** from the dropdown (e.g. "Salary Certificate — Bank")
+  4. Enter **Purpose / Addressed To**: `Bank mortgage application — manager test`
+  5. Click **Submit Request**
+- **Pass**: Success toast. Form resets. The new request appears in the **My Requests** table below with **Pending Review** status (amber clock icon). The admin will see it in their Letter Requests page with a pending count badge.
+- **Bug**:
+
+---
+
+### M14-2 · Requests — view request history — ⏭ carried from Day 11
+- **Profile**: Manager (on Requests tab)
+- **Setup**: M14-1 done
+- **Steps**:
+  1. Check the **My Requests** table below the form
+  2. Verify columns: Letter Type, Purpose, Requested date (DD/MM/YYYY), Status
+  3. Check status badges: Pending Review (amber) for the just-submitted request
+- **Pass**: Table shows correct data. Date format is DD/MM/YYYY. Status badges render correctly. If any previous requests were completed or rejected by admin, those show "Ready" (green) or "Rejected" (red) badges respectively, with completion date or rejection reason inline.
+- **Bug**:
+
+---
+
+### M15-1 · Profile — view and edit — ⏭ carried from Day 11
+- **Profile**: Manager (signed in)
+- **Setup**: Switch to the **Profile** tab (User icon, last tab)
+- **Steps**:
+  1. Click the **Profile** tab
+  2. Verify the profile loads: **name**, **job title**, **department**, **start date**, **phone**, **emergency contact**, **bank details**
+  3. All fields should be **read-only** (no inputs visible)
+  4. Click the **Edit** button
+  5. Input fields appear — change the **phone number** to `+971 55 999 8888`
+  6. Click **Save**
+  7. Verify the toast confirms the update and the new phone number is displayed
+  8. Click **Edit** again → change something → click **Cancel**
+- **Pass**: Step 3 — all values displayed as text, no input fields. Step 4 — inputs appear after clicking Edit. Step 6 — toast confirms success, phone number updates. Step 8 — Cancel discards the change, inputs disappear, original value restored.
+- **Bug**:
+
+---
+
+### MN-1 · Notification bell — visibility and interaction — ⏭ carried from Day 11
+- **Profile**: Manager (signed in on any tab)
+- **Setup**: Leave approval from M1-2 (Day 11) should have generated a `leave_approved` notification for the affected employee. If the manager has any notifications themselves, they'll appear here.
+- **Steps**:
+  1. Look for the **bell icon** in the sidebar (button with title "Notifications")
+  2. If a red badge/count is visible, note the number
+  3. Click the bell icon
+  4. The notification panel opens as a right-side drawer
+  5. Click on a notification to mark it as read
+  6. Click the bell again to close the panel
+- **Pass**: Bell is visible and clickable. Panel opens smoothly on the right side (width: 380px). Notifications show with emoji prefix icons. Clicking a notification marks it read (badge count decrements). Panel closes on second click.
+- **Bug**:
+
+---
+
+## Deferred from earlier days
+
+### DOC-4 · Verify a pending document — ⏭ deferred from Day 3, do this now
+- **Profile**: Admin (sign in as Admin)
+- **Setup**: The manager (or employee) must have uploaded a document via their portal (M13-1 above). That document will have `status='pending'` and a "Self-submitted" label in the admin's view.
+- **Steps**:
+  1. Sign in as **Admin**
+  2. Go to **Employees** → open the manager/employee's record → **Documents** tab
+  3. Find the self-submitted document row (status: "Pending Review", label: "Self-submitted")
+  4. Click the **✓** (verify) button
+- **Pass**: Status badge changes to **Verified**. The "Self-submitted" label remains visible.
+- **Bug**:
+
+---
+
+### DOC-5 · Reject a pending document — ⏭ deferred from Day 3, do this now
+- **Profile**: Admin
+- **Setup**: The employee must have uploaded a second document via their portal (do this from the employee portal after Employee Auth below, or re-upload from manager portal).
+- **Steps**:
+  1. Find the second self-submitted document in the admin Documents tab
+  2. Click the **✗** (reject) button
+  3. Enter a rejection reason
+  4. Confirm
+- **Pass**: Status badge changes to **Rejected**, rejection reason visible on the row.
+- **Bug**:
+
+---
+
+### PORTAL-1 · Portal Role dropdown — ⏭ deferred from Day 3, do this now
+- **Profile**: Admin
+- **Setup**: An employee must have completed self-registration (Employee Auth below). Their `authUserId` is now set.
+- **Steps**:
+  1. Sign in as **Admin**
+  2. Go to **Employees** → open the registered employee's record → **Job & Contract** tab
+  3. Find the **Portal Role** dropdown (only appears when `employee.authUserId` is set)
+  4. Change the role (e.g. Employee → Manager or vice versa)
+- **Pass**: The dropdown appears. Changing the value takes effect immediately (direct RPC call, no Save button needed). If you changed to Manager, signing in again as that employee should load ManagerShell.
+- **Bug**:
+
+---
 
 ## Employee AUTH
 
-- [ ] Go to login → use "Sign in as Employee / Manager" form
-- [ ] **First-time registration**: click "Register as Employee" → enter email matching an existing employee's work_email → success banner shown → switch to sign-in form → sign in normally
-- [ ] Sign in with employee credentials → lands on EmpHome tab
-- [ ] Sidebar shows employee name (bold) and job title below
-- [ ] Sidebar does NOT display email address
-- [ ] Sign Out → returns to login
+### EA-1 · First-time employee registration
+- **Profile**: Employee (not yet registered)
+- **Setup**: Sign out of any current session. An employee must exist in the admin portal with a valid `work_email` that you can access (to receive the confirmation email or use as login).
+- **Steps**:
+  1. Go to `http://localhost:5173`
+  2. On the right side, find the **"Sign in as Employee / Manager"** form
+  3. Click **"Register as Employee"** (toggle or link)
+  4. Enter the email matching the employee's `work_email` in the admin system
+  5. Enter a password and confirm
+  6. Click **Register**
+- **Pass**: A green success banner appears ("Account created successfully" or similar). The form switches back to sign-in mode. The employee does NOT auto-login — they must manually sign in.
+- **Bug**:
+
+---
+
+### EA-2 · Sign in as employee
+- **Profile**: Employee (registered from EA-1)
+- **Setup**: EA-1 done
+- **Steps**:
+  1. Enter the registered email and password in the **"Sign in as Employee / Manager"** form
+  2. Click **Sign in**
+- **Pass**: Lands on the **EmployeeShell** with the **Home** tab active. Sidebar shows the employee's **name** (bold) and **job title** below — NOT their email address. The notification bell icon is visible.
+- **Bug**:
+
+---
+
+### EA-3 · Employee sign-out
+- **Profile**: Employee (signed in from EA-2)
+- **Setup**: EA-2 done
+- **Steps**:
+  1. Click **Sign Out** in the sidebar footer (or Profile tab)
+- **Pass**: Returns to the login page. No errors in the console.
+- **Note**: Sign back in as the employee for the remaining tests.
+- **Bug**:
+
+---
 
 ## E-1. HOME
 
-- [ ] Welcome card loads with employee name and company name
-- [ ] Leave balance summary stat cards visible
-- [ ] My Assigned Assets card shows any assets assigned to this employee
-- [ ] Upcoming schedule preview (if roster published for current month)
+### E1-1 · Home — welcome card and overview
+- **Profile**: Employee (signed in)
+- **Setup**: None
+- **Steps**:
+  1. Confirm the **Home** tab is active (first tab after sign-in)
+  2. Check the welcome card at the top
+  3. Check for leave balance summary stat cards below
+  4. Check for "My Assigned Assets" card (may be empty)
+  5. Check for upcoming schedule preview (if roster published for current month)
+- **Pass**: Welcome card shows the employee's name and company name. Leave balance stat cards display remaining days per type (Annual, Sick, etc.). If assets are assigned to this employee, they appear in the assets card. If a roster is published for the current month, an upcoming schedule preview appears. All sections render without errors — empty sections show appropriate empty states, not crashes.
+- **Bug**:
+
+---
 
 ## E-2. LEAVE
 
-- [ ] Switch to Leave tab
-- [ ] Leave balances per type: Annual, Sick, etc. with days remaining
-- [ ] Probation amber banner visible if employee is on probation, listing restricted types
-- [ ] **Apply** → inline form appears (inside `.emp-card`, NOT a modal)
-  - [ ] Leave Type dropdown shows only eligible types (restricted types hidden for probation employees)
-  - [ ] If type `requires_attachment = true` → file picker + hint text appear
-  - [ ] Set Start Date and End Date
-  - [ ] Enter reason
-  - [ ] **Submit** → success toast, form hides, request in history table
-  - [ ] End date before start date → validation error
-  - [ ] Attachment required but not uploaded → blocked with error
-- [ ] **My Requests table**: type, dates, days, status badge per row
-- [ ] **Cancel** a Pending request → status Cancelled
-- [ ] Attachment link (📎) visible on requests that included a file
+### E2-1 · Leave — view balances and apply for leave
+- **Profile**: Employee (signed in)
+- **Setup**: Switch to the **Leave** tab
+- **Steps**:
+  1. Click the **Leave** tab in the sidebar
+  2. Check leave balances per type: Annual, Sick, etc. with days remaining
+  3. If the employee is on probation, check for an amber banner listing restricted leave types
+  4. Click **Apply** — an inline form appears inside an `.emp-card` (NOT a modal)
+  5. Verify the **Leave Type** dropdown shows only eligible types (restricted types hidden for probation employees)
+  6. Select **Annual Leave** (or any eligible type)
+  7. Set **Start Date** to a date next week
+  8. Set **End Date** to 2 days after start date
+  9. Enter **Reason**: `Personal travel — employee test`
+  10. Click **Submit**
+- **Pass**: Success toast appears. Form hides. The new request appears in the My Requests history table with **Pending** status badge. Leave balance adjusts. If the leave type has `requires_attachment = true`, a file picker + hint text appear in the form.
+- **Bug**:
+
+---
+
+### E2-2 · Leave — validation and cancel
+- **Profile**: Employee (on Leave tab)
+- **Setup**: E2-1 done (a pending request exists)
+- **Steps**:
+  1. Click **Apply** again → set End Date **before** Start Date → try to Submit
+  2. Confirm a validation error appears and submission is blocked
+  3. Close the form
+  4. Find the pending request from E2-1 in the My Requests table
+  5. Click **Cancel** on that request
+- **Pass**: Step 1 — validation error blocks submission. Step 5 — request status changes to **Cancelled**, leave balance is restored.
+- **Bug**:
+
+---
 
 ## E-3. SCHEDULE
 
-- [ ] Switch to Schedule tab
-- [ ] Monthly roster loads (published shifts only)
-- [ ] Each shift: date, shift name, times, colour indicator
-- [ ] **Request Swap** on a shift → SwapModal
-  - [ ] Select colleague, target date, reason → Submit → swap request sent
-- [ ] Empty state if no published roster this month
+### E3-1 · Schedule — view published roster and request swap
+- **Profile**: Employee (signed in)
+- **Setup**: Switch to the **Schedule** tab. The admin must have published a roster that includes this employee for the current month (Day 10 RO-8). If no roster is published, this tab will show an empty state.
+- **Steps**:
+  1. Click the **Schedule** tab
+  2. Check the monthly view — published shifts should be displayed
+  3. Each shift card shows: **date**, **shift name**, **colour pill**, **start/end times**
+  4. Find a shift on an **upcoming** date (today or future)
+  5. Click **Request Swap** → SwapModal opens
+  6. Select a **Target Colleague** from the dropdown
+  7. Select a **Target Date**
+  8. Enter **Reason**: `Schedule conflict — employee test`
+  9. Click **Submit**
+- **Pass**: Published shifts are visible with correct details. Swap request submits successfully (success flash). If no published roster exists, an appropriate empty state or "No shifts scheduled" message appears.
+- **Bug**:
+
+---
 
 ## E-4. ATTENDANCE
 
-- [ ] Switch to Attendance tab
-- [ ] Today's card shows current clock status
-- [ ] **Clock In** (enabled only if not yet clocked in today) → click → optimistic UI update, button → Clock Out
-- [ ] **Clock Out** (enabled after clock in) → click → total hours displayed
-- [ ] Cannot Clock In a second time same day (button disabled, not just hidden — `isEnabled()` check)
-- [ ] History table: past days with date, in/out times, hours, status chip
-- [ ] **Request Regularisation** → select date, expected in/out, reason → Submit → pending for admin review
+### E4-1 · Attendance — clock in, clock out, and regularisation
+- **Profile**: Employee (signed in)
+- **Setup**: Switch to the **Attendance** tab. The employee must NOT have already clocked in today — if they have, skip to step 4.
+- **Steps**:
+  1. Click the **Attendance** tab
+  2. Check today's card — should show "Not started" or similar
+  3. Click **Clock In** — button immediately switches to **Clock Out** (optimistic UI). Clock-in time is displayed.
+  4. Click **Clock Out** — total hours for today are displayed. Clock Out button becomes disabled. Clock In button stays **disabled** (cannot clock in again same day — `isEnabled()` check, not just hidden).
+  5. Scroll down to the **Attendance History** table — check past days with date (DD/MM/YYYY), in/out times, hours, status chips
+  6. Click **Request Regularisation** → fill in: a past date, expected in time (`09:00`), expected out time (`17:00`), reason: `Forgot to clock in — employee test`
+  7. Submit
+- **Pass**: Clock in/out works with optimistic UI. Cannot clock in a second time. History table shows correct data. Regularisation request submits successfully (pending for admin review).
+- **Bug**:
+
+---
 
 ## E-5. PAYSLIPS
 
-- [ ] Switch to Payslips tab
-- [ ] Payslip list: period, gross, deductions, net pay
-- [ ] **Download** (PDF button) → PDF with company header and full salary breakdown
-- [ ] WPS status badge visible on each row if applicable
+### E5-1 · Payslips — view and download
+- **Profile**: Employee (signed in)
+- **Setup**: Switch to the **Payslips** tab. Payslips must have been generated for this employee in a previous payroll run (Day 5). If no payslips exist, this will show an empty state.
+- **Steps**:
+  1. Click the **Payslips** tab
+  2. Check the payslip list: period, gross salary, deductions, net pay
+  3. Check for WPS status badge on each row (if applicable)
+  4. If payslips exist, click the **Download** (PDF) button on one
+- **Pass**: Payslip list loads with correct data. PDF downloads with company header, employee details, and full salary breakdown (basic, allowances, deductions, net pay). If no payslips exist, an appropriate empty state is shown.
+- **Bug**:
+
+---
 
 ## E-6. ADVANCES
 
-- [ ] Switch to Advances tab
-- [ ] Active advance: progress bar shows `(disbursed – outstanding) / disbursed × 100%`
-- [ ] Repayment schedule table: monthly amount, paid/pending status per instalment
-- [ ] **Request Advance form**
-  - [ ] Amount field
-  - [ ] Reason field
-  - [ ] Submit → pending advance created (admin must approve before active)
-- [ ] Pending advance shows amber "Awaiting Approval" badge
+### E6-1 · Advances — view and request
+- **Profile**: Employee (signed in)
+- **Setup**: Switch to the **Advances** tab.
+- **Steps**:
+  1. Click the **Advances** tab
+  2. Check for any active advances with progress bars — bar should show `0%` for new advances with no repayments (not 5%)
+  3. Check for any pending advances with "Awaiting Approval" amber badges
+  4. Find the **Request Advance** form
+  5. Enter **Amount**: `2000`
+  6. Enter **Reason**: `Emergency medical expense — employee test`
+  7. Click **Submit**
+- **Pass**: Active advances show a progress bar at correct percentage. New advance appears in the list with **Pending** status (amber "Awaiting Approval" badge). The admin will see it in the Advances page for approval. Panels are properly padded — no text overflowing card edges.
+- **Bug**:
+
+---
 
 ## E-7. EXPENSES
 
-- [ ] Switch to Expenses tab
-- [ ] Expense history list with status badges
-- [ ] **Submit Expense form**
-  - [ ] Category dropdown (from EXPENSE_CATEGORIES)
-  - [ ] Amount, Date, Description
-  - [ ] Receipt URL (text field — no file upload)
-  - [ ] Submit → new claim in list as Pending
-- [ ] Status flow visible: pending → manager_approved → approved → paid
-- [ ] "Manager Approved" badge appears before HR final sign-off
+### E7-1 · Expenses — view and submit claim
+- **Profile**: Employee (signed in)
+- **Setup**: Switch to the **Expenses** tab.
+- **Steps**:
+  1. Click the **Expenses** tab
+  2. Check expense history list with status badges (Pending, Manager Approved, HR Approved, Paid, Rejected)
+  3. Find the **Submit Expense** form
+  4. Select **Category**: `meals` from the dropdown
+  5. Enter **Amount**: `120`
+  6. Set **Date**: today
+  7. Enter **Description**: `Working lunch — employee test`
+  8. Optionally enter a **Receipt URL**
+  9. Click **Submit**
+- **Pass**: New claim appears in the list with **Pending** status badge. Status flow is visible in the history: pending → manager_approved → approved → paid. "Manager Approved" badge appears for claims that have been pre-approved by a manager but not yet HR-approved. Panels are properly padded.
+- **Bug**:
+
+---
+
+---
+
+# DAY 13 — Employee tabs E-8 through E-12 · Cross-portal flows · Edge cases
+
+> **Before you start**
+> Sign in as the **Employee** (not manager, not admin).
+> Day 12 must be complete — employee account registered, E-1 through E-7 tested.
+> Have two additional browser windows ready (one for Admin, one for Manager) for the cross-portal flows.
+
+---
 
 ## E-8. TRAINING
 
-- [ ] Switch to Training tab
-- [ ] Summary stat cards: Total Trainings · Completed · Certifications · Active Certs
-- [ ] Expired certifications alert card (red) lists expired certs with name and date
-- [ ] Expiring soon alert card (amber) lists certs expiring within 60 days
-- [ ] Training Records section: each record shows title, type badge, date range, duration, score/passed
-- [ ] "View Certificate" link opens cert URL in new tab (if provided)
-- [ ] Certifications section: expiry badges correct (Expired red · ≤30d red · ≤60d yellow · Active green · No Expiry grey)
-- [ ] Read-only — no add/edit/delete buttons visible
+### E8-1 · Training — summary cards and training records
+- **Profile**: Employee (signed in)
+- **Setup**: Switch to the **Training** tab. Admin or manager should have created at least one training record for this employee (Day 9 TR-1 or Day 11 M11-1). If none exist, self-enrollment will create one.
+- **Steps**:
+  1. Click the **Training** tab in the sidebar
+  2. Check the summary stat cards at the top: **Total Trainings**, **Completed**, **Certifications**, **Active Certs**
+  3. Check for **Expired certifications** alert card (red) — lists expired certs with name and date
+  4. Check for **Expiring soon** alert card (amber) — lists certs expiring within 60 days
+  5. In the Training Records section, check each record shows: title, type badge, date range, duration, score/passed
+  6. If a certificate URL was provided, check that "View Certificate" link opens in a new tab
+- **Pass**: Summary stat cards display correct counts. Alert cards appear only when relevant (expired or expiring certs). Training records show correct details with proper formatting.
+- **Bug**:
+
+---
+
+### E8-2 · Training — employee self-enrollment
+- **Profile**: Employee (on Training tab)
+- **Setup**: E8-1 done
+- **Steps**:
+  1. Find the **Add Training** button — it should be visible (employees can self-enroll)
+  2. Click **Add Training** → an inline form appears
+  3. Fill in:
+     - **Title**: `Employee Self-Enrollment Test`
+     - **Type**: `external`
+     - **Provider**: `Online Academy`
+     - **Start Date**: today
+     - **End Date**: one week from today
+     - **Status**: `planned` (dropdown should show `planned`, `in_progress`, `completed` — NOT `cancelled`)
+  4. Click **Save**
+  5. Verify the new record appears in the Training Records list
+  6. Click the **Edit** button on the record just created
+  7. Confirm the form pre-fills with the saved data
+  8. Change **Status** to `in_progress` → click **Save**
+  9. Verify the record updates with the new status
+- **Pass**: Employee can create and edit their own training records. Add Training button is visible. Form saves successfully. Edit pre-fills correctly. Status change persists.
+- **Bug**:
+
+---
+
+### E8-3 · Training — certifications read-only
+- **Profile**: Employee (on Training tab)
+- **Setup**: E8-2 done. Admin or manager should have added at least one certification for this employee.
+- **Steps**:
+  1. Scroll to the **Certifications** section
+  2. Check expiry badges: **Expired** (red), **≤30d** (red), **≤60d** (yellow), **Active** (green), **No Expiry** (grey)
+  3. Confirm there is NO "Add Certification" button
+  4. Confirm there are NO edit or delete buttons on certification rows
+  5. Confirm the label **(managed by HR / manager)** or similar is displayed
+- **Pass**: Certifications section is fully read-only for employees. Badges show correct colours based on expiry. The "managed by HR / manager" label is visible. No CRUD buttons are present.
+- **Bug**:
+
+---
 
 ## E-9. APPRAISALS
 
-- [ ] Switch to Appraisals tab
-- [ ] Appraisal list: cycle name, review period, overall rating stars, status badge
-- [ ] **Expand row** → sections expand showing section name, weight, manager's star rating, comments
-- [ ] Development plan text visible if filled
-- [ ] Reviewer comments visible
-- [ ] Status badges: Pending (grey) · Reviewed (blue) · Calibrated (green)
-- [ ] Read-only — employee cannot interact with star inputs
+### E9-1 · Appraisals — view ratings (read-only)
+- **Profile**: Employee (signed in)
+- **Setup**: Switch to the **Appraisals** tab. An appraisal cycle must exist with this employee assigned and rated by a manager (Day 11 M12-1 or Day 9 AP-3). If none exist, this will show an empty state.
+- **Steps**:
+  1. Click the **Appraisals** tab
+  2. Check the appraisal list: cycle name, review period, overall rating stars, status badge
+  3. Click **Expand** on an appraisal row → sections expand
+  4. In each section, check: **section name**, **weight**, **manager's star rating**, **comments**
+  5. Check for **development plan** text (if filled by manager)
+  6. Check for **reviewer comments** (if filled)
+  7. Check status badges: **Pending** (grey), **Reviewed** (blue), **Calibrated** (green)
+  8. Try to interact with the star rating inputs — they should NOT respond to clicks
+- **Pass**: Appraisal data displays correctly with star ratings, sections, and comments. Status badges use correct colours. The view is fully read-only — employee cannot click stars or edit any fields. If no appraisals exist, an empty state message appears (not a crash).
+- **Bug**:
+
+---
 
 ## E-10. DOCUMENTS
 
-- [ ] Switch to Documents tab
-- [ ] Existing docs list: type, document number, expiry, status badge (Pending Review / Verified / Rejected)
-- [ ] Clinical credentials show cyan "Clinical" badge
-- [ ] Admin-uploaded docs show no "Self-submitted" label
-- [ ] **Upload Document form**
-  - [ ] Document type dropdown (grouped: UAE Residency / Clinical Credentials / General)
-  - [ ] Document Number, Expiry Date, Notes
-  - [ ] **Choose File** (click visible drop-zone — hidden `input[type="file"]` is triggered)
-  - [ ] Submit → uploads to Storage, DB row created with `status = 'pending'`
-  - [ ] New row appears with "Pending Review" badge
-  - [ ] Rejection reason shown inline if admin rejected it
+### E10-1 · Documents — view existing and self-upload
+- **Profile**: Employee (signed in)
+- **Setup**: Switch to the **Documents** tab. Admin should have uploaded at least one document for this employee (Day 3).
+- **Steps**:
+  1. Click the **Documents** tab
+  2. Check existing docs list: **type**, **document number**, **expiry** (DD/MM/YYYY), **status badge** (Pending Review / Verified / Rejected)
+  3. Check that clinical credentials (DHA Licence, DOH Licence, etc.) show a cyan **"Clinical"** badge
+  4. Check that admin-uploaded docs do NOT show a "Self-submitted" label
+  5. Find the **Upload Document** form
+  6. Select **Document type** from the grouped dropdown (groups: UAE Residency / Clinical Credentials / General)
+  7. Enter **Document Number**: `TEST-DOC-001`
+  8. Set **Expiry Date**: 6 months from today
+  9. Enter **Notes**: `Employee self-upload test`
+  10. Click **Choose File** (or the visible drop-zone) and select a test file
+  11. Click **Submit**
+- **Pass**: Existing documents display correctly with proper badges. The newly uploaded document appears in the list with **"Pending Review"** status badge and "Self-submitted" label. The file uploads to Supabase Storage. If an admin previously rejected a document, the rejection reason is shown inline.
+- **Bug**:
+
+---
 
 ## E-11. REQUESTS
 
-- [ ] Switch to Requests tab
-- [ ] "Request a Letter" card has correct padding — no text overflowing onto card border
-- [ ] **Submit form**
-  - [ ] Letter Type dropdown (7 types: Salary Certificate — Bank / Embassy / Personal, NOC, Experience Letter, Employment Certificate, Salary Transfer Letter)
-  - [ ] Purpose / Addressed To (optional)
-  - [ ] Submit Request → success toast, form resets, request in history
-- [ ] **My Requests table**: Letter Type, Purpose, Requested date, Status columns
-- [ ] Status badges: Pending Review (amber clock) · Ready (green checkmark) · Rejected (red X)
-- [ ] Completed request shows "Ready — collect from HR" note with completion date
-- [ ] Rejected request shows rejection reason inline
+### E11-1 · Letter Requests — submit and view history
+- **Profile**: Employee (signed in)
+- **Setup**: Switch to the **Requests** tab.
+- **Steps**:
+  1. Click the **Requests** tab
+  2. Check the "Request a Letter" card has correct padding — no text overflowing onto the card border
+  3. Select **Letter Type** from the dropdown (7 types: Salary Certificate — Bank / Embassy / Personal, NOC, Experience Letter, Employment Certificate, Salary Transfer Letter)
+  4. Choose **Salary Certificate — Bank**
+  5. Enter **Purpose**: `Bank loan application — employee test`
+  6. **Addressed To** (optional): `National Bank UAE`
+  7. Click **Submit Request**
+  8. Verify success toast and form resets
+  9. Check the **My Requests** table: columns for Letter Type, Purpose, Requested date, Status
+  10. Check the new request shows **Pending Review** (amber clock badge)
+- **Pass**: Form submits successfully. Request appears in the history table with correct data and Pending Review badge. If a previously completed request exists, it shows "Ready — collect from HR" with a green checkmark and completion date. If a rejected request exists, the rejection reason is shown inline with a red X badge.
+- **Bug**:
+
+---
 
 ## E-12. PROFILE
 
-- [ ] Switch to Profile tab
-- [ ] Profile loads: name, job title, department, start date, phone, emergency contact, bank details, IBAN
-- [ ] All fields are read-only (display only) before Edit is clicked
-- [ ] **Edit button** → all form inputs appear
-- [ ] Edit phone number → Save → toast confirms, display updates
-- [ ] **Cancel** → discards changes, inputs hidden again
+### E12-1 · Profile — view and edit
+- **Profile**: Employee (signed in)
+- **Setup**: Switch to the **Profile** tab.
+- **Steps**:
+  1. Click the **Profile** tab
+  2. Verify profile loads with: **name**, **job title**, **department**, **start date**, **phone**, **emergency contact**, **bank details**, **IBAN**
+  3. Confirm all fields are **read-only** (display text, not form inputs)
+  4. Click the **Edit** button
+  5. Confirm form inputs appear for editable fields
+  6. Change **Phone** to a new number (e.g. `+971501234567`)
+  7. Click **Save**
+  8. Verify success toast appears and the displayed phone number updates
+  9. Click **Edit** again, change something, then click **Cancel**
+  10. Verify changes are discarded and the fields return to display-only mode
+- **Pass**: Profile loads with correct employee data. Read-only mode shows text, not inputs. Edit mode enables inputs. Save persists changes with a toast confirmation. Cancel discards changes and returns to read-only mode.
+- **Bug**:
 
 ---
 
 ## CROSS-PORTAL WORKFLOWS
 
-> Requires two browser windows (or separate browser profiles) open simultaneously.
+> Requires two additional browser windows (or separate browser profiles) open simultaneously — one for Admin, one for Manager.
 
-### X-1. Leave Request Flow (Employee → Manager → Admin)
-- [ ] Employee submits leave request (E-2)
-- [ ] Manager sees it in Leave Queue (M-1) → Approves
-- [ ] Admin sees ManagerApproved status in Leave → Requests tab → clicks Final OK
-- [ ] Employee sees Approved status in their requests list
+### X-1 · Leave Request Flow (Employee → Manager → Admin)
+- **Profile**: Employee + Manager + Admin (three browser windows)
+- **Setup**: Employee signed in (window 1). Manager signed in (window 2). Admin signed in (window 3). Employee must have leave balance remaining.
+- **Steps**:
+  1. **Employee** (window 1): go to Leave tab → Apply → submit a leave request (Annual, 2 days, future dates, reason: `Cross-portal test`)
+  2. **Manager** (window 2): go to **Leave Queue** tab → refresh → find the request → click **Approve**
+  3. Confirm the request status changes to **ManagerApproved**
+  4. **Admin** (window 3): go to **Leave** → **Requests** tab → find the ManagerApproved request → click **Final OK** (Approve)
+  5. **Employee** (window 1): refresh Leave tab → check the request status
+- **Pass**: Request flows Pending → ManagerApproved → Approved. Employee sees final **Approved** status.
+- **Bug**:
 
-### X-2. Expense Claim Flow (Employee → Manager → Admin → Payroll)
-- [ ] Employee submits expense claim (E-7)
-- [ ] Manager sees it in Expense Queue (M-2) → Approves
-- [ ] Admin sees `manager_approved` in Expenses → Approves (final)
-- [ ] Open next payroll run → approved expense auto-loaded in PayrollEditor
-- [ ] Generate payroll → expense status → Paid
+---
 
-### X-3. Advance Flow (Employee → Admin)
-- [ ] Employee requests advance (E-6)
-- [ ] Admin sees Pending in Advances → Approves
-- [ ] Employee sees Active advance with progress bar
+### X-2 · Expense Claim Flow (Employee → Manager → Admin → Payroll)
+- **Profile**: Employee + Manager + Admin (three browser windows)
+- **Setup**: All three signed in. A payroll run should exist (or be created) for the current month.
+- **Steps**:
+  1. **Employee** (window 1): go to Expenses tab → submit an expense (`meals`, AED 150, today, `Cross-portal expense test`)
+  2. **Manager** (window 2): go to **Expense Queue** tab → refresh → find the claim → click **Approve**
+  3. **Admin** (window 3): go to **Expenses** → find the `manager_approved` claim → click **Approve** (final)
+  4. **Admin**: open the **Payroll** for the current month → verify the approved expense appears as a line item in PayrollEditor
+  5. **Admin**: generate the payroll → check that the expense status changes to **Paid**
+- **Pass**: Claim flows Pending → manager_approved → approved → paid. Expense auto-loads in payroll.
+- **Bug**:
 
-### X-4. Letter Flow (Employee → Admin → Employee)
-- [ ] Employee requests letter (E-11)
-- [ ] Admin sees pending count badge on Dashboard and in Letter Requests nav
-- [ ] Admin completes letter → prints → status Completed
-- [ ] Employee sees status "Ready" with collection note
+---
 
-### X-5. Appraisal Flow (Admin → Manager → Employee)
-- [ ] Admin creates Appraisal Cycle, assigns employees to cycle (Reviews tab → Assign Staff)
-- [ ] Manager sees appraisals for direct reports in M-3 → rates sections
-- [ ] Admin calibrates final score
-- [ ] Employee sees calibrated rating in E-9
+### X-3 · Advance Flow (Employee → Admin)
+- **Profile**: Employee + Admin (two browser windows)
+- **Setup**: Both signed in.
+- **Steps**:
+  1. **Employee** (window 1): go to Advances tab → request an advance (AED 2000, reason: `Cross-portal advance test`)
+  2. **Admin** (window 2): go to **Advances** → find the pending advance → click **Approve** → set repayment terms
+  3. **Employee** (window 1): refresh Advances tab
+- **Pass**: Employee sees the advance as **Active** with a progress bar showing repayment schedule.
+- **Bug**:
 
-### X-6. Attendance Clock (Employee → Admin visibility)
-- [ ] Employee clocks in (E-4)
-- [ ] Admin refreshes Attendance module → employee shows as Present today
+---
 
-### X-7. Document Self-Upload (Employee → Admin review)
-- [ ] Employee uploads clinical credential (E-10)
-- [ ] Admin opens EmployeeModal → Documents tab → sees "Self-submitted" label, Pending Review
-- [ ] Admin verifies (✓) → Employee sees Verified badge
+### X-4 · Letter Flow (Employee → Admin → Employee)
+- **Profile**: Employee + Admin (two browser windows)
+- **Setup**: Both signed in.
+- **Steps**:
+  1. **Employee** (window 1): go to Requests tab → submit a letter request (e.g. NOC, purpose: `Cross-portal letter test`)
+  2. **Admin** (window 2): check Dashboard for pending count badge and/or go to **Letter Requests** nav item
+  3. **Admin**: find the pending request → complete the letter → print → mark as Completed
+  4. **Employee** (window 1): refresh Requests tab
+- **Pass**: Employee sees status change to **"Ready"** with a green checkmark and "collect from HR" note with the completion date.
+- **Bug**:
 
-### X-8. Roster Publish (Admin → Employee + Manager visible)
-- [ ] Admin builds and publishes roster (Day 10)
-- [ ] Employee sees shifts in Schedule tab (E-3)
-- [ ] Manager sees own shifts in Schedule tab (M-5)
+---
+
+### X-5 · Appraisal Flow (Admin → Manager → Employee)
+- **Profile**: Admin + Manager + Employee (three browser windows)
+- **Setup**: All three signed in. The employee must be a direct report of the manager (`reporting_manager_id` set).
+- **Steps**:
+  1. **Admin** (window 1): go to **Appraisals** → create a new Appraisal Cycle (or use existing)
+  2. **Admin**: go to the cycle's **Reviews** tab → click **Assign Staff** → assign the employee
+  3. **Manager** (window 2): go to **Appraisals** tab → Team Appraisals view → find the employee → rate sections with stars → Save
+  4. **Admin** (window 1): refresh → see the manager's ratings → calibrate the final score
+  5. **Employee** (window 3): go to **Appraisals** tab → expand the appraisal row
+- **Pass**: Employee sees the calibrated rating with section details, star ratings, and comments. Status shows **Calibrated** (green badge).
+- **Bug**:
+
+---
+
+### X-6 · Attendance Clock (Employee → Admin visibility)
+- **Profile**: Employee + Admin (two browser windows)
+- **Setup**: Both signed in. Employee must NOT have already clocked in today.
+- **Steps**:
+  1. **Employee** (window 1): go to Attendance tab → click **Clock In**
+  2. **Admin** (window 2): go to **Attendance** module → click **Refresh** (or wait for auto-poll at 30s)
+- **Pass**: Admin sees the employee's status as **Present** for today with the clock-in time.
+- **Bug**:
+
+---
+
+### X-7 · Document Self-Upload (Employee → Admin review)
+- **Profile**: Employee + Admin (two browser windows)
+- **Setup**: Both signed in.
+- **Steps**:
+  1. **Employee** (window 1): go to Documents tab → upload a clinical credential (e.g. DHA Licence, `CRED-XP-001`)
+  2. **Admin** (window 2): open the employee in **EmployeeModal** → **Documents** tab
+  3. Confirm the self-submitted document shows **"Self-submitted"** label and **Pending Review** badge
+  4. **Admin**: click the **Verify** (✓) button on the document
+  5. **Employee** (window 1): refresh Documents tab
+- **Pass**: Employee sees the document status change from Pending Review to **Verified** (green badge).
+- **Bug**:
+
+---
+
+### X-8 · Roster Publish (Admin → Employee + Manager visible)
+- **Profile**: Admin + Employee + Manager (three browser windows)
+- **Setup**: All three signed in. Admin must have built and published a roster for the current month (Day 10 RO-8) that includes both the employee and the manager.
+- **Steps**:
+  1. **Admin** (window 1): confirm the roster is published for the current month (go to Roster → check publish status)
+  2. **Employee** (window 2): go to **Schedule** tab → check that shifts are visible
+  3. **Manager** (window 3): go to **Schedule** tab (My Leave → Schedule in sidebar) → check that shifts are visible
+- **Pass**: Both employee and manager see their assigned shifts for the published month with correct shift names, times, and colour indicators. Unpublished months show no shifts.
+- **Bug**:
 
 ---
 
 ## KNOWN EDGE CASES
 
-- [ ] **Probation + Leave**: set employee to Probation → their Leave dropdown hides restricted types (e.g. Hajj), amber banner lists them
-- [ ] **SIF Compliance Gate**: set a licensed employee's licence expiry to yesterday → try to download SIF → gate modal fires listing the violation
-- [ ] **Staffing Rule Gate**: add rule requiring 3 Night staff → build roster with only 1 Night shift on a day → try Publish → gate lists the shortfall
-- [ ] **Manager's own appraisal**: manager must NOT see their own appraisal in Manager Appraisals tab (only direct reports)
-- [ ] **Salary Compliance bars**: Basic < 50% of gross → red; 50–60% → amber; ≥60% → green; Housing > 25% → amber/red; Transport > 10% → amber/red
-- [ ] **Notification bell**: approve a leave request → affected employee's bell shows a `leave_approved` notification
-- [ ] **Sidebar collapse persistence**: collapse → reload page → stays collapsed
-- [ ] **Empty states**: open Appraisals before any cycles exist → "No cycles" empty state, not a crash or blank screen
-- [ ] **Clinical credential 90-day threshold**: add DHA Licence expiring in 70 days → shows amber (clinical uses 90d) vs a normal doc at 70 days which would still be green (normal uses 60d)
-- [ ] **Duplicate clock-in blocked**: employee clocks in and out → Clock In button stays disabled for the rest of the day (`isEnabled()`, not `isVisible()`)
-- [ ] **Multi-branch data isolation**: switch to Branch B → Employees list shows only Branch B employees, not Branch A
+### EDGE-1 · Probation + Leave restriction
+- **Profile**: Admin + Employee (two browser windows)
+- **Setup**: Both signed in. The employee must be on Probation status.
+- **Steps**:
+  1. **Admin** (window 1): open the employee in EmployeeModal → set employment status to **Probation** if not already
+  2. **Employee** (window 2): go to **Leave** tab → click **Apply**
+  3. Check the Leave Type dropdown — restricted types (e.g. Hajj, Study) should be **hidden**
+  4. Check for an amber banner listing the restricted leave types
+- **Pass**: Leave Type dropdown does not show probation-restricted types. Amber banner explains which types are restricted and why.
+- **Bug**:
 
 ---
 
-*Last updated: 2026-06-29 | Covers all features from CLAUDE.md feature map (clinic 1.1–7.2 + original 1–21)*
+### EDGE-2 · SIF Compliance Gate
+- **Profile**: Admin
+- **Setup**: Signed in as Admin. At least one employee with a professional licence (DHA/DOH/MOH) must exist.
+- **Steps**:
+  1. Open the licensed employee in EmployeeModal → Documents tab
+  2. Set their **professional licence expiry** to yesterday (or confirm it's already expired)
+  3. Go to **Payroll** → generate a payroll run → click **Download SIF**
+  4. The compliance gate modal should fire, listing the licence violation
+  5. Type a reason (≥10 characters) in the override field → confirm download
+- **Pass**: SIF download is blocked with a modal listing the expired licence. Override requires ≥10 character reason. After entering reason, SIF downloads successfully.
+- **Bug**:
+
+---
+
+### EDGE-3 · Staffing Rule Gate
+- **Profile**: Admin
+- **Setup**: Signed in as Admin. A staffing rule must exist requiring a minimum number of staff for a shift category (e.g. 3 Night staff).
+- **Steps**:
+  1. Go to **Roster** → build a roster for a day with only 1 Night shift (fewer than the rule requires)
+  2. Click **Publish**
+  3. The staffing gate modal should fire, listing the shortfall
+- **Pass**: Publish is blocked with a modal showing the staffing rule violation. Override allows publish after entering a reason.
+- **Bug**:
+
+---
+
+### EDGE-4 · Manager's own appraisal excluded
+- **Profile**: Manager
+- **Setup**: Signed in as Manager. The manager must have their own appraisal in the same cycle as their direct reports.
+- **Steps**:
+  1. Go to **Appraisals** tab → ensure the **Team Appraisals** view is active
+  2. Check the appraisal list
+- **Pass**: The manager's own appraisal does NOT appear in the Team Appraisals list. It only appears in the **My Appraisals** sub-view toggle.
+- **Bug**:
+
+---
+
+### EDGE-5 · Salary Compliance bars
+- **Profile**: Admin
+- **Setup**: Signed in as Admin with the Clinical Dashboard or Salary Compliance view available.
+- **Steps**:
+  1. Open **Salary Compliance** (or Clinical Dashboard → Compliance section)
+  2. Check employee salary breakdowns:
+     - Basic < 50% of gross → **red** bar
+     - Basic 50–60% of gross → **amber** bar
+     - Basic ≥ 60% of gross → **green** bar
+     - Housing > 25% → **amber/red** bar
+     - Transport > 10% → **amber/red** bar
+- **Pass**: Compliance bars use correct colour coding based on the percentages above.
+- **Bug**:
+
+---
+
+### EDGE-6 · Notification bell on leave approval
+- **Profile**: Admin + Employee (two browser windows)
+- **Setup**: Both signed in. A pending leave request from the employee must exist.
+- **Steps**:
+  1. **Admin** (window 1): go to Leave → Requests → approve the employee's pending leave request
+  2. **Employee** (window 2): check the **notification bell** icon in the sidebar
+- **Pass**: The bell shows a `leave_approved` notification for the employee.
+- **Bug**:
+
+---
+
+### EDGE-7 · Sidebar collapse persistence
+- **Profile**: Employee or Manager
+- **Setup**: Signed in.
+- **Steps**:
+  1. Click the **collapse** button on the sidebar → sidebar collapses
+  2. Reload the page (F5 or Ctrl+R)
+- **Pass**: Sidebar remains collapsed after page reload (state persisted via localStorage).
+- **Bug**:
+
+---
+
+### EDGE-8 · Empty states — no crashes
+- **Profile**: Admin / Manager / Employee
+- **Setup**: Signed in to any portal.
+- **Steps**:
+  1. Open **Appraisals** before any appraisal cycles exist
+  2. Open **Training** before any training records exist
+  3. Open **Advances** before any advances exist
+- **Pass**: Each tab shows an appropriate empty state message (e.g. "No cycles", "No training records") — NOT a blank screen or a JavaScript crash.
+- **Bug**:
+
+---
+
+### EDGE-9 · Clinical credential 90-day threshold
+- **Profile**: Admin + notification check
+- **Setup**: Signed in as Admin. A clinical credential (DHA Licence) must exist.
+- **Steps**:
+  1. Open an employee in EmployeeModal → Documents tab
+  2. Set a DHA Licence expiry to **70 days from today**
+  3. Check the notification/alert for that credential
+  4. Compare: a normal (non-clinical) document at 70 days would still be green (60d threshold), but clinical uses 90d
+- **Pass**: The DHA Licence at 70 days shows an **amber** warning (within 90d clinical threshold). A normal document at 70 days would remain green (within 60d normal threshold).
+- **Bug**:
+
+---
+
+### EDGE-10 · Duplicate clock-in blocked
+- **Profile**: Employee
+- **Setup**: Signed in. The employee must have already clocked in AND out today (from E4-1).
+- **Steps**:
+  1. Go to the **Attendance** tab
+  2. Confirm the employee has already clocked in and out today
+  3. Check the **Clock In** button — it should be **disabled** (not hidden)
+- **Pass**: Clock In button is present but disabled (`isEnabled()` check, not `isVisible()`). The employee cannot clock in a second time on the same day.
+- **Bug**:
+
+---
+
+### EDGE-11 · Multi-branch data isolation
+- **Profile**: Admin
+- **Setup**: Signed in as Admin with at least two companies/branches configured (multi-company feature).
+- **Steps**:
+  1. Switch to **Branch A** using the company switcher
+  2. Check the Employees list — note which employees appear
+  3. Switch to **Branch B**
+  4. Check the Employees list again
+- **Pass**: Branch B shows only Branch B employees. Branch A employees are NOT visible. Data is fully isolated between branches.
+- **Bug**:
+
+---
+
+*Last updated: 2026-07-13 | Covers all features from CLAUDE.md feature map (clinic 1.1–7.2 + original 1–21) | 13-day schedule (split Day 12 into Days 12+13)*

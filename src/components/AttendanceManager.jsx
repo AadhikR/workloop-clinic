@@ -468,14 +468,29 @@ export default function AttendanceManager() {
       <div className="page-header">
         <h2>Attendance</h2>
         <div className="page-header-actions">
-          <select className="form-control" style={{ width:160 }} value={selectedMonth}
-            onChange={e => { setSelectedMonth(e.target.value); }}>
-            {Array.from({ length:12 }, (_, i) => {
-              const d = new Date(); d.setMonth(d.getMonth() - i);
-              const val = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-              return <option key={val} value={val}>{d.toLocaleString('en-AE', { month:'long', year:'numeric' })}</option>;
-            })}
-          </select>
+          <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+            <button className="btn btn-ghost btn-icon btn-sm" title="Previous month" onClick={() => {
+              const [y, m] = selectedMonth.split('-').map(Number);
+              const d = new Date(y, m - 2, 1);
+              setSelectedMonth(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
+            }}><ChevronLeft size={16}/></button>
+            <select className="form-control" style={{ width:160 }} value={selectedMonth}
+              onChange={e => setSelectedMonth(e.target.value)}>
+              {Array.from({ length:24 }, (_, i) => {
+                const d = new Date(); d.setMonth(d.getMonth() - i);
+                const val = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+                return <option key={val} value={val}>{d.toLocaleString('en-AE', { month:'long', year:'numeric' })}</option>;
+              })}
+            </select>
+            <button className="btn btn-ghost btn-icon btn-sm" title="Next month" onClick={() => {
+              const [y, m] = selectedMonth.split('-').map(Number);
+              const d = new Date(y, m, 1);
+              const next = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+              const now = new Date();
+              const max = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+              if (next <= max) setSelectedMonth(next);
+            }}><ChevronRight size={16}/></button>
+          </div>
           <button className="btn btn-outline btn-sm" onClick={() => loadAll()} disabled={loading} title="Refresh">
             <RefreshCw size={14}/> Refresh
           </button>

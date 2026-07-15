@@ -1,31 +1,31 @@
 /**
  * ManagerShell.jsx — Portal shell for manager-role users.
  *
- * Managers are employees who have been granted the 'manager' portal role
- * by their HR admin (via admin_set_employee_portal_role RPC).
- *
- * Tabs:
- *   1. Leave Queue    — approve / reject direct reports' leave requests
- *   2. My Leave       — personal leave (reuses EmpLeave)
- *   3. My Attendance  — personal attendance (reuses EmpAttendance)
- *   4. My Payslips    — personal payslips (reuses EmpPayslips)
- *   5. Profile        — profile & sign-out (reuses EmpProfile)
+ * Managers get all employee tabs plus manager-specific queue tabs.
  */
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { CheckSquare, CalendarDays, CalendarClock, Clock, FileText, Receipt, User, LogOut, Star } from 'lucide-react';
+import { CheckSquare, Home, CalendarDays, CalendarClock, Clock, FileText, Receipt, User, LogOut, Star, DollarSign, GraduationCap, FolderOpen, Mail, PanelLeftClose, PanelLeftOpen, ListTodo } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import NotificationBell from './NotificationBell';
 import { getMyEmployeeRecord, getMyCompany } from '../utils/profileStorage';
 import ManagerLeaveQueue from './manager/ManagerLeaveQueue';
 import ManagerExpenseQueue from './manager/ManagerExpenseQueue';
 import ManagerAppraisals from './manager/ManagerAppraisals';
+import EmpHome from './employee/EmpHome';
 import EmpLeave from './employee/EmpLeave';
 import EmpSchedule from './employee/EmpSchedule';
 import EmpAttendance from './employee/EmpAttendance';
 import EmpPayslips from './employee/EmpPayslips';
+import EmpAdvances from './employee/EmpAdvances';
+import EmpExpenses from './employee/EmpExpenses';
+import ManagerTraining from './manager/ManagerTraining';
+import EmpDocuments from './employee/EmpDocuments';
+import EmpRequests from './employee/EmpRequests';
 import EmpProfile from './employee/EmpProfile';
+import TasksPanel from './TasksPanel';
 
 const TABS = [
+  { id: 'home',        label: 'Home',           icon: Home         },
   { id: 'queue',       label: 'Leave Queue',    icon: CheckSquare  },
   { id: 'expenses',    label: 'Expense Queue',  icon: Receipt      },
   { id: 'appraisals',  label: 'Appraisals',     icon: Star         },
@@ -33,15 +33,24 @@ const TABS = [
   { id: 'schedule',    label: 'Schedule',       icon: CalendarClock },
   { id: 'attendance',  label: 'Attendance',     icon: Clock        },
   { id: 'payslips',    label: 'Payslips',       icon: FileText     },
+  { id: 'advances',    label: 'Advances',       icon: DollarSign   },
+  { id: 'my-expenses', label: 'Expenses',       icon: Receipt      },
+  { id: 'training',    label: 'Training',       icon: GraduationCap },
+  { id: 'documents',   label: 'Documents',      icon: FolderOpen   },
+  { id: 'requests',    label: 'Requests',       icon: Mail         },
   { id: 'profile',     label: 'Profile',        icon: User         },
+  { id: 'tasks',        label: 'Tasks',          icon: ListTodo, divider: true },
 ];
 
 export default function ManagerShell() {
   const { signOut } = useAuth();
-  const [tab, setTab]               = useState('queue');
+  const [tab, setTab]               = useState('home');
   const [signingOut, setSigningOut] = useState(false);
   const [emp, setEmp]               = useState(null);
   const [company, setCompany]       = useState(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem('mgr-sidebar-collapsed') === 'true'; } catch { return false; }
+  });
 
   const navRef = useRef(null);
   const [pill, setPill] = useState({ top: 0, height: 36 });
@@ -53,7 +62,7 @@ export default function ManagerShell() {
     });
   }, []);
 
-  useLayoutEffect(() => {
+  const measurePill = () => {
     if (!navRef.current) return;
     const active = navRef.current.querySelector('.nav-item.active');
     if (!active) return;
@@ -63,7 +72,18 @@ export default function ManagerShell() {
       top:    itemRect.top - navRect.top + navRef.current.scrollTop,
       height: itemRect.height,
     });
-  }, [tab]);
+  };
+
+  useLayoutEffect(() => { measurePill(); }, [tab, sidebarCollapsed]);
+  useEffect(() => { const t = setTimeout(measurePill, 300); return () => clearTimeout(t); }, [sidebarCollapsed]);
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed(prev => {
+      const next = !prev;
+      try { localStorage.setItem('mgr-sidebar-collapsed', String(next)); } catch {}
+      return next;
+    });
+  };
 
   const handleSignOut = async () => {
     setSigningOut(true);
@@ -73,33 +93,45 @@ export default function ManagerShell() {
 
   const renderTab = () => {
     switch (tab) {
-      case 'queue':       return <ManagerLeaveQueue />;
-      case 'expenses':    return <ManagerExpenseQueue />;
-      case 'appraisals':  return <ManagerAppraisals />;
-      case 'leave':       return <EmpLeave />;
-      case 'schedule':   return <EmpSchedule />;
-      case 'attendance': return <EmpAttendance />;
-      case 'payslips':   return <EmpPayslips />;
-      case 'profile':    return <EmpProfile onSignOut={handleSignOut} signingOut={signingOut} />;
-      default:           return <ManagerLeaveQueue />;
+      case 'queue':          return <ManagerLeaveQueue />;
+      case 'expenses':       return <ManagerExpenseQueue />;
+      case 'appraisals':     return <ManagerAppraisals emp={emp} />;
+      case 'home':           return <EmpHome onNavigate={setTab} />;
+      case 'leave':          return <EmpLeave />;
+      case 'schedule':       return <EmpSchedule />;
+      case 'attendance':     return <EmpAttendance />;
+      case 'payslips':       return <EmpPayslips />;
+      case 'advances':       return <EmpAdvances />;
+      case 'my-expenses':    return <EmpExpenses />;
+      case 'training':       return <ManagerTraining emp={emp} />;
+      case 'documents':      return <EmpDocuments />;
+      case 'requests':       return <EmpRequests />;
+      case 'profile':        return <EmpProfile onSignOut={handleSignOut} signingOut={signingOut} />;
+      case 'tasks':          return <TasksPanel role="manager" navigateTo={setTab} />;
+      default:               return <EmpHome onNavigate={setTab} />;
     }
   };
 
   return (
     <div className="emp-shell">
       {/* Desktop sidebar */}
-      <aside className="emp-sidebar">
-        <div className="emp-sidebar-logo">
-          {company?.name
-            ? <>
-                <h1 style={{ fontSize: 15, fontWeight: 700 }}>{company.name}</h1>
-                <p style={{ fontSize: 11, marginTop: 2 }}>Manager Portal</p>
-              </>
-            : <>
-                <h1>Workloop</h1>
-                <p>Manager Portal</p>
-              </>
-          }
+      <aside className={`emp-sidebar${sidebarCollapsed ? ' emp-sidebar-collapsed' : ''}`}>
+        <div className="emp-sidebar-logo" style={sidebarCollapsed ? { padding: '18px 8px 14px', textAlign: 'center' } : undefined}>
+          {sidebarCollapsed ? (
+            <button onClick={toggleSidebar} title="Expand sidebar" className="sidebar-collapse-btn">
+              <PanelLeftOpen size={16} />
+            </button>
+          ) : (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h1 style={{ fontSize: 15, fontWeight: 700 }}>{company?.name || 'Workloop'}</h1>
+                <button onClick={toggleSidebar} title="Collapse sidebar" className="sidebar-collapse-btn">
+                  <PanelLeftClose size={16} />
+                </button>
+              </div>
+              <p style={{ fontSize: 11, marginTop: 2 }}>Manager Portal</p>
+            </>
+          )}
         </div>
 
         {/* Nav with sliding pill */}
@@ -121,24 +153,34 @@ export default function ManagerShell() {
           {TABS.map(t => {
             const Icon = t.icon;
             return (
-              <button
-                key={t.id}
-                className={`nav-item ${tab === t.id ? 'active' : ''}`}
-                onClick={() => setTab(t.id)}
-              >
-                <Icon size={16} />
-                {t.label}
-              </button>
+              <div key={t.id}>
+                {t.divider && (
+                  <div style={{ margin: '6px 10px', borderTop: '1px solid rgba(56,189,248,0.12)' }} />
+                )}
+                <button
+                  className={`nav-item ${tab === t.id ? 'active' : ''}`}
+                  onClick={() => setTab(t.id)}
+                  title={t.label}
+                >
+                  <Icon size={16} />
+                  {!sidebarCollapsed && <span className="nav-item-label">{t.label}</span>}
+                </button>
+              </div>
             );
           })}
         </nav>
 
         {/* Manager identity + sign out */}
-        <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(56,189,248,0.10)' }}>
+        <div style={{
+          padding: sidebarCollapsed ? '12px 8px' : '12px 16px',
+          borderTop: '1px solid rgba(56,189,248,0.10)',
+        }}>
           {emp && (
             <div style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              marginBottom: 10, padding: '8px 10px', borderRadius: 10,
+              display: 'flex', alignItems: 'center',
+              gap: sidebarCollapsed ? 0 : 8,
+              flexDirection: sidebarCollapsed ? 'column' : 'row',
+              marginBottom: 10, padding: sidebarCollapsed ? '8px 4px' : '8px 10px', borderRadius: 10,
               background: 'rgba(37,99,235,0.08)',
               border: '1px solid rgba(56,189,248,0.12)',
             }}>
@@ -150,17 +192,19 @@ export default function ManagerShell() {
               }}>
                 <User size={13} color="rgba(255,255,255,0.9)" />
               </div>
-              <div style={{ overflow: 'hidden', flex: 1 }}>
-                <div style={{
-                  fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.88)',
-                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                }}>
-                  {emp.name}
+              {!sidebarCollapsed && (
+                <div style={{ overflow: 'hidden', flex: 1 }}>
+                  <div style={{
+                    fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.88)',
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  }}>
+                    {emp.name}
+                  </div>
+                  <div style={{ fontSize: 10, color: 'rgba(148,163,184,0.70)', marginTop: 1 }}>
+                    {emp.jobTitle || 'Manager'}
+                  </div>
                 </div>
-                <div style={{ fontSize: 10, color: 'rgba(148,163,184,0.70)', marginTop: 1 }}>
-                  {emp.jobTitle || 'Manager'}
-                </div>
-              </div>
+              )}
               <NotificationBell />
             </div>
           )}
@@ -168,9 +212,12 @@ export default function ManagerShell() {
           <button
             onClick={handleSignOut}
             disabled={signingOut}
+            title="Sign out"
             style={{
-              width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-              padding: '7px 10px', borderRadius: 8,
+              width: '100%', display: 'flex', alignItems: 'center',
+              justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
+              gap: 8,
+              padding: sidebarCollapsed ? '7px 0' : '7px 10px', borderRadius: 8,
               border: '1px solid rgba(56,189,248,0.10)',
               background: 'transparent', color: 'rgba(148,163,184,0.70)',
               fontSize: 12, cursor: 'pointer', transition: 'all 0.18s',
@@ -187,13 +234,13 @@ export default function ManagerShell() {
             }}
           >
             <LogOut size={14} />
-            {signingOut ? 'Signing out…' : 'Sign out'}
+            {!sidebarCollapsed && (signingOut ? 'Signing out…' : 'Sign out')}
           </button>
         </div>
       </aside>
 
       {/* Main content */}
-      <main className="emp-main">
+      <main className={`emp-main${sidebarCollapsed ? ' emp-main-collapsed' : ''}`}>
         {renderTab()}
       </main>
 

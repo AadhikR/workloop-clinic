@@ -248,7 +248,7 @@ export async function deleteEmployee(id) {
 export async function archiveEmployee(id) {
   const { error } = await supabase
     .from('employees')
-    .update({ active: false, employment_status: 'Terminated' })
+    .update({ active: false, employment_status: 'Terminated', termination_date: new Date().toISOString().slice(0, 10) })
     .eq('id', id);
   if (error) throw error;
 }
@@ -891,6 +891,7 @@ export async function saveAdvance(advance) {
       ? parseFloat(advance.outstandingBalance)
       : parseFloat(advance.amount) || 0,
     status:              advance.status ?? 'active',
+    rejection_reason:    advance.rejectionReason ?? null,
   };
 
   if (advance.id) {
@@ -966,6 +967,7 @@ function dbToAdvance(row) {
     monthlyDeduction:   parseFloat(row.monthly_deduction) || 0,
     outstandingBalance: parseFloat(row.outstanding_balance) || 0,
     status:             row.status || 'active',
+    rejectionReason:    row.rejection_reason || '',
     createdAt:          row.created_at,
   };
 }

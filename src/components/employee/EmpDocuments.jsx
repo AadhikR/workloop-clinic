@@ -57,13 +57,13 @@ export default function EmpDocuments() {
     e.preventDefault();
     if (!form.file) { showToast('error', 'Please select a file to upload.'); return; }
     if (form.file.size > MAX_FILE_BYTES) { showToast('error', 'File must be under 10 MB.'); return; }
-    if (!emp?.id || !emp?.userId) { showToast('error', 'Employee record not loaded.'); return; }
+    if (!emp?.id || !emp?.user_id) { showToast('error', 'Employee record not loaded. Please try refreshing.'); return; }
 
     setUploading(true);
     try {
       // Upload file to Storage: {admin_uid}/{emp_id}/{timestamp}_{filename}
       const safeName = form.file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-      const path = `${emp.userId}/${emp.id}/${Date.now()}_${safeName}`;
+      const path = `${emp.user_id}/${emp.id}/${Date.now()}_${safeName}`;
       const { error: uploadErr } = await supabase.storage
         .from('employee-documents')
         .upload(path, form.file, { upsert: false });

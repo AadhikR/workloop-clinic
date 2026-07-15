@@ -3,8 +3,9 @@ import { Plus, X, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Calendar, A
 import { useAuth } from '../../context/AuthContext';
 import {
   getLeaveTypes, getLeaveRequests, getLeaveBalances, getPublicHolidays,
-  uploadLeaveAttachment,
+  getLeaveSettings, uploadLeaveAttachment,
 } from '../../utils/leaveStorage';
+import { formatDateUAE } from '../../utils/uaeValidators';
 import { supabase } from '../../lib/supabase';
 import { countLeaveDays, validateLeaveRequest, getLeaveTypeColor, calculateAnnualLeaveAccrual, DEFAULT_LEAVE_TYPES, ATTACHMENT_HINTS } from '../../utils/leaveEngine';
 import { getMyEmployeeRecord } from '../../utils/profileStorage';
@@ -44,7 +45,7 @@ function computeBalancesLocally(leaveTypes, requests, empRec, year) {
 
 function fmtDate(iso) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-AE', { day: 'numeric', month: 'short', year: 'numeric' });
+  return formatDateUAE(iso.split('T')[0]);
 }
 
 const STATUS_BADGE = {
@@ -66,6 +67,7 @@ export default function EmpLeave() {
   const [activeTab, setActiveTab]     = useState('requests'); // 'requests' | 'balances' | 'calendar'
   const [expandedId, setExpandedId]   = useState(null);
   const [empCalMonth, setEmpCalMonth] = useState(new Date());
+  const [weekendDef, setWeekendDef]   = useState('sat-sun');
   const [saving, setSaving]           = useState(false);
   const [toast, setToast]             = useState(null); // { type, msg }
 
@@ -95,13 +97,15 @@ export default function EmpLeave() {
       getLeaveBalances(profile.employeeId, year),
       getPublicHolidays(year),
       getMyEmployeeRecord(),
-    ]).then(([lts, reqs, bals, hols, empRec]) => {
+      getLeaveSettings().catch(() => null),
+    ]).then(([lts, reqs, bals, hols, empRec, leaveSett]) => {
       setLeaveTypes(lts);
       setRequests(reqs);
       const effectiveLts = lts.length > 0 ? lts : DEFAULT_LEAVE_TYPES;
       setBalances(bals.length > 0 ? bals : computeBalancesLocally(effectiveLts, reqs, empRec, year));
       setHolidays(hols.map(h => h.date));
       setEmp(empRec);
+      if (leaveSett?.weekendDefinition) setWeekendDef(leaveSett.weekendDefinition);
       setLoading(false);
     });
   }, [profile?.employeeId]);
@@ -151,7 +155,7 @@ export default function EmpLeave() {
   // Compute days for current form selection
   const selectedType = leaveTypes.find(t => t.code === form.leaveTypeCode);
   const computedDays = selectedType && form.startDate && form.endDate
-    ? countLeaveDays(form.startDate, form.endDate, selectedType.dayCountType, holidays, 'fri-sat', form.isHalfDay)
+    ? countLeaveDays(form.startDate, form.endDate, selectedType.dayCountType, holidays, weekendDef, form.isHalfDay)
     : 0;
 
   // Validate live as form changes
@@ -166,11 +170,11 @@ export default function EmpLeave() {
       selectedType,
       balance,
       holidays,
-      'fri-sat',
+      weekendDef,
     );
     setFormErrors(result.errors);
     setFormWarnings(result.warnings);
-  }, [form, selectedType, balances, holidays, emp]);
+  }, [form, selectedType, balances, holidays, emp, weekendDef]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -202,9 +206,18 @@ export default function EmpLeave() {
     setAttachmentUrl('');
     setAttachmentName('');
 
-    // Refresh requests
+    // Refresh requests + update balance locally
     const fresh = await getLeaveRequests({ employeeId: profile.employeeId });
     setRequests(fresh);
+    setBalances(prev => prev.map(b =>
+      b.leaveTypeCode === selectedType.code
+        ? {
+            ...b,
+            pendingDays: parseFloat(b.pendingDays || 0) + computedDays,
+            remaining:   Math.max(0, parseFloat(b.remaining) - computedDays),
+          }
+        : b
+    ));
   }
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--gray-400)' }}>Loading…</div>;
@@ -589,7 +602,7 @@ export default function EmpLeave() {
                 const todayIso = new Date().toISOString().split('T')[0];
                 const isToday   = dateStr === todayIso;
                 const isHol     = holidays.includes(dateStr);
-                const isWeekend = (() => { const d = new Date(dateStr).getDay(); return d === 5 || d === 6; })();
+                const isWeekend = (() => { const d = new Date(dateStr).getDay(); return weekendDef === 'fri-sat' ? (d === 5 || d === 6) : (d === 6 || d === 0); })();
                 const dayLeaves = getEmpDayLeaves(dateStr);
                 const mainLeave = dayLeaves[0];
                 const lt        = mainLeave ? leaveTypes.find(t => t.code === mainLeave.leaveTypeCode) : null;

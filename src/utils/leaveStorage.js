@@ -73,12 +73,19 @@ export async function getLeaveTypes() {
     .eq('is_active', true)
     .order('sort_order', { ascending: true });
   if (error) { console.error('getLeaveTypes:', error); return []; }
-  return (data || []).map(dbToLeaveType);
+  const types = (data || []).map(dbToLeaveType);
+  // Deduplicate by code — guards against race-condition double-seeding
+  const seen = new Set();
+  return types.filter(t => { if (seen.has(t.code)) return false; seen.add(t.code); return true; });
 }
 
+let _seedingTypes = false;
 export async function seedDefaultLeaveTypes() {
+  if (_seedingTypes) return; // prevent concurrent seeding in React 18 strict mode
+  _seedingTypes = true;
+  try {
   const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
+  if (!user) { _seedingTypes = false; return; }
 
   // Check if already seeded
   const { data: existing } = await supabase
@@ -113,10 +120,14 @@ export async function seedDefaultLeaveTypes() {
     law_reference:           lt.lawReference,
     is_active:               true,
     sort_order:              i,
+    probation_eligible:      lt.probationEligible ?? true,
   }));
 
   const { error } = await supabase.from('leave_types').insert(rows);
   if (error) throw error;
+  } finally {
+    _seedingTypes = false;
+  }
 }
 
 function dbToLeaveType(row) {
@@ -152,18 +163,76 @@ function dbToLeaveType(row) {
 export async function saveLeaveType(leaveType) {
   const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
-  const updates = {};
-  if (leaveType.probationEligible  !== undefined) updates.probation_eligible  = leaveType.probationEligible;
-  if (leaveType.requiresAttachment !== undefined) updates.requires_attachment = leaveType.requiresAttachment;
-  const { data, error } = await supabase
+
+  if (leaveType.id) {
+    const { data, error } = await supabase
+      .from('leave_types')
+      .update({
+        name:                    leaveType.name,
+        color:                   leaveType.color,
+        is_paid:                 leaveType.isPaid,
+        is_unlimited:            leaveType.isUnlimited,
+        annual_entitlement_days: leaveType.annualEntitlementDays,
+        requires_attachment:     leaveType.requiresAttachment ?? false,
+        probation_eligible:      leaveType.probationEligible ?? true,
+      })
+      .eq('id', leaveType.id)
+      .eq('user_id', user.id)
+      .select()
+      .single();
+    if (error) throw error;
+    return dbToLeaveType(data);
+  } else {
+    let baseCode = (leaveType.name || 'CUSTOM')
+      .toUpperCase().replace(/[^A-Z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+    // Ensure code is unique for this user — append counter if collision exists
+    let code = baseCode;
+    let counter = 1;
+    while (true) {
+      const { data: existing } = await supabase
+        .from('leave_types').select('id').eq('user_id', user.id).eq('code', code).limit(1);
+      if (!existing?.length) break;
+      code = `${baseCode}_${counter++}`;
+    }
+    const { data, error } = await supabase
+      .from('leave_types')
+      .insert({
+        user_id:                  user.id,
+        code,
+        name:                     leaveType.name,
+        color:                    leaveType.color || '#6366f1',
+        is_paid:                  leaveType.isPaid ?? true,
+        is_unlimited:             leaveType.isUnlimited ?? false,
+        annual_entitlement_days:  leaveType.annualEntitlementDays || 0,
+        requires_approval:        true,
+        requires_attachment:      leaveType.requiresAttachment ?? false,
+        requires_reason:          false,
+        min_notice_days:          0,
+        accrual_type:             'fixed',
+        day_count_type:           'calendar',
+        auto_approve:             false,
+        carry_forward_allowed:    false,
+        carry_forward_max_days:   0,
+        is_active:                true,
+        sort_order:               99,
+        probation_eligible:       leaveType.probationEligible ?? true,
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    return dbToLeaveType(data);
+  }
+}
+
+export async function deleteLeaveType(id) {
+  const user = await getSessionUser();
+  if (!user) throw new Error('Not authenticated');
+  const { error } = await supabase
     .from('leave_types')
-    .update(updates)
-    .eq('id', leaveType.id)
-    .eq('user_id', user.id)
-    .select()
-    .single();
+    .update({ is_active: false })
+    .eq('id', id)
+    .eq('user_id', user.id);
   if (error) throw error;
-  return dbToLeaveType(data);
 }
 
 /**
@@ -464,26 +533,65 @@ function dbToLeaveRequest(row) {
 export async function getLeaveQueueForManager(managerEmployeeId) {
   if (!managerEmployeeId) return [];
 
-  // Get IDs of direct reports
+  // Get direct reports with probation status
   const { data: reports, error: rErr } = await supabase
     .from('employees')
-    .select('id')
+    .select('id, employment_status, probation_end_date')
     .eq('reporting_manager_id', managerEmployeeId);
 
   if (rErr) { console.error('getLeaveQueueForManager (reports):', rErr); return []; }
   if (!reports?.length) return [];
 
   const ids = reports.map(r => r.id);
+  const empMap = Object.fromEntries(reports.map(r => [r.id, r]));
 
-  const { data, error } = await supabase
-    .from('leave_requests')
-    .select('*')
-    .in('employee_id', ids)
-    .in('status', ['Pending', 'ManagerApproved', 'ManagerRejected'])
-    .order('submitted_at', { ascending: false });
+  const [reqResult, balResult] = await Promise.all([
+    supabase
+      .from('leave_requests')
+      .select('*')
+      .in('employee_id', ids)
+      .in('status', ['Pending', 'ManagerApproved', 'ManagerRejected'])
+      .order('submitted_at', { ascending: false }),
+    supabase
+      .from('leave_balances')
+      .select('*')
+      .in('employee_id', ids)
+      .eq('leave_year', new Date().getFullYear()),
+  ]);
 
-  if (error) { console.error('getLeaveQueueForManager:', error); return []; }
-  return (data || []).map(dbToLeaveRequest);
+  if (reqResult.error) { console.error('getLeaveQueueForManager:', reqResult.error); return []; }
+
+  const balByEmp = {};
+  for (const b of (balResult.data || [])) {
+    if (!balByEmp[b.employee_id]) balByEmp[b.employee_id] = [];
+    balByEmp[b.employee_id].push(b);
+  }
+
+  return (reqResult.data || []).map(row => {
+    const req = dbToLeaveRequest(row);
+    const warnings = [...(req.warnings || [])];
+    const emp = empMap[req.employeeId];
+
+    // Probation warning
+    if (emp?.employment_status === 'Probation') {
+      warnings.push('Employee is on probation');
+    }
+
+    // Low balance warning
+    const empBals = balByEmp[req.employeeId] || [];
+    const matchBal = empBals.find(b => b.leave_type_code === req.leaveTypeCode);
+    if (matchBal) {
+      const remaining = (matchBal.entitled || 0) - (matchBal.used || 0);
+      if (remaining < req.daysRequested) {
+        warnings.push(`Insufficient balance: ${remaining}d remaining, ${req.daysRequested}d requested`);
+      } else if (remaining - req.daysRequested <= 2) {
+        warnings.push(`Low balance after approval: ${remaining - req.daysRequested}d will remain`);
+      }
+    }
+
+    req.warnings = warnings;
+    return req;
+  });
 }
 
 /**

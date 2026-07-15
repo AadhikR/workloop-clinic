@@ -1,11 +1,3 @@
-/**
- * EmpAdvances.jsx — Employee self-service: salary advance requests & history
- *
- * Employees can:
- *  - View their active advances and outstanding balances
- *  - Submit a new advance request
- *  - View pending / past requests
- */
 import { useState, useEffect } from 'react';
 import { DollarSign, AlertCircle, Clock, CheckCircle, XCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
@@ -14,10 +6,10 @@ import { formatDateUAE } from '../../utils/uaeValidators';
 import { getMyEmployeeRecord } from '../../utils/profileStorage';
 
 const STATUS_ICON = {
-  pending:   <Clock   size={14} style={{ color: 'var(--warning)' }}/>,
+  pending:   <Clock      size={14} style={{ color: 'var(--warning)' }}/>,
   active:    <CheckCircle size={14} style={{ color: 'var(--primary)' }}/>,
   settled:   <CheckCircle size={14} style={{ color: 'var(--success)' }}/>,
-  cancelled: <XCircle size={14} style={{ color: 'var(--danger)' }}/>,
+  cancelled: <XCircle    size={14} style={{ color: 'var(--danger)' }}/>,
 };
 
 const STATUS_LABEL = {
@@ -32,7 +24,6 @@ export default function EmpAdvances() {
   const [advances, setAdvances] = useState([]);
   const [loading, setLoading]   = useState(true);
 
-  // Request form state
   const [showForm, setShowForm]     = useState(false);
   const [amount, setAmount]         = useState('');
   const [reason, setReason]         = useState('');
@@ -43,9 +34,7 @@ export default function EmpAdvances() {
   useEffect(() => {
     getMyEmployeeRecord().then(e => {
       setEmp(e);
-      if (e?.id) {
-        return getAdvances(e.id);
-      }
+      if (e?.id) return getAdvances(e.id);
       return [];
     }).then(advs => {
       setAdvances(advs);
@@ -61,13 +50,12 @@ export default function EmpAdvances() {
 
     setSubmitting(true);
     try {
-      const { data, error } = await supabase.rpc('employee_request_advance', {
+      const { error } = await supabase.rpc('employee_request_advance', {
         p_amount: amt,
         p_reason: reason.trim(),
       });
       if (error) throw error;
 
-      // Reload advances to show the new pending entry
       const updated = await getAdvances(emp?.id).catch(() => advances);
       setAdvances(updated);
       setAmount('');
@@ -84,10 +72,10 @@ export default function EmpAdvances() {
 
   if (loading) return <div style={{ padding: 32 }}>Loading advances…</div>;
 
-  const active    = advances.filter(a => a.status === 'active');
-  const pending   = advances.filter(a => a.status === 'pending');
+  const active     = advances.filter(a => a.status === 'active');
+  const pending    = advances.filter(a => a.status === 'pending');
   const historical = advances.filter(a => a.status === 'settled' || a.status === 'cancelled');
-  const totalOut  = active.reduce((s, a) => s + a.outstandingBalance, 0);
+  const totalOut   = active.reduce((s, a) => s + a.outstandingBalance, 0);
 
   return (
     <div>
@@ -117,10 +105,14 @@ export default function EmpAdvances() {
 
         {/* ── Summary ── */}
         {active.length > 0 && (
-          <div className="emp-card mb-4" style={{ background: 'linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%)', border: '1px solid #bfdbfe' }}>
+          <div className="emp-card mb-4" style={{
+            padding: '16px 18px',
+            background: 'linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%)',
+            border: '1px solid #bfdbfe',
+          }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{
-                width: 40, height: 40, borderRadius: '50%',
+                width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
                 background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
                 <DollarSign size={18} color="#fff"/>
@@ -140,7 +132,7 @@ export default function EmpAdvances() {
 
         {/* ── Request form ── */}
         {showForm && (
-          <div className="emp-card mb-4">
+          <div className="emp-card mb-4" style={{ padding: '16px 18px' }}>
             <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 16 }}>New Advance Request</h3>
             {formError && (
               <div className="alert alert-danger mb-3">
@@ -190,9 +182,9 @@ export default function EmpAdvances() {
 
         {/* ── Pending requests ── */}
         {pending.length > 0 && (
-          <div className="emp-card mb-4">
-            <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: 'var(--warning)' }}>
-              <Clock size={14} style={{ marginRight: 6 }}/>Pending Requests
+          <div className="emp-card mb-4" style={{ padding: '16px 18px' }}>
+            <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Clock size={14}/>Pending Requests
             </h3>
             {pending.map(adv => (
               <div key={adv.id} style={{
@@ -207,7 +199,7 @@ export default function EmpAdvances() {
                     {adv.reason}
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 2 }}>
-                    Submitted {new Date(adv.createdAt).toLocaleDateString('en-AE')}
+                    Submitted {formatDateUAE(adv.createdAt)}
                   </div>
                 </div>
                 <span className="badge badge-amber">Pending</span>
@@ -218,80 +210,87 @@ export default function EmpAdvances() {
 
         {/* ── Active advances ── */}
         {active.length > 0 && (
-          <div className="emp-card mb-4">
+          <div className="emp-card mb-4" style={{ padding: '16px 18px' }}>
             <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Active Advances</h3>
-            {active.map(adv => (
-              <div key={adv.id} style={{
-                padding: '12px 0',
-                borderBottom: '1px solid var(--gray-100)',
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 15 }}>
-                      AED {adv.amount.toLocaleString('en-AE', { minimumFractionDigits: 2 })}
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 2 }}>
-                      {adv.reason}
-                    </div>
-                    {adv.disbursedDate && (
-                      <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 2 }}>
-                        Disbursed: {formatDateUAE(adv.disbursedDate)}
+            {active.map(adv => {
+              const repaidPct = adv.amount > 0
+                ? Math.min(100, Math.max(0, ((adv.amount - adv.outstandingBalance) / adv.amount) * 100))
+                : 0;
+              return (
+                <div key={adv.id} style={{ padding: '12px 0', borderBottom: '1px solid var(--gray-100)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 15 }}>
+                        AED {adv.amount.toLocaleString('en-AE', { minimumFractionDigits: 2 })}
                       </div>
-                    )}
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 12, color: 'var(--gray-500)' }}>Outstanding</div>
-                    <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--primary)' }}>
-                      AED {adv.outstandingBalance.toLocaleString('en-AE', { minimumFractionDigits: 2 })}
+                      <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 2 }}>
+                        {adv.reason}
+                      </div>
+                      {adv.disbursedDate && (
+                        <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 2 }}>
+                          Disbursed: {formatDateUAE(adv.disbursedDate)}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 16 }}>
+                      <div style={{ fontSize: 12, color: 'var(--gray-500)' }}>Outstanding</div>
+                      <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--primary)' }}>
+                        AED {adv.outstandingBalance.toLocaleString('en-AE', { minimumFractionDigits: 2 })}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Repayment schedule bar */}
-                {adv.repaymentMonths > 0 && (
-                  <div style={{ marginTop: 10 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--gray-500)', marginBottom: 4 }}>
-                      <span>Monthly deduction: AED {adv.monthlyDeduction.toLocaleString('en-AE', { minimumFractionDigits: 2 })}</span>
-                      <span>Over {adv.repaymentMonths} month{adv.repaymentMonths !== 1 ? 's' : ''}</span>
+                  {/* Repayment progress bar */}
+                  {adv.repaymentMonths > 0 && (
+                    <div style={{ marginTop: 10 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--gray-500)', marginBottom: 4 }}>
+                        <span>Monthly deduction: AED {adv.monthlyDeduction.toLocaleString('en-AE', { minimumFractionDigits: 2 })}</span>
+                        <span>Over {adv.repaymentMonths} month{adv.repaymentMonths !== 1 ? 's' : ''}</span>
+                      </div>
+                      <div style={{ background: 'var(--gray-100)', borderRadius: 4, height: 6, overflow: 'hidden' }}>
+                        <div style={{
+                          height: '100%', borderRadius: 4,
+                          background: 'linear-gradient(90deg, var(--primary), var(--accent))',
+                          width: `${repaidPct}%`,
+                          transition: 'width 0.3s ease',
+                        }}/>
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 3 }}>
+                        {repaidPct.toFixed(0)}% repaid
+                      </div>
                     </div>
-                    <div style={{ background: 'var(--gray-100)', borderRadius: 4, height: 6, overflow: 'hidden' }}>
-                      <div style={{
-                        height: '100%', borderRadius: 4,
-                        background: 'linear-gradient(90deg, var(--primary), var(--accent))',
-                        width: `${Math.max(5, Math.min(100, ((adv.amount - adv.outstandingBalance) / adv.amount) * 100))}%`,
-                        transition: 'width 0.3s ease',
-                      }}/>
-                    </div>
-                    <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 3 }}>
-                      {((adv.amount - adv.outstandingBalance) / adv.amount * 100).toFixed(0)}% repaid
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 
         {/* ── Historical ── */}
         {historical.length > 0 && (
-          <div className="emp-card">
+          <div className="emp-card" style={{ padding: '16px 18px' }}>
             <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: 'var(--gray-500)' }}>
               Past Advances
             </h3>
             {historical.map(adv => (
               <div key={adv.id} style={{
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
                 padding: '8px 0', borderBottom: '1px solid var(--gray-100)',
               }}>
-                <div>
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 500, fontSize: 13 }}>
                     AED {adv.amount.toLocaleString('en-AE', { minimumFractionDigits: 2 })}
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 1 }}>
-                    {adv.reason} · {new Date(adv.createdAt).toLocaleDateString('en-AE')}
+                    {adv.reason} · {formatDateUAE(adv.createdAt)}
                   </div>
+                  {adv.status === 'cancelled' && adv.rejectionReason && (
+                    <div style={{ fontSize: 11, color: 'var(--danger)', marginTop: 2 }}>
+                      Reason: {adv.rejectionReason}
+                    </div>
+                  )}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--gray-500)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--gray-500)', flexShrink: 0, marginLeft: 12 }}>
                   {STATUS_ICON[adv.status]}
                   {STATUS_LABEL[adv.status]}
                 </div>

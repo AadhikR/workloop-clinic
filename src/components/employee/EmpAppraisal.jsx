@@ -51,9 +51,9 @@ export default function EmpAppraisal({ emp }) {
 
   return (
     <div className="emp-page-body">
-      <div className="emp-page-header">
+      <div className="emp-page-header" style={{ marginBottom: 20 }}>
         <h2>My Appraisals</h2>
-        <p className="text-muted text-sm">Performance reviews completed by your manager</p>
+        <p className="text-muted text-sm" style={{ marginTop: 4 }}>Performance reviews completed by your manager</p>
       </div>
 
       {appraisals.length === 0 ? (
@@ -63,14 +63,14 @@ export default function EmpAppraisal({ emp }) {
           <p className="text-sm">Your performance reviews will appear here once they are completed.</p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {appraisals.map(a => (
             <div key={a.id} className="emp-card" style={{ padding: 0, overflow: 'hidden' }}>
               {/* Header row */}
               <div
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 12,
-                  padding: '14px 18px', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 14,
+                  padding: '16px 20px', cursor: 'pointer',
                   background: expanded === a.id ? 'var(--gray-50)' : 'white',
                   borderBottom: expanded === a.id ? '1px solid var(--gray-100)' : 'none',
                 }}
@@ -98,7 +98,7 @@ export default function EmpAppraisal({ emp }) {
 
               {/* Expanded detail */}
               {expanded === a.id && (
-                <div style={{ padding: '16px 18px' }}>
+                <div style={{ padding: '20px 24px' }}>
                   {a.sections && a.sections.length > 0 ? (
                     <>
                       <table className="table" style={{ marginBottom: 16 }}>

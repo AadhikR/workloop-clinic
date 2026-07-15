@@ -275,7 +275,7 @@ export function deriveAttendanceStatus({
   today.setHours(0, 0, 0, 0);
   const recordDate = new Date(date);
   recordDate.setHours(0, 0, 0, 0);
-  const isPast = recordDate <= today;
+  const isPast = recordDate < today;
 
   // 1. Weekend — unless the employee clocked in (worked on rest day), in which
   // case fall through to the normal present/missing-clock-out logic below.

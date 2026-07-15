@@ -673,23 +673,21 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
               </div>
               <div className="form-group">
                 <label>Department</label>
-                <input
+                <select
                   className="form-control"
-                  list="dept-suggestions"
                   value={form.department}
                   onChange={e => f('department', e.target.value)}
-                  placeholder="e.g. Nursing"
-                />
-                <datalist id="dept-suggestions">
+                >
+                  <option value="">— Select Department —</option>
                   {deptList.map(d => {
                     const parent = deptList.find(p => p.id === d.parentId);
                     return (
-                      <option key={d.id} value={d.name}
-                        label={parent ? `${d.name} (under ${parent.name})` : d.name}
-                      />
+                      <option key={d.id} value={d.name}>
+                        {parent ? `${d.name} (${parent.name})` : d.name}
+                      </option>
                     );
                   })}
-                </datalist>
+                </select>
               </div>
               <div className="form-group">
                 <label>Reporting Manager</label>

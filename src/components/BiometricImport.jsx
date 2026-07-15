@@ -347,7 +347,7 @@ export default function BiometricImport({ employees = [] }) {
                 onChange={e => setNewMap(p => ({ ...p, employeeId: e.target.value }))}
               >
                 <option value="">— Select —</option>
-                {employees.map(e => (
+                {employees.filter(e => e.employmentStatus !== 'Terminated').map(e => (
                   <option key={e.id} value={e.id}>{e.name}</option>
                 ))}
               </select>

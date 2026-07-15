@@ -11,13 +11,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Calendar, Users, BarChart2, Settings, Plus, Check, X, AlertCircle,
-  Clock, Download, ChevronLeft, ChevronRight, Info, Trash2, Save, RefreshCw, Printer
+  Clock, Download, ChevronLeft, ChevronRight, Info, Trash2, Save, RefreshCw, Printer, Pencil
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getEmployees } from '../utils/storage';
 import { createNotification } from '../utils/notificationStorage';
 import {
-  getLeaveTypes, saveLeaveType, getLeaveRequests, submitLeaveRequest, updateLeaveRequestStatus,
+  getLeaveTypes, saveLeaveType, deleteLeaveType, getLeaveRequests, submitLeaveRequest, updateLeaveRequestStatus,
   cancelLeaveRequest, getLeaveBalances, getAllLeaveBalances, upsertLeaveBalance,
   getPublicHolidays, savePublicHoliday, deletePublicHoliday,
   getLeaveSettings, saveLeaveSettings, initialiseLeaveModule, recalculateAllBalances,
@@ -117,14 +117,16 @@ export default function LeaveManager() {
   const [delegateForm, setDelegateForm] = useState({ approverEmployeeId:'', delegateEmployeeId:'', fromDate:'', toDate:'' });
   const [delegateSaving, setDelegateSaving] = useState(false);
 
+  // Leave type CRUD form (null = closed)
+  const [typeForm, setTypeForm] = useState(null);
+
   useEffect(() => {
-    loadAll();
+    initialiseLeaveModule().catch(() => {}).then(() => loadAll());
   }, []);
 
   const loadAll = async () => {
     setLoading(true);
     try {
-      await initialiseLeaveModule();
       const [emps, types, reqs, bals, hols, sett, dels] = await Promise.all([
         getEmployees(),
         getLeaveTypes(),
@@ -140,7 +142,7 @@ export default function LeaveManager() {
       setHolidays(hols);
       setDelegates(dels);
       const defaultSettings = {
-        leaveYearType: 'calendar', weekendDefinition: 'fri-sat',
+        leaveYearType: 'calendar', weekendDefinition: 'sat-sun',
         carryForwardEnabled: true, carryForwardMaxDays: 15,
         approvalChain: '1-level', ramadanActive: false,
         ramadanStart: '', ramadanEnd: '',
@@ -279,6 +281,36 @@ export default function LeaveManager() {
       setHolidays(prev => prev.filter(h => h.id !== id));
     } catch (err) {
       showMsg('danger', 'Failed to delete holiday: ' + err.message);
+    }
+  };
+
+  // ── Leave type CRUD ───────────────────────────────────────────────────────
+  const BLANK_TYPE = { name: '', color: '#6366f1', isPaid: true, isUnlimited: false, annualEntitlementDays: 0, probationEligible: true, requiresAttachment: false };
+
+  const handleSaveType = async () => {
+    if (!typeForm.name?.trim()) { showMsg('danger', 'Leave type name is required.'); return; }
+    setSaving(true);
+    try {
+      const saved = await saveLeaveType(typeForm);
+      setLeaveTypes(prev => typeForm.id
+        ? prev.map(t => t.id === typeForm.id ? saved : t)
+        : [...prev, saved]);
+      setTypeForm(null);
+      showMsg('success', typeForm.id ? 'Leave type updated.' : 'Leave type created.');
+    } catch (err) {
+      showMsg('danger', 'Failed to save leave type: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteType = async (id) => {
+    try {
+      await deleteLeaveType(id);
+      setLeaveTypes(prev => prev.filter(t => t.id !== id));
+      showMsg('success', 'Leave type removed.');
+    } catch (err) {
+      showMsg('danger', 'Failed to remove leave type: ' + err.message);
     }
   };
 
@@ -468,9 +500,11 @@ export default function LeaveManager() {
             <div className="card-header">
               <h3>Leave Requests</h3>
               <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-                <select className="form-control" style={{ width:140 }} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+                <select className="form-control" style={{ width:165 }} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
                   <option value="">All Statuses</option>
                   <option value="Pending">Pending</option>
+                  <option value="ManagerApproved">Manager Approved</option>
+                  <option value="ManagerRejected">Manager Rejected</option>
                   <option value="Approved">Approved</option>
                   <option value="Rejected">Rejected</option>
                   <option value="Cancelled">Cancelled</option>
@@ -577,7 +611,7 @@ export default function LeaveManager() {
 
         {/* ── CALENDAR TAB ── */}
         {tab === 'calendar' && (
-          <div className="card">
+          <div className="card" id="calendar-print-area">
             <div className="card-header">
               <h3>
                 <button className="btn btn-ghost btn-icon btn-sm" onClick={() => setCalendarMonth(new Date(calYear, calMonth - 1, 1))}>
@@ -767,7 +801,6 @@ export default function LeaveManager() {
                     <label>Weekend Definition</label>
                     <select className="form-control" value={settingsForm.weekendDefinition}
                       onChange={e => setSettingsForm(p => ({ ...p, weekendDefinition: e.target.value }))}>
-                      <option value="fri-sat">Friday – Saturday (UAE default)</option>
                       <option value="sat-sun">Saturday – Sunday</option>
                     </select>
                     <span className="hint">Used when counting working days for paternity, bereavement, study leave</span>
@@ -818,6 +851,101 @@ export default function LeaveManager() {
                     </>
                   )}
                 </div>
+              </div>
+            </div>
+
+            {/* Leave Types */}
+            <div className="card mb-4">
+              <div className="card-header">
+                <h3>Leave Types</h3>
+                <button className="btn btn-primary btn-sm" onClick={() => setTypeForm({ ...BLANK_TYPE })}>
+                  <Plus size={14}/> Add Leave Type
+                </button>
+              </div>
+              {typeForm && (
+                <div className="card-body" style={{ borderBottom:'1px solid var(--gray-200)' }}>
+                  <div className="form-grid form-grid-2">
+                    <div className="form-group">
+                      <label>Name *</label>
+                      <input className="form-control" value={typeForm.name}
+                        onChange={e => setTypeForm(p => ({ ...p, name: e.target.value }))}
+                        placeholder="e.g. Maternity Leave"/>
+                    </div>
+                    <div className="form-group">
+                      <label>Colour</label>
+                      <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                        <input type="color" value={typeForm.color}
+                          onChange={e => setTypeForm(p => ({ ...p, color: e.target.value }))}
+                          style={{ width:40, height:32, border:'none', cursor:'pointer', padding:2 }}/>
+                        <span style={{ fontSize:12, color:'var(--gray-500)' }}>{typeForm.color}</span>
+                      </div>
+                    </div>
+                    <div className="form-group">
+                      <label>Paid Leave?</label>
+                      <select className="form-control" value={typeForm.isPaid ? 'yes' : 'no'}
+                        onChange={e => setTypeForm(p => ({ ...p, isPaid: e.target.value === 'yes' }))}>
+                        <option value="yes">Paid</option>
+                        <option value="no">Unpaid</option>
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Unlimited Days?</label>
+                      <select className="form-control" value={typeForm.isUnlimited ? 'yes' : 'no'}
+                        onChange={e => setTypeForm(p => ({ ...p, isUnlimited: e.target.value === 'yes', annualEntitlementDays: e.target.value === 'yes' ? 0 : (p.annualEntitlementDays || 0) }))}>
+                        <option value="no">Fixed entitlement</option>
+                        <option value="yes">Unlimited</option>
+                      </select>
+                    </div>
+                    {!typeForm.isUnlimited && (
+                      <div className="form-group">
+                        <label>Annual Entitlement (days)</label>
+                        <input className="form-control" type="number" min={0}
+                          value={typeForm.annualEntitlementDays}
+                          onChange={e => setTypeForm(p => ({ ...p, annualEntitlementDays: parseInt(e.target.value) || 0 }))}/>
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ display:'flex', gap:8, marginTop:4 }}>
+                    <button className="btn btn-primary btn-sm" onClick={handleSaveType} disabled={saving}>
+                      <Save size={13}/> {saving ? 'Saving…' : typeForm.id ? 'Update' : 'Create'}
+                    </button>
+                    <button className="btn btn-outline btn-sm" onClick={() => setTypeForm(null)}>Cancel</button>
+                  </div>
+                </div>
+              )}
+              <div className="table-wrap">
+                <table style={{ fontSize:13 }}>
+                  <thead>
+                    <tr><th>Name</th><th>Paid</th><th>Days / Year</th><th>Probation OK</th><th>Needs Doc</th><th></th></tr>
+                  </thead>
+                  <tbody>
+                    {leaveTypes.map(lt => (
+                      <tr key={lt.id}>
+                        <td>
+                          <span style={{ background: lt.color+'22', color: lt.color, border:`1px solid ${lt.color}44`, borderRadius:999, padding:'2px 10px', fontSize:12, fontWeight:600 }}>
+                            {lt.name}
+                          </span>
+                        </td>
+                        <td><span className={`badge ${lt.isPaid ? 'badge-green' : 'badge-gray'}`}>{lt.isPaid ? 'Paid' : 'Unpaid'}</span></td>
+                        <td>{lt.isUnlimited ? 'Unlimited' : `${lt.annualEntitlementDays} days`}</td>
+                        <td><span className={`badge ${lt.probationEligible !== false ? 'badge-green' : 'badge-gray'}`}>{lt.probationEligible !== false ? 'Yes' : 'No'}</span></td>
+                        <td><span className={`badge ${lt.requiresAttachment ? 'badge-blue' : 'badge-gray'}`}>{lt.requiresAttachment ? 'Yes' : 'No'}</span></td>
+                        <td>
+                          <div style={{ display:'flex', gap:4 }}>
+                            <button className="btn btn-ghost btn-icon btn-sm" title="Edit leave type"
+                              onClick={() => setTypeForm({ ...lt })}>
+                              <Pencil size={13}/>
+                            </button>
+                            <button className="btn btn-ghost btn-icon btn-sm text-danger" title="Remove leave type"
+                              onClick={() => handleDeleteType(lt.id)}>
+                              <Trash2 size={13}/>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
 

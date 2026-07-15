@@ -533,12 +533,43 @@ export async function submitRegularisationRequest({ employeeId, attendanceDate, 
 export async function approveRegularisationRequest(id, approvedBy) {
   const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
+
+  // Fetch the request first so we have the corrected clock times
+  const { data: req, error: fetchErr } = await supabase
+    .from('regularisation_requests')
+    .select('employee_id, attendance_date, correct_clock_in, correct_clock_out')
+    .eq('id', id)
+    .single();
+  if (fetchErr || !req) throw fetchErr || new Error('Regularisation request not found');
+
+  // Mark the request as approved
   const { data, error } = await supabase.from('regularisation_requests')
     .update({ status: 'Approved', approved_by: approvedBy || user.email, approved_at: new Date().toISOString() })
     .eq('id', id)
     .select()
     .single();
   if (error) throw error;
+
+  // Apply the corrected clock times to the attendance record
+  const clockIn  = req.correct_clock_in  || null;
+  const clockOut = req.correct_clock_out || null;
+  const totalMs  = clockIn && clockOut ? (new Date(clockOut) - new Date(clockIn)) : 0;
+  const breakMs  = 60 * 60 * 1000;
+  const totalHours = Math.max(0, totalMs > breakMs ? (totalMs - breakMs) / 3600000 : totalMs / 3600000);
+  let status = ATTENDANCE_STATUS.ABSENT;
+  if (clockIn && clockOut) status = ATTENDANCE_STATUS.PRESENT;
+  else if (clockIn)        status = ATTENDANCE_STATUS.MISSING_CLOCK_OUT;
+
+  await supabase.from('attendance_records').upsert({
+    user_id:        user.id,
+    employee_id:    req.employee_id,
+    date:           req.attendance_date,
+    clock_in_time:  clockIn,
+    clock_out_time: clockOut,
+    total_hours:    totalHours,
+    status,
+  }, { onConflict: 'user_id,employee_id,date' });
+
   return data;
 }
 
@@ -783,22 +814,58 @@ function dbToShiftSwapRequest(row) {
  * Falls back to [] if the SQL migration hasn't been applied yet.
  */
 export async function getMyRoster(dateFrom, dateTo) {
+  // Try RPC first
   const { data, error } = await supabase.rpc('employee_get_my_roster', {
     p_date_from: dateFrom,
     p_date_to:   dateTo,
   });
-  if (error) { console.error('getMyRoster:', error); return []; }
-  return (data || []).map(row => ({
-    id:            row.id,
-    shiftId:       row.shift_id,
-    date:          row.date,
-    published:     row.published,
-    notes:         row.notes,
-    shiftName:     row.shift_name  || '—',
-    shiftColor:    row.shift_color || '#6366f1',
-    startTime:     row.start_time  || null,
-    endTime:       row.end_time    || null,
-    expectedHours: parseFloat(row.expected_hours) || 8,
+  if (!error && data && data.length > 0) {
+    return data.map(row => ({
+      id:            row.id,
+      shiftId:       row.shift_id,
+      date:          row.date,
+      published:     row.published,
+      notes:         row.notes,
+      shiftName:     row.shift_name  || '—',
+      shiftColor:    row.shift_color || '#6366f1',
+      startTime:     row.start_time  || null,
+      endTime:       row.end_time    || null,
+      expectedHours: parseFloat(row.expected_hours) || 8,
+    }));
+  }
+  if (error) console.warn('getMyRoster RPC failed, trying direct query:', error.message);
+
+  // Fallback: direct query via RLS policy roster_assignments_employee_read
+  // Uses !left hint on shifts so rows still come back even if shifts RLS blocks the join
+  const user = await getSessionUser();
+  if (!user) return [];
+  const { data: empRows } = await supabase
+    .from('employees')
+    .select('id')
+    .eq('auth_user_id', user.id)
+    .limit(1);
+  const empId = empRows?.[0]?.id;
+  if (!empId) return [];
+
+  const { data: rows, error: err2 } = await supabase
+    .from('roster_assignments')
+    .select('id, shift_id, date, published, notes, shifts!left(name, color, start_time, end_time, expected_hours)')
+    .eq('employee_id', empId)
+    .eq('published', true)
+    .gte('date', dateFrom)
+    .lte('date', dateTo);
+  if (err2) { console.error('getMyRoster fallback:', err2); return []; }
+  return (rows || []).map(r => ({
+    id:            r.id,
+    shiftId:       r.shift_id,
+    date:          r.date,
+    published:     r.published,
+    notes:         r.notes,
+    shiftName:     r.shifts?.name   || '—',
+    shiftColor:    r.shifts?.color  || '#6366f1',
+    startTime:     r.shifts?.start_time  || null,
+    endTime:       r.shifts?.end_time    || null,
+    expectedHours: parseFloat(r.shifts?.expected_hours) || 8,
   }));
 }
 

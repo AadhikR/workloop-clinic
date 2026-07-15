@@ -10,7 +10,7 @@
  * If approval_level_required = 2 → approval moves it to 'ManagerApproved', awaiting HR.
  */
 import { useState, useEffect, useCallback } from 'react';
-import { Check, X, Users, RefreshCw, ChevronDown, ChevronUp, CalendarDays, Clock } from 'lucide-react';
+import { Check, X, Users, RefreshCw, ChevronDown, ChevronUp, CalendarDays, Clock, AlertCircle } from 'lucide-react';
 import { getMyEmployeeRecord } from '../../utils/profileStorage';
 import { getLeaveQueueForManager, approveLeaveAsManager, rejectLeaveAsManager } from '../../utils/leaveStorage';
 import { getEmployees } from '../../utils/storage';
@@ -98,73 +98,14 @@ export default function ManagerLeaveQueue() {
     }
   };
 
-  // ── Reject modal ──────────────────────────────────────────────────────────
-  const RejectModal = () => {
-    if (!rejectId) return null;
-    const req = requests.find(r => r.id === rejectId);
-    return (
-      <div style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
-      }}>
-        <div style={{
-          background: '#fff', borderRadius: 14, padding: 28, width: 380,
-          boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
-        }}>
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1e293b', marginBottom: 6 }}>Reject Leave Request</h3>
-          {req && (
-            <p style={{ fontSize: 13, color: '#64748b', marginBottom: 14 }}>
-              {empName(req.employeeId)} — {req.leaveTypeCode} ({req.daysRequested}d)
-            </p>
-          )}
-          <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>
-            Reason (required)
-          </label>
-          <textarea
-            value={rejectReason}
-            onChange={e => setRejectReason(e.target.value)}
-            placeholder="Enter reason for rejection…"
-            rows={3}
-            style={{
-              width: '100%', padding: '8px 10px', borderRadius: 8,
-              border: rejectErr ? '1.5px solid #ef4444' : '1.5px solid #e2e8f0',
-              fontSize: 13, resize: 'vertical', boxSizing: 'border-box',
-            }}
-          />
-          {rejectErr && <p style={{ fontSize: 12, color: '#ef4444', marginTop: 4 }}>{rejectErr}</p>}
-          <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
-            <button
-              onClick={() => setRejectId(null)}
-              style={{
-                flex: 1, padding: '9px 0', borderRadius: 8, border: '1.5px solid #e2e8f0',
-                background: '#f8fafc', fontSize: 13, cursor: 'pointer', fontWeight: 600, color: '#64748b',
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleReject}
-              disabled={!!actionBusy}
-              style={{
-                flex: 1, padding: '9px 0', borderRadius: 8, border: 'none',
-                background: '#ef4444', color: '#fff', fontSize: 13,
-                cursor: actionBusy ? 'not-allowed' : 'pointer', fontWeight: 600, opacity: actionBusy ? 0.7 : 1,
-              }}
-            >
-              {actionBusy ? 'Rejecting…' : 'Reject'}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
+  const rejectReq = rejectId ? requests.find(r => r.id === rejectId) : null;
 
   // ── Row ───────────────────────────────────────────────────────────────────
   const Row = ({ req }) => {
     const isPending   = req.status === 'Pending';
     const isBusy      = actionBusy === req.id + '_approve' || actionBusy === req.id + '_reject';
     return (
-      <tr>
+      <>
         <td style={{ padding: '12px 14px' }}>
           <div style={{ fontWeight: 600, fontSize: 13, color: '#1e293b' }}>{empName(req.employeeId)}</div>
           <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
@@ -191,6 +132,20 @@ export default function ManagerLeaveQueue() {
           <div style={{ fontSize: 12, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {req.reason || '—'}
           </div>
+          {req.warnings?.length > 0 && (
+            <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+              {req.warnings.map((w, i) => (
+                <div key={i} style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  background: '#fffbeb', border: '1px solid #fcd34d',
+                  borderRadius: 4, padding: '2px 6px', fontSize: 11,
+                  color: '#92400e', whiteSpace: 'normal',
+                }}>
+                  <AlertCircle size={10} style={{ flexShrink: 0 }} /> {w}
+                </div>
+              ))}
+            </div>
+          )}
         </td>
         <td style={{ padding: '12px 14px' }}>
           <StatusBadge status={req.status} />
@@ -236,7 +191,7 @@ export default function ManagerLeaveQueue() {
           </td>
         )}
         {!isPending && <td style={{ padding: '12px 14px' }} />}
-      </tr>
+      </>
     );
   };
 
@@ -371,7 +326,62 @@ export default function ManagerLeaveQueue() {
         </div>
       )}
 
-      <RejectModal />
+      {/* Reject modal — inlined to avoid inner-function remount on each keystroke */}
+      {rejectId && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+        }}>
+          <div style={{
+            background: '#fff', borderRadius: 14, padding: 28, width: 380,
+            boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
+          }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1e293b', marginBottom: 6 }}>Reject Leave Request</h3>
+            {rejectReq && (
+              <p style={{ fontSize: 13, color: '#64748b', marginBottom: 14 }}>
+                {empName(rejectReq.employeeId)} — {rejectReq.leaveTypeCode} ({rejectReq.daysRequested}d)
+              </p>
+            )}
+            <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>
+              Reason (required)
+            </label>
+            <textarea
+              value={rejectReason}
+              onChange={e => setRejectReason(e.target.value)}
+              placeholder="Enter reason for rejection…"
+              rows={3}
+              style={{
+                width: '100%', padding: '8px 10px', borderRadius: 8,
+                border: rejectErr ? '1.5px solid #ef4444' : '1.5px solid #e2e8f0',
+                fontSize: 13, resize: 'vertical', boxSizing: 'border-box',
+              }}
+            />
+            {rejectErr && <p style={{ fontSize: 12, color: '#ef4444', marginTop: 4 }}>{rejectErr}</p>}
+            <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+              <button
+                onClick={() => setRejectId(null)}
+                style={{
+                  flex: 1, padding: '9px 0', borderRadius: 8, border: '1.5px solid #e2e8f0',
+                  background: '#f8fafc', fontSize: 13, cursor: 'pointer', fontWeight: 600, color: '#64748b',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReject}
+                disabled={!!actionBusy}
+                style={{
+                  flex: 1, padding: '9px 0', borderRadius: 8, border: 'none',
+                  background: '#ef4444', color: '#fff', fontSize: 13,
+                  cursor: actionBusy ? 'not-allowed' : 'pointer', fontWeight: 600, opacity: actionBusy ? 0.7 : 1,
+                }}
+              >
+                {actionBusy ? 'Rejecting…' : 'Reject'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

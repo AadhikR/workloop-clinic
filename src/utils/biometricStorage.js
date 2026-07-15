@@ -208,16 +208,17 @@ export async function importBiometricPunches(punches) {
     .gte('event_time', minTime)
     .lte('event_time', maxTime);
 
-  // Deduplicate at minute-level (HH:MM) to absorb minor timestamp skew
+  // Deduplicate at minute-level using UTC to absorb timezone differences
+  // (DB stores UTC; eventTime may carry +04:00 offset — normalise both before comparing)
   const existingSet = new Set(
-    (existing || []).map(e => `${e.employee_id}_${e.event_type}_${e.event_time.substring(0, 16)}`)
+    (existing || []).map(e => `${e.employee_id}_${e.event_type}_${new Date(e.event_time).toISOString().substring(0, 16)}`)
   );
 
   const toInsert = [];
   let skipped = 0;
 
   for (const p of punches) {
-    const key = `${p.employeeId}_${p.eventType}_${p.eventTime.substring(0, 16)}`;
+    const key = `${p.employeeId}_${p.eventType}_${new Date(p.eventTime).toISOString().substring(0, 16)}`;
     if (existingSet.has(key)) { skipped++; continue; }
     toInsert.push({
       user_id:     user.id,

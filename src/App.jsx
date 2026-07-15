@@ -1,5 +1,5 @@
 import { useState, useRef, useLayoutEffect, useEffect } from 'react';
-import { LayoutDashboard, Building2, Users, FileText, LogOut, User, CalendarDays, Clock, DollarSign, LayoutGrid, BarChart2, Receipt, Package, GraduationCap, ChevronDown, Plus, X, Check, PanelLeftClose, PanelLeftOpen, Mail, GitBranch, Activity, ClipboardList } from 'lucide-react';
+import { LayoutDashboard, Building2, Users, FileText, LogOut, User, CalendarDays, Clock, DollarSign, LayoutGrid, BarChart2, Receipt, Package, GraduationCap, ChevronDown, Plus, X, Check, PanelLeftClose, PanelLeftOpen, Mail, GitBranch, Activity, ClipboardList, ListTodo } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { CompanyProvider, useCompany } from './context/CompanyContext';
 import AuthPage from './components/AuthPage';
@@ -20,6 +20,7 @@ import LetterRequestsManager from './components/LetterRequestsManager';
 import DepartmentManager from './components/DepartmentManager';
 import ClinicalDashboard from './components/ClinicalDashboard';
 import AppraisalManager from './components/AppraisalManager';
+import TasksPanel from './components/TasksPanel';
 import EmployeeShell from './components/employee/EmployeeShell';
 import ManagerShell from './components/ManagerShell';
 import './index.css';
@@ -41,6 +42,7 @@ const NAV_ITEMS = [
   { id: 'appraisals', label: 'Appraisals',        icon: ClipboardList },
   { id: 'roster',     label: 'Roster',            icon: LayoutGrid },
   { id: 'reports',    label: 'Reports',           icon: BarChart2 },
+  { id: 'tasks',      label: 'Tasks',             icon: ListTodo, divider: true },
 ];
 
 // ─── Admin shell (HR users) ──────────────────────────────────────────────────
@@ -162,6 +164,7 @@ function AppShell() {
       case 'appraisals': return <AppraisalManager />;
       case 'roster':     return <RosterManager />;
       case 'reports':    return <Reports />;
+      case 'tasks':      return <TasksPanel role="admin" navigateTo={setPage} />;
       default:           return <Dashboard onNavigate={setPage} />;
     }
   };
@@ -314,15 +317,19 @@ function AppShell() {
           {navItems.map(item => {
             const Icon = item.icon;
             return (
-              <button
-                key={item.id}
-                className={`nav-item ${page === item.id ? 'active' : ''}`}
-                onClick={() => setPage(item.id)}
-                title={item.label}
-              >
-                <Icon size={16} />
-                {!sidebarCollapsed && <span className="nav-item-label">{item.label}</span>}
-              </button>
+              <div key={item.id}>
+                {item.divider && (
+                  <div style={{ margin: '6px 10px', borderTop: '1px solid rgba(56,189,248,0.12)' }} />
+                )}
+                <button
+                  className={`nav-item ${page === item.id ? 'active' : ''}`}
+                  onClick={() => setPage(item.id)}
+                  title={item.label}
+                >
+                  <Icon size={16} />
+                  {!sidebarCollapsed && <span className="nav-item-label">{item.label}</span>}
+                </button>
+              </div>
             );
           })}
         </nav>

@@ -12,6 +12,8 @@ import {
   managerApproveExpense,
   managerRejectExpense,
 } from '../../utils/expenseStorage';
+import { getMyEmployeeRecord } from '../../utils/profileStorage';
+import { getEmployees } from '../../utils/storage';
 import { EXPENSE_CATEGORIES } from '../ExpensesManager';
 import { formatDateUAE } from '../../utils/uaeValidators';
 
@@ -35,6 +37,7 @@ const STATUS_LABEL = {
 
 export default function ManagerExpenseQueue() {
   const [claims, setClaims]     = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [loading, setLoading]   = useState(true);
   const [filter, setFilter]     = useState('pending');
   const [rejectId, setRejectId] = useState(null);
@@ -44,8 +47,12 @@ export default function ManagerExpenseQueue() {
 
   const load = () => {
     setLoading(true);
-    getExpenseQueueForManager()
-      .then(setClaims)
+    Promise.all([getExpenseQueueForManager(), getEmployees()])
+      .then(([rawClaims, emps]) => {
+        setEmployees(emps);
+        const empMap = Object.fromEntries(emps.map(e => [e.id, e.name]));
+        setClaims(rawClaims.map(c => ({ ...c, employeeName: c.employeeName || empMap[c.employeeId] || null })));
+      })
       .catch(err => setMsg({ type: 'error', text: err.message }))
       .finally(() => setLoading(false));
   };
@@ -98,13 +105,15 @@ export default function ManagerExpenseQueue() {
   return (
     <div>
       <div className="emp-page-header">
-        <div>
-          <h2>Expense Queue</h2>
-          <p className="text-muted text-sm">Review and pre-approve your team's expense claims</p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <h2>Expense Queue</h2>
+            <p className="text-muted text-sm">Review and pre-approve your team's expense claims</p>
+          </div>
+          <button className="btn btn-outline btn-sm" onClick={load} disabled={loading}>
+            <RefreshCw size={14} className={loading ? 'spin' : ''} /> Refresh
+          </button>
         </div>
-        <button className="btn btn-outline btn-sm" onClick={load} disabled={loading}>
-          <RefreshCw size={14} className={loading ? 'spin' : ''} /> Refresh
-        </button>
       </div>
 
       <div className="emp-page-body">
@@ -117,7 +126,7 @@ export default function ManagerExpenseQueue() {
 
         {/* Filter tabs */}
         <div className="tab-bar mb-3">
-          {['all', 'pending', 'manager_approved', 'manager_rejected'].map(f => (
+          {['all', 'pending', 'manager_approved', 'manager_rejected', 'approved', 'paid', 'rejected'].map(f => (
             <button
               key={f}
               className={`tab-btn ${filter === f ? 'active' : ''}`}

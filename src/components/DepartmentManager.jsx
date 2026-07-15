@@ -287,8 +287,8 @@ export default function DepartmentManager() {
           <GitBranch size={20} /> Departments
         </h2>
         {tab === 'departments' && (
-          <button className="btn btn-primary btn-sm" onClick={openAdd} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Plus size={13} /> Add Department
+          <button className="btn btn-primary btn-sm" onClick={openAdd} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            <Plus size={14} style={{ flexShrink: 0 }} /> Add Department
           </button>
         )}
       </div>

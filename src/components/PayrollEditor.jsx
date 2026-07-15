@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { Download, Eye, Upload, AlertCircle, Plus, ChevronDown, CheckCircle, FileText, Info, Send, Lock, ShieldCheck, RefreshCw } from 'lucide-react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { Download, Eye, Upload, AlertCircle, Plus, ChevronDown, CheckCircle, FileText, Info, Send, Lock, ShieldCheck, RefreshCw, GitCompare, Search } from 'lucide-react';
 import { generateSIF, generateSIFFilename, generateCorrectedSIF } from '../utils/sifGenerator';
 import { parseCSV, readFileAsText } from '../utils/csvImport';
 import { savePayroll, createPayslipRecords, saveWpsTracking,
@@ -13,7 +13,7 @@ import { calculatePayrollLeaveDeductions } from '../utils/leaveEngine';
 import { getLeaveRequests } from '../utils/leaveStorage';
 import { getAttendancePayrollData, getOvertimeFromRoster } from '../utils/attendanceStorage';
 import { getAdvances } from '../utils/storage';
-import { formatDateUAE } from '../utils/uaeValidators';
+import { formatDateUAE, daysUntil } from '../utils/uaeValidators';
 import { getApprovedUnpaidExpenses, markExpensesPaid } from '../utils/expenseStorage';
 import { getPayrollSummaryFromAttendance, formatHours } from '../utils/attendanceEngine';
 
@@ -121,6 +121,12 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
   // Licence compliance gate state (Feature 7.1)
   const [licenceGate, setLicenceGate] = useState(null); // { expiredStaff, overrideReason, pendingDownload }
   const [licenceOverrideReason, setLicenceOverrideReason] = useState('');
+
+  // View Changes modal state (PAY-7)
+  const [showChanges, setShowChanges] = useState(false);
+
+  // WPS per-employee search (PAY-14)
+  const [wpsSearch, setWpsSearch] = useState('');
 
   // Load leave deductions for this payroll period and pre-fill entry fields
   useEffect(() => {
@@ -237,6 +243,55 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
 
   const getEmp = (id) => employees.find(e => e.id === id);
   const activeEntries = entries.filter(e => !e.excluded);
+
+  // PAY-10: per-employee doc expiry warnings (within 90 days or already expired)
+  const empExpiryWarnings = useMemo(() => {
+    const warnings = {};
+    for (const emp of employees) {
+      const w = [];
+      const check = (label, dateStr) => {
+        if (!dateStr) return;
+        const d = daysUntil(dateStr);
+        if (d < 0)   w.push(`${label}: EXPIRED`);
+        else if (d <= 90) w.push(`${label}: expires ${formatDateUAE(dateStr)}`);
+      };
+      check('Visa', emp.visaExpiry);
+      check('Emirates ID', emp.emiratesIdExpiry);
+      check('Passport', emp.passportExpiry);
+      check('Labour Card', emp.labourCardExpiry);
+      if (emp.licenceAuthority && emp.licenceAuthority !== 'None') check('Licence', emp.licenceExpiry);
+      if (w.length) warnings[emp.id] = w;
+    }
+    return warnings;
+  }, [employees]);
+
+  // PAY-7: compute changed fields vs employee profile defaults
+  const changeRows = useMemo(() => entries.flatMap(entry => {
+    const emp = getEmp(entry.employeeId);
+    if (!emp) return [];
+    const rows = [];
+    const fmtN = v => parseFloat(v) || 0;
+    const diff = (label, entryVal, defaultVal) => {
+      if (Math.abs(fmtN(entryVal) - fmtN(defaultVal)) > 0.001)
+        rows.push({ emp, label, def: fmtN(defaultVal), run: fmtN(entryVal) });
+    };
+    diff('Basic Salary',        entry.basicSalary,        emp.basicSalary);
+    diff('Housing Allowance',   entry.housingAllowance ?? emp.housingAllowance, emp.housingAllowance);
+    diff('Transport Allowance', entry.transportAllowance ?? emp.transportAllowance, emp.transportAllowance);
+    diff('Other Allowance',     entry.allowance,          emp.allowance ?? 0);
+    if (fmtN(entry.increment) !== 0)     rows.push({ emp, label: 'Increment',      def: 0, run:  fmtN(entry.increment) });
+    if (fmtN(entry.bonus) !== 0)         rows.push({ emp, label: 'Bonus',          def: 0, run:  fmtN(entry.bonus) });
+    if (fmtN(entry.otherPay) !== 0)      rows.push({ emp, label: 'Other Pay',      def: 0, run:  fmtN(entry.otherPay) });
+    if (fmtN(entry.leaveDeduction) !== 0) rows.push({ emp, label: 'Leave Deduction', def: 0, run: -fmtN(entry.leaveDeduction) });
+    (entry.additionalAllowances || []).forEach(a => {
+      if (parseFloat(a.amount)) rows.push({ emp, label: `+ ${a.label || 'Extra Allowance'}`, def: 0, run: parseFloat(a.amount) });
+    });
+    (entry.deductions || []).forEach(d => {
+      if (parseFloat(d.amount)) rows.push({ emp, label: `- ${d.label || 'Deduction'}`, def: 0, run: -parseFloat(d.amount) });
+    });
+    if (entry.excluded) rows.push({ emp, label: 'Excluded from run', def: '—', run: 'Yes' });
+    return rows;
+  }), [entries, employees]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const totalBasic      = activeEntries.reduce((s, e) => s + (parseFloat(e.basicSalary) || 0), 0);
   const totalAllowance  = activeEntries.reduce((s, e) => s + (parseFloat(e.allowance) || 0), 0);
@@ -436,6 +491,8 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
 
   const handleSaveDraft = () => {
     onSave({ ...buildPayroll(), status: payroll.status === 'generated' ? 'generated' : 'draft' });
+    setAutoSaved(true);
+    setTimeout(() => setAutoSaved(false), 2000);
   };
 
   // ── Payroll Approval handlers (Feature 17) ──────────────────────────────────
@@ -587,6 +644,13 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
             ref={fileRef} type="file" accept=".csv" style={{ display: 'none' }}
             onChange={e => { if (e.target.files[0]) handleCSVImport(e.target.files[0]); e.target.value = ''; }}
           />
+          <button
+            className="btn btn-outline btn-sm"
+            title="View per-employee changes from profile defaults"
+            onClick={() => setShowChanges(true)}
+          >
+            <GitCompare size={14} /> View Changes
+          </button>
           <button
             className="btn btn-outline btn-sm"
             title="Download payslips for all active employees"
@@ -768,11 +832,41 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
               {/* Per-employee WPS payment status */}
               {activeEntries.length > 0 && (
                 <div style={{ marginTop: 16 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-600)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Per-Employee Payment Status
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-600)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Per-Employee Payment Status
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <div style={{ position: 'relative' }}>
+                        <Search size={13} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--gray-400)', pointerEvents: 'none' }} />
+                        <input
+                          className="form-control"
+                          style={{ paddingLeft: 28, fontSize: 12, height: 32, width: 180 }}
+                          placeholder="Filter employees…"
+                          value={wpsSearch}
+                          onChange={e => setWpsSearch(e.target.value)}
+                        />
+                      </div>
+                      <button
+                        className="btn btn-outline btn-sm"
+                        style={{ fontSize: 12, whiteSpace: 'nowrap' }}
+                        onClick={() => setWpsEntryStatuses(prev => {
+                          const next = { ...prev };
+                          for (const entry of activeEntries) {
+                            next[entry.employeeId] = { ...((prev[entry.employeeId]) || {}), status: 'paid' };
+                          }
+                          return next;
+                        })}
+                      >
+                        ✓ Mark All Paid
+                      </button>
+                    </div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {activeEntries.map(entry => {
+                    {activeEntries.filter(entry => {
+                      const emp = getEmp(entry.employeeId);
+                      return emp && (!wpsSearch || emp.name.toLowerCase().includes(wpsSearch.toLowerCase()));
+                    }).map(entry => {
                       const emp     = getEmp(entry.employeeId);
                       if (!emp) return null;
                       const empWps  = wpsEntryStatuses[entry.employeeId] ?? { status: 'pending', reason: '' };
@@ -1303,41 +1397,50 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                           onChange={() => updateEntry(idx, 'excluded', !entry.excluded)}
                         />
                       </td>
-                      <td style={{ fontWeight: 500 }}>{emp.name}</td>
+                      <td style={{ fontWeight: 500 }}>
+                        {emp.name}
+                        {empExpiryWarnings[emp.id] && (
+                          <span
+                            title={empExpiryWarnings[emp.id].join('\n')}
+                            style={{ marginLeft: 6, color: 'var(--warning)', fontSize: 14, cursor: 'help', verticalAlign: 'middle' }}
+                            aria-label="Document expiry warning"
+                          >⚠</span>
+                        )}
+                      </td>
                       <td className="font-mono text-sm">{emp.molId}</td>
                       <td>
                         <input type="number" min="0" step="1"
-                          value={entry.basicSalary} disabled={isLocked || entry.excluded}
+                          value={entry.basicSalary} disabled={editingLocked || entry.excluded}
                           onChange={e => updateEntry(idx, 'basicSalary', e.target.value)} />
                       </td>
                       <td>
                         <input type="number" min="0" step="1"
-                          value={entry.housingAllowance ?? emp.housingAllowance ?? 0} disabled={isLocked || entry.excluded}
+                          value={entry.housingAllowance ?? emp.housingAllowance ?? 0} disabled={editingLocked || entry.excluded}
                           onChange={e => updateEntry(idx, 'housingAllowance', e.target.value)} />
                       </td>
                       <td>
                         <input type="number" min="0" step="1"
-                          value={entry.transportAllowance ?? emp.transportAllowance ?? 0} disabled={isLocked || entry.excluded}
+                          value={entry.transportAllowance ?? emp.transportAllowance ?? 0} disabled={editingLocked || entry.excluded}
                           onChange={e => updateEntry(idx, 'transportAllowance', e.target.value)} />
                       </td>
                       <td>
                         <input type="number" min="0" step="1"
-                          value={entry.allowance} disabled={isLocked || entry.excluded}
+                          value={entry.allowance} disabled={editingLocked || entry.excluded}
                           onChange={e => updateEntry(idx, 'allowance', e.target.value)} />
                       </td>
                       <td>
                         <input type="number" min="0" step="1"
-                          value={entry.increment} disabled={isLocked || entry.excluded}
+                          value={entry.increment} disabled={editingLocked || entry.excluded}
                           onChange={e => updateEntry(idx, 'increment', e.target.value)} />
                       </td>
                       <td>
                         <input type="number" min="0" step="1"
-                          value={entry.bonus} disabled={isLocked || entry.excluded}
+                          value={entry.bonus} disabled={editingLocked || entry.excluded}
                           onChange={e => updateEntry(idx, 'bonus', e.target.value)} />
                       </td>
                       <td>
                         <input type="number" min="0" step="1"
-                          value={entry.otherPay} disabled={isLocked || entry.excluded}
+                          value={entry.otherPay} disabled={editingLocked || entry.excluded}
                           onChange={e => updateEntry(idx, 'otherPay', e.target.value)} />
                       </td>
                       <td style={{ position:'relative' }}>
@@ -1346,7 +1449,7 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                           min="0"
                           step="0.01"
                           value={entry.leaveDeduction ?? 0}
-                          disabled={isLocked || entry.excluded}
+                          disabled={editingLocked || entry.excluded}
                           placeholder="0.00"
                           title="Auto-filled from approved leave. Edit to override."
                           style={{ color: (parseFloat(entry.leaveDeduction) || 0) > 0 ? 'var(--danger)' : undefined }}
@@ -1355,17 +1458,17 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                       </td>
                       <td
                         className="text-right text-sm"
-                        style={{ color: addAllow > 0 ? 'var(--success)' : 'var(--gray-400)', cursor: isLocked ? 'default' : 'pointer' }}
-                        onClick={() => !isLocked && setShowPanel(true)}
-                        title={isLocked ? undefined : 'Click to edit'}
+                        style={{ color: addAllow > 0 ? 'var(--success)' : 'var(--gray-400)', cursor: editingLocked ? 'default' : 'pointer' }}
+                        onClick={() => !editingLocked && setShowPanel(true)}
+                        title={editingLocked ? undefined : 'Click to edit'}
                       >
                         {addAllow > 0 ? `+${addAllow.toLocaleString('en-AE')}` : '—'}
                       </td>
                       <td
                         className="text-right text-sm"
-                        style={{ color: deds > 0 ? 'var(--danger)' : 'var(--gray-400)', cursor: isLocked ? 'default' : 'pointer' }}
-                        onClick={() => !isLocked && setShowPanel(true)}
-                        title={isLocked ? undefined : 'Click to edit'}
+                        style={{ color: deds > 0 ? 'var(--danger)' : 'var(--gray-400)', cursor: editingLocked ? 'default' : 'pointer' }}
+                        onClick={() => !editingLocked && setShowPanel(true)}
+                        title={editingLocked ? undefined : 'Click to edit'}
                       >
                         {deds > 0 ? `-${deds.toLocaleString('en-AE')}` : '—'}
                       </td>
@@ -1439,6 +1542,66 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
       </div>
 
       {/* ── Panels / Modals ── */}
+
+      {/* View Changes modal (PAY-7) */}
+      {showChanges && (
+        <div className="modal-overlay">
+          <div className="modal" style={{ maxWidth: 680 }}>
+            <div className="modal-header">
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <GitCompare size={16} /> Payroll Changes vs Employee Defaults
+              </h3>
+              <button className="btn btn-ghost btn-icon" onClick={() => setShowChanges(false)}>✕</button>
+            </div>
+            <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+              {changeRows.length === 0 ? (
+                <p style={{ color: 'var(--gray-500)', textAlign: 'center', padding: '24px 0' }}>
+                  All entries match employee profile defaults — no changes.
+                </p>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ background: 'var(--gray-50)', fontWeight: 600 }}>
+                      <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid var(--gray-200)' }}>Employee</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid var(--gray-200)' }}>Field</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'right', borderBottom: '1px solid var(--gray-200)' }}>Default</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'right', borderBottom: '1px solid var(--gray-200)' }}>This Run</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'right', borderBottom: '1px solid var(--gray-200)' }}>Δ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {changeRows.map((r, i) => {
+                      const delta = typeof r.run === 'number' && typeof r.def === 'number' ? r.run - r.def : null;
+                      return (
+                        <tr key={i} style={{ borderBottom: '1px solid var(--gray-100)' }}>
+                          <td style={{ padding: '7px 12px', fontWeight: 500 }}>{r.emp.name}</td>
+                          <td style={{ padding: '7px 12px', color: 'var(--gray-600)' }}>{r.label}</td>
+                          <td style={{ padding: '7px 12px', textAlign: 'right', color: 'var(--gray-500)' }}>
+                            {typeof r.def === 'number' ? r.def.toLocaleString('en-AE') : r.def}
+                          </td>
+                          <td style={{ padding: '7px 12px', textAlign: 'right', fontWeight: 600 }}>
+                            {typeof r.run === 'number' ? r.run.toLocaleString('en-AE') : r.run}
+                          </td>
+                          <td style={{ padding: '7px 12px', textAlign: 'right', color: delta > 0 ? 'var(--success)' : delta < 0 ? 'var(--danger)' : 'var(--gray-400)' }}>
+                            {delta !== null ? (delta >= 0 ? '+' : '') + delta.toLocaleString('en-AE') : '—'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+            <div className="modal-footer">
+              <span style={{ fontSize: 12, color: 'var(--gray-500)', flex: 1 }}>
+                {changeRows.length} change{changeRows.length !== 1 ? 's' : ''} across {new Set(changeRows.map(r => r.emp.id)).size} employee{new Set(changeRows.map(r => r.emp.id)).size !== 1 ? 's' : ''}
+              </span>
+              <button className="btn btn-outline" onClick={() => setShowChanges(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showPanel && (
         <AllowDeductPanel
           entries={entries}

@@ -146,7 +146,7 @@ export function payrollCostToRows(report) {
 export function buildLeaveUtilizationReport(employees, leaveRequests, year) {
   const yearStr = String(year);
   const approved = leaveRequests.filter(r =>
-    r.status === 'Approved' && r.startDate?.startsWith(yearStr)
+    (r.status === 'Approved' || r.status === 'ManagerApproved') && r.startDate?.startsWith(yearStr)
   );
 
   return employees
@@ -156,9 +156,10 @@ export function buildLeaveUtilizationReport(employees, leaveRequests, year) {
       const byType    = {};
       let totalDays   = 0;
       for (const req of empLeaves) {
-        const days = req.days || req.leaveDays || 0;
+        const days = req.daysRequested || 0;
         totalDays += days;
-        byType[req.leaveType || 'Annual'] = (byType[req.leaveType || 'Annual'] || 0) + days;
+        const typeName = req.leaveTypeCode || req.leaveType || 'Annual';
+        byType[typeName] = (byType[typeName] || 0) + days;
       }
       return {
         empId: emp.id, name: emp.name, department: emp.department || '—',
@@ -265,7 +266,7 @@ export function buildSalaryMovementReport(employees, jobHistory, startDate, endD
 
   return jobHistory
     .filter(h => {
-      if (h.changeType !== 'salary') return false;
+      if (h.changeType !== 'salary_change') return false;
       const d = new Date(h.changedAt);
       if (start && d < start) return false;
       if (end   && d > end)   return false;

@@ -602,7 +602,7 @@ function StaffingComplianceTab({ employees, staffingRules }) {
         if (r.date !== dateStr) return false;
         const emp = employees.find(e => e.id === r.employeeId);
         if (!emp || emp.department !== rule.department) return false;
-        return r.shiftCategory === rule.shiftCategory;
+        return (r.shift?.shiftCategory || '') === rule.shiftCategory;
       }).length;
       return { dateStr, count, ok: count >= rule.minStaff };
     });
@@ -681,7 +681,7 @@ export default function Reports() {
     Promise.all([
       getEmployees(),
       getPayrolls(),
-      getLeaveRequests({ status: 'Approved' }),
+      getLeaveRequests(),
       getAttendanceRecords(),
       getAllEmployeeDocuments(),
       getAllJobHistory(),

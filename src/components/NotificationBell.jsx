@@ -4,27 +4,32 @@
  * Polls getUnreadCount() every 60 seconds; loads full list when panel opens.
  */
 import { useState, useEffect, useRef } from 'react';
-import { Bell, X, CheckCheck } from 'lucide-react';
+import {
+  Bell, X, CheckCheck, FileText, AlertTriangle, Shield, RefreshCw,
+  CheckCircle, XCircle, FilePlus, DollarSign, Stethoscope, IdCard,
+  Clock, ClipboardList, GraduationCap,
+} from 'lucide-react';
 import {
   getNotifications, getUnreadCount,
   markNotificationRead, markAllNotificationsRead,
 } from '../utils/notificationStorage';
 
 const TYPE_ICON = {
-  document_expiry:          '📄',
-  wps_deadline:             '⚠️',
-  insurance_expiry:         '🏥',
-  policy_renewal:           '🔄',
-  leave_approved:           '✅',
-  leave_rejected:           '❌',
-  leave_submitted:          '📝',
-  payslip_available:        '💰',
-  clinical_credential_expiry: '🏥',
-  clinical_licence_expiry:  '🪪',
-  probation_ending:         '⏳',
-  contract_expiry:          '📋',
-  cert_expiry:              '🎓',
+  document_expiry:            { icon: FileText,      color: '#f59e0b' },
+  wps_deadline:               { icon: AlertTriangle, color: '#ef4444' },
+  insurance_expiry:           { icon: Shield,        color: '#8b5cf6' },
+  policy_renewal:             { icon: RefreshCw,     color: '#06b6d4' },
+  leave_approved:             { icon: CheckCircle,   color: '#10b981' },
+  leave_rejected:             { icon: XCircle,       color: '#ef4444' },
+  leave_submitted:            { icon: FilePlus,      color: '#3b82f6' },
+  payslip_available:          { icon: DollarSign,    color: '#10b981' },
+  clinical_credential_expiry: { icon: Stethoscope,   color: '#f59e0b' },
+  clinical_licence_expiry:    { icon: IdCard,        color: '#f59e0b' },
+  probation_ending:           { icon: Clock,         color: '#f97316' },
+  contract_expiry:            { icon: ClipboardList, color: '#f59e0b' },
+  cert_expiry:                { icon: GraduationCap, color: '#f59e0b' },
 };
+const DEFAULT_ICON = { icon: Bell, color: '#94a3b8' };
 
 function timeAgo(dateStr) {
   if (!dateStr) return '';
@@ -140,11 +145,11 @@ export default function NotificationBell() {
               flexShrink: 0,
             }}>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--gray-900)' }}>
+                <div style={{ fontWeight: 700, fontSize: 15, color: '#0f172a' }}>
                   Notifications
                 </div>
                 {unread > 0 && (
-                  <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 2 }}>
+                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
                     {unread} unread
                   </div>
                 )}
@@ -168,14 +173,14 @@ export default function NotificationBell() {
             {/* Notification list */}
             <div style={{ overflowY: 'auto', flex: 1 }}>
               {loading ? (
-                <div style={{ padding: 24, textAlign: 'center', color: 'var(--gray-400)', fontSize: 13 }}>
+                <div style={{ padding: 24, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
                   Loading…
                 </div>
               ) : notifs.length === 0 ? (
-                <div style={{ padding: 40, textAlign: 'center', color: 'var(--gray-400)', fontSize: 13 }}>
-                  <Bell size={32} style={{ marginBottom: 12, opacity: 0.25, display: 'block', margin: '0 auto 12px' }} />
-                  <div style={{ fontWeight: 600, marginBottom: 6 }}>No notifications yet</div>
-                  <div style={{ fontSize: 12, lineHeight: 1.5 }}>
+                <div style={{ padding: 40, textAlign: 'center', fontSize: 13 }}>
+                  <Bell size={32} style={{ color: '#cbd5e1', display: 'block', margin: '0 auto 12px' }} />
+                  <div style={{ fontWeight: 600, marginBottom: 6, color: '#475569' }}>No notifications yet</div>
+                  <div style={{ fontSize: 12, lineHeight: 1.5, color: '#94a3b8' }}>
                     Document expiry alerts, leave updates, and payslip notifications will appear here.
                   </div>
                 </div>
@@ -195,19 +200,29 @@ export default function NotificationBell() {
                     onMouseEnter={e => { if (!n.readAt) e.currentTarget.style.background = '#e8f1fe'; }}
                     onMouseLeave={e => { if (!n.readAt) e.currentTarget.style.background = '#f0f7ff'; }}
                   >
-                    <div style={{ fontSize: 18, flexShrink: 0, marginTop: 2, lineHeight: 1 }}>
-                      {TYPE_ICON[n.type] || '🔔'}
-                    </div>
+                    {(() => {
+                      const t = TYPE_ICON[n.type] || DEFAULT_ICON;
+                      const Icon = t.icon;
+                      return (
+                        <div style={{
+                          width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                          background: `${t.color}14`, display: 'flex',
+                          alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          <Icon size={16} style={{ color: t.color }} />
+                        </div>
+                      );
+                    })()}
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: n.readAt ? 500 : 700, fontSize: 13.5, color: 'var(--gray-800)', lineHeight: 1.35 }}>
+                      <div style={{ fontWeight: n.readAt ? 500 : 650, fontSize: 13, color: '#1e293b', lineHeight: 1.4 }}>
                         {n.title}
                       </div>
                       {n.body && (
-                        <div style={{ fontSize: 12.5, color: 'var(--gray-500)', marginTop: 3, lineHeight: 1.45 }}>
+                        <div style={{ fontSize: 12, color: '#64748b', marginTop: 3, lineHeight: 1.45 }}>
                           {n.body}
                         </div>
                       )}
-                      <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 5 }}>
+                      <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
                         {timeAgo(n.createdAt)}
                       </div>
                     </div>

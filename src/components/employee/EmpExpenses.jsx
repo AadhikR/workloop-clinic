@@ -16,17 +16,21 @@ import { EXPENSE_CATEGORIES } from '../ExpensesManager';
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const STATUS_BADGE = {
-  pending:  'badge-amber',
-  approved: 'badge-blue',
-  paid:     'badge-green',
-  rejected: 'badge-red',
+  pending:          'badge-amber',
+  manager_approved: 'badge-blue',
+  manager_rejected: 'badge-red',
+  approved:         'badge-green',
+  paid:             'badge-green',
+  rejected:         'badge-red',
 };
 
 const STATUS_LABEL = {
-  pending:  'Pending Review',
-  approved: 'Approved',
-  paid:     'Paid',
-  rejected: 'Rejected',
+  pending:          'Pending Review',
+  manager_approved: 'Manager Approved',
+  manager_rejected: 'Manager Rejected',
+  approved:         'HR Approved',
+  paid:             'Paid',
+  rejected:         'Rejected',
 };
 
 const EMPTY_FORM = {
@@ -115,33 +119,37 @@ export default function EmpExpenses() {
   };
 
   // ── Derived ───────────────────────────────────────────────────────────────
-  const pending  = claims.filter(c => c.status === 'pending');
-  const approved = claims.filter(c => c.status === 'approved');
-  const paid     = claims.filter(c => c.status === 'paid');
-  const rejected = claims.filter(c => c.status === 'rejected');
-  const totalApproved = approved.reduce((s, c) => s + c.amount, 0);
+  const pending         = claims.filter(c => c.status === 'pending');
+  const managerApproved = claims.filter(c => c.status === 'manager_approved');
+  const managerRejected = claims.filter(c => c.status === 'manager_rejected');
+  const approved        = claims.filter(c => c.status === 'approved');
+  const paid            = claims.filter(c => c.status === 'paid');
+  const rejected        = claims.filter(c => c.status === 'rejected');
+  const totalApproved   = approved.reduce((s, c) => s + c.amount, 0);
 
   if (loading) return <div style={{ padding: 32 }}>Loading expenses…</div>;
 
   return (
     <div>
       <div className="emp-page-header">
-        <div>
-          <h2 style={{ fontWeight: 700, fontSize: 20, color: '#1e293b', margin: 0 }}>
-            Expense Claims
-          </h2>
-          <p style={{ fontSize: 13, color: 'var(--gray-500)', marginTop: 4 }}>
-            Submit and track your expense reimbursement requests
-          </p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <h2 style={{ fontWeight: 700, fontSize: 20, color: '#1e293b', margin: 0 }}>
+              Expense Claims
+            </h2>
+            <p style={{ fontSize: 13, color: 'var(--gray-500)', marginTop: 4 }}>
+              Submit and track your expense reimbursement requests
+            </p>
+          </div>
+          {!showForm && (
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={() => { setShowForm(true); setFormError(''); }}
+            >
+              <Plus size={14} /> New Claim
+            </button>
+          )}
         </div>
-        {!showForm && (
-          <button
-            className="btn btn-primary btn-sm"
-            onClick={() => { setShowForm(true); setFormError(''); }}
-          >
-            <Plus size={14} /> New Claim
-          </button>
-        )}
       </div>
 
       <div className="emp-page-body">
@@ -156,6 +164,7 @@ export default function EmpExpenses() {
         {/* ── Summary card (approved unpaid) ── */}
         {approved.length > 0 && (
           <div className="emp-card mb-4" style={{
+            padding: '16px 18px',
             background: 'linear-gradient(135deg, #eff6ff 0%, #f0f9ff 100%)',
             border: '1px solid #bfdbfe',
           }}>
@@ -182,7 +191,7 @@ export default function EmpExpenses() {
 
         {/* ── Submit form ── */}
         {showForm && (
-          <div className="emp-card mb-4">
+          <div className="emp-card mb-4" style={{ padding: '16px 18px' }}>
             <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 16 }}>New Expense Claim</h3>
 
             {formError && (
@@ -288,11 +297,32 @@ export default function EmpExpenses() {
           />
         )}
 
-        {/* ── Approved claims ── */}
+        {/* ── Manager approved (awaiting HR final sign-off) ── */}
+        {managerApproved.length > 0 && (
+          <ClaimSection
+            title="Manager Approved — Awaiting HR"
+            titleColor="var(--primary)"
+            icon={<CheckCircle size={14} />}
+            claims={managerApproved}
+          />
+        )}
+
+        {/* ── Manager rejected ── */}
+        {managerRejected.length > 0 && (
+          <ClaimSection
+            title="Manager Rejected"
+            titleColor="var(--danger)"
+            icon={<X size={14} />}
+            claims={managerRejected}
+            showReason
+          />
+        )}
+
+        {/* ── HR approved (included in next payroll) ── */}
         {approved.length > 0 && (
           <ClaimSection
-            title="Approved — Awaiting Payroll"
-            titleColor="var(--primary)"
+            title="HR Approved — Awaiting Payroll"
+            titleColor="var(--success)"
             icon={<CheckCircle size={14} />}
             claims={approved}
           />
@@ -337,7 +367,7 @@ export default function EmpExpenses() {
 // ── ClaimSection sub-component ────────────────────────────────────────────────
 function ClaimSection({ title, titleColor, icon, claims, showReason = false }) {
   return (
-    <div className="emp-card mb-4">
+    <div className="emp-card mb-4" style={{ padding: '16px 18px' }}>
       <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: titleColor, display: 'flex', alignItems: 'center', gap: 6 }}>
         {icon} {title}
       </h3>
@@ -359,7 +389,7 @@ function ClaimSection({ title, titleColor, icon, claims, showReason = false }) {
                   {c.description}
                 </div>
               )}
-              {showReason && c.rejectionReason && (
+              {(showReason || c.status === 'manager_rejected') && c.rejectionReason && (
                 <div style={{ fontSize: 12, color: 'var(--danger)', marginTop: 4 }}>
                   Reason: {c.rejectionReason}
                 </div>
@@ -379,7 +409,7 @@ function ClaimSection({ title, titleColor, icon, claims, showReason = false }) {
               <div style={{ fontWeight: 700, fontSize: 15 }}>
                 AED {c.amount.toLocaleString('en-AE', { minimumFractionDigits: 2 })}
               </div>
-              <span className={`badge ${STATUS_BADGE[c.status] || 'badge-yellow'}`} style={{ fontSize: 10 }}>
+              <span className={`badge ${STATUS_BADGE[c.status] || 'badge-amber'}`} style={{ fontSize: 10 }}>
                 {STATUS_LABEL[c.status] || c.status}
               </span>
             </div>

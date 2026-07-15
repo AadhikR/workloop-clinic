@@ -134,9 +134,34 @@ export async function getAppraisalsForCycle(cycleId) {
 }
 
 export async function getMyAppraisals() {
+  const { data: selfId } = await supabase.rpc('get_manager_employee_id');
+  if (!selfId) {
+    // Fallback for non-manager employees: get employee_id from employees table
+    const user = await getSessionUser();
+    if (!user) return [];
+    const { data: empRow } = await supabase
+      .from('employees')
+      .select('id')
+      .eq('auth_user_id', user.id)
+      .maybeSingle();
+    if (!empRow) return [];
+    const { data, error } = await supabase
+      .from('appraisals')
+      .select('*, appraisal_sections(*), appraisal_cycles(name, review_from, review_to)')
+      .eq('employee_id', empRow.id)
+      .order('created_at', { ascending: false });
+    if (error) { console.error('getMyAppraisals:', error); return []; }
+    return (data || []).map(row => ({
+      ...dbToAppraisal(row),
+      cycleName:  row.appraisal_cycles?.name,
+      reviewFrom: row.appraisal_cycles?.review_from,
+      reviewTo:   row.appraisal_cycles?.review_to,
+    }));
+  }
   const { data, error } = await supabase
     .from('appraisals')
     .select('*, appraisal_sections(*), appraisal_cycles(name, review_from, review_to)')
+    .eq('employee_id', selfId)
     .order('created_at', { ascending: false });
   if (error) { console.error('getMyAppraisals:', error); return []; }
   return (data || []).map(row => ({
@@ -174,13 +199,42 @@ export async function getMyTeamAppraisals() {
   }));
 }
 
-/** Manager rates a single section (uses appraisal_sections_manager_update RLS policy). */
+/** Manager rates a single section, then recomputes the parent appraisal's overall rating + status. */
 export async function managerRateSection(sectionId, { rating, comments }) {
   const { error } = await supabase
     .from('appraisal_sections')
     .update({ rating: parseInt(rating), comments: comments || null })
     .eq('id', sectionId);
   if (error) throw error;
+
+  // Fetch appraisal_id from the section, then all sibling sections
+  const { data: sec } = await supabase
+    .from('appraisal_sections')
+    .select('appraisal_id')
+    .eq('id', sectionId)
+    .single();
+  if (!sec?.appraisal_id) return;
+
+  const { data: allSecs } = await supabase
+    .from('appraisal_sections')
+    .select('rating, weight')
+    .eq('appraisal_id', sec.appraisal_id);
+
+  const rated = (allSecs || []).filter(s => s.rating != null);
+  let overallRating = null;
+  if (rated.length > 0) {
+    const totalWeight = rated.reduce((s, r) => s + (parseFloat(r.weight) || 1), 0);
+    const weightedSum = rated.reduce((s, r) => s + r.rating * (parseFloat(r.weight) || 1), 0);
+    overallRating = Math.round((weightedSum / totalWeight) * 10) / 10;
+  }
+  const hasAll = (allSecs || []).length > 0 && (allSecs || []).every(s => s.rating != null);
+
+  // Update parent appraisal (needs appraisals_manager_update RLS policy — sql/038)
+  const patch = { overall_rating: overallRating, updated_at: new Date().toISOString() };
+  if (hasAll) { patch.status = 'reviewed'; patch.reviewed_at = new Date().toISOString(); }
+  try {
+    await supabase.from('appraisals').update(patch).eq('id', sec.appraisal_id);
+  } catch (_) { /* silently ignore if manager UPDATE policy not yet applied */ }
 }
 
 /**
