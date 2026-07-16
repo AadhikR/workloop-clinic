@@ -7,7 +7,7 @@ import {
 } from '../../utils/leaveStorage';
 import { formatDateUAE } from '../../utils/uaeValidators';
 import { supabase } from '../../lib/supabase';
-import { countLeaveDays, validateLeaveRequest, getLeaveTypeColor, calculateAnnualLeaveAccrual, DEFAULT_LEAVE_TYPES, ATTACHMENT_HINTS } from '../../utils/leaveEngine';
+import { countLeaveDays, validateLeaveRequest, getLeaveTypeColor, calculateAnnualLeaveAccrual, calculateCarryForward, DEFAULT_LEAVE_TYPES, ATTACHMENT_HINTS } from '../../utils/leaveEngine';
 import { getMyEmployeeRecord } from '../../utils/profileStorage';
 
 function computeBalancesLocally(leaveTypes, requests, empRec, year) {
@@ -23,22 +23,24 @@ function computeBalancesLocally(leaveTypes, requests, empRec, year) {
       let accruedDays  = lt.annualEntitlementDays || 0;
       let entitledDays = lt.annualEntitlementDays || 0;
 
-      if (lt.code === 'ANNUAL' && (empRec?.employment_start_date || empRec?.startDate)) {
-        const accrual = calculateAnnualLeaveAccrual(
-          empRec.employment_start_date || empRec.startDate,
-          new Date()
-        );
+      let carryForwardDays = 0;
+      const empStartDate = empRec?.employment_start_date || empRec?.startDate;
+
+      if (lt.code === 'ANNUAL' && empStartDate) {
+        const accrual = calculateAnnualLeaveAccrual(empStartDate, new Date());
         accruedDays  = accrual.totalAccrued;
         entitledDays = accrual.entitlementPerYear;
+        carryForwardDays = calculateCarryForward(lt, requests, empStartDate, year);
       }
 
       return {
         leaveTypeCode: lt.code,
         entitledDays,
         accruedDays,
+        carryForwardDays,
         usedDays,
         pendingDays,
-        remaining: Math.max(0, accruedDays - usedDays),
+        remaining: Math.max(0, accruedDays + carryForwardDays - usedDays),
       };
     });
 }

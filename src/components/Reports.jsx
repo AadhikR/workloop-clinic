@@ -11,7 +11,7 @@
  *   7. Staff Turnover  — joiners & leavers for a selected date range
  */
 import { useState, useEffect } from 'react';
-import { BarChart2, Users, DollarSign, CalendarDays, Clock, FileText, TrendingUp, UserMinus, Download, AlertCircle, ShieldCheck } from 'lucide-react';
+import { BarChart2, Users, DollarSign, CalendarDays, Clock, FileText, TrendingUp, UserMinus, Download, AlertCircle, ShieldCheck, Landmark, Flag, Wallet, ClipboardList } from 'lucide-react';
 import { getEmployees, getPayrolls, getAllEmployeeDocuments, getAllJobHistory } from '../utils/storage';
 import { getLeaveRequests } from '../utils/leaveStorage';
 import { getAttendanceRecords, getRosterForMonth } from '../utils/attendanceStorage';
@@ -25,6 +25,10 @@ import {
   buildDocumentExpiryReport, docExpiryToRows,
   buildSalaryMovementReport, salaryMovementToRows,
   buildTurnoverReport,      turnoverJoinersToRows, turnoverLeaversToRows,
+  buildWpsComplianceReport, wpsComplianceToRows,
+  buildEmiratizationReport, emiratizationToRows,
+  buildEOSLiabilityReport,  eosLiabilityToRows,
+  buildLeaveBalanceReport,  leaveBalanceToRows,
   exportCSV, exportPDF,
 } from '../utils/reportUtils';
 
@@ -37,6 +41,10 @@ const TABS = [
   { id: 'salary',      label: 'Salary History',      icon: TrendingUp },
   { id: 'turnover',    label: 'Staff Turnover',      icon: UserMinus },
   { id: 'staffing',    label: 'Staffing Compliance', icon: ShieldCheck },
+  { id: 'wps',         label: 'WPS Compliance',      icon: Landmark },
+  { id: 'emiratization', label: 'Emiratization',      icon: Flag },
+  { id: 'eos',         label: 'EOS Liability',        icon: Wallet },
+  { id: 'leaveBalance', label: 'Leave Balance',       icon: ClipboardList },
 ];
 
 const thisYear  = new Date().getFullYear();
@@ -663,6 +671,155 @@ function StaffingComplianceTab({ employees, staffingRules }) {
   );
 }
 
+// ─── WPS Compliance ─────────────────────────────────────────────────────────
+function WpsComplianceTab({ payrolls }) {
+  const report = buildWpsComplianceReport(payrolls);
+  const rows = wpsComplianceToRows(payrolls);
+  return (
+    <div className="card" style={{ padding: '18px 20px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>WPS Submission Compliance</h3>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button className="btn btn-ghost btn-sm" onClick={() => exportCSV(rows, 'wps-compliance.csv')}><Download size={13}/> CSV</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => exportPDF('WPS Compliance', Object.keys(rows[0] || {}), rows.map(Object.values), 'wps-compliance.pdf')}><Download size={13}/> PDF</button>
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
+        <div className="card" style={{ padding: 14, flex: 1, minWidth: 120, textAlign: 'center' }}>
+          <div style={{ fontSize: 24, fontWeight: 700, color: '#2563eb' }}>{report.generated.length}</div>
+          <div style={{ fontSize: 11, color: '#64748b' }}>Generated</div>
+        </div>
+        <div className="card" style={{ padding: 14, flex: 1, minWidth: 120, textAlign: 'center' }}>
+          <div style={{ fontSize: 24, fontWeight: 700, color: '#10b981' }}>{report.confirmed.length}</div>
+          <div style={{ fontSize: 11, color: '#64748b' }}>Confirmed</div>
+        </div>
+        <div className="card" style={{ padding: 14, flex: 1, minWidth: 120, textAlign: 'center' }}>
+          <div style={{ fontSize: 24, fontWeight: 700, color: '#f59e0b' }}>{report.pending.length}</div>
+          <div style={{ fontSize: 11, color: '#64748b' }}>Pending</div>
+        </div>
+        <div className="card" style={{ padding: 14, flex: 1, minWidth: 120, textAlign: 'center' }}>
+          <div style={{ fontSize: 24, fontWeight: 700, color: report.complianceRate >= 80 ? '#10b981' : '#ef4444' }}>{report.complianceRate}%</div>
+          <div style={{ fontSize: 11, color: '#64748b' }}>Compliance Rate</div>
+        </div>
+      </div>
+      {rows.length === 0 ? <p style={{ color: '#94a3b8', fontSize: 13 }}>No generated payroll runs yet.</p> : (
+        <div style={{ overflowX: 'auto' }}>
+          <table className="table"><thead><tr>{Object.keys(rows[0]).map(h => <th key={h}>{h}</th>)}</tr></thead>
+            <tbody>{rows.map((r, i) => <tr key={i}>{Object.values(r).map((v, j) => <td key={j}>{v}</td>)}</tr>)}</tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Emiratization ──────────────────────────────────────────────────────────
+function EmiratizationTab({ employees }) {
+  const report = buildEmiratizationReport(employees);
+  const rows = emiratizationToRows(employees);
+  return (
+    <div className="card" style={{ padding: '18px 20px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>Emiratization / Nafis Compliance</h3>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button className="btn btn-ghost btn-sm" onClick={() => exportCSV(rows, 'emiratization.csv')}><Download size={13}/> CSV</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => exportPDF('Emiratization Report', Object.keys(rows[0] || {}), rows.map(Object.values), 'emiratization.pdf')}><Download size={13}/> PDF</button>
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
+        <div className="card" style={{ padding: 14, flex: 1, minWidth: 120, textAlign: 'center' }}>
+          <div style={{ fontSize: 24, fontWeight: 700, color: '#2563eb' }}>{report.active.length}</div>
+          <div style={{ fontSize: 11, color: '#64748b' }}>Total Active</div>
+        </div>
+        <div className="card" style={{ padding: 14, flex: 1, minWidth: 120, textAlign: 'center' }}>
+          <div style={{ fontSize: 24, fontWeight: 700, color: '#10b981' }}>{report.emiratis.length}</div>
+          <div style={{ fontSize: 11, color: '#64748b' }}>UAE Nationals</div>
+        </div>
+        <div className="card" style={{ padding: 14, flex: 1, minWidth: 120, textAlign: 'center' }}>
+          <div style={{ fontSize: 24, fontWeight: 700, color: parseFloat(report.ratio) >= 2 ? '#10b981' : '#ef4444' }}>{report.ratio}%</div>
+          <div style={{ fontSize: 11, color: '#64748b' }}>Emiratization Rate</div>
+        </div>
+      </div>
+      <h4 style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 8 }}>By Department</h4>
+      <div style={{ overflowX: 'auto', marginBottom: 16 }}>
+        <table className="table"><thead><tr><th>Department</th><th>Total</th><th>Emirati</th><th>Rate</th></tr></thead>
+          <tbody>{Object.entries(report.byDept).map(([d, v]) => (
+            <tr key={d}><td>{d}</td><td>{v.total}</td><td>{v.emirati}</td><td>{v.total ? (v.emirati/v.total*100).toFixed(1) : 0}%</td></tr>
+          ))}</tbody>
+        </table>
+      </div>
+      {rows.length > 0 && (
+        <div style={{ overflowX: 'auto' }}>
+          <table className="table"><thead><tr>{Object.keys(rows[0]).map(h => <th key={h}>{h}</th>)}</tr></thead>
+            <tbody>{rows.map((r, i) => <tr key={i}>{Object.values(r).map((v, j) => <td key={j}>{v}</td>)}</tr>)}</tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── EOS Liability ──────────────────────────────────────────────────────────
+function EOSLiabilityTab({ employees }) {
+  const report = buildEOSLiabilityReport(employees);
+  const rows = eosLiabilityToRows(report.items);
+  return (
+    <div className="card" style={{ padding: '18px 20px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>End-of-Service Liability</h3>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button className="btn btn-ghost btn-sm" onClick={() => exportCSV(rows, 'eos-liability.csv')}><Download size={13}/> CSV</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => exportPDF('EOS Liability', Object.keys(rows[0] || {}), rows.map(Object.values), 'eos-liability.pdf')}><Download size={13}/> PDF</button>
+        </div>
+      </div>
+      <div className="card" style={{ padding: 16, marginBottom: 16, textAlign: 'center', background: 'rgba(37,99,235,0.04)' }}>
+        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>Total EOS Liability (all active employees)</div>
+        <div style={{ fontSize: 28, fontWeight: 700, color: '#2563eb' }}>AED {report.totalLiability.toLocaleString('en-AE', { minimumFractionDigits: 2 })}</div>
+      </div>
+      {rows.length === 0 ? <p style={{ color: '#94a3b8', fontSize: 13 }}>No active employees.</p> : (
+        <div style={{ overflowX: 'auto' }}>
+          <table className="table"><thead><tr>{Object.keys(rows[0]).map(h => <th key={h}>{h}</th>)}</tr></thead>
+            <tbody>{rows.map((r, i) => <tr key={i}>{Object.values(r).map((v, j) => <td key={j}>{v}</td>)}</tr>)}</tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Leave Balance ──────────────────────────────────────────────────────────
+function LeaveBalanceTab({ employees, leaveRequests }) {
+  const [year, setYear] = useState(new Date().getFullYear());
+  const balanceData = buildLeaveBalanceReport(employees, leaveRequests, year);
+  const rows = leaveBalanceToRows(balanceData);
+  return (
+    <div className="card" style={{ padding: '18px 20px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>Leave Balance Report</h3>
+          <select className="form-control" style={{ width: 100 }} value={year} onChange={e => setYear(parseInt(e.target.value))}>
+            {[0, 1, 2].map(offset => {
+              const y = new Date().getFullYear() - offset;
+              return <option key={y} value={y}>{y}</option>;
+            })}
+          </select>
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button className="btn btn-ghost btn-sm" onClick={() => exportCSV(rows, `leave-balance-${year}.csv`)}><Download size={13}/> CSV</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => exportPDF(`Leave Balance ${year}`, Object.keys(rows[0] || {}), rows.map(Object.values), `leave-balance-${year}.pdf`)}><Download size={13}/> PDF</button>
+        </div>
+      </div>
+      {rows.length === 0 ? <p style={{ color: '#94a3b8', fontSize: 13 }}>No active employees.</p> : (
+        <div style={{ overflowX: 'auto' }}>
+          <table className="table"><thead><tr>{Object.keys(rows[0]).map(h => <th key={h}>{h}</th>)}</tr></thead>
+            <tbody>{rows.map((r, i) => <tr key={i}>{Object.values(r).map((v, j) => <td key={j}>{v}</td>)}</tr>)}</tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Reports component ───────────────────────────────────────────────────
 export default function Reports() {
   const [tab, setTab]         = useState('headcount');
@@ -726,6 +883,10 @@ export default function Reports() {
       case 'salary':     return <SalaryHistoryTab employees={employees} jobHistory={jobHistory} />;
       case 'turnover':   return <TurnoverTab    employees={employees} />;
       case 'staffing':   return <StaffingComplianceTab employees={employees} staffingRules={staffingRules} />;
+      case 'wps':          return <WpsComplianceTab payrolls={payrolls} />;
+      case 'emiratization': return <EmiratizationTab employees={employees} />;
+      case 'eos':          return <EOSLiabilityTab employees={employees} />;
+      case 'leaveBalance': return <LeaveBalanceTab employees={employees} leaveRequests={leaveRequests} />;
       default:           return null;
     }
   };

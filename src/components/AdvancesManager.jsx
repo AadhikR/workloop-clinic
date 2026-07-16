@@ -3,6 +3,7 @@ import { Plus, Check, X, DollarSign, Clock, ChevronDown, ChevronUp, AlertCircle 
 import { getEmployees } from '../utils/storage';
 import { getAdvances, saveAdvance, getAdvanceRepayments } from '../utils/storage';
 import { formatDateUAE } from '../utils/uaeValidators';
+import ConfirmModal from './ConfirmModal';
 
 const STATUS_BADGE = {
   pending:   'badge-amber',
@@ -31,6 +32,7 @@ export default function AdvancesManager() {
   const [expandedId, setExpandedId]   = useState(null);
   const [repayments, setRepayments]   = useState({});
   const [loadingReps, setLoadingReps] = useState(false);
+  const [settleConfirm, setSettleConfirm] = useState(null);
 
   // Inline reject/cancel form state
   const [rejectingId,  setRejectingId]  = useState(null); // advance id being acted on
@@ -127,12 +129,17 @@ export default function AdvancesManager() {
   };
 
   const handleSettle = async (adv) => {
-    if (!window.confirm('Mark this advance as fully settled?')) return;
+    setSettleConfirm(adv);
+  };
+
+  const confirmSettle = async () => {
+    const adv = settleConfirm;
+    setSettleConfirm(null);
     try {
       const updated = await saveAdvance({ ...adv, status: 'settled', outstandingBalance: 0 });
       setAdvances(prev => prev.map(a => a.id === updated.id ? updated : a));
     } catch (err) {
-      alert('Could not settle: ' + err.message);
+      console.error('Could not settle:', err);
     }
   };
 
@@ -453,6 +460,17 @@ export default function AdvancesManager() {
           )}
         </div>
       </div>
+
+      {settleConfirm && (
+        <ConfirmModal
+          title="Settle Advance"
+          message="Mark this advance as fully settled? This action cannot be undone."
+          confirmLabel="Settle"
+          destructive
+          onConfirm={confirmSettle}
+          onCancel={() => setSettleConfirm(null)}
+        />
+      )}
     </div>
   );
 }

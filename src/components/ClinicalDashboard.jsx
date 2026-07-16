@@ -22,6 +22,7 @@ import { getEmployees, getAllEmployeeDocuments } from '../utils/storage';
 import { getRosterForMonth, getAttendanceRecords } from '../utils/attendanceStorage';
 import { getLeaveRequests } from '../utils/leaveStorage';
 import { getDepartments } from '../utils/departmentStorage';
+import { getDeptStaffingRules } from '../utils/staffingStorage';
 import { formatDateUAE } from '../utils/uaeValidators';
 import { CLINICAL_DOC_TYPES } from './EmployeeModal';
 import { useCompany } from '../context/CompanyContext';
@@ -100,6 +101,7 @@ export default function ClinicalDashboard() {
   const [departments,  setDepartments]  = useState([]);
   const [leaveReqs,    setLeaveReqs]    = useState([]);
   const [todayAttendance, setTodayAttendance] = useState([]);
+  const [staffingRules, setStaffingRules] = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [drill,        setDrill]        = useState(null); // active KPI id
 
@@ -107,13 +109,14 @@ export default function ClinicalDashboard() {
     setLoading(true);
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
-    const [emps, docs, rosterData, depts, leaves, todayRecs] = await Promise.all([
+    const [emps, docs, rosterData, depts, leaves, todayRecs, rules] = await Promise.all([
       getEmployees(activeCompanyId).catch(() => []),
       getAllEmployeeDocuments().catch(() => []),
       getRosterForMonth(now.getFullYear(), now.getMonth() + 1).catch(() => []),
       getDepartments().catch(() => []),
       getLeaveRequests({ status: 'Approved' }).catch(() => []),
       getAttendanceRecords({ dateFrom: todayStr, dateTo: todayStr }).catch(() => []),
+      getDeptStaffingRules().catch(() => []),
     ]);
     setEmployees(emps);
     setDocuments(docs);
@@ -121,6 +124,7 @@ export default function ClinicalDashboard() {
     setDepartments(depts);
     setLeaveReqs(leaves);
     setTodayAttendance(todayRecs);
+    setStaffingRules(rules);
     setLoading(false);
   };
 
@@ -258,6 +262,30 @@ export default function ClinicalDashboard() {
       e.employmentStatus === 'Active' || e.employmentStatus === 'Full-Time'
     );
 
+    // Staffing ratio analysis — compare rostered staff per dept vs staffing rules
+    const todayStr2 = today();
+    const staffingAnalysis = staffingRules
+      .filter(rule => {
+        if (rule.effectiveFrom && rule.effectiveFrom > todayStr2) return false;
+        if (rule.effectiveTo && rule.effectiveTo < todayStr2) return false;
+        return true;
+      })
+      .map(rule => {
+        const deptRostered = todayRoster.filter(r => {
+          const emp = activeEmps.find(e => e.id === r.employeeId);
+          return emp?.department === rule.department;
+        });
+        const actual = deptRostered.length;
+        const deficit = Math.max(0, rule.minStaff - actual);
+        return {
+          ...rule,
+          actual,
+          deficit,
+          status: deficit > 0 ? 'understaffed' : 'ok',
+        };
+      });
+    const understaffedCount = staffingAnalysis.filter(s => s.deficit > 0).length;
+
     return {
       activeEmps, withValidCred, withExpiredCred, noCredentials,
       complianceRate, credentialTotal,
@@ -265,9 +293,9 @@ export default function ClinicalDashboard() {
       todayRoster, rosteredEmps, unrosteredEmps, coveragePct,
       probationEmps, joinersThisMonth,
       birthdaysThisMonth, onLeaveToday, pendingLeaveEmps, onDutyNow, confirmedEmps,
-      deptBreakdown,
+      deptBreakdown, staffingAnalysis, understaffedCount,
     };
-  }, [employees, documents, roster, departments, leaveReqs, todayAttendance]);
+  }, [employees, documents, roster, departments, leaveReqs, todayAttendance, staffingRules]);
 
   const toggle = (id) => setDrill(prev => prev === id ? null : id);
 
@@ -287,7 +315,7 @@ export default function ClinicalDashboard() {
           todayRoster, rosteredEmps, unrosteredEmps, coveragePct,
           probationEmps, joinersThisMonth,
           birthdaysThisMonth, onLeaveToday, pendingLeaveEmps, onDutyNow, confirmedEmps,
-          deptBreakdown } = metrics;
+          deptBreakdown, staffingAnalysis, understaffedCount } = metrics;
 
   return (
     <div>
@@ -438,6 +466,20 @@ export default function ClinicalDashboard() {
             active={drill === 'on-duty'}
             onClick={() => toggle('on-duty')}
           />
+
+          {/* 12. Staffing Ratio */}
+          {staffingAnalysis.length > 0 && (
+            <KpiCard
+              icon={CheckCircle}
+              iconBg={understaffedCount > 0 ? 'rgba(220,38,38,0.10)' : 'rgba(22,163,74,0.10)'}
+              iconColor={understaffedCount > 0 ? 'var(--danger)' : 'var(--success)'}
+              value={understaffedCount > 0 ? `${understaffedCount} dept${understaffedCount > 1 ? 's' : ''}` : 'All met'}
+              label="Staffing Ratios"
+              sub={understaffedCount > 0 ? 'Below minimum — click to review' : `${staffingAnalysis.length} rules checked`}
+              active={drill === 'staffing'}
+              onClick={() => toggle('staffing')}
+            />
+          )}
 
         </div>
 
@@ -765,6 +807,41 @@ export default function ClinicalDashboard() {
           </DrillTable>
         )}
 
+        {drill === 'staffing' && (
+          <DrillTable emptyText="No staffing rules configured. Set up minimums in Roster → Staffing Rules.">
+            {staffingAnalysis.length > 0 && (
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Department</th>
+                    <th>Shift Category</th>
+                    <th>Min Required</th>
+                    <th>Rostered Today</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {staffingAnalysis
+                    .sort((a, b) => b.deficit - a.deficit)
+                    .map(s => (
+                    <tr key={s.id} style={s.deficit > 0 ? { background: '#fff5f5' } : {}}>
+                      <td style={{ fontWeight: 500 }}>{s.department}</td>
+                      <td>{s.shiftCategory || 'Any'}</td>
+                      <td>{s.minStaff}</td>
+                      <td>{s.actual}</td>
+                      <td>
+                        {s.deficit > 0
+                          ? <span className="badge badge-red">Short by {s.deficit}</span>
+                          : <span className="badge badge-green">Met</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </DrillTable>
+        )}
+
         {/* ── Department breakdown ── */}
         <div className="card mt-4">
           <div className="card-header">
@@ -782,6 +859,7 @@ export default function ClinicalDashboard() {
                   <th>Headcount</th>
                   <th>Credentialled Staff</th>
                   <th>Compliance</th>
+                  <th>Min Staff</th>
                   <th>Coverage</th>
                 </tr>
               </thead>
@@ -791,6 +869,9 @@ export default function ClinicalDashboard() {
                   const deptColor = deptObj?.color || '#6366f1';
                   const todayInDept = rosteredEmps.filter(e => e.department === name).length;
                   const covPct = count === 0 ? 0 : Math.round(todayInDept / count * 100);
+                  const deptRules = staffingAnalysis.filter(s => s.department === name);
+                  const totalMin = deptRules.reduce((sum, r) => sum + r.minStaff, 0);
+                  const hasDeficit = deptRules.some(r => r.deficit > 0);
                   return (
                     <tr key={name}>
                       <td>
@@ -813,6 +894,11 @@ export default function ClinicalDashboard() {
                             {pct}%
                           </span>
                         )}
+                      </td>
+                      <td>
+                        {totalMin > 0
+                          ? <span className={`badge ${hasDeficit ? 'badge-red' : 'badge-green'}`}>{totalMin}</span>
+                          : <span className="text-muted">—</span>}
                       </td>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

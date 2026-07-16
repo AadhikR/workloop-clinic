@@ -98,6 +98,9 @@ export default function NotificationBell() {
       <button
         onClick={openPanel}
         title="Notifications"
+        aria-label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
+        aria-haspopup="dialog"
+        aria-expanded={open}
         style={{
           position: 'relative', background: 'transparent', border: 'none',
           cursor: 'pointer', padding: '6px 8px', borderRadius: 8,
@@ -107,7 +110,7 @@ export default function NotificationBell() {
         onMouseEnter={e => { e.currentTarget.style.background = 'rgba(37,99,235,0.15)'; }}
         onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
       >
-        <Bell size={16} />
+        <Bell size={16} aria-hidden="true" />
         {unread > 0 && (
           <span style={{
             position: 'absolute', top: 1, right: 1,

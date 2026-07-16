@@ -428,6 +428,39 @@ export function calculateAnnualLeaveAccrual(startDate, asOfDate = new Date(), le
   };
 }
 
+/**
+ * Calculate carry-forward days from the previous leave year.
+ * Only applies to leave types with carryForwardAllowed: true.
+ *
+ * @param {object} leaveType — must have carryForwardAllowed, carryForwardMaxDays, code
+ * @param {object[]} allRequests — all leave requests (any year)
+ * @param {string|Date} startDate — employee start date
+ * @param {number} currentYear
+ * @returns {number} carry-forward days (0 if not allowed or no unused)
+ */
+export function calculateCarryForward(leaveType, allRequests, startDate, currentYear) {
+  if (!leaveType.carryForwardAllowed || !leaveType.carryForwardMaxDays) return 0;
+
+  const prevYear = currentYear - 1;
+  const prevAccrual = calculateAnnualLeaveAccrual(
+    startDate,
+    new Date(prevYear, 11, 31),
+    'calendar'
+  );
+  if (!prevAccrual.eligible) return 0;
+
+  const prevUsed = allRequests
+    .filter(r =>
+      r.leaveTypeCode === leaveType.code &&
+      r.status === 'Approved' &&
+      r.startDate?.startsWith(String(prevYear))
+    )
+    .reduce((s, r) => s + (parseFloat(r.daysRequested) || 0), 0);
+
+  const unused = Math.max(0, prevAccrual.totalAccrued - prevUsed);
+  return Math.min(unused, leaveType.carryForwardMaxDays);
+}
+
 // ── Sick Leave Tier Calculation ───────────────────────────────────────────────
 
 /**

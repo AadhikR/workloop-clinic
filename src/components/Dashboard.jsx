@@ -7,6 +7,7 @@ import { getPendingLetterCount } from '../utils/letterStorage';
 import { getAppraisalCycles, getAppraisalsForCycle } from '../utils/appraisalStorage';
 import { useCompany } from '../context/CompanyContext';
 import NafisReportModal from './NafisReportModal';
+import LoadError from './LoadError';
 
 export default function Dashboard({ onNavigate }) {
   const { activeCompanyId } = useCompany();
@@ -14,6 +15,7 @@ export default function Dashboard({ onNavigate }) {
   const [employees, setEmployees]     = useState([]);
   const [payrolls, setPayrolls]       = useState([]);
   const [loading, setLoading]         = useState(true);
+  const [loadError, setLoadError]     = useState(null);
   const [showNafisReport, setShowNafisReport] = useState(false);
   const [insurancePolicies, setInsurancePolicies] = useState([]);
   const [allEmpInsurance, setAllEmpInsurance]     = useState([]);
@@ -23,6 +25,7 @@ export default function Dashboard({ onNavigate }) {
 
   useEffect(() => {
     setLoading(true);
+    setLoadError(null);
     Promise.all([
       getCompany(activeCompanyId), getEmployees(activeCompanyId), getPayrolls(activeCompanyId),
       getInsurancePolicies(), getAllEmployeeInsurance(),
@@ -47,6 +50,10 @@ export default function Dashboard({ onNavigate }) {
         const allAppraisals = (await Promise.all(activeCycles.map(c => getAppraisalsForCycle(c.id).catch(() => [])))).flat();
         setPendingAppraisals(allAppraisals.filter(a => a.status === 'pending').length);
       }).catch(() => {});
+    }).catch(err => {
+      console.error('Dashboard load error:', err);
+      setLoadError(err.message || 'Failed to load dashboard data');
+      setLoading(false);
     });
   }, [activeCompanyId]); // Re-load when the active branch changes
 
@@ -208,6 +215,14 @@ export default function Dashboard({ onNavigate }) {
     return (
       <div style={{ padding: 40, textAlign: 'center', color: 'var(--gray-400)' }}>
         Loading dashboard…
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="page-body">
+        <LoadError message={loadError} onRetry={() => window.location.reload()} />
       </div>
     );
   }

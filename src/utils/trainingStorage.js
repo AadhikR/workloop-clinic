@@ -38,6 +38,7 @@ function dbToTraining(row) {
     passed:         row.passed,
     certificateUrl: row.certificate_url,
     notes:          row.notes,
+    isCme:          row.is_cme ?? false,
     createdAt:      row.created_at,
   };
 }
@@ -100,6 +101,7 @@ export async function saveTrainingRecord(rec) {
     passed:          rec.passed         ?? null,
     certificate_url: rec.certificateUrl || '',
     notes:           rec.notes          || '',
+    is_cme:          rec.isCme          ?? false,
   };
 
   if (rec.id) {
@@ -303,6 +305,7 @@ export async function saveTeamTrainingRecord(rec) {
     passed:          rec.passed         ?? null,
     certificate_url: rec.certificateUrl || '',
     notes:           rec.notes          || '',
+    is_cme:          rec.isCme          ?? false,
   };
   if (rec.id) {
     const { data, error } = await supabase
@@ -389,6 +392,7 @@ export async function employeeSaveTrainingRecord(rec) {
     passed:          rec.passed         ?? null,
     certificate_url: rec.certificateUrl || '',
     notes:           rec.notes          || '',
+    is_cme:          rec.isCme          ?? false,
   };
   if (rec.id) {
     const { data, error } = await supabase
@@ -437,6 +441,73 @@ export async function employeeSaveCertification(cert) {
     .select('*').single();
   if (error) throw error;
   return dbToCertification({ ...data, employees: null });
+}
+
+// ─── CME Tracking ────────────────────────────────────────────────────────────
+
+function dbToCmeReq(row) {
+  return {
+    id:            row.id,
+    employeeId:    row.employee_id,
+    employeeName:  row.employees?.name ?? '',
+    year:          row.year,
+    requiredHours: parseFloat(row.required_hours) || 25,
+    notes:         row.notes || '',
+  };
+}
+
+export async function getCmeRequirements(year = null) {
+  let q = supabase
+    .from('cme_requirements')
+    .select('*, employees(name)')
+    .order('year', { ascending: false });
+  if (year) q = q.eq('year', year);
+  const { data, error } = await q;
+  if (error) { console.error('getCmeRequirements:', error); return []; }
+  return (data || []).map(dbToCmeReq);
+}
+
+export async function saveCmeRequirement(req) {
+  const user = await getSessionUser();
+  if (!user) throw new Error('Not authenticated');
+  const row = {
+    user_id:        user.id,
+    employee_id:    req.employeeId,
+    year:           req.year,
+    required_hours: parseFloat(req.requiredHours) || 25,
+    notes:          req.notes || '',
+  };
+  if (req.id) {
+    const { data, error } = await supabase
+      .from('cme_requirements').update(row).eq('id', req.id)
+      .select('*, employees(name)').single();
+    if (error) throw error;
+    return dbToCmeReq(data);
+  }
+  const { data, error } = await supabase
+    .from('cme_requirements').insert(row)
+    .select('*, employees(name)').single();
+  if (error) throw error;
+  return dbToCmeReq(data);
+}
+
+export async function deleteCmeRequirement(id) {
+  const { error } = await supabase.from('cme_requirements').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export async function getCmeTrainingRecords(year = null) {
+  let q = supabase
+    .from('training_records')
+    .select('*, employees(name)')
+    .eq('is_cme', true)
+    .order('start_date', { ascending: false });
+  if (year) {
+    q = q.gte('start_date', `${year}-01-01`).lte('start_date', `${year}-12-31`);
+  }
+  const { data, error } = await q;
+  if (error) { console.error('getCmeTrainingRecords:', error); return []; }
+  return (data || []).map(dbToTraining);
 }
 
 /**

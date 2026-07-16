@@ -81,15 +81,12 @@ export default function EmpProfile({ onSignOut, signingOut }) {
     if (!emp) return;
     setSaving(true);
 
-    const { error } = await supabase
-      .from('employees')
-      .update({
-        phone:                  phone,
-        personal_email:         personalEmail,
-        emergency_contact_name:  emergencyName,
-        emergency_contact_phone: emergencyPhone,
-      })
-      .eq('auth_user_id', (await supabase.auth.getSession()).data.session?.user?.id);
+    const { error } = await supabase.rpc('employee_update_contact', {
+      p_phone: phone,
+      p_personal_email: personalEmail,
+      p_emergency_contact_name: emergencyName,
+      p_emergency_contact_phone: emergencyPhone,
+    });
 
     setSaving(false);
     if (error) {

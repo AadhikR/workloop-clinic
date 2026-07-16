@@ -410,14 +410,13 @@ export async function savePayroll(payroll) {
     .upsert(runRow, { onConflict: 'id' });
   if (runErr) throw runErr;
 
-  // Replace all entries for this run
+  // Replace all entries atomically via RPC (single transaction)
   if (payroll.entries?.length) {
-    await supabase.from('payroll_entries').delete().eq('payroll_run_id', payroll.id);
-
     const entryRows = payroll.entries.map(e => entryToDb(e, payroll.id, user.id));
-    const { error: entErr } = await supabase
-      .from('payroll_entries')
-      .insert(entryRows);
+    const { error: entErr } = await supabase.rpc('replace_payroll_entries', {
+      p_payroll_run_id: payroll.id,
+      p_entries: entryRows,
+    });
     if (entErr) throw entErr;
   }
 }
@@ -937,23 +936,14 @@ export async function getAdvanceRepayments(advanceId) {
  * Records a repayment for an advance and updates the outstanding balance.
  */
 export async function saveAdvanceRepayment(repayment) {
-  const { error: repErr } = await supabase
-    .from('advance_repayments')
-    .insert({
-      advance_id:     repayment.advanceId,
-      payroll_run_id: repayment.payrollRunId || null,
-      amount:         parseFloat(repayment.amount),
-      paid_date:      repayment.paidDate || new Date().toISOString().split('T')[0],
-    });
-  if (repErr) throw repErr;
-
-  // Reduce outstanding balance on the parent advance
-  const { data: adv } = await supabase
-    .from('salary_advances').select('outstanding_balance').eq('id', repayment.advanceId).single();
-  if (adv) {
-    const newBalance = Math.max(0, (parseFloat(adv.outstanding_balance) || 0) - parseFloat(repayment.amount));
-    await updateAdvanceBalance(repayment.advanceId, newBalance);
-  }
+  const { data, error } = await supabase.rpc('record_advance_repayment', {
+    p_advance_id: repayment.advanceId,
+    p_payroll_run_id: repayment.payrollRunId || null,
+    p_amount: parseFloat(repayment.amount),
+    p_paid_date: repayment.paidDate || new Date().toISOString().split('T')[0],
+  });
+  if (error) throw error;
+  return data;
 }
 
 function dbToAdvance(row) {

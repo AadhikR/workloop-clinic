@@ -1,28 +1,32 @@
-import { useState, useRef, useLayoutEffect, useEffect } from 'react';
-import { LayoutDashboard, Building2, Users, FileText, LogOut, User, CalendarDays, Clock, DollarSign, LayoutGrid, BarChart2, Receipt, Package, GraduationCap, ChevronDown, Plus, X, Check, PanelLeftClose, PanelLeftOpen, Mail, GitBranch, Activity, ClipboardList, ListTodo } from 'lucide-react';
+import { useState, useRef, useLayoutEffect, useEffect, lazy, Suspense } from 'react';
+import { LayoutDashboard, Building2, Users, FileText, LogOut, User, CalendarDays, Clock, DollarSign, LayoutGrid, BarChart2, Receipt, Package, GraduationCap, ChevronDown, Plus, X, Check, PanelLeftClose, PanelLeftOpen, Mail, GitBranch, Activity, ClipboardList, ListTodo, ShieldAlert } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { CompanyProvider, useCompany } from './context/CompanyContext';
+import ErrorBoundary from './components/ErrorBoundary';
+import OfflineBanner from './components/OfflineBanner';
 import AuthPage from './components/AuthPage';
 import NotificationBell from './components/NotificationBell';
-import Dashboard from './components/Dashboard';
-import CompanySettings from './components/CompanySettings';
-import EmployeeManager from './components/EmployeeManager';
-import PayrollManager from './components/PayrollManager';
-import LeaveManager from './components/LeaveManager';
-import AttendanceManager from './components/AttendanceManager';
-import AdvancesManager from './components/AdvancesManager';
-import RosterManager from './components/RosterManager';
-import Reports from './components/Reports';
-import ExpensesManager from './components/ExpensesManager';
-import AssetsManager from './components/AssetsManager';
-import TrainingManager from './components/TrainingManager';
-import LetterRequestsManager from './components/LetterRequestsManager';
-import DepartmentManager from './components/DepartmentManager';
-import ClinicalDashboard from './components/ClinicalDashboard';
-import AppraisalManager from './components/AppraisalManager';
-import TasksPanel from './components/TasksPanel';
-import EmployeeShell from './components/employee/EmployeeShell';
-import ManagerShell from './components/ManagerShell';
+
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const CompanySettings = lazy(() => import('./components/CompanySettings'));
+const EmployeeManager = lazy(() => import('./components/EmployeeManager'));
+const PayrollManager = lazy(() => import('./components/PayrollManager'));
+const LeaveManager = lazy(() => import('./components/LeaveManager'));
+const AttendanceManager = lazy(() => import('./components/AttendanceManager'));
+const AdvancesManager = lazy(() => import('./components/AdvancesManager'));
+const RosterManager = lazy(() => import('./components/RosterManager'));
+const Reports = lazy(() => import('./components/Reports'));
+const ExpensesManager = lazy(() => import('./components/ExpensesManager'));
+const AssetsManager = lazy(() => import('./components/AssetsManager'));
+const TrainingManager = lazy(() => import('./components/TrainingManager'));
+const LetterRequestsManager = lazy(() => import('./components/LetterRequestsManager'));
+const DepartmentManager = lazy(() => import('./components/DepartmentManager'));
+const ClinicalDashboard = lazy(() => import('./components/ClinicalDashboard'));
+const AppraisalManager = lazy(() => import('./components/AppraisalManager'));
+const TasksPanel = lazy(() => import('./components/TasksPanel'));
+const IncidentManager = lazy(() => import('./components/IncidentManager'));
+const EmployeeShell = lazy(() => import('./components/employee/EmployeeShell'));
+const ManagerShell = lazy(() => import('./components/ManagerShell'));
 import './index.css';
 
 const NAV_ITEMS = [
@@ -41,6 +45,7 @@ const NAV_ITEMS = [
   { id: 'training',   label: 'Training',          icon: GraduationCap },
   { id: 'appraisals', label: 'Appraisals',        icon: ClipboardList },
   { id: 'roster',     label: 'Roster',            icon: LayoutGrid },
+  { id: 'incidents',  label: 'Incidents',         icon: ShieldAlert },
   { id: 'reports',    label: 'Reports',           icon: BarChart2 },
   { id: 'tasks',      label: 'Tasks',             icon: ListTodo, divider: true },
 ];
@@ -163,6 +168,7 @@ function AppShell() {
       case 'training':   return <TrainingManager />;
       case 'appraisals': return <AppraisalManager />;
       case 'roster':     return <RosterManager />;
+      case 'incidents':  return <IncidentManager />;
       case 'reports':    return <Reports />;
       case 'tasks':      return <TasksPanel role="admin" navigateTo={setPage} />;
       default:           return <Dashboard onNavigate={setPage} />;
@@ -402,8 +408,10 @@ function AppShell() {
         </div>
       </aside>
 
-      <main className={`main-content${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
-        {renderPage()}
+      <main id="main-content" className={`main-content${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
+        <Suspense fallback={<div className="page-loading" role="status" aria-label="Loading page"><div className="spinner" /></div>}>
+          {renderPage()}
+        </Suspense>
       </main>
 
       {/* ── New Branch modal ── */}
@@ -525,16 +533,19 @@ function Root() {
     return <Spinner label="Setting up your account…" />;
   }
 
-  if (profile.role === 'employee') return <EmployeeShell />;
-  if (profile.role === 'manager')  return <ManagerShell />;
-  // Admins get the multi-company context
+  if (profile.role === 'employee') return <Suspense fallback={<div className="page-loading"><div className="spinner" /></div>}><EmployeeShell /></Suspense>;
+  if (profile.role === 'manager')  return <Suspense fallback={<div className="page-loading"><div className="spinner" /></div>}><ManagerShell /></Suspense>;
   return <CompanyProvider><AppShell /></CompanyProvider>;
 }
 
 export default function App() {
   return (
-    <AuthProvider>
-      <Root />
-    </AuthProvider>
+    <ErrorBoundary>
+      <a href="#main-content" className="skip-link">Skip to main content</a>
+      <OfflineBanner />
+      <AuthProvider>
+        <Root />
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }

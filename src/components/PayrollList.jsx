@@ -3,6 +3,7 @@ import { FileText, Plus, Trash2, X, Download, AlertCircle, Calendar, ChevronRigh
 import { getPayrolls, getEmployees, getCompany, savePayroll, deletePayroll } from '../utils/storage';
 import { useCompany } from '../context/CompanyContext';
 import { generateSIF, generateSIFFilename } from '../utils/sifGenerator';
+import LoadError from './LoadError';
 
 function getMonthName(month) {
   return ['January','February','March','April','May','June',
@@ -15,6 +16,7 @@ export default function PayrollList({ onEdit }) {
   const [employees, setEmployees]       = useState([]);
   const [company, setCompany]           = useState(null);
   const [loading, setLoading]           = useState(true);
+  const [loadError, setLoadError]       = useState(null);
   const [showNew, setShowNew]           = useState(false);
   const [showRepeat, setShowRepeat]     = useState(false);
   const [repeatSource, setRepeatSource] = useState(null);
@@ -28,10 +30,15 @@ export default function PayrollList({ onEdit }) {
 
   useEffect(() => {
     setLoading(true);
+    setLoadError(null);
     Promise.all([getPayrolls(activeCompanyId), getEmployees(activeCompanyId), getCompany(activeCompanyId)]).then(([p, e, c]) => {
       setPayrolls(p);
       setEmployees(e);
       setCompany(c);
+      setLoading(false);
+    }).catch(err => {
+      console.error('PayrollList load error:', err);
+      setLoadError(err.message || 'Failed to load payroll data');
       setLoading(false);
     });
   }, [activeCompanyId]); // Re-load when the active branch changes
@@ -72,6 +79,13 @@ export default function PayrollList({ onEdit }) {
     if (!newForm.sequenceNo || !/^\d{3,4}$/.test(newForm.sequenceNo)) e.sequenceNo = 'Must be 3-4 digit time (HHMM)';
     if (!newForm.scrBankRoutingCode.trim()) e.scrBankRoutingCode = 'Required';
     if (Object.keys(e).length) { setFormErrors(e); return; }
+
+    // Check for duplicate period
+    const existingPeriod = payrolls.find(p => p.period === newForm.period);
+    if (existingPeriod) {
+      setFormErrors({ period: 'A payroll run for this period already exists' });
+      return;
+    }
 
     setCreating(true);
     try {
@@ -233,6 +247,14 @@ export default function PayrollList({ onEdit }) {
     return (
       <div style={{ padding: 40, textAlign: 'center', color: 'var(--gray-400)' }}>
         Loading payroll runs…
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="page-body">
+        <LoadError message={loadError} onRetry={() => window.location.reload()} />
       </div>
     );
   }

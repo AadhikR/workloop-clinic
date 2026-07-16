@@ -3,6 +3,7 @@
  * Printed via window.open() + document.write(), matching the EndOfServiceScreen pattern.
  */
 import { formatDateUAE } from './uaeValidators';
+import { safePrint } from './safePrint';
 
 function todayUAE() {
   return new Date().toLocaleDateString('en-AE', { day: '2-digit', month: 'long', year: 'numeric' });
@@ -168,10 +169,8 @@ export function generateLetterHTML(req, company) {
 
 export function printLetter(req, company) {
   const html = generateLetterHTML(req, company);
-  const win = window.open('', '_blank');
-  if (!win) { alert('Please allow pop-ups to print letters.'); return; }
-  win.document.write(html);
-  win.document.close();
+  const win = safePrint(html);
+  if (!win) return;
   win.focus();
   setTimeout(() => win.print(), 400);
 }

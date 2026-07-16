@@ -9,12 +9,14 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Edit2, Trash2, GraduationCap, Award, X, AlertTriangle, ExternalLink, CheckCircle, XCircle } from 'lucide-react';
+import { Plus, Edit2, Trash2, GraduationCap, Award, X, AlertTriangle, ExternalLink, CheckCircle, XCircle, BookOpen } from 'lucide-react';
 import { getEmployees } from '../utils/storage';
 import { formatDateUAE } from '../utils/uaeValidators';
 import {
   getTrainingRecords, saveTrainingRecord, deleteTrainingRecord,
   getCertifications,  saveCertification,  deleteCertification,
+  getCmeRequirements, saveCmeRequirement, deleteCmeRequirement,
+  getCmeTrainingRecords,
 } from '../utils/trainingStorage';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -70,6 +72,7 @@ function TrainingModal({ record, employees, onSave, onClose }) {
     passed:         record?.passed         ?? null,
     certificateUrl: record?.certificateUrl ?? '',
     notes:          record?.notes          ?? '',
+    isCme:          record?.isCme          ?? false,
   });
 
   const [saving, setSaving] = useState(false);
@@ -209,6 +212,12 @@ function TrainingModal({ record, employees, onSave, onClose }) {
               <textarea className="form-control" rows={2} value={form.notes}
                 onChange={e => set('notes', e.target.value)} />
             </div>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
+              <input type="checkbox" checked={form.isCme}
+                onChange={e => set('isCme', e.target.checked)} />
+              Count as CME (Continuing Medical Education) hours
+            </label>
           </div>
 
           <div className="modal-footer">
@@ -346,6 +355,82 @@ function CertModal({ cert, employees, onSave, onClose }) {
   );
 }
 
+// ─── CME Requirement Modal ────────────────────────────────────────────────────
+
+function CmeModal({ req, employees, defaultYear, onSave, onClose }) {
+  const isEdit = !!req?.id;
+  const [form, setForm] = useState({
+    id:            req?.id            ?? undefined,
+    employeeId:    req?.employeeId    ?? '',
+    year:          req?.year          ?? defaultYear,
+    requiredHours: req?.requiredHours != null ? String(req.requiredHours) : '25',
+    notes:         req?.notes         ?? '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [err,    setErr]    = useState('');
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const handleSubmit = async e => {
+    e.preventDefault();
+    setErr('');
+    if (!form.employeeId) { setErr('Please select an employee.'); return; }
+    if (!form.requiredHours || parseFloat(form.requiredHours) <= 0) {
+      setErr('Required hours must be greater than 0.'); return;
+    }
+    setSaving(true);
+    try { await onSave({ ...form, requiredHours: parseFloat(form.requiredHours) }); }
+    catch (ex) { setErr(ex.message || 'Failed to save.'); setSaving(false); }
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 460 }} onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>{isEdit ? 'Edit CME Target' : 'Set CME Target'}</h3>
+          <button className="btn btn-ghost btn-sm" onClick={onClose}><X size={16} /></button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body" style={{ display: 'grid', gap: 14 }}>
+            {err && <div className="alert alert-danger" style={{ padding: '8px 12px', fontSize: 13 }}>{err}</div>}
+            <div className="form-group">
+              <label className="form-label">Employee *</label>
+              <select className="form-control" value={form.employeeId}
+                onChange={e => set('employeeId', e.target.value)} disabled={isEdit}>
+                <option value="">Select employee…</option>
+                {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="form-group">
+                <label className="form-label">Year</label>
+                <input type="number" className="form-control" value={form.year}
+                  onChange={e => set('year', Number(e.target.value))} min="2020" max="2050" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Required Hours *</label>
+                <input type="number" className="form-control" value={form.requiredHours}
+                  onChange={e => set('requiredHours', e.target.value)} min="0" step="0.5" placeholder="25" />
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Notes</label>
+              <textarea className="form-control" rows={2} value={form.notes}
+                onChange={e => set('notes', e.target.value)}
+                placeholder="e.g. DHA CME requirement for licensed physicians" />
+            </div>
+          </div>
+          <div className="modal-footer">
+            <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn btn-primary" disabled={saving}>
+              {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Set Target'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ─── Delete Confirmation ──────────────────────────────────────────────────────
 
 function DeleteConfirm({ title, message, onConfirm, onCancel }) {
@@ -387,6 +472,13 @@ export default function TrainingManager() {
   const [certEmpFilter,  setCertEmpFilter]  = useState('');
   const [certExpiryFilter, setCertExpiryFilter] = useState('all'); // all | expiring | expired | active
 
+  // CME state
+  const [cmeRequirements, setCmeRequirements] = useState([]);
+  const [cmeRecords,      setCmeRecords]      = useState([]);
+  const [cmeYear,         setCmeYear]         = useState(new Date().getFullYear());
+  const [cmeModal,        setCmeModal]        = useState(null); // null | 'new' | req obj
+  const [deleteCmeId,     setDeleteCmeId]     = useState(null);
+
   // ── Flash helper ──
   const showFlash = (type, msg) => {
     setFlash({ type, msg });
@@ -396,14 +488,18 @@ export default function TrainingManager() {
   // ── Load ──
   const load = useCallback(async () => {
     setLoading(true);
-    const [emps, recs, cs] = await Promise.all([
+    const [emps, recs, cs, cmeReqs, cmeRecs] = await Promise.all([
       getEmployees(),
       getTrainingRecords(),
       getCertifications(),
+      getCmeRequirements().catch(() => []),
+      getCmeTrainingRecords().catch(() => []),
     ]);
     setEmployees(emps.filter(e => e.active !== false && e.employmentStatus !== 'Terminated'));
     setRecords(recs);
     setCerts(cs);
+    setCmeRequirements(cmeReqs);
+    setCmeRecords(cmeRecs);
     setLoading(false);
   }, []);
 
@@ -443,6 +539,24 @@ export default function TrainingManager() {
     setCerts(prev => prev.filter(c => c.id !== deleteCertId));
     setDeleteCertId(null);
     showFlash('success', 'Certification deleted.');
+  };
+
+  // ── CME handlers ──
+  const handleSaveCme = async form => {
+    const saved = await saveCmeRequirement(form);
+    setCmeRequirements(prev => form.id
+      ? prev.map(r => r.id === form.id ? saved : r)
+      : [saved, ...prev]);
+    setCmeModal(null);
+    showFlash('success', form.id ? 'CME requirement updated.' : 'CME requirement added.');
+  };
+
+  const handleDeleteCme = async () => {
+    if (!deleteCmeId) return;
+    await deleteCmeRequirement(deleteCmeId);
+    setCmeRequirements(prev => prev.filter(r => r.id !== deleteCmeId));
+    setDeleteCmeId(null);
+    showFlash('success', 'CME requirement deleted.');
   };
 
   const handleCertReview = async (cert, newStatus) => {
@@ -503,10 +617,14 @@ export default function TrainingManager() {
         <h2>Training &amp; Certifications</h2>
         <button
           className="btn btn-primary"
-          onClick={() => activeTab === 'training' ? setTrainingModal('new') : setCertModal('new')}
+          onClick={() => {
+            if (activeTab === 'training') setTrainingModal('new');
+            else if (activeTab === 'certs') setCertModal('new');
+            else setCmeModal('new');
+          }}
         >
           <Plus size={16} />
-          {activeTab === 'training' ? 'Add Training' : 'Add Certification'}
+          {activeTab === 'training' ? 'Add Training' : activeTab === 'certs' ? 'Add Certification' : 'Set CME Target'}
         </button>
       </div>
 
@@ -540,6 +658,12 @@ export default function TrainingManager() {
                 {expiredCertsCount + expiringSoonCount}
               </span>
             )}
+          </button>
+          <button
+            className={`btn ${activeTab === 'cme' ? 'btn-primary' : 'btn-ghost'}`}
+            onClick={() => setActiveTab('cme')}
+          >
+            <BookOpen size={15} aria-hidden="true" /> CME Hours
           </button>
         </div>
 
@@ -839,6 +963,140 @@ export default function TrainingManager() {
             </div>
           </>
         )}
+
+        {/* ── CME Hours Tab ───────────────────────────────────────────────── */}
+        {activeTab === 'cme' && (() => {
+          const yearReqs = cmeRequirements.filter(r => r.year === cmeYear);
+          const yearRecs = cmeRecords.filter(r => r.startDate && r.startDate.startsWith(String(cmeYear)));
+
+          const empSummary = employees.map(emp => {
+            const req = yearReqs.find(r => r.employeeId === emp.id);
+            const target = req?.requiredHours || 0;
+            const completed = yearRecs
+              .filter(r => r.employeeId === emp.id && r.status === 'completed')
+              .reduce((sum, r) => sum + (r.durationHours || 0), 0);
+            const inProg = yearRecs
+              .filter(r => r.employeeId === emp.id && r.status !== 'completed')
+              .reduce((sum, r) => sum + (r.durationHours || 0), 0);
+            return { ...emp, target, completed, inProg, remaining: Math.max(0, target - completed), reqId: req?.id };
+          }).filter(e => e.target > 0 || yearRecs.some(r => r.employeeId === e.id));
+
+          const totalTarget = empSummary.reduce((s, e) => s + e.target, 0);
+          const totalCompleted = empSummary.reduce((s, e) => s + e.completed, 0);
+          const belowTarget = empSummary.filter(e => e.target > 0 && e.completed < e.target).length;
+
+          return (
+            <>
+              <div style={{ display: 'flex', gap: 12, marginBottom: 16, alignItems: 'center' }}>
+                <label className="form-label" style={{ margin: 0 }}>Year:</label>
+                <select className="form-control" style={{ width: 120 }} value={cmeYear}
+                  onChange={e => setCmeYear(Number(e.target.value))}>
+                  {[cmeYear - 1, cmeYear, cmeYear + 1].map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="stats-grid" style={{ marginBottom: 20 }}>
+                <div className="stat-card">
+                  <div className="stat-label">Staff with CME Targets</div>
+                  <div className="stat-value">{empSummary.filter(e => e.target > 0).length}</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-label">Total Hours Completed</div>
+                  <div className="stat-value" style={{ color: 'var(--success)' }}>{totalCompleted}h</div>
+                  <div className="stat-sub">{totalTarget > 0 ? `of ${totalTarget}h target` : ''}</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-label">Below Target</div>
+                  <div className="stat-value" style={{ color: belowTarget > 0 ? 'var(--danger)' : 'var(--success)' }}>
+                    {belowTarget}
+                  </div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-label">Overall Compliance</div>
+                  <div className="stat-value">
+                    {totalTarget > 0 ? `${Math.round(totalCompleted / totalTarget * 100)}%` : '—'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="card">
+                <div className="table-wrapper">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Employee</th>
+                        <th>Department</th>
+                        <th>Target Hours</th>
+                        <th>Completed</th>
+                        <th>In Progress</th>
+                        <th>Remaining</th>
+                        <th>Progress</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {empSummary.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} style={{ textAlign: 'center', color: 'var(--gray-400)', padding: 32 }}>
+                            No CME targets set for {cmeYear}.{' '}
+                            <button className="btn btn-ghost btn-sm" onClick={() => setCmeModal('new')}>
+                              Set a target
+                            </button>
+                          </td>
+                        </tr>
+                      ) : empSummary.map(e => {
+                        const pct = e.target > 0 ? Math.min(100, Math.round(e.completed / e.target * 100)) : 0;
+                        return (
+                          <tr key={e.id}>
+                            <td style={{ fontWeight: 500 }}>{e.name}</td>
+                            <td style={{ fontSize: 13, color: 'var(--gray-500)' }}>{e.department || '—'}</td>
+                            <td>{e.target > 0 ? `${e.target}h` : '—'}</td>
+                            <td style={{ color: 'var(--success)', fontWeight: 500 }}>{e.completed}h</td>
+                            <td style={{ fontSize: 13, color: 'var(--gray-500)' }}>{e.inProg > 0 ? `${e.inProg}h` : '—'}</td>
+                            <td>
+                              {e.remaining > 0
+                                ? <span className="badge badge-amber">{e.remaining}h</span>
+                                : <span className="badge badge-green">Met</span>}
+                            </td>
+                            <td style={{ minWidth: 120 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <div style={{ flex: 1, height: 6, borderRadius: 4, background: 'var(--gray-100)', maxWidth: 80 }}>
+                                  <div style={{
+                                    width: `${pct}%`, height: '100%', borderRadius: 4,
+                                    background: pct >= 100 ? 'var(--success)' : pct >= 50 ? 'var(--warning)' : 'var(--danger)',
+                                    transition: 'width 0.4s ease',
+                                  }} />
+                                </div>
+                                <span style={{ fontSize: 12, color: 'var(--gray-500)' }}>{pct}%</span>
+                              </div>
+                            </td>
+                            <td>
+                              <div style={{ display: 'flex', gap: 6 }}>
+                                <button className="btn btn-ghost btn-sm" title="Edit target"
+                                  onClick={() => setCmeModal({ id: e.reqId, employeeId: e.id, year: cmeYear, requiredHours: e.target })}>
+                                  <Edit2 size={14} />
+                                </button>
+                                {e.reqId && (
+                                  <button className="btn btn-ghost btn-sm" title="Remove target"
+                                    style={{ color: 'var(--danger)' }}
+                                    onClick={() => setDeleteCmeId(e.reqId)}>
+                                    <Trash2 size={14} />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          );
+        })()}
       </div>
 
       {/* ── Modals ── */}
@@ -875,6 +1133,25 @@ export default function TrainingManager() {
           message="Are you sure you want to delete this certification? This cannot be undone."
           onConfirm={handleDeleteCert}
           onCancel={() => setDeleteCertId(null)}
+        />
+      )}
+
+      {cmeModal && (
+        <CmeModal
+          req={cmeModal === 'new' ? null : cmeModal}
+          employees={employees}
+          defaultYear={cmeYear}
+          onSave={handleSaveCme}
+          onClose={() => setCmeModal(null)}
+        />
+      )}
+
+      {deleteCmeId && (
+        <DeleteConfirm
+          title="Remove CME Target"
+          message="Remove this CME hour target? Training records will remain but progress tracking will stop."
+          onConfirm={handleDeleteCme}
+          onCancel={() => setDeleteCmeId(null)}
         />
       )}
     </div>

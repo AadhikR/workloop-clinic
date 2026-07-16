@@ -12,6 +12,7 @@ import { useCompany } from '../context/CompanyContext';
 import EmployeeModal, { CLINICAL_DOC_TYPES } from './EmployeeModal';
 import EndOfServiceScreen from './EndOfServiceScreen';
 import OffboardingModal from './OffboardingModal';
+import LoadError from './LoadError';
 
 // ── CSV column spec ──────────────────────────────────────────────────────────
 const CSV_COLUMNS = [
@@ -439,6 +440,7 @@ function EmployeeManagerInner() {
   const [employees, setEmployees]         = useState([]);
   const [allDocs, setAllDocs]             = useState([]);
   const [loading, setLoading]             = useState(true);
+  const [loadError, setLoadError]         = useState(null);
   const [modal, setModal]                 = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deleting, setDeleting]           = useState(false);
@@ -457,8 +459,13 @@ function EmployeeManagerInner() {
 
   useEffect(() => {
     setLoading(true);
+    setLoadError(null);
     getEmployees(activeCompanyId).then(emps => {
       setEmployees(emps);
+      setLoading(false);
+    }).catch(err => {
+      console.error('EmployeeManager load error:', err);
+      setLoadError(err.message || 'Failed to load employees');
       setLoading(false);
     });
     getAllEmployeeDocuments().then(setAllDocs).catch(() => setAllDocs([]));
@@ -793,7 +800,9 @@ function EmployeeManagerInner() {
                 </div>
               </div>
 
-              {loading ? (
+              {loadError ? (
+                <LoadError message={loadError} onRetry={() => window.location.reload()} />
+              ) : loading ? (
                 <div className="empty-state"><p style={{ color:'var(--gray-400)' }}>Loading employees…</p></div>
               ) : filtered.length === 0 ? (
                 <div className="empty-state">

@@ -354,6 +354,129 @@ export function turnoverLeaversToRows(leavers) {
   }));
 }
 
+// ─── WPS Compliance Report ──────────────────────────────────────────────────
+
+export function buildWpsComplianceReport(payrolls) {
+  const generated = payrolls.filter(p => p.status === 'generated');
+  const submitted = generated.filter(p => p.wpsStatus === 'submitted' || p.wpsStatus === 'confirmed');
+  const confirmed = generated.filter(p => p.wpsStatus === 'confirmed');
+  const pending   = generated.filter(p => p.wpsStatus !== 'confirmed');
+
+  return { generated, submitted, confirmed, pending, complianceRate: generated.length ? Math.round(confirmed.length / generated.length * 100) : 0 };
+}
+
+export function wpsComplianceToRows(payrolls) {
+  return payrolls.filter(p => p.status === 'generated').map(p => ({
+    Period:          p.period,
+    Status:          p.status,
+    'WPS Status':    p.wpsStatus || 'draft',
+    'Submitted At':  p.wpsSubmittedAt ? formatDateUAE(p.wpsSubmittedAt.split('T')[0]) : '—',
+    'Confirmed At':  p.wpsConfirmedAt ? formatDateUAE(p.wpsConfirmedAt.split('T')[0]) : '—',
+    'Reference No':  p.wpsReferenceNo || '—',
+    'Employees':     p.employeeCount || 0,
+    'Total (AED)':   fmt(p.totalDisbursed),
+  }));
+}
+
+// ─── Emiratization / Nafis Report ───────────────────────────────────────────
+
+export function buildEmiratizationReport(employees) {
+  const active = employees.filter(e => e.active !== false && e.employmentStatus !== 'Terminated');
+  const emiratis = active.filter(e => e.nationality === 'United Arab Emirates');
+  const ratio = active.length ? (emiratis.length / active.length * 100).toFixed(1) : 0;
+  const byDept = {};
+  active.forEach(e => {
+    const d = e.department || 'Unassigned';
+    if (!byDept[d]) byDept[d] = { total: 0, emirati: 0 };
+    byDept[d].total++;
+    if (e.nationality === 'United Arab Emirates') byDept[d].emirati++;
+  });
+  return { active, emiratis, ratio, byDept };
+}
+
+export function emiratizationToRows(employees) {
+  const active = employees.filter(e => e.active !== false && e.employmentStatus !== 'Terminated');
+  return active.map(e => ({
+    Employee:     e.name,
+    Department:   e.department || '—',
+    Nationality:  e.nationality || '—',
+    'Job Title':  e.jobTitle || '—',
+    'Is Emirati': e.nationality === 'United Arab Emirates' ? 'Yes' : 'No',
+    'Nafis ID':   e.nafisId || '—',
+  }));
+}
+
+// ─── End of Service Liability Report ────────────────────────────────────────
+
+export function buildEOSLiabilityReport(employees) {
+  const active = employees.filter(e => e.active !== false && e.employmentStatus !== 'Terminated');
+  const now = new Date();
+  const items = active.map(e => {
+    const start = new Date(e.employmentStartDate || e.startDate);
+    const serviceYears = Math.max(0, (now - start) / (365.25 * 86400000));
+    const basic = parseFloat(e.basicSalary) || 0;
+    const dailyRate = basic / 30;
+    let gratuityDays = 0;
+    if (serviceYears >= 1 && serviceYears <= 5) {
+      gratuityDays = serviceYears * 21;
+    } else if (serviceYears > 5) {
+      gratuityDays = serviceYears * 30;
+    }
+    const liability = Math.min(dailyRate * gratuityDays, basic * 24);
+    return { ...e, serviceYears, liability };
+  });
+  const totalLiability = items.reduce((s, i) => s + i.liability, 0);
+  return { items, totalLiability };
+}
+
+export function eosLiabilityToRows(items) {
+  return items.map(e => ({
+    Employee:        e.name,
+    Department:      e.department || '—',
+    'Start Date':    e.employmentStartDate || e.startDate || '—',
+    'Service Years': e.serviceYears.toFixed(1),
+    'Basic Salary':  fmt(e.basicSalary),
+    'EOS Liability': fmt(e.liability),
+  }));
+}
+
+// ─── Leave Balance Report ───────────────────────────────────────────────────
+
+export function buildLeaveBalanceReport(employees, leaveRequests, year) {
+  const active = employees.filter(e => e.active !== false && e.employmentStatus !== 'Terminated');
+  return active.map(e => {
+    const empReqs = leaveRequests.filter(r => r.employeeId === e.id && r.startDate?.startsWith(String(year)));
+    const approved = empReqs.filter(r => r.status === 'Approved');
+    const byType = {};
+    approved.forEach(r => {
+      const code = r.leaveTypeCode || 'OTHER';
+      byType[code] = (byType[code] || 0) + (parseFloat(r.daysRequested) || 0);
+    });
+    return {
+      employee: e,
+      annualUsed: byType.ANNUAL || 0,
+      sickUsed: byType.SICK || 0,
+      maternityUsed: byType.MATERNITY || 0,
+      otherUsed: Object.entries(byType).filter(([k]) => !['ANNUAL', 'SICK', 'MATERNITY'].includes(k)).reduce((s, [, v]) => s + v, 0),
+      totalUsed: Object.values(byType).reduce((s, v) => s + v, 0),
+      pending: empReqs.filter(r => r.status === 'Pending' || r.status === 'ManagerApproved').reduce((s, r) => s + (parseFloat(r.daysRequested) || 0), 0),
+    };
+  });
+}
+
+export function leaveBalanceToRows(balanceData) {
+  return balanceData.map(b => ({
+    Employee:         b.employee.name,
+    Department:       b.employee.department || '—',
+    'Annual Used':    b.annualUsed,
+    'Sick Used':      b.sickUsed,
+    'Maternity Used': b.maternityUsed,
+    'Other Used':     b.otherUsed,
+    'Total Used':     b.totalUsed,
+    'Pending':        b.pending,
+  }));
+}
+
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
 function groupCount(arr, keyFn) {

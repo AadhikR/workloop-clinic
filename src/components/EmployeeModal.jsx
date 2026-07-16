@@ -16,6 +16,7 @@ import {
 } from '../utils/storage';
 import { getEmployeePortalRole, setEmployeePortalRole } from '../utils/profileStorage';
 import { getDepartments } from '../utils/departmentStorage';
+import { safePrint } from '../utils/safePrint';
 
 const FREE_ZONES = ['DIFC','ADGM','JAFZA','DMCC','DAFZA','TECOM','Dubai Internet City','Dubai Media City','Dubai Healthcare City','Meydan Free Zone','RAKEZ','SAIF Zone','KIZAD','Abu Dhabi Free Zone','Hamriyah Free Zone','Other'];
 
@@ -424,11 +425,8 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
   <div class="sig-block">HR / Employer Representative<br/><br/>Authorised Signatory</div>
 </div>
 </body></html>`;
-    const win = window.open('', '_blank', 'width=820,height=920');
-    if (!win) { alert('Pop-up blocked — please allow pop-ups for this site.'); return; }
-    win.document.write(html);
-    win.document.close();
-    win.print();
+    const win = safePrint(html);
+    if (win) win.print();
   };
 
   const f = (field, value) => {
