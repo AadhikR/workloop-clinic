@@ -17,6 +17,7 @@ import { getLeaveRequests } from '../utils/leaveStorage';
 import { getAttendanceRecords, getRosterForMonth } from '../utils/attendanceStorage';
 import { getDeptStaffingRules } from '../utils/staffingStorage';
 import { formatDateUAE } from '../utils/uaeValidators';
+import { useCompany } from '../context/CompanyContext';
 import {
   buildHeadcountReport,     headcountToRows,
   buildPayrollCostReport,   payrollCostToRows,
@@ -32,7 +33,7 @@ import {
   exportCSV, exportPDF,
 } from '../utils/reportUtils';
 
-const TABS = [
+const ALL_TABS = [
   { id: 'headcount',   label: 'Headcount',          icon: Users },
   { id: 'payroll',     label: 'Payroll Cost',        icon: DollarSign },
   { id: 'leave',       label: 'Leave Usage',         icon: CalendarDays },
@@ -40,9 +41,9 @@ const TABS = [
   { id: 'documents',   label: 'Doc Expiry',          icon: FileText },
   { id: 'salary',      label: 'Salary History',      icon: TrendingUp },
   { id: 'turnover',    label: 'Staff Turnover',      icon: UserMinus },
-  { id: 'staffing',    label: 'Staffing Compliance', icon: ShieldCheck },
+  { id: 'staffing',    label: 'Staffing Compliance', icon: ShieldCheck, feature: 'staffing' },
   { id: 'wps',         label: 'WPS Compliance',      icon: Landmark },
-  { id: 'emiratization', label: 'Emiratization',      icon: Flag },
+  { id: 'emiratization', label: 'Emiratization',      icon: Flag, feature: 'nafis' },
   { id: 'eos',         label: 'EOS Liability',        icon: Wallet },
   { id: 'leaveBalance', label: 'Leave Balance',       icon: ClipboardList },
 ];
@@ -822,6 +823,12 @@ function LeaveBalanceTab({ employees, leaveRequests }) {
 
 // ─── Main Reports component ───────────────────────────────────────────────────
 export default function Reports() {
+  const { activeCompany } = useCompany();
+  const TABS = ALL_TABS.filter(t => {
+    if (t.feature === 'nafis'    && activeCompany?.enableNafis         === false) return false;
+    if (t.feature === 'staffing' && activeCompany?.enableStaffingRules === false) return false;
+    return true;
+  });
   const [tab, setTab]         = useState('headcount');
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(null);

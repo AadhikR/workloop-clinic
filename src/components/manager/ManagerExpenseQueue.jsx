@@ -15,7 +15,7 @@ import {
 import { getMyEmployeeRecord } from '../../utils/profileStorage';
 import { getEmployees } from '../../utils/storage';
 import { EXPENSE_CATEGORIES } from '../ExpensesManager';
-import { formatDateUAE } from '../../utils/uaeValidators';
+import { formatDateUAE, validateRejectionReason } from '../../utils/uaeValidators';
 
 const STATUS_BADGE = {
   pending:          'badge-amber',
@@ -84,7 +84,8 @@ export default function ManagerExpenseQueue() {
   };
 
   const handleReject = async () => {
-    if (!rejectReason.trim()) return;
+    const check = validateRejectionReason(rejectReason);
+    if (!check.valid) { setMsg({ type: 'error', text: check.message }); return; }
     setBusy(true);
     try {
       await managerRejectExpense(rejectId, rejectReason.trim());

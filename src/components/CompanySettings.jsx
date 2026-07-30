@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Building2, Info, CheckCircle, Save, AlertCircle, Loader, MapPin, Calendar, ShieldCheck, Heart, Plus, Trash2, Edit2 } from 'lucide-react';
 import { getCompany, saveCompany, getInsurancePolicies, saveInsurancePolicy, deleteInsurancePolicy } from '../utils/storage';
 import { useCompany } from '../context/CompanyContext';
-import { formatDateUAE } from '../utils/uaeValidators';
+import { formatDateUAE, validateEmail, validateBankRoutingCode, clampNumber } from '../utils/uaeValidators';
 
 // UAE sectors with their approximate 2024 Emiratization quota targets (Cabinet Res. 27/2023)
 const SECTORS = [
@@ -43,6 +43,11 @@ const DEFAULT_COMPANY = {
   logoUrl: '',
   sector: '',
   nafisQuotaPercent: 2,
+  // Feature toggles (migration 049) — default true so existing installs behave
+  // exactly as before. Admin can disable per company/branch.
+  enableNafis: true,
+  enableStaffingRules: true,
+  enableBiometricImport: true,
 };
 
 const EMPTY_POLICY = { insurerName:'', policyNumber:'', tierName:'', annualPremium:'', renewalDate:'', brokerName:'', brokerContact:'', notes:'' };
@@ -110,6 +115,13 @@ export default function CompanySettings() {
 
   const handleSavePolicy = async () => {
     if (!policyForm.insurerName.trim()) { setPolicyError('Insurer name is required.'); return; }
+    // Duplicate policy number check within this company. Empty policy numbers
+    // are allowed to repeat (many small policies leave the field blank).
+    const pn = (policyForm.policyNumber || '').trim();
+    if (pn) {
+      const dup = policies.find(p => (p.policyNumber || '').trim() === pn && p.id !== editingPolicy?.id);
+      if (dup) { setPolicyError(`Policy number already used by "${dup.insurerName}".`); return; }
+    }
     setPolicySaving(true);
     setPolicyError('');
     try {
@@ -144,6 +156,13 @@ export default function CompanySettings() {
   };
 
   const handleSave = async () => {
+    // Format guards — only enforced when the field is non-empty so first-run
+    // partial setups can still save.
+    const emailCheck = validateEmail(company.contactEmail);
+    if (!emailCheck.valid) { setError(emailCheck.message); return; }
+    const rcCheck = validateBankRoutingCode(company.defaultBankRoutingCode);
+    if (!rcCheck.valid) { setError(rcCheck.message); return; }
+
     setSaving(true);
     setError('');
     setSaved(false);
@@ -295,7 +314,7 @@ export default function CompanySettings() {
                   min={1}
                   max={31}
                   value={company.defaultSalaryDay}
-                  onChange={e => handleChange('defaultSalaryDay', parseInt(e.target.value) || 25)}
+                  onChange={e => handleChange('defaultSalaryDay', clampNumber(parseInt(e.target.value) || 25, 1, 31))}
                   placeholder="25"
                 />
                 <span className="hint">
@@ -358,7 +377,74 @@ export default function CompanySettings() {
           </div>
         </div>
 
+        {/* ── Feature Toggles ── */}
+        <div className="card mb-4">
+          <div className="card-header">
+            <h3>Modules &amp; Features</h3>
+          </div>
+          <div className="card-body">
+            <div className="alert alert-info mb-4">
+              <Info size={15} />
+              <div style={{ fontSize: 13 }}>
+                Small clinics can hide modules that aren't required at their size.
+                Turning a module off hides its panels and menu entries but does not delete any data —
+                turn it back on and everything reappears.
+              </div>
+            </div>
+            <div style={{ display: 'grid', gap: 12 }}>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--gray-200)' }}>
+                <input
+                  type="checkbox"
+                  checked={company.enableNafis !== false}
+                  onChange={e => handleChange('enableNafis', e.target.checked)}
+                  style={{ marginTop: 3 }}
+                />
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>Emiratization / Nafis Compliance</div>
+                  <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 2 }}>
+                    Shows the Emiratization panel on the Dashboard and the sector/quota fields below.
+                    Only mandatory for private-sector employers with 20+ skilled staff (2026 rules).
+                  </div>
+                </div>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--gray-200)' }}>
+                <input
+                  type="checkbox"
+                  checked={company.enableStaffingRules !== false}
+                  onChange={e => handleChange('enableStaffingRules', e.target.checked)}
+                  style={{ marginTop: 3 }}
+                />
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>Roster Staffing Rules</div>
+                  <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 2 }}>
+                    Enforce per-department minimum-staff rules on roster publish.
+                    Useful for larger clinics with fixed shift minimums; small clinics usually leave this off.
+                  </div>
+                </div>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--gray-200)' }}>
+                <input
+                  type="checkbox"
+                  checked={company.enableBiometricImport !== false}
+                  onChange={e => handleChange('enableBiometricImport', e.target.checked)}
+                  style={{ marginTop: 3 }}
+                />
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>Biometric Punch-In Import</div>
+                  <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 2 }}>
+                    Enable if your clinic has a fingerprint / face-recognition device and you upload its CSV punches.
+                    Turn off to hide the Biometric Import tab under Attendance.
+                  </div>
+                </div>
+              </label>
+            </div>
+          </div>
+        </div>
+
         {/* ── Emiratization / Nafis Compliance ── */}
+        {company.enableNafis !== false && (
         <div className="card mb-4">
           <div className="card-header">
             <h3><ShieldCheck size={16} style={{ display:'inline', marginRight:6 }} />Emiratization / Nafis Compliance</h3>
@@ -401,7 +487,7 @@ export default function CompanySettings() {
                   max="100"
                   step="0.5"
                   value={company.nafisQuotaPercent}
-                  onChange={e => handleChange('nafisQuotaPercent', parseFloat(e.target.value) || 0)}
+                  onChange={e => handleChange('nafisQuotaPercent', clampNumber(e.target.value, 0, 100))}
                   placeholder="e.g. 4"
                 />
                 <span className="hint">
@@ -421,6 +507,7 @@ export default function CompanySettings() {
             )}
           </div>
         </div>
+        )}
 
         {/* ── Medical Insurance Policies ── */}
         <div className="card mb-4">

@@ -1293,11 +1293,16 @@ function dbToCompany(data) {
     logoUrl:                data.logo_url ?? '',
     sector:                 data.sector ?? '',
     nafisQuotaPercent:      parseFloat(data.nafis_quota_percent) || 2,
+    // Feature toggles (migration 049). Default true so pre-migration data and
+    // rows without the columns still behave exactly as before.
+    enableNafis:            data.enable_nafis            ?? true,
+    enableStaffingRules:    data.enable_staffing_rules   ?? true,
+    enableBiometricImport:  data.enable_biometric_import ?? true,
   };
 }
 
 function companyToDb(company, userId) {
-  return {
+  const row = {
     user_id:                    userId,
     branch_name:                company.branchName ?? '',   // Feature 21
     name:                       company.name ?? '',
@@ -1312,6 +1317,12 @@ function companyToDb(company, userId) {
     sector:                     company.sector ?? '',
     nafis_quota_percent:        parseFloat(company.nafisQuotaPercent) || 2,
   };
+  // Only include the toggle columns when the caller passed them, so an install
+  // that hasn't run migration 049 yet doesn't fail with "column does not exist".
+  if (company.enableNafis           !== undefined) row.enable_nafis            = !!company.enableNafis;
+  if (company.enableStaffingRules   !== undefined) row.enable_staffing_rules   = !!company.enableStaffingRules;
+  if (company.enableBiometricImport !== undefined) row.enable_biometric_import = !!company.enableBiometricImport;
+  return row;
 }
 
 function dbToEmployee(row) {

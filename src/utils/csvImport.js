@@ -1,4 +1,5 @@
 import Papa from 'papaparse';
+import { validateIBAN, validateMolId } from './uaeValidators';
 
 /**
  * Parse the salary CSV file format used by this company.
@@ -53,7 +54,10 @@ export function parseCSV(fileContent) {
   const rows = result.data;
   const employees = [];
   const payrollEntries = [];
-  if (rows.length < 2) return { employees, payrollEntries };
+  // Per-row warnings surfaced to the admin preview. Existing callers that
+  // destructure { employees } or { payrollEntries } are unaffected.
+  const errors = [];
+  if (rows.length < 2) return { employees, payrollEntries, errors };
 
   const idx = buildHeaderIndex(rows[0]);
   const get = (row, key) => (idx[key] >= 0 ? row[idx[key]] : undefined);
@@ -74,6 +78,17 @@ export function parseCSV(fileContent) {
     const bankName    = String(get(row, 'bankName') ?? '').trim();
     const bankRouting = cleanId(get(row, 'bankRouting'));
     const iban        = String(get(row, 'iban') ?? '').trim();
+
+    // Per-row format warnings — collected, not fatal. The row is still
+    // returned so the admin can review it and correct in-line before saving.
+    // Row numbers are 1-indexed to match how spreadsheets display them.
+    const rowLabel = `Row ${i + 1} (${name || empNo || 'unnamed'})`;
+    const molCheck = validateMolId(molId);
+    if (!molCheck.valid) errors.push({ row: i + 1, empNo, name, field: 'molId', message: `${rowLabel}: ${molCheck.message}` });
+    if (iban) {
+      const ibanCheck = validateIBAN(iban);
+      if (!ibanCheck.valid) errors.push({ row: i + 1, empNo, name, field: 'iban', message: `${rowLabel}: ${ibanCheck.message}` });
+    }
     const basic       = parseNum(get(row, 'basic'));   // Basic
     const rawAllow    = parseNum(get(row, 'allowance')); // Allowance
     const wpsBasic    = parseNum(get(row, 'wpsBasic'));  // WPS BASIC
@@ -103,7 +118,7 @@ export function parseCSV(fileContent) {
     });
   }
 
-  return { employees, payrollEntries };
+  return { employees, payrollEntries, errors };
 }
 
 export function readFileAsText(file) {

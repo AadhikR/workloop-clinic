@@ -14,12 +14,13 @@ import {
 import { getEmployees, getAllEmployeeDocuments, saveComplianceOverride } from '../utils/storage';
 import { getDeptStaffingRules } from '../utils/staffingStorage';
 import { CLINICAL_DOC_TYPES } from './EmployeeModal';
+import { useCompany } from '../context/CompanyContext';
 import {
   getShifts, saveShift, deleteShift,
   getRosterForMonth, saveRosterAssignment, deleteRosterAssignment, publishRoster,
   getShiftSwapRequests, updateShiftSwapRequest,
 } from '../utils/attendanceStorage';
-import { formatDateUAE } from '../utils/uaeValidators';
+import { formatDateUAE, clampNumber } from '../utils/uaeValidators';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -169,6 +170,8 @@ function exportRosterCsv({ year, month, daysInMonth, employees, shifts, rosterDa
 // ── component ─────────────────────────────────────────────────────────────────
 
 export default function RosterManager() {
+  const { activeCompany } = useCompany();
+  const staffingRulesEnabled = activeCompany?.enableStaffingRules !== false;
   const [tab, setTab]         = useState('templates');
   const [loading, setLoading] = useState(true);
   const [msg, setMsg]         = useState(null);
@@ -280,9 +283,26 @@ export default function RosterManager() {
 
   async function handleSaveShift() {
     if (!shiftForm?.name?.trim()) return;
+    // Clamp numeric fields into safe ranges. Overnight shifts (start > end)
+    // are legitimate — we surface a soft confirm rather than block, matching
+    // the existing pattern for non-blocking human review.
+    const cleaned = {
+      ...shiftForm,
+      breakMinutes:               clampNumber(shiftForm.breakMinutes, 0, 480),
+      expectedHours:              clampNumber(shiftForm.expectedHours, 0, 24),
+      lateGraceMinutes:           clampNumber(shiftForm.lateGraceMinutes, 0, 240),
+      earlyDepartureGraceMinutes: clampNumber(shiftForm.earlyDepartureGraceMinutes, 0, 240),
+      minStaff:                   clampNumber(shiftForm.minStaff, 0, 999),
+    };
+    if (cleaned.startTime && cleaned.endTime && cleaned.startTime > cleaned.endTime) {
+      const ok = window.confirm(
+        `Start time (${cleaned.startTime}) is after end time (${cleaned.endTime}). Save as an overnight shift?`,
+      );
+      if (!ok) return;
+    }
     setShiftSaving(true);
     try {
-      const saved = await saveShift(shiftForm);
+      const saved = await saveShift(cleaned);
       setShifts(prev =>
         shiftForm.id ? prev.map(s => s.id === saved.id ? saved : s) : [...prev, saved]
       );
@@ -334,8 +354,9 @@ export default function RosterManager() {
   }
 
   async function handlePublish() {
-    // Feature 7.2 — staffing compliance check before publish
-    if (staffingRules.length > 0) {
+    // Feature 7.2 — staffing compliance check before publish. Skipped entirely
+    // when the company has the Staffing Rules module disabled.
+    if (staffingRulesEnabled && staffingRules.length > 0) {
       const violations = [];
       const daysInMonth = new Date(rYear, rMonth, 0).getDate();
       for (let d = 1; d <= daysInMonth; d++) {
@@ -799,38 +820,9 @@ export default function RosterManager() {
               </div>
             </div>
 
-            {/* Feature 7.1 — Licence compliance warning banner */}
-            {(() => {
-              const nonCompliant = filteredEmployees.filter(e =>
-                licenceMap[e.id] === 'expired' || licenceMap[e.id] === 'missing'
-              );
-              const expiring = filteredEmployees.filter(e => licenceMap[e.id] === 'expiring');
-              if (!nonCompliant.length && !expiring.length) return null;
-              return (
-                <div style={{
-                  border: '1px solid #fde68a', borderRadius: 8,
-                  background: '#fffbeb', padding: '10px 14px', marginBottom: 12,
-                  fontSize: 12,
-                }}>
-                  <strong style={{ color: '#92400e' }}>⚠ Licence Compliance Alerts</strong>
-                  {nonCompliant.length > 0 && (
-                    <div style={{ marginTop: 4, color: '#991b1b' }}>
-                      <strong>Expired / Missing licence:</strong>{' '}
-                      {nonCompliant.map(e => e.name).join(', ')}
-                    </div>
-                  )}
-                  {expiring.length > 0 && (
-                    <div style={{ marginTop: 4, color: '#92400e' }}>
-                      <strong>Expiring within 30 days:</strong>{' '}
-                      {expiring.map(e => e.name).join(', ')}
-                    </div>
-                  )}
-                  <div style={{ color: 'var(--gray-500)', marginTop: 4 }}>
-                    Requires a valid DHA, DOH, or MOH licence. Verify in the Employees → Documents tab.
-                  </div>
-                </div>
-              );
-            })()}
+            {/* Feature 7.1 licence-compliance banner removed at user request —
+                the per-row row-status dot in the roster grid continues to show
+                expiring/expired badges for individual employees. */}
 
             {shifts.length === 0 ? (
               <div className="empty-state">

@@ -10,7 +10,7 @@ import { useState, useEffect } from 'react';
 import { Receipt, AlertCircle, CheckCircle, Clock, X, Plus } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { getMyEmployeeRecord } from '../../utils/profileStorage';
-import { formatDateUAE } from '../../utils/uaeValidators';
+import { formatDateUAE, validateAmount, validatePastDate } from '../../utils/uaeValidators';
 import { EXPENSE_CATEGORIES } from '../ExpensesManager';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -89,9 +89,14 @@ export default function EmpExpenses() {
     setFormError('');
     setSuccess('');
 
-    const amt = parseFloat(form.amount);
-    if (!amt || amt <= 0)       { setFormError('Please enter a valid amount.'); return; }
+    // Amount — soft ceiling AED 100k per single claim; HR can raise via admin path.
+    const amtCheck = validateAmount(form.amount, { min: 1, max: 100_000, fieldName: 'Amount' });
+    if (!amtCheck.valid)       { setFormError(amtCheck.message); return; }
+    const amt = amtCheck.value;
     if (!form.expenseDate)      { setFormError('Please select the expense date.'); return; }
+    // Expense must be in the past or today — can't claim a future receipt.
+    const dateCheck = validatePastDate(form.expenseDate, 'Expense date');
+    if (!dateCheck.valid) { setFormError(dateCheck.message); return; }
     if (!form.description.trim()) { setFormError('Please describe the expense.'); return; }
 
     setSubmitting(true);

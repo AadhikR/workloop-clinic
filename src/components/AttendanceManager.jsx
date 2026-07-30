@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import BiometricImport from './BiometricImport';
 import { useAuth } from '../context/AuthContext';
+import { useCompany } from '../context/CompanyContext';
 import { getEmployees } from '../utils/storage';
 import { getLeaveRequests, getPublicHolidays, getLeaveSettings } from '../utils/leaveStorage';
 import {
@@ -150,6 +151,8 @@ function ShiftModal({ shift, onSave, onClose }) {
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function AttendanceManager() {
   const { user } = useAuth();
+  const { activeCompany } = useCompany();
+  const biometricEnabled = activeCompany?.enableBiometricImport !== false;
   const [tab, setTab]               = useState('dashboard');
   const [loading, setLoading]       = useState(true);
   const initialLoadDone = useRef(false);
@@ -361,6 +364,39 @@ export default function AttendanceManager() {
   };
 
   const handleApproveReg = async (id) => {
+    // Sanity-check the requested clock times before we patch the attendance
+    // record. All fields already exist on the loaded request row.
+    const req = regularisations.find(r => r.id === id);
+    if (req) {
+      const ci = req.correctClockIn;
+      const co = req.correctClockOut;
+      if (ci && co) {
+        const inMs  = new Date(ci).getTime();
+        const outMs = new Date(co).getTime();
+        if (isNaN(inMs) || isNaN(outMs)) {
+          showMsg('danger', 'Regularisation has invalid clock times. Ask the employee to resubmit.');
+          return;
+        }
+        if (outMs <= inMs) {
+          showMsg('danger', 'Clock-out must be after clock-in. Please reject and ask the employee to resubmit.');
+          return;
+        }
+        if (outMs - inMs > 24 * 60 * 60 * 1000) {
+          showMsg('danger', 'Clock-in / clock-out span exceeds 24 hours. Please reject and ask the employee to resubmit.');
+          return;
+        }
+        if (req.attendanceDate) {
+          // Both times must fall on the requested attendance date (local calendar day).
+          const day = req.attendanceDate.slice(0, 10);
+          const inDay  = new Date(inMs).toISOString().slice(0, 10);
+          const outDay = new Date(outMs).toISOString().slice(0, 10);
+          if (inDay !== day || outDay !== day) {
+            showMsg('danger', `Clock times must fall on the requested date (${day}). Please reject and ask the employee to resubmit.`);
+            return;
+          }
+        }
+      }
+    }
     setSaving(true);
     try {
       await approveRegularisationRequest(id, user?.email || 'HR');
@@ -457,7 +493,7 @@ export default function AttendanceManager() {
     { id:'overtime',       label:`Overtime${pendingOT.length > 0 ? ` (${pendingOT.length})` : ''}`, icon:AlertCircle },
     { id:'regularisation', label:`Corrections${pendingRegs.length > 0 ? ` (${pendingRegs.length})` : ''}`, icon:RefreshCw },
     { id:'reports',        label:'Reports',        icon:Download },
-    { id:'biometric',      label:'Biometric Import', icon:Fingerprint },
+    ...(biometricEnabled ? [{ id:'biometric', label:'Biometric Import', icon:Fingerprint }] : []),
     { id:'settings',       label:'Settings',       icon:Settings },
   ];
 
@@ -944,7 +980,7 @@ export default function AttendanceManager() {
         )}
 
         {/* ── BIOMETRIC IMPORT TAB ── */}
-        {tab === 'biometric' && (
+        {tab === 'biometric' && biometricEnabled && (
           <BiometricImport employees={employees} />
         )}
 

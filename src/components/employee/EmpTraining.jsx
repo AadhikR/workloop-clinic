@@ -164,6 +164,7 @@ function TrainingForm({ record, employeeId, onSave, onCancel }) {
     cost: record?.cost != null ? String(record.cost) : '0',
     status: record?.status ?? 'planned', score: record?.score ?? '',
     passed: record?.passed ?? null, certificateUrl: record?.certificateUrl ?? '', notes: record?.notes ?? '',
+    isCme: record?.isCme ?? false,
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
@@ -230,6 +231,12 @@ function TrainingForm({ record, employeeId, onSave, onCancel }) {
               <input className="form-control" value={form.certificateUrl} onChange={e => set('certificateUrl', e.target.value)}
                 placeholder="https://…" style={{ fontSize: 13 }} />
             </div>
+          </div>
+          <div className="form-group">
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}>
+              <input type="checkbox" checked={!!form.isCme} onChange={e => set('isCme', e.target.checked)} />
+              <span>Count these hours toward my <strong>CME</strong> (Continuing Medical Education) requirement</span>
+            </label>
           </div>
           {form.status === 'completed' && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>

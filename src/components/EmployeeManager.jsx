@@ -527,7 +527,7 @@ function EmployeeManagerInner() {
   const handleCSVImport = async (file) => {
     try {
       const text = await readFileAsText(file);
-      const { employees: imported } = parseCSV(text);
+      const { employees: imported, errors: csvErrors = [] } = parseCSV(text);
       if (!imported.length) {
         setImportMsg({ type:'warning', text:'No valid employee rows found in CSV.' });
         return;
@@ -547,8 +547,19 @@ function EmployeeManagerInner() {
       await saveEmployees(updated);
       const fresh = await getEmployees(activeCompanyId);
       setEmployees(fresh);
-      setImportMsg({ type:'success', text:`Import complete: ${added} added, ${updatedCount} updated.` });
-      setTimeout(() => setImportMsg(null), 5000);
+      // Include per-row format warnings alongside the success count so the
+      // admin sees IBAN / MOL ID formatting issues even when the import
+      // succeeded overall. Non-fatal — rows are still imported.
+      let msgText = `Import complete: ${added} added, ${updatedCount} updated.`;
+      let msgType = 'success';
+      if (csvErrors.length > 0) {
+        const preview = csvErrors.slice(0, 5).map(e => e.message).join(' · ');
+        const more = csvErrors.length > 5 ? ` (+${csvErrors.length - 5} more)` : '';
+        msgText += ` ${csvErrors.length} formatting issue(s): ${preview}${more}`;
+        msgType = 'warning';
+      }
+      setImportMsg({ type: msgType, text: msgText });
+      setTimeout(() => setImportMsg(null), csvErrors.length > 0 ? 15000 : 5000);
     } catch (err) {
       setImportMsg({ type:'danger', text:'Failed to import CSV: ' + err.message });
     }

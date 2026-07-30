@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { DollarSign, AlertCircle, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { DollarSign, AlertCircle, Clock, CheckCircle, XCircle, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { getAdvances } from '../../utils/storage';
-import { formatDateUAE } from '../../utils/uaeValidators';
+import { formatDateUAE, validateAmount } from '../../utils/uaeValidators';
 import { getMyEmployeeRecord } from '../../utils/profileStorage';
 
 const STATUS_ICON = {
@@ -30,6 +30,7 @@ export default function EmpAdvances() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError]   = useState('');
   const [success, setSuccess]       = useState('');
+  const [cancellingId, setCancellingId] = useState(null); // id currently being cancelled
 
   useEffect(() => {
     getMyEmployeeRecord().then(e => {
@@ -44,8 +45,21 @@ export default function EmpAdvances() {
   const handleSubmit = async () => {
     setFormError('');
     setSuccess('');
-    const amt = parseFloat(amount);
-    if (!amt || amt <= 0) { setFormError('Please enter a valid amount.'); return; }
+    // Cap at one month's basic salary (UAE Labour Law norm). Fall back to a
+    // wide ceiling when the employee record hasn't loaded yet so the form
+    // still submits — the server RPC + HR review are the ultimate authority.
+    const basic = parseFloat(emp?.basic_salary) || 0;
+    const cap = basic > 0 ? basic : 1_000_000;
+    const check = validateAmount(amount, { min: 1, max: cap, fieldName: 'Amount' });
+    if (!check.valid) {
+      setFormError(
+        basic > 0 && check.value > basic
+          ? `Amount cannot exceed one month's basic salary (${basic.toLocaleString('en-AE')} AED). Contact HR for exceptions.`
+          : check.message,
+      );
+      return;
+    }
+    const amt = check.value;
     if (!reason.trim())   { setFormError('Please provide a reason for your request.'); return; }
 
     setSubmitting(true);
@@ -67,6 +81,24 @@ export default function EmpAdvances() {
       setFormError(err.message || 'Failed to submit request. Please try again.');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleCancel = async (adv) => {
+    if (!window.confirm(`Withdraw your pending request for AED ${adv.amount.toLocaleString('en-AE', { minimumFractionDigits: 2 })}? This cannot be undone.`)) return;
+    setCancellingId(adv.id);
+    setFormError('');
+    try {
+      const { error } = await supabase.rpc('employee_cancel_advance', { p_advance_id: adv.id });
+      if (error) throw error;
+      const updated = await getAdvances(emp?.id).catch(() => advances);
+      setAdvances(updated);
+      setSuccess('Your advance request has been withdrawn.');
+      setTimeout(() => setSuccess(''), 5000);
+    } catch (err) {
+      setFormError(err.message || 'Could not withdraw the request. Please try again.');
+    } finally {
+      setCancellingId(null);
     }
   };
 
@@ -189,9 +221,9 @@ export default function EmpAdvances() {
             {pending.map(adv => (
               <div key={adv.id} style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-                padding: '10px 0', borderBottom: '1px solid var(--gray-100)',
+                padding: '10px 0', borderBottom: '1px solid var(--gray-100)', gap: 12,
               }}>
-                <div>
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600, fontSize: 14 }}>
                     AED {adv.amount.toLocaleString('en-AE', { minimumFractionDigits: 2 })}
                   </div>
@@ -202,7 +234,19 @@ export default function EmpAdvances() {
                     Submitted {formatDateUAE(adv.createdAt)}
                   </div>
                 </div>
-                <span className="badge badge-amber">Pending</span>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                  <span className="badge badge-amber">Pending</span>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    style={{ fontSize: 11, padding: '2px 8px', color: 'var(--danger)', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                    onClick={() => handleCancel(adv)}
+                    disabled={cancellingId === adv.id}
+                    title="Withdraw this pending request"
+                  >
+                    <X size={11} />
+                    {cancellingId === adv.id ? 'Withdrawing…' : 'Withdraw'}
+                  </button>
+                </div>
               </div>
             ))}
           </div>

@@ -35,6 +35,13 @@ export default function LeaveRequestModal({
   weekendDef,
   onSubmit,
   onClose,
+  // Optional: caller-provided list of the employee's existing requests. Used
+  // for overlap detection. Defaults to [] so unmigrated call sites keep working
+  // exactly as before.
+  existingRequests = [],
+  // Optional: when editing an existing request, the caller can pass its id so
+  // the overlap check ignores it.
+  editingRequestId = null,
 }) {
   const today = new Date().toISOString().split('T')[0];
 
@@ -100,16 +107,18 @@ export default function LeaveRequestModal({
       setErrors([]); setWarnings([]); return;
     }
     const { errors: e, warnings: w } = validateLeaveRequest(
-      { ...form, daysRequested },
+      { ...form, daysRequested, id: editingRequestId, employeeId: employee?.id },
       employee,
       selectedType,
       balance,
       publicHolidayDates,
-      weekendDef
+      weekendDef,
+      // Scope overlap detection to the currently selected employee.
+      (existingRequests || []).filter(r => !r.employeeId || r.employeeId === employee?.id),
     );
     setErrors(e);
     setWarnings(w);
-  }, [form.leaveTypeId, form.startDate, form.endDate, form.relationship, form.childBirthDate, form.attachmentUrl]);
+  }, [form.leaveTypeId, form.startDate, form.endDate, form.relationship, form.childBirthDate, form.attachmentUrl, employee?.id, existingRequests, editingRequestId]);
 
   const f = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
 
@@ -258,12 +267,12 @@ export default function LeaveRequestModal({
                     <>
                       <div style={{ background:'var(--success-light)', borderRadius:8, padding:'10px 16px', flex:1 }}>
                         <div style={{ fontSize:11, color:'var(--gray-500)', textTransform:'uppercase', letterSpacing:'0.05em' }}>Available Balance</div>
-                        <div style={{ fontSize:20, fontWeight:700, color:'var(--success)' }}>{balance.remaining}</div>
+                        <div style={{ fontSize:20, fontWeight:700, color:'var(--success)' }}>{Math.round(parseFloat(balance.remaining) || 0)}</div>
                         <div style={{ fontSize:11, color:'var(--gray-500)' }}>days remaining</div>
                       </div>
                       <div style={{ background: remainingAfter < 0 ? 'var(--danger-light)' : 'var(--gray-50)', borderRadius:8, padding:'10px 16px', flex:1 }}>
                         <div style={{ fontSize:11, color:'var(--gray-500)', textTransform:'uppercase', letterSpacing:'0.05em' }}>Balance After</div>
-                        <div style={{ fontSize:20, fontWeight:700, color: remainingAfter < 0 ? 'var(--danger)' : 'var(--gray-800)' }}>{remainingAfter}</div>
+                        <div style={{ fontSize:20, fontWeight:700, color: remainingAfter < 0 ? 'var(--danger)' : 'var(--gray-800)' }}>{Math.round(remainingAfter || 0)}</div>
                         <div style={{ fontSize:11, color:'var(--gray-500)' }}>days remaining</div>
                       </div>
                     </>

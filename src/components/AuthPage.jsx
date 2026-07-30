@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { FileText, Mail, Lock, Eye, EyeOff, AlertCircle, CheckCircle, Building2, User, ArrowLeft, Loader } from 'lucide-react';
+import { validateEmail } from '../utils/uaeValidators';
 
 const BG_STYLE = {
   background: '#EEF2F7',
@@ -131,6 +132,8 @@ function CreateCompanyForm({ onBack, onGoAdmin }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    const emailCheck = validateEmail(email);
+    if (!emailCheck.valid) { setError(emailCheck.message); return; }
     if (password !== confirm) { setError('Passwords do not match.'); return; }
     if (password.length < 8)  { setError('Password must be at least 8 characters.'); return; }
     setLoading(true);
@@ -345,6 +348,8 @@ function EmployeeSignInForm({ onBack }) {
     e.preventDefault();
     setError('');
     setSuccessMsg('');
+    const emailCheck = validateEmail(email);
+    if (!emailCheck.valid) { setError(emailCheck.message); return; }
     if (mode === 'signup') {
       if (password !== confirm) { setError('Passwords do not match.'); return; }
       if (password.length < 8)  { setError('Password must be at least 8 characters.'); return; }

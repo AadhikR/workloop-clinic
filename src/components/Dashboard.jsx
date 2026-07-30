@@ -60,15 +60,30 @@ export default function Dashboard({ onNavigate }) {
   const activeEmps    = employees.filter(e => e.active !== false && e.employmentStatus !== 'Terminated');
   const generatedRuns = payrolls.filter(p => p.status === 'generated');
 
-  // ── Emiratization / Nafis compliance (Cabinet Resolution No. 27 of 2023) ──
+  // ── Emiratization / Nafis compliance ──
+  // 2026 rules (Cabinet Res. 27/2023 + MoHRE 2026 updates):
+  //   <20  employees → not mandatory (Nafis participation is voluntary)
+  //   20-49 in priority sectors → fixed minimum of 2 Emirati staff
+  //   50+  employees → percentage-based quota per sector (default 2% healthcare, 10% general)
+  // Fine (2026): AED 9,000 / month per unfilled Emirati slot.
   const emiratiEmps     = activeEmps.filter(e => e.nationality === 'United Arab Emirates');
   const emiratiCount    = emiratiEmps.length;
   const totalHeadcount  = activeEmps.length;
   const nafisRequired   = parseFloat(company?.nafisQuotaPercent) || 2;
+  // Which tier applies to this company?
+  const nafisTier =
+    totalHeadcount < 20 ? 'not_mandatory'
+    : totalHeadcount < 50 ? 'fixed_two'
+    : 'percentage';
+  const nafisMinCount   = nafisTier === 'fixed_two'
+    ? 2
+    : nafisTier === 'percentage'
+      ? Math.ceil((nafisRequired / 100) * totalHeadcount)
+      : 0;
   const nafisRatio      = totalHeadcount > 0 ? (emiratiCount / totalHeadcount) * 100 : 0;
-  const nafisCompliant  = nafisRatio >= nafisRequired;
-  const nafisGap        = Math.max(0, Math.ceil((nafisRequired / 100) * totalHeadcount) - emiratiCount);
-  const nafisFine       = nafisGap * 6000;
+  const nafisCompliant  = nafisTier === 'not_mandatory' || emiratiCount >= nafisMinCount;
+  const nafisGap        = Math.max(0, nafisMinCount - emiratiCount);
+  const nafisFine       = nafisGap * 9000;  // 2026 monthly fine per unfilled slot
   const draftRuns          = payrolls.filter(p => p.status !== 'generated');
   // Payroll Approval (Feature 17)
   const pendingApprovalRuns = payrolls.filter(p => p.approvalStatus === 'pending_approval');
@@ -402,14 +417,16 @@ export default function Dashboard({ onNavigate }) {
           </div>
         )}
 
-        {/* Emiratization non-compliance alert */}
-        {company?.sector && totalHeadcount > 0 && !nafisCompliant && (
+        {/* Emiratization non-compliance alert — only when the tier makes it mandatory */}
+        {company?.enableNafis !== false && nafisTier !== 'not_mandatory' && totalHeadcount > 0 && !nafisCompliant && (
           <div className="alert alert-danger mb-4">
             <ShieldAlert size={16} />
             <div>
-              <strong>Emiratization Target Not Met (Cabinet Res. 27/2023):</strong>{' '}
-              Current rate <strong>{nafisRatio.toFixed(1)}%</strong> ({emiratiCount} UAE national{emiratiCount !== 1 ? 's' : ''}) is below the required{' '}
-              <strong>{nafisRequired}%</strong> for {company.sector}.
+              <strong>Emiratization Target Not Met (MoHRE 2026 rules):</strong>{' '}
+              {nafisTier === 'fixed_two'
+                ? <>You employ <strong>{emiratiCount}</strong> UAE national{emiratiCount !== 1 ? 's' : ''} — the 20-49 staff tier requires a minimum of <strong>2</strong>.</>
+                : <>Current rate <strong>{nafisRatio.toFixed(1)}%</strong> ({emiratiCount} UAE national{emiratiCount !== 1 ? 's' : ''}) is below the required <strong>{nafisRequired}%</strong>{company?.sector ? ` for ${company.sector}` : ''}.</>
+              }
               {nafisGap > 0 && (
                 <> You need <strong>{nafisGap} more UAE national{nafisGap !== 1 ? 's' : ''}</strong>.
                   Potential fine: <strong>AED {nafisFine.toLocaleString('en-AE')} / month</strong>.
@@ -540,6 +557,7 @@ export default function Dashboard({ onNavigate }) {
         </div>
 
         {/* Emiratization / Nafis compliance panel */}
+        {company?.enableNafis !== false && (
         <div className="card mb-4">
           <div className="card-header">
             <h3><ShieldCheck size={15} style={{ marginRight:6, display:'inline' }} />Emiratization / Nafis Compliance</h3>
@@ -548,7 +566,25 @@ export default function Dashboard({ onNavigate }) {
             </button>
           </div>
           <div className="card-body">
-            {!company?.sector ? (
+            {totalHeadcount === 0 ? (
+              <div style={{ fontSize:13.5, color:'var(--gray-500)' }}>
+                No active employees on record.
+              </div>
+            ) : nafisTier === 'not_mandatory' ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <ShieldCheck size={22} color="var(--success)" />
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--gray-800)' }}>
+                    Nafis compliance not mandatory
+                  </div>
+                  <div style={{ fontSize: 12.5, color: 'var(--gray-500)', marginTop: 3 }}>
+                    You have <strong>{totalHeadcount}</strong> active employee{totalHeadcount !== 1 ? 's' : ''}.
+                    Emiratization quotas apply from <strong>20 skilled staff</strong> upwards (MoHRE 2026 rules).
+                    Voluntary Nafis participation may still qualify you for salary support &amp; training grants.
+                  </div>
+                </div>
+              </div>
+            ) : !company?.sector ? (
               <div style={{ fontSize:13.5, color:'var(--gray-500)', display:'flex', alignItems:'center', gap:10 }}>
                 <AlertCircle size={15} color="var(--warning)" />
                 Emiratization tracking not configured.{' '}
@@ -558,36 +594,44 @@ export default function Dashboard({ onNavigate }) {
                 </button>{' '}
                 to enable the compliance dashboard.
               </div>
-            ) : totalHeadcount === 0 ? (
-              <div style={{ fontSize:13.5, color:'var(--gray-500)' }}>
-                No active employees on record.
-              </div>
             ) : (
               <div style={{ display:'flex', alignItems:'center', gap:32, flexWrap:'wrap' }}>
-                {/* Ratio number */}
+                {/* Headline metric — count for 20-49, % for 50+ */}
                 <div style={{ textAlign:'center', minWidth:80 }}>
                   <div style={{ fontSize:34, fontWeight:800, lineHeight:1, color: nafisCompliant ? 'var(--success)' : 'var(--danger)' }}>
-                    {nafisRatio.toFixed(1)}%
+                    {nafisTier === 'fixed_two' ? `${emiratiCount}/${nafisMinCount}` : `${nafisRatio.toFixed(1)}%`}
                   </div>
-                  <div style={{ fontSize:11, color:'var(--gray-500)', marginTop:4 }}>Current Rate</div>
+                  <div style={{ fontSize:11, color:'var(--gray-500)', marginTop:4 }}>
+                    {nafisTier === 'fixed_two' ? 'UAE Nationals' : 'Current Rate'}
+                  </div>
                 </div>
 
-                {/* Bar */}
                 <div style={{ flex:1, minWidth:160 }}>
-                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, color:'var(--gray-400)', marginBottom:5 }}>
-                    <span>0%</span>
-                    <span style={{ color:'var(--gray-600)', fontWeight:600 }}>Target: {nafisRequired}%</span>
-                  </div>
-                  <div style={{ height:10, background:'var(--gray-200)', borderRadius:6, overflow:'hidden', position:'relative' }}>
-                    {/* Target marker */}
-                    <div style={{ position:'absolute', top:0, bottom:0, left:`${Math.min(nafisRequired, 100)}%`, width:2, background:'var(--gray-500)', zIndex:2 }} />
-                    {/* Fill */}
-                    <div style={{ height:'100%', width:`${Math.min(nafisRatio, 100)}%`, background: nafisCompliant ? 'var(--success)' : 'var(--danger)', borderRadius:6, transition:'width 0.4s' }} />
-                  </div>
-                  <div style={{ marginTop:6, fontSize:12.5, color:'var(--gray-700)' }}>
-                    <strong>{emiratiCount}</strong> UAE national{emiratiCount !== 1 ? 's' : ''} of <strong>{totalHeadcount}</strong> active employees
-                    {company.sector && <span style={{ color:'var(--gray-400)', marginLeft:8 }}>· {company.sector}</span>}
-                  </div>
+                  {nafisTier === 'fixed_two' && (
+                    <div style={{ fontSize:12.5, color:'var(--gray-700)' }}>
+                      <strong>MoHRE 2026 rule:</strong> employers with 20–49 skilled staff in priority sectors must employ a minimum of <strong>2 UAE nationals</strong>.
+                      <div style={{ marginTop:5, color:'var(--gray-500)' }}>
+                        <strong>{emiratiCount}</strong> UAE national{emiratiCount !== 1 ? 's' : ''} of <strong>{totalHeadcount}</strong> active employees
+                        {company?.sector && <span style={{ marginLeft:8 }}>· {company.sector}</span>}
+                      </div>
+                    </div>
+                  )}
+                  {nafisTier !== 'fixed_two' && (
+                    <div>
+                      <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, color:'var(--gray-400)', marginBottom:5 }}>
+                        <span>0%</span>
+                        <span style={{ color:'var(--gray-600)', fontWeight:600 }}>Target: {nafisRequired}%</span>
+                      </div>
+                      <div style={{ height:10, background:'var(--gray-200)', borderRadius:6, overflow:'hidden', position:'relative' }}>
+                        <div style={{ position:'absolute', top:0, bottom:0, left:`${Math.min(nafisRequired, 100)}%`, width:2, background:'var(--gray-500)', zIndex:2 }} />
+                        <div style={{ height:'100%', width:`${Math.min(nafisRatio, 100)}%`, background: nafisCompliant ? 'var(--success)' : 'var(--danger)', borderRadius:6, transition:'width 0.4s' }} />
+                      </div>
+                      <div style={{ marginTop:6, fontSize:12.5, color:'var(--gray-700)' }}>
+                        <strong>{emiratiCount}</strong> UAE national{emiratiCount !== 1 ? 's' : ''} of <strong>{totalHeadcount}</strong> active employees
+                        {company?.sector && <span style={{ color:'var(--gray-400)', marginLeft:8 }}>· {company.sector}</span>}
+                      </div>
+                    </div>
+                  )}
                   {!nafisCompliant && nafisGap > 0 && (
                     <div style={{ marginTop:5, fontSize:12, color:'var(--danger)', fontWeight:600 }}>
                       {nafisGap} more UAE national{nafisGap !== 1 ? 's' : ''} needed
@@ -607,6 +651,7 @@ export default function Dashboard({ onNavigate }) {
             )}
           </div>
         </div>
+        )}
 
         {/* Payroll trend */}
         <div className="card mb-4">

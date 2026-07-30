@@ -672,7 +672,7 @@ export function calculatePayrollLeaveDeductions(approvedLeaves, periodStart, per
  * @param {string} weekendDef
  * @returns {{ valid: boolean, errors: string[], warnings: string[] }}
  */
-export function validateLeaveRequest(request, employee, leaveType, balance, holidayDates = [], weekendDef = 'fri-sat') {
+export function validateLeaveRequest(request, employee, leaveType, balance, holidayDates = [], weekendDef = 'fri-sat', existingRequests = []) {
   const errors   = [];
   const warnings = [];
 
@@ -684,6 +684,31 @@ export function validateLeaveRequest(request, employee, leaveType, balance, holi
   // Basic date validation
   if (endDate < startDate) {
     errors.push('End date cannot be before start date.');
+  }
+
+  // Overlap check — reject if this employee already has an active (Pending /
+  // ManagerApproved / Approved) request covering any of the same days.
+  // Rejected / ManagerRejected / Cancelled are ignored so re-application after
+  // a rejection works normally. When editing, the request's own id is excluded.
+  if (Array.isArray(existingRequests) && existingRequests.length > 0 && !isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
+    const activeStatuses = new Set(['Pending', 'ManagerApproved', 'Approved']);
+    const editingId = request.id ?? null;
+    const conflict = existingRequests.find(r => {
+      if (!r || r.id === editingId) return false;
+      if (!activeStatuses.has(r.status)) return false;
+      // Only overlap-check against the same employee when the field is present.
+      if (r.employeeId && request.employeeId && r.employeeId !== request.employeeId) return false;
+      if (!r.startDate || !r.endDate) return false;
+      const rStart = new Date(r.startDate);
+      const rEnd   = new Date(r.endDate);
+      if (isNaN(rStart.getTime()) || isNaN(rEnd.getTime())) return false;
+      return rStart <= endDate && rEnd >= startDate;
+    });
+    if (conflict) {
+      const cStart = formatDateUAE(conflict.startDate);
+      const cEnd   = formatDateUAE(conflict.endDate);
+      errors.push(`You already have a leave request from ${cStart} to ${cEnd} (status: ${conflict.status}) that overlaps this period. Cancel it first, or adjust these dates.`);
+    }
   }
 
   // Probation eligibility — HR-configured per leave type

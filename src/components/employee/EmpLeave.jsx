@@ -167,16 +167,18 @@ export default function EmpLeave() {
     }
     const balance = balances.find(b => b.leaveTypeCode === selectedType.code);
     const result = validateLeaveRequest(
-      { startDate: form.startDate, endDate: form.endDate, isHalfDay: form.isHalfDay, reason: form.reason, attachmentUrl },
+      { startDate: form.startDate, endDate: form.endDate, isHalfDay: form.isHalfDay, reason: form.reason, attachmentUrl, employeeId: emp.id },
       { startDate: emp.employment_start_date, employmentStartDate: emp.employment_start_date, gender: emp.gender, employmentStatus: emp.employment_status },
       selectedType,
       balance,
       holidays,
       weekendDef,
+      // Overlap check: employee's own request list already in state.
+      requests.map(r => ({ id: r.id, employeeId: emp.id, status: r.status, startDate: r.startDate, endDate: r.endDate })),
     );
     setFormErrors(result.errors);
     setFormWarnings(result.warnings);
-  }, [form, selectedType, balances, holidays, emp, weekendDef]);
+  }, [form, selectedType, balances, holidays, emp, weekendDef, requests, attachmentUrl]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -536,7 +538,7 @@ export default function EmpLeave() {
                         <span style={{ fontWeight: 600, fontSize: 14 }}>{lt?.name ?? bal.leaveTypeCode}</span>
                       </div>
                       <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--gray-800)' }}>
-                        {parseFloat(bal.remaining).toFixed(1)} <span style={{ fontWeight: 400, color: 'var(--gray-400)' }}>/ {bal.entitledDays} days</span>
+                        {Math.round(parseFloat(bal.remaining) || 0)} <span style={{ fontWeight: 400, color: 'var(--gray-400)' }}>/ {bal.entitledDays} days</span>
                       </span>
                     </div>
                     <div className="leave-balance-bar">
@@ -546,9 +548,9 @@ export default function EmpLeave() {
                       />
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 11, color: 'var(--gray-400)' }}>
-                      <span>Used: {parseFloat(bal.usedDays).toFixed(1)}</span>
-                      {bal.pendingDays > 0 && <span>Pending: {parseFloat(bal.pendingDays).toFixed(1)}</span>}
-                      <span>Remaining: {parseFloat(bal.remaining).toFixed(1)}</span>
+                      <span>Used: {Math.round(parseFloat(bal.usedDays) || 0)}</span>
+                      {bal.pendingDays > 0 && <span>Pending: {Math.round(parseFloat(bal.pendingDays) || 0)}</span>}
+                      <span>Remaining: {Math.round(parseFloat(bal.remaining) || 0)}</span>
                     </div>
                   </div>
                 );

@@ -1264,6 +1264,7 @@ export default function LeaveManager() {
           leaveBalances={allBalances.filter(b => b.employeeId === (selectedEmployee?.id || employees[0]?.id))}
           publicHolidayDates={publicHolidayDates}
           weekendDef={weekendDef}
+          existingRequests={requests}
           onSubmit={handleSubmitRequest}
           onClose={() => setShowRequestModal(false)}
         />

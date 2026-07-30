@@ -34,6 +34,7 @@ function TrainingModal({ record, employees, onSave, onClose }) {
     cost: record?.cost != null ? String(record.cost) : '',
     status: record?.status ?? 'planned', score: record?.score ?? '',
     passed: record?.passed ?? null, certificateUrl: record?.certificateUrl ?? '', notes: record?.notes ?? '',
+    isCme: record?.isCme ?? false,
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
@@ -125,6 +126,12 @@ function TrainingModal({ record, employees, onSave, onClose }) {
             <div className="form-group">
               <label className="form-label">Certificate URL</label>
               <input className="form-control" value={form.certificateUrl} onChange={e => set('certificateUrl', e.target.value)} placeholder="https://… or leave blank" />
+            </div>
+            <div className="form-group">
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                <input type="checkbox" checked={!!form.isCme} onChange={e => set('isCme', e.target.checked)} />
+                <span>Count these hours toward the employee's <strong>CME</strong> requirement</span>
+              </label>
             </div>
             <div className="form-group">
               <label className="form-label">Notes</label>
@@ -250,6 +257,7 @@ function MyTrainingForm({ record, employeeId, onSave, onCancel }) {
     cost: record?.cost != null ? String(record.cost) : '0',
     status: record?.status ?? 'planned', score: record?.score ?? '',
     passed: record?.passed ?? null, certificateUrl: record?.certificateUrl ?? '', notes: record?.notes ?? '',
+    isCme: record?.isCme ?? false,
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
@@ -302,6 +310,17 @@ function MyTrainingForm({ record, employeeId, onSave, onCancel }) {
               <label className="form-label" style={{ fontSize: 12 }}>End Date</label>
               <input type="date" className="form-control" value={form.endDate} onChange={e => set('endDate', e.target.value)} style={{ fontSize: 13 }} />
             </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label" style={{ fontSize: 12 }}>Duration (hours)</label>
+            <input type="number" className="form-control" value={form.durationHours} onChange={e => set('durationHours', e.target.value)}
+              placeholder="e.g. 8" min="0" step="0.5" style={{ fontSize: 13 }} />
+          </div>
+          <div className="form-group">
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}>
+              <input type="checkbox" checked={!!form.isCme} onChange={e => set('isCme', e.target.checked)} />
+              <span>Count these hours toward my <strong>CME</strong> (Continuing Medical Education) requirement</span>
+            </label>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>

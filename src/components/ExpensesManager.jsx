@@ -12,7 +12,7 @@
 import { useState, useEffect } from 'react';
 import { Receipt, Check, X, Trash2, ExternalLink, AlertCircle, RefreshCw } from 'lucide-react';
 import { getExpenseClaims, approveExpenseClaim, rejectExpenseClaim, deleteExpenseClaim } from '../utils/expenseStorage';
-import { formatDateUAE } from '../utils/uaeValidators';
+import { formatDateUAE, validateRejectionReason } from '../utils/uaeValidators';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -101,7 +101,8 @@ export default function ExpensesManager() {
   };
 
   const handleReject = async () => {
-    if (!rejectReason.trim()) return;
+    const check = validateRejectionReason(rejectReason);
+    if (!check.valid) { flash('error', check.message); return; }
     setActionBusy(true);
     try {
       await rejectExpenseClaim(rejectId, rejectReason.trim());

@@ -3,6 +3,7 @@ import { Upload, FileText, Clock, CheckCircle, XCircle, AlertTriangle } from 'lu
 import { supabase } from '../../lib/supabase';
 import { getMyDocuments, getMyEmployeeRecord } from '../../utils/profileStorage';
 import { CLINICAL_DOC_TYPES, DOC_GROUPS } from '../EmployeeModal';
+import { validateEmiratesID } from '../../utils/uaeValidators';
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
 
@@ -58,6 +59,40 @@ export default function EmpDocuments() {
     if (!form.file) { showToast('error', 'Please select a file to upload.'); return; }
     if (form.file.size > MAX_FILE_BYTES) { showToast('error', 'File must be under 10 MB.'); return; }
     if (!emp?.id || !emp?.user_id) { showToast('error', 'Employee record not loaded. Please try refreshing.'); return; }
+
+    // Emirates ID format check — only when the field is non-empty and type
+    // matches, so it stays optional.
+    if (form.type === 'Emirates ID' && form.number && form.number.trim()) {
+      const eidCheck = validateEmiratesID(form.number);
+      if (!eidCheck.valid) { showToast('error', eidCheck.message); return; }
+    }
+
+    // Clinical licence uploads MUST carry the licence number so HR (and the SIF
+    // compliance gate) can match against MoHRE / DHA / DOH / MOH portals.
+    const CLINICAL_LICENCE_TYPES = new Set(['DHA Licence', 'DOH Licence', 'MOH Licence']);
+    if (CLINICAL_LICENCE_TYPES.has(form.type)) {
+      const num = (form.number || '').trim();
+      if (!num) {
+        showToast('error', `${form.type} requires the licence number — please enter it before uploading.`);
+        return;
+      }
+      if (!/^[A-Za-z0-9\-/]{3,30}$/.test(num)) {
+        showToast('error', 'Licence number must be 3–30 letters/digits (hyphens and slashes allowed).');
+        return;
+      }
+    }
+
+    // Expiry cannot be in the past — an expired doc shouldn't be submitted for review.
+    if (form.expiryDate) {
+      const expiry = new Date(form.expiryDate);
+      const today  = new Date();
+      today.setHours(0, 0, 0, 0);
+      expiry.setHours(0, 0, 0, 0);
+      if (expiry < today) {
+        showToast('error', 'Expiry date is in the past. Please upload a valid document.');
+        return;
+      }
+    }
 
     setUploading(true);
     try {

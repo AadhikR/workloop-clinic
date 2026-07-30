@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Check, X, DollarSign, Clock, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
 import { getEmployees } from '../utils/storage';
 import { getAdvances, saveAdvance, getAdvanceRepayments } from '../utils/storage';
-import { formatDateUAE } from '../utils/uaeValidators';
+import { formatDateUAE, validateAmount, validateRejectionReason } from '../utils/uaeValidators';
 import ConfirmModal from './ConfirmModal';
 
 const STATUS_BADGE = {
@@ -59,7 +59,10 @@ export default function AdvancesManager() {
   const handleCreate = async () => {
     setFormError('');
     if (!form.employeeId) { setFormError('Please select an employee.'); return; }
-    if (!form.amount || parseFloat(form.amount) <= 0) { setFormError('Enter a valid amount.'); return; }
+    // Admin-side amount check — soft ceiling to catch typos (e.g. 5000000
+    // instead of 50000). HR can still submit above this by editing the value.
+    const amtCheck = validateAmount(form.amount, { min: 1, max: 10_000_000, fieldName: 'Amount' });
+    if (!amtCheck.valid) { setFormError(amtCheck.message); return; }
     if (!form.reason.trim()) { setFormError('Reason is required.'); return; }
 
     setSaving(true);
@@ -115,6 +118,8 @@ export default function AdvancesManager() {
   };
 
   const confirmAction = async (adv) => {
+    const reasonCheck = validateRejectionReason(rejectReason);
+    if (!reasonCheck.valid) { alert(reasonCheck.message); return; }
     try {
       const updated = await saveAdvance({
         ...adv,
@@ -317,7 +322,26 @@ export default function AdvancesManager() {
                         <td style={{ fontWeight: 500 }}>{empName(adv.employeeId)}</td>
                         <td>{adv.amount.toLocaleString('en-AE', { minimumFractionDigits: 2 })}</td>
                         <td className="text-sm">{adv.disbursedDate ? formatDateUAE(adv.disbursedDate) : '—'}</td>
-                        <td className="text-sm">{adv.repaymentMonths} month{adv.repaymentMonths !== 1 ? 's' : ''}</td>
+                        <td className="text-sm">
+                          {adv.repaymentMonths} month{adv.repaymentMonths !== 1 ? 's' : ''}
+                          {adv.status === 'active' && adv.disbursedDate && (() => {
+                            // First deduction month = payroll month after disbursement.
+                            // Show "MMM YYYY → MMM YYYY" so admin sees which payroll runs will carry the deduction.
+                            const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                            const d = new Date(adv.disbursedDate);
+                            if (isNaN(d.getTime())) return null;
+                            const startIdx = d.getMonth();
+                            const startYr  = d.getFullYear();
+                            const endIdx   = startIdx + adv.repaymentMonths - 1;
+                            const endMonth = ((endIdx % 12) + 12) % 12;
+                            const endYear  = startYr + Math.floor(endIdx / 12);
+                            return (
+                              <div style={{ fontSize: 10, color: 'var(--gray-500)', marginTop: 2 }}>
+                                {monthNames[startIdx]} {startYr} → {monthNames[endMonth]} {endYear}
+                              </div>
+                            );
+                          })()}
+                        </td>
                         <td className="text-right text-sm" style={{ color: 'var(--danger)' }}>
                           {adv.status === 'active'
                             ? adv.monthlyDeduction.toLocaleString('en-AE', { minimumFractionDigits: 2 })

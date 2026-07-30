@@ -12,6 +12,7 @@ import {
 import { getDepartments, saveDepartment, deleteDepartment } from '../utils/departmentStorage';
 import { getDeptStaffingRules, saveDeptStaffingRule, deleteDeptStaffingRule } from '../utils/staffingStorage';
 import { getEmployees } from '../utils/storage';
+import { useCompany } from '../context/CompanyContext';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -148,6 +149,8 @@ const EMPTY_FORM = {
 };
 
 export default function DepartmentManager() {
+  const { activeCompany } = useCompany();
+  const staffingRulesEnabled = activeCompany?.enableStaffingRules !== false;
   const [tab,       setTab]       = useState('departments');
   const [depts,     setDepts]     = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -215,10 +218,39 @@ export default function DepartmentManager() {
   function closeForm() { setForm(null); }
 
   async function handleSave() {
-    if (!form.name.trim()) return;
+    const trimmedName = form.name.trim();
+    if (!trimmedName) return;
+
+    // Duplicate name check within the same company (excludes self on edit).
+    // Case-insensitive because "Nursing" and "nursing" are the same thing.
+    const dup = depts.find(d =>
+      d.id !== form.id &&
+      (d.name || '').trim().toLowerCase() === trimmedName.toLowerCase(),
+    );
+    if (dup) {
+      flash('danger', `A department named "${dup.name}" already exists.`);
+      return;
+    }
+
+    // Parent cycle check — walk ancestor chain and refuse if the current dept
+    // appears. Only meaningful when editing an existing dept (form.id set).
+    if (form.id && form.parentId) {
+      let cursor = form.parentId;
+      const seen = new Set();
+      while (cursor && !seen.has(cursor)) {
+        if (cursor === form.id) {
+          flash('danger', 'This parent would create a reporting cycle.');
+          return;
+        }
+        seen.add(cursor);
+        const parent = depts.find(d => d.id === cursor);
+        cursor = parent?.parentId || null;
+      }
+    }
+
     setSaving(true);
     try {
-      const saved = await saveDepartment({ ...form, parentId: form.parentId || null, headEmployeeId: form.headEmployeeId || null });
+      const saved = await saveDepartment({ ...form, name: trimmedName, parentId: form.parentId || null, headEmployeeId: form.headEmployeeId || null });
       setDepts(prev => {
         const idx = prev.findIndex(d => d.id === saved.id);
         return idx >= 0 ? prev.map((d, i) => i === idx ? saved : d) : [...prev, saved];
@@ -303,9 +335,11 @@ export default function DepartmentManager() {
           <button className={`tab-btn ${tab === 'orgchart' ? 'active' : ''}`} onClick={() => setTab('orgchart')}>
             Org Chart
           </button>
-          <button className={`tab-btn ${tab === 'staffing' ? 'active' : ''}`} onClick={() => setTab('staffing')}>
-            <ShieldCheck size={14} /> Staffing Rules ({staffingRules.length})
-          </button>
+          {staffingRulesEnabled && (
+            <button className={`tab-btn ${tab === 'staffing' ? 'active' : ''}`} onClick={() => setTab('staffing')}>
+              <ShieldCheck size={14} /> Staffing Rules ({staffingRules.length})
+            </button>
+          )}
         </div>
 
         {msg && (
@@ -578,7 +612,7 @@ export default function DepartmentManager() {
         )}
 
         {/* ── Staffing Rules tab ── */}
-        {tab === 'staffing' && (
+        {tab === 'staffing' && staffingRulesEnabled && (
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <p className="text-muted text-sm">

@@ -141,11 +141,11 @@ All DB access goes through `src/utils/` modules — components never call `supab
 
 - **`sifGenerator.js`** — UAE WPS SIF format. Amounts are integer AED. **Line endings must be `\r\n` (CRLF)** — banks reject LF-only. Download Blob uses `Uint8Array` via `TextEncoder` (not `text/plain`).
 - **`payslipGenerator.js`** — jsPDF payslip. Always call `downloadPayslip()` from components, not `generatePayslipPDF` directly.
-- **`leaveEngine.js`** — UAE Labour Law leave rules. `DEFAULT_LEAVE_TYPES` seeds ANNUAL, HAJJ, STUDY as `probationEligible: false`.
+- **`leaveEngine.js`** — UAE Labour Law leave rules. `DEFAULT_LEAVE_TYPES` seeds ANNUAL, HAJJ, STUDY as `probationEligible: false`. **`validateLeaveRequest` takes an optional 7th arg `existingRequests = []`** — when passed, it rejects overlaps against `Pending`/`ManagerApproved`/`Approved` requests for the same employee (excludes the request's own id via `editingRequestId`). Callers already pass their in-memory request list.
 - **`gratuityCalculator.js`** — End-of-service gratuity per UAE law.
 - **`attendanceEngine.js`** — `ATTENDANCE_STATUS` constants (all uppercase). **`isPast` uses `<` not `<=`** — today is NOT past.
-- **`uaeValidators.js`** — **`formatDateUAE(dateStr)`** is the project-wide date formatter (DD/MM/YYYY). Always use it — never `toLocaleDateString()` or raw ISO strings.
-- **`csvImport.js`** — Header-name-based matching via `HEADER_ALIASES`. `cleanId()` strips Excel formula guards. Rows with MOL ID < 10 digits are skipped. Export uses `csvIdCell()` to prevent Excel mangling.
+- **`uaeValidators.js`** — **`formatDateUAE(dateStr)`** is the project-wide date formatter (DD/MM/YYYY). Always use it — never `toLocaleDateString()` or raw ISO strings. Also exports `validateIBAN`, `validateEmiratesID`, `validateMolId`, `validateEmail`, `validateUAEPhone`, `validateAmount`, `validateDateRange`, `validatePastDate`, `validateFutureDate`, `validateBankRoutingCode` (9 digits), `validateRejectionReason` (default 10-char min matches the SIF compliance-override gate), `validateUAEVisaNumber` (`XXX/YYYY/ZZZZZZZ` or 14 digits), `validatePassportNumber` (6–20 alphanumeric), `clampNumber`. All return `{ valid, message }` and treat empty input as valid unless the contract says otherwise.
+- **`csvImport.js`** — Header-name-based matching via `HEADER_ALIASES`. `cleanId()` strips Excel formula guards. Rows with MOL ID < 10 digits are skipped. Export uses `csvIdCell()` to prevent Excel mangling. `parseCSV()` also returns `errors[]` — per-row IBAN/MOL format warnings surfaced in the admin import banner (non-fatal — rows still import).
 
 ### Key behavioral patterns
 
@@ -153,11 +153,23 @@ All DB access goes through `src/utils/` modules — components never call `supab
 
 **Payroll approval flow**: `draft` → `pending_approval` → `approved` → `generated`. Rejection returns to `draft`. `approvalLocked` = pending or approved; `editingLocked` = `approvalLocked || isLocked`.
 
+**Payroll "Apply to Payroll" idempotency pattern**: The Advance Repayments, Expense Reimbursements, and Roster Overtime panels each render a per-employee "Apply to Payroll" button. The apply handler filters out any existing line item with the same label before appending — so re-clicking after an amount change **replaces** rather than duplicates. The exact labels used are:
+- `'Advance Repayment'` — written to `entry.deductions[]`.
+- `'Expense Reimbursement'` — written to `entry.additionalAllowances[]`.
+- `'Overtime (Roster)'` — written to `entry.additionalAllowances[]`.
+When adding a fourth auto-apply panel, follow this same pattern: filter existing by label, then append. Do not skip the filter — "already applied" detection depends on it.
+
+**Advance repayment schedule display**: `AdvancesManager` shows a "MMM YYYY → MMM YYYY" window under the Repayment months column for `active` advances, computed from `disbursedDate + repaymentMonths`. This is display-only — no state change.
+
+**Employee-side advance withdraw**: `EmpAdvances` shows a Withdraw button on rows with `status = 'pending'`. Uses `employee_cancel_advance(p_advance_id)` RPC (migration 049) — the RPC refuses if status is anything other than `'pending'` or if the row isn't owned by the calling employee.
+
 **Soft-delete employees**: `archiveEmployee()` sets `active = false, employment_status = 'Terminated', termination_date = today`. Must set `termination_date` — `buildTurnoverReport` depends on it.
 
 **Auto job history**: `handleSaveEmployee` diffs salary/title/department/status and calls `addJobHistoryEntry` for each change. Wrapped in try/catch (missing RLS warns silently).
 
 **Leave balance fallback**: `EmpLeave`/`EmpHome` compute locally when DB `leave_balances` is empty. Falls back to DB leave types, then `DEFAULT_LEAVE_TYPES`.
+
+**Leave balance display precision**: Rendered as whole days via `Math.round()` — never `.toFixed(1)`. The underlying accrual math stays exact (`entitlementPerYear * monthsWorked / 12`); rounding is display-only in `EmpLeave`, `EmpHome`, `LeaveRequestModal`. Same rule if a new component renders a leave balance.
 
 **Leave multi-level approval**: `pendingRequests` includes both `'Pending'` and `'ManagerApproved'`. Status flow: Pending → ManagerApproved → Approved (HR final); or ManagerRejected (final). `LEAVE_STATUS_COLORS` includes both.
 
@@ -175,7 +187,7 @@ All DB access goes through `src/utils/` modules — components never call `supab
 
 **SIF compliance gate** (Clinic 7.1): `handleDownload()` checks three dimensions — expired licence, Emirates ID, Visa — shows override modal requiring ≥10 char reason before download.
 
-**Roster publish gate** (Clinic 7.2): `handlePublish()` checks staffing rules violations before publish, shows override modal.
+**Roster publish gate** (Clinic 7.2): `handlePublish()` checks staffing rules violations before publish, shows override modal. Skipped entirely when `activeCompany.enableStaffingRules === false`. The old separate "Licence Compliance Alerts" banner above the roster grid has been **removed** at user request — per-row licence status dots in the grid still surface individual expiries.
 
 **Employee contracts are append-only**: each action inserts a new row. Nothing is ever updated or deleted.
 
@@ -183,11 +195,15 @@ All DB access goes through `src/utils/` modules — components never call `supab
 
 **Reject/cancel uses inline reason forms** — never `window.confirm()`. Pattern: `rejectingId` state controls which row shows the form.
 
-**Multi-company**: `CompanyContext.jsx` provides `activeCompanyId`. `CompanyProvider` wraps only `AppShell`. `getEmployees(companyId?)` / `getPayrolls(companyId?)` filter by company. `getEmployees` uses `.or('company_id.eq.X,company_id.is.null')` for backward compat.
+**Multi-company**: `CompanyContext.jsx` provides `activeCompanyId` and `activeCompany`. `CompanyProvider` wraps only `AppShell`. `getEmployees(companyId?)` / `getPayrolls(companyId?)` filter by company. `getEmployees` uses `.or('company_id.eq.X,company_id.is.null')` for backward compat.
+
+**Per-company feature toggles**: `activeCompany.enableNafis` / `enableStaffingRules` / `enableBiometricImport` — all default `true` (undefined → treat as enabled). Components consume via `useCompany()` and gate UI with `if (activeCompany?.enableX !== false)`. Gates already applied: Nafis Dashboard panel + alert + Reports tab; Staffing Rules DepartmentManager tab + RosterManager publish gate + Reports tab; Biometric Import AttendanceManager tab. `companyToDb()` only writes toggle columns when the caller set them, so an install pre-migration-049 doesn't fail with "column does not exist".
+
+**Nafis 2026 tiered rules** (Dashboard): `<20` active employees → "not mandatory" banner shown, alert suppressed; `20-49` → fixed minimum of 2 Emirati staff, headline metric is `emiratiCount/2`; `50+` → percentage-based target. Monthly fine is **AED 9,000 per unfilled slot** (updated from AED 6,000).
 
 **Appraisal workflow**: Setting `reporting_manager_id` alone is not enough — admin must Assign Staff in Appraisals → cycle → Reviews tab to create appraisal rows. `getMyTeamAppraisals()` filters out manager's own appraisal via `neq('employee_id', selfId)`. `getMyAppraisals()` filters to only the caller's own appraisal via `eq('employee_id', selfId)` — never omit this filter or manager RLS leaks team appraisals into "My Appraisals". ManagerAppraisals has a "Team Appraisals" / "My Appraisals" sub-view toggle — team view is interactive (star rating) only for `pending` status, own view is read-only. Both `reviewed` and `calibrated` statuses lock the Save button and inputs. Saving shows a finality warning before submitting ratings to HR for calibration.
 
-**Training workflow**: Three access levels — admin (full CRUD via `user_id` RLS), manager (team CRUD via `reporting_manager_id` chain, migration 040), employee (self-enrollment via insert/update policies). `ManagerTraining` has "Team Training" / "My Training" sub-view toggle (same pattern as appraisals). `getTeamTrainingRecords()` excludes manager's own records via `neq('employee_id', selfId)`. Employees and managers can create/edit own training records (`employeeSaveTrainingRecord`) and certifications (`employeeSaveCertification`, migration 042). Self-submitted certs start as `status: 'pending_review'`; admin verifies/rejects in TrainingManager.
+**Training workflow**: Three access levels — admin (full CRUD via `user_id` RLS), manager (team CRUD via `reporting_manager_id` chain, migration 040), employee (self-enrollment via insert/update policies). `ManagerTraining` has "Team Training" / "My Training" sub-view toggle (same pattern as appraisals). `getTeamTrainingRecords()` excludes manager's own records via `neq('employee_id', selfId)`. Employees and managers can create/edit own training records (`employeeSaveTrainingRecord`) and certifications (`employeeSaveCertification`, migration 042). Self-submitted certs start as `status: 'pending_review'`; admin verifies/rejects in TrainingManager. **CME hours**: `training_records.duration_hours` + `is_cme` flag carry CME time. Both `EmpTraining` and `ManagerTraining` forms expose an `isCme` checkbox — the storage layer (`saveTrainingRecord`, `saveTeamTrainingRecord`, `employeeSaveTrainingRecord`) already wires `is_cme` through all three save paths.
 
 **Tasks module**: `TasksPanel.jsx` shared across all three portals. Receives `role` prop and `navigateTo` callback. Aggregates pending approvals + expiry alerts from all modules via `taskStorage.js`. Each task item navigates to the relevant module on click. Auto-refreshes every 60s. Sidebar nav items with `divider: true` render a separator line above them.
 
@@ -211,7 +227,7 @@ Seven tabs for existing employees, four for new (Documents, Insurance, Contracts
 
 **Department dropdown**: `<select>` from `getDepartments()` — free-text entry not allowed.
 
-**Documents tab**: grouped `<optgroup>` from `DOC_GROUPS` (exported). `CLINICAL_DOC_TYPES` Set exported — clinical docs use 90d amber threshold vs 60d. Employee-submitted docs show verify/reject buttons.
+**Documents tab**: grouped `<optgroup>` from `DOC_GROUPS` (exported). `CLINICAL_DOC_TYPES` Set exported — clinical docs use 90d amber threshold vs 60d. Employee-submitted docs show verify/reject buttons. **DHA / DOH / MOH Licence uploads require a licence number** (3-30 alphanumeric with `-`/`/` allowed) — enforced both in admin `EmployeeModal.handleUpload` and employee `EmpDocuments.handleSubmit`. Other document types keep the number field optional.
 
 **Contracts tab**: actions call `saveEmployeeContract()` + `saveEmployee()` directly (bypass `onSave`, modal stays open). Append-only history.
 
@@ -234,6 +250,8 @@ GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
 - **040** — Manager CRUD policies on `training_records` and `certifications` for direct reports. Also adds employee self-insert/update on `training_records` for self-enrollment.
 - **042** — Certification self-service: adds `status` column to `certifications` (default `'verified'`), plus employee INSERT/UPDATE policies for self-submitted certs (`status: 'pending_review'`).
 - **043** — Employee portal fixes: storage INSERT/SELECT policies for employee document upload/download, plus `employees_self_update_contact` UPDATE policy for profile editing.
+- **047** — CME hour tracking: `cme_requirements` table (annual per-employee target) + `training_records.is_cme` BOOLEAN flag. `training_records.duration_hours` already existed.
+- **049** — Per-company feature toggles: `companies.enable_nafis` / `enable_staffing_rules` / `enable_biometric_import` (all `BOOLEAN NOT NULL DEFAULT true` — backward-safe). Adds `employee_cancel_advance(UUID)` SECURITY DEFINER RPC — employees can withdraw only their own `pending` advances.
 
 ### RLS model
 
@@ -340,3 +358,5 @@ Status: blank (untested), `completed`, `partial`, `bug`. **⏭ DEFER** items rev
 - **`getMyRoster()` fallback**: RPC `employee_get_my_roster` is primary (SECURITY DEFINER, bypasses RLS). Falls back to direct query on `roster_assignments` with `shifts!left(...)` join when RPC returns empty. Requires migration 039 for shift data visibility.
 - **`getMyAppraisals()` must filter by `employee_id`**: manager RLS exposes both own and team appraisals. Without `eq('employee_id', selfId)`, "My Appraisals" leaks team data.
 - **Attendance history `RECENT_DAYS`**: set to 30 days in `EmpAttendance`. Lower values (e.g. 14) make history appear empty for infrequent clockers.
+- **Vite `oxc` parser + nested JSX fragments in conditionals**: `Dashboard.jsx`-style panels wrapped in `{cond && ( <div>… )}` with `<>…</>` fragments inside a further ternary can trip Vite dev with "Expected `,` or `)` but found `{`" even though `npm run build` (Rollup) succeeds. Workaround: flatten to sibling `{a && (…)} {b && (…)}` conditionals instead of `? (<>…</>) : (<>…</>)`.
+- **Playwright leave overlap flake**: The overlap check in `validateLeaveRequest` (with 7th `existingRequests` arg) will reject a chosen future date if a *previous run of the same test* left a request behind. `tests/global-setup.js` only clears rows tagged with `%PLAYWRIGHT_SEED%`; tests that submit their own request without that tag pile up across runs. If a leave-submit test starts failing with a stuck disabled submit button, that's the check catching a leftover — either tag the test's `reason` field with `PLAYWRIGHT_SEED` or broaden the setup delete.

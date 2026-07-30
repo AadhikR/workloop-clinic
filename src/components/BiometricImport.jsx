@@ -92,6 +92,21 @@ export default function BiometricImport({ employees = [] }) {
 
   const handleSaveMap = async () => {
     if (!newMap.badgeNo.trim() || !newMap.employeeId) return;
+    // Duplicate badge check — a badge should point to exactly one employee.
+    // The upstream `saveBiometricMapping` already upserts by badgeNo, so this
+    // is a UX guard: warn the admin before silently re-pointing an existing
+    // mapping to a different employee.
+    const trimmedBadge = newMap.badgeNo.trim();
+    const existing = mappings.find(m => m.badgeNo === trimmedBadge);
+    if (existing && existing.employeeId !== newMap.employeeId) {
+      const currentEmp = employees.find(e => e.id === existing.employeeId);
+      const targetEmp  = employees.find(e => e.id === newMap.employeeId);
+      const proceed = window.confirm(
+        `Badge ${trimmedBadge} is currently mapped to ${currentEmp?.name || 'another employee'}. ` +
+        `Re-point it to ${targetEmp?.name || 'the new employee'}?`,
+      );
+      if (!proceed) return;
+    }
     setSavingMap(true);
     setMapMsg(null);
     try {

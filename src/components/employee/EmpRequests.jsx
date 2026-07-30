@@ -36,8 +36,24 @@ export default function EmpRequests() {
     setTimeout(() => setToast(null), 4000);
   };
 
+  // External-facing letters carry addressee info that HR needs to draft them.
+  // For those types we require a non-empty purpose. Internal letters remain optional.
+  const EXTERNAL_LETTER_TYPES = new Set([
+    'Salary Certificate — Bank',
+    'Salary Certificate — Embassy',
+    'NOC (No Objection Certificate)',
+    'Salary Transfer Letter',
+  ]);
+
   const handleSubmit = async e => {
     e.preventDefault();
+    if (EXTERNAL_LETTER_TYPES.has(form.type)) {
+      const purpose = (form.purpose || '').trim();
+      if (purpose.length < 5) {
+        showToast('error', 'Please enter the addressee or purpose (at least 5 characters) for this letter type.');
+        return;
+      }
+    }
     setSubmitting(true);
     try {
       const { error } = await supabase.rpc('employee_request_letter', {

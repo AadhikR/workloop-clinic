@@ -177,7 +177,7 @@ export default function EmpHome({ onNavigate }) {
               <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Annual Leave</span>
             </div>
             <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--gray-900)', lineHeight: 1 }}>
-              {annualBal ? parseFloat(annualBal.remaining).toFixed(1) : '—'}
+              {annualBal ? Math.round(parseFloat(annualBal.remaining) || 0) : '—'}
             </div>
             <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 4 }}>
               days remaining

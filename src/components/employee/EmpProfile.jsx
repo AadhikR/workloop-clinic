@@ -3,6 +3,7 @@ import { User, AlertCircle, CheckCircle, LogOut, Edit2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { getMyEmployeeRecord } from '../../utils/profileStorage';
 import { supabase } from '../../lib/supabase';
+import { validateEmail, validateUAEPhone } from '../../utils/uaeValidators';
 
 function fmtDate(iso) {
   if (!iso) return '—';
@@ -79,6 +80,19 @@ export default function EmpProfile({ onSignOut, signingOut }) {
   async function handleSave(e) {
     e.preventDefault();
     if (!emp) return;
+
+    // Client-side validation — server RPC still runs as final gate.
+    const checks = [
+      validateEmail(personalEmail),
+      validateUAEPhone(phone),
+      validateUAEPhone(emergencyPhone),
+    ];
+    const firstBad = checks.find(c => !c.valid);
+    if (firstBad) {
+      showToast('error', firstBad.message);
+      return;
+    }
+
     setSaving(true);
 
     const { error } = await supabase.rpc('employee_update_contact', {

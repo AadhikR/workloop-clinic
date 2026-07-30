@@ -4,7 +4,7 @@
  */
 import { useState, useEffect } from 'react';
 import { X, UserCheck, Briefcase, CreditCard, Shield, FolderOpen, Upload, AlertCircle, Trash2, Heart, Plus, ShieldCheck, FileText, RefreshCw, CheckCircle, XCircle, Printer } from 'lucide-react';
-import { validateIBAN, validateEmiratesID, validateMolId, formatAED, formatDateUAE, daysUntil } from '../utils/uaeValidators';
+import { validateIBAN, validateEmiratesID, validateMolId, validateEmail, validateUAEPhone, validateBankRoutingCode, validateDateRange, validateUAEVisaNumber, validatePassportNumber, formatAED, formatDateUAE, daysUntil } from '../utils/uaeValidators';
 import { calculateGratuity } from '../utils/gratuityCalculator';
 import { getShifts } from '../utils/attendanceStorage';
 import {
@@ -193,6 +193,20 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
     if (uploadForm.file.size > 10 * 1024 * 1024) {
       setUploadErr('File exceeds 10 MB limit. Please compress or choose a smaller file.');
       return;
+    }
+    // Clinical licence uploads must carry the licence number so HR can match
+    // against MoHRE / DHA / DOH / MOH portals and the SIF compliance gate works.
+    const CLINICAL_LICENCE_TYPES_UP = new Set(['DHA Licence', 'DOH Licence', 'MOH Licence']);
+    if (CLINICAL_LICENCE_TYPES_UP.has(uploadForm.type)) {
+      const num = (uploadForm.documentNumber || '').trim();
+      if (!num) {
+        setUploadErr(`${uploadForm.type} requires the licence number — enter it before uploading.`);
+        return;
+      }
+      if (!/^[A-Za-z0-9\-/]{3,30}$/.test(num)) {
+        setUploadErr('Licence number must be 3–30 letters/digits (hyphens and slashes allowed).');
+        return;
+      }
     }
     setUploading(true);
     setUploadErr('');
@@ -447,7 +461,35 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
       if (dupNo) e.empNo = `Employee No. already used by ${dupNo.name}`;
     }
 
-    if (!form.workEmail || !form.workEmail.trim()) e.workEmail = 'Required';
+    if (!form.workEmail || !form.workEmail.trim()) {
+      e.workEmail = 'Required';
+    } else {
+      const emailCheck = validateEmail(form.workEmail);
+      if (!emailCheck.valid) e.workEmail = emailCheck.message;
+      else {
+        // Duplicate work-email check (case-insensitive, skip self)
+        const dupEmail = (allEmployees || []).find(
+          emp => emp.workEmail && emp.workEmail.trim().toLowerCase() === form.workEmail.trim().toLowerCase() && emp.id !== employee?.id
+        );
+        if (dupEmail) e.workEmail = `Work email already used by ${dupEmail.name}`;
+      }
+    }
+
+    // Personal email — optional, format-checked only
+    if (form.personalEmail && form.personalEmail.trim()) {
+      const persEmail = validateEmail(form.personalEmail);
+      if (!persEmail.valid) e.personalEmail = persEmail.message;
+    }
+
+    // Phones — optional, UAE format when provided
+    if (form.phone && form.phone.trim()) {
+      const phCheck = validateUAEPhone(form.phone);
+      if (!phCheck.valid) e.phone = phCheck.message;
+    }
+    if (form.emergencyContactPhone && form.emergencyContactPhone.trim()) {
+      const emCheck = validateUAEPhone(form.emergencyContactPhone);
+      if (!emCheck.valid) e.emergencyContactPhone = emCheck.message;
+    }
 
     // MOL ID — required, format-checked, and must be unique
     if (!form.molId || !form.molId.trim()) {
@@ -480,8 +522,46 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
       if (!eidCheck.valid) e.emiratesId = eidCheck.message;
     }
 
+    // Visa file number — optional format guard (many non-residence visa
+    // categories don't follow the standard file-number format).
+    if (form.visaNumber && String(form.visaNumber).trim()) {
+      const vCheck = validateUAEVisaNumber(form.visaNumber);
+      if (!vCheck.valid) e.visaNumber = vCheck.message;
+    }
+
+    // Passport — optional format guard (letters + digits, 6-20 chars).
+    if (form.passportNumber && String(form.passportNumber).trim()) {
+      const pCheck = validatePassportNumber(form.passportNumber);
+      if (!pCheck.valid) e.passportNumber = pCheck.message;
+    }
+
     if (!form.basicSalary || isNaN(form.basicSalary) || Number(form.basicSalary) <= 0) {
       e.basicSalary = 'Required — must be a positive number';
+    }
+
+    // Bank routing code — optional format check (may be empty when auto-derived
+    // from the company default). Uniqueness is not required.
+    if (form.bankRoutingCode && String(form.bankRoutingCode).trim()) {
+      const rc = validateBankRoutingCode(form.bankRoutingCode);
+      if (!rc.valid) e.bankRoutingCode = rc.message;
+    }
+
+    // Date-range checks — only enforced when both sides are present so
+    // partially-filled records (common on first pass) don't error.
+    if (form.startDate) {
+      const probRange = validateDateRange(form.startDate, form.probationEndDate, { startLabel: 'Start date', endLabel: 'Probation end' });
+      if (!probRange.valid) e.probationEndDate = probRange.message;
+
+      const contRange = validateDateRange(form.startDate, form.contractEndDate, { startLabel: 'Start date', endLabel: 'Contract end' });
+      if (!contRange.valid) e.contractEndDate = contRange.message;
+
+      const termRange = validateDateRange(form.startDate, form.terminationDate, { startLabel: 'Start date', endLabel: 'Termination date' });
+      if (!termRange.valid) e.terminationDate = termRange.message;
+    }
+
+    // Self-manager cycle — only meaningful when editing an existing employee.
+    if (employee?.id && form.reportingManagerId && form.reportingManagerId === employee.id) {
+      e.reportingManagerId = 'An employee cannot report to themselves.';
     }
 
     return e;
@@ -489,24 +569,33 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
 
   // Which tabs currently have errors (for cross-tab error banner)
   const TAB_FIELDS = {
-    personal:   ['name', 'empNo', 'workEmail'],
-    job:        [],
+    personal:   ['name', 'empNo', 'workEmail', 'personalEmail', 'phone', 'emergencyContactPhone'],
+    job:        ['reportingManagerId', 'probationEndDate', 'contractEndDate', 'terminationDate'],
     salary:     ['basicSalary', 'iban', 'bankRoutingCode', 'bankName'],
-    compliance: ['molId', 'emiratesId'],
+    compliance: ['molId', 'emiratesId', 'visaNumber', 'passportNumber'],
     documents:  [],
     insurance:  [],
     contracts:  [],
   };
   const FIELD_LABELS = {
-    name:            'Full name',
-    empNo:           'Employee No.',
-    workEmail:       'Work email',
-    molId:           'MOL ID',
-    iban:            'IBAN',
-    bankName:        'Bank name',
-    bankRoutingCode: 'Bank routing code',
-    emiratesId:      'Emirates ID',
-    basicSalary:     'Basic salary',
+    name:                  'Full name',
+    empNo:                 'Employee No.',
+    workEmail:             'Work email',
+    personalEmail:         'Personal email',
+    phone:                 'Phone',
+    emergencyContactPhone: 'Emergency contact phone',
+    reportingManagerId:    'Reporting manager',
+    probationEndDate:      'Probation end date',
+    contractEndDate:       'Contract end date',
+    terminationDate:       'Termination date',
+    molId:                 'MOL ID',
+    iban:                  'IBAN',
+    bankName:              'Bank name',
+    bankRoutingCode:       'Bank routing code',
+    emiratesId:            'Emirates ID',
+    visaNumber:            'Visa file number',
+    passportNumber:        'Passport number',
+    basicSalary:           'Basic salary',
   };
   const tabsWithErrors = (errs) =>
     Object.entries(TAB_FIELDS)

@@ -9,7 +9,7 @@ import { useState, useEffect } from 'react';
 import { Package, Plus, X, Check, RefreshCw, AlertCircle, ChevronDown, ChevronUp, Pencil, Trash2 } from 'lucide-react';
 import { getEmployees } from '../utils/storage';
 import { getAssets, saveAsset, deleteAsset, getAssetAssignments, assignAsset, returnAsset } from '../utils/assetStorage';
-import { formatDateUAE } from '../utils/uaeValidators';
+import { formatDateUAE, validatePastDate } from '../utils/uaeValidators';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -63,7 +63,7 @@ function fmtCost(v) {
 
 // ── Asset Modal (create / edit) ───────────────────────────────────────────────
 
-function AssetModal({ asset, onSave, onClose }) {
+function AssetModal({ asset, existingAssets = [], onSave, onClose }) {
   const [form, setForm]     = useState(asset ? { ...asset, purchaseCost: asset.purchaseCost ?? '' } : { ...EMPTY_ASSET });
   const [saving, setSaving] = useState(false);
   const [err, setErr]       = useState('');
@@ -71,6 +71,20 @@ function AssetModal({ asset, onSave, onClose }) {
 
   const handleSave = async () => {
     if (!form.name.trim()) { setErr('Asset name is required.'); return; }
+    // Duplicate asset code / serial number — case-insensitive, excludes self.
+    const code = (form.assetCode || '').trim();
+    if (code) {
+      const dupCode = existingAssets.find(a => a.id !== form.id && (a.assetCode || '').trim().toLowerCase() === code.toLowerCase());
+      if (dupCode) { setErr(`Asset code already used by "${dupCode.name}".`); return; }
+    }
+    const sn = (form.serialNumber || '').trim();
+    if (sn) {
+      const dupSn = existingAssets.find(a => a.id !== form.id && (a.serialNumber || '').trim().toLowerCase() === sn.toLowerCase());
+      if (dupSn) { setErr(`Serial number already used by "${dupSn.name}".`); return; }
+    }
+    // Purchase date can't be in the future.
+    const pastCheck = validatePastDate(form.purchaseDate, 'Purchase date');
+    if (!pastCheck.valid) { setErr(pastCheck.message); return; }
     setSaving(true);
     try {
       await onSave({
@@ -634,6 +648,7 @@ export default function AssetsManager() {
       {assetModal && (
         <AssetModal
           asset={assetModal.id ? assetModal : null}
+          existingAssets={assets}
           onSave={handleSaveAsset}
           onClose={() => setAssetModal(null)}
         />

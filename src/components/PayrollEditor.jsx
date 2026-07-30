@@ -13,7 +13,7 @@ import { calculatePayrollLeaveDeductions } from '../utils/leaveEngine';
 import { getLeaveRequests } from '../utils/leaveStorage';
 import { getAttendancePayrollData, getOvertimeFromRoster } from '../utils/attendanceStorage';
 import { getAdvances } from '../utils/storage';
-import { formatDateUAE, daysUntil } from '../utils/uaeValidators';
+import { formatDateUAE, daysUntil, validateBankRoutingCode } from '../utils/uaeValidators';
 import { getApprovedUnpaidExpenses, markExpensesPaid } from '../utils/expenseStorage';
 import { getPayrollSummaryFromAttendance, formatHours } from '../utils/attendanceEngine';
 
@@ -964,6 +964,19 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                 <label>SCR Bank Routing Code</label>
                 <input className="form-control font-mono" value={meta.scrBankRoutingCode} disabled={editingLocked}
                   onChange={e => handleMetaChange('scrBankRoutingCode', e.target.value.trim())} />
+                {(() => {
+                  // Warning-only: some historical payroll runs used non-9-digit
+                  // codes, so we do not block SIF generation on format. Show a
+                  // hint when the current value looks wrong.
+                  if (!meta.scrBankRoutingCode) return null;
+                  const check = validateBankRoutingCode(meta.scrBankRoutingCode);
+                  if (check.valid) return null;
+                  return (
+                    <span className="hint" style={{ color: 'var(--warning)' }}>
+                      {check.message} — banks may reject the SIF.
+                    </span>
+                  );
+                })()}
               </div>
               <div className="form-group" style={{ gridColumn: '1/-1' }}>
                 <label>Description</label>
@@ -1059,7 +1072,22 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
         )}
 
         {/* ── Salary Advance Repayments Panel ── */}
-        {Object.keys(advanceData).length > 0 && (
+        {Object.keys(advanceData).length > 0 && (() => {
+          // Idempotent apply: adds an "Advance Repayment" deduction line to the
+          // employee entry. If a line with that label already exists it is
+          // replaced (so re-clicking after a value change stays consistent).
+          const advanceLabel = 'Advance Repayment';
+          const applyAdvanceToEntry = (employeeId, deductionAmount) => {
+            setEntries(prev => prev.map(entry => {
+              if (entry.employeeId !== employeeId) return entry;
+              const existing = (entry.deductions || []).filter(d => d.label !== advanceLabel);
+              return {
+                ...entry,
+                deductions: [...existing, { label: advanceLabel, amount: parseFloat(deductionAmount.toFixed(2)) }],
+              };
+            }));
+          };
+          return (
           <div className="card mb-4">
             <div className="card-header">
               <h3><Info size={15} style={{ marginRight:6, color:'var(--primary)' }}/>Active Salary Advance Repayments</h3>
@@ -1076,28 +1104,51 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                     <th className="text-right">Original Amount</th>
                     <th className="text-right">Outstanding Balance</th>
                     <th className="text-right">Monthly Deduction</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
                   {Object.entries(advanceData).map(([empId, advs]) => {
                     const emp = employees.find(e => e.id === empId);
-                    return advs.map((adv, i) => (
-                      <tr key={adv.id}>
-                        <td style={{ fontWeight: i === 0 ? 500 : 400, color: i === 0 ? 'var(--gray-800)' : 'var(--gray-400)' }}>
-                          {i === 0 ? emp?.name : ''}
-                        </td>
-                        <td className="text-sm">{adv.reason}</td>
-                        <td className="text-right text-sm">
-                          {adv.amount.toLocaleString('en-AE', { minimumFractionDigits:2 })}
-                        </td>
-                        <td className="text-right" style={{ color:'var(--primary)', fontWeight:600 }}>
-                          {adv.outstandingBalance.toLocaleString('en-AE', { minimumFractionDigits:2 })}
-                        </td>
-                        <td className="text-right" style={{ color:'var(--danger)', fontWeight:600 }}>
-                          -{adv.monthlyDeduction.toLocaleString('en-AE', { minimumFractionDigits:2 })}
-                        </td>
-                      </tr>
-                    ));
+                    // Total this-month deduction across all advances for the employee.
+                    const totalDeduction = advs.reduce((s, a) => s + (a.monthlyDeduction || 0), 0);
+                    return advs.map((adv, i) => {
+                      const entry = entries.find(e => e.employeeId === empId);
+                      const applied = (entry?.deductions || []).some(d => d.label === advanceLabel);
+                      return (
+                        <tr key={adv.id}>
+                          <td style={{ fontWeight: i === 0 ? 500 : 400, color: i === 0 ? 'var(--gray-800)' : 'var(--gray-400)' }}>
+                            {i === 0 ? emp?.name : ''}
+                          </td>
+                          <td className="text-sm">{adv.reason}</td>
+                          <td className="text-right text-sm">
+                            {adv.amount.toLocaleString('en-AE', { minimumFractionDigits:2 })}
+                          </td>
+                          <td className="text-right" style={{ color:'var(--primary)', fontWeight:600 }}>
+                            {adv.outstandingBalance.toLocaleString('en-AE', { minimumFractionDigits:2 })}
+                          </td>
+                          <td className="text-right" style={{ color:'var(--danger)', fontWeight:600 }}>
+                            -{adv.monthlyDeduction.toLocaleString('en-AE', { minimumFractionDigits:2 })}
+                          </td>
+                          <td>
+                            {i === 0 && (
+                              applied ? (
+                                <span className="badge badge-green" style={{ fontSize: 11 }}>✓ Applied</span>
+                              ) : (
+                                <button
+                                  className="btn btn-secondary"
+                                  style={{ fontSize: 11, padding: '3px 10px' }}
+                                  onClick={() => applyAdvanceToEntry(empId, totalDeduction)}
+                                  disabled={editingLocked}
+                                >
+                                  Apply to Payroll
+                                </button>
+                              )
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    });
                   })}
                 </tbody>
                 <tfoot>
@@ -1111,16 +1162,19 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                           .reduce((s, a) => s + a.monthlyDeduction, 0)
                           .toLocaleString('en-AE', { minimumFractionDigits:2 })} AED
                     </td>
+                    <td></td>
                   </tr>
                 </tfoot>
               </table>
             </div>
             <div style={{ padding:'10px 20px', fontSize:12, color:'var(--gray-500)', borderTop:'1px solid var(--gray-100)' }}>
               <Info size={12} style={{ marginRight:4 }}/>
-              Add these deductions to employee entries via the <strong>Allowances &amp; Deductions</strong> panel, using label "Advance Repayment".
+              Click <strong>Apply to Payroll</strong> to add the monthly repayment as an "Advance Repayment" deduction on that employee's entry.
+              Re-click after amount changes to update.
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* ── Roster Overtime Panel (Feature 5.2) ── */}
         {Object.keys(rosterOvertime).length > 0 && (() => {
@@ -1209,7 +1263,19 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
         })()}
 
         {/* ── Expense Reimbursements Panel (Feature 14) ── */}
-        {Object.keys(expenseData).length > 0 && (
+        {Object.keys(expenseData).length > 0 && (() => {
+          const expenseLabel = 'Expense Reimbursement';
+          const applyExpenseToEntry = (employeeId, totalAmount) => {
+            setEntries(prev => prev.map(entry => {
+              if (entry.employeeId !== employeeId) return entry;
+              const existing = (entry.additionalAllowances || []).filter(a => a.label !== expenseLabel);
+              return {
+                ...entry,
+                additionalAllowances: [...existing, { label: expenseLabel, amount: parseFloat(totalAmount.toFixed(2)) }],
+              };
+            }));
+          };
+          return (
           <div className="card mb-4">
             <div className="card-header">
               <h3><Info size={15} style={{ marginRight:6, color:'var(--success)' }}/>Approved Expense Reimbursements</h3>
@@ -1226,26 +1292,48 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                     <th>Date</th>
                     <th>Description</th>
                     <th className="text-right">Amount</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
                   {Object.entries(expenseData).map(([empId, exps]) => {
                     const emp = employees.find(e => e.id === empId);
-                    return exps.map((exp, i) => (
-                      <tr key={exp.id}>
-                        <td style={{ fontWeight: i === 0 ? 500 : 400, color: i === 0 ? 'var(--gray-800)' : 'var(--gray-400)' }}>
-                          {i === 0 ? emp?.name : ''}
-                        </td>
-                        <td style={{ textTransform:'capitalize' }}>{exp.category?.replace('_',' ')}</td>
-                        <td>{formatDateUAE(exp.expenseDate)}</td>
-                        <td style={{ maxWidth:200, overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis' }}>
-                          {exp.description}
-                        </td>
-                        <td className="text-right" style={{ fontWeight:600, color:'var(--success)' }}>
-                          +{exp.amount.toLocaleString('en-AE', { minimumFractionDigits:2 })} AED
-                        </td>
-                      </tr>
-                    ));
+                    const totalAmount = exps.reduce((s, e) => s + (e.amount || 0), 0);
+                    return exps.map((exp, i) => {
+                      const entry = entries.find(e => e.employeeId === empId);
+                      const applied = (entry?.additionalAllowances || []).some(a => a.label === expenseLabel);
+                      return (
+                        <tr key={exp.id}>
+                          <td style={{ fontWeight: i === 0 ? 500 : 400, color: i === 0 ? 'var(--gray-800)' : 'var(--gray-400)' }}>
+                            {i === 0 ? emp?.name : ''}
+                          </td>
+                          <td style={{ textTransform:'capitalize' }}>{exp.category?.replace('_',' ')}</td>
+                          <td>{formatDateUAE(exp.expenseDate)}</td>
+                          <td style={{ maxWidth:200, overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis' }}>
+                            {exp.description}
+                          </td>
+                          <td className="text-right" style={{ fontWeight:600, color:'var(--success)' }}>
+                            +{exp.amount.toLocaleString('en-AE', { minimumFractionDigits:2 })} AED
+                          </td>
+                          <td>
+                            {i === 0 && (
+                              applied ? (
+                                <span className="badge badge-green" style={{ fontSize: 11 }}>✓ Applied</span>
+                              ) : (
+                                <button
+                                  className="btn btn-secondary"
+                                  style={{ fontSize: 11, padding: '3px 10px' }}
+                                  onClick={() => applyExpenseToEntry(empId, totalAmount)}
+                                  disabled={editingLocked}
+                                >
+                                  Apply to Payroll
+                                </button>
+                              )
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    });
                   })}
                 </tbody>
                 <tfoot>
@@ -1259,17 +1347,19 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                           .reduce((s, e) => s + e.amount, 0)
                           .toLocaleString('en-AE', { minimumFractionDigits:2 })} AED
                     </td>
+                    <td></td>
                   </tr>
                 </tfoot>
               </table>
             </div>
             <div style={{ padding:'10px 20px', fontSize:12, color:'var(--gray-500)', borderTop:'1px solid var(--gray-100)' }}>
               <Info size={12} style={{ marginRight:4 }}/>
-              These expenses will be automatically marked as <strong>Paid</strong> when payroll is submitted.
-              Add them to employee entries via <strong>Allowances &amp; Deductions</strong> (label: "Expense Reimbursement") so they appear in the SIF.
+              Click <strong>Apply to Payroll</strong> to add the reimbursement as an "Expense Reimbursement" allowance line.
+              These claims are automatically marked <strong>Paid</strong> when payroll is submitted.
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* ── Leave Deductions Panel ── */}
         {Object.keys(leaveDeductions).length > 0 && (

@@ -10,7 +10,7 @@ import {
 } from '../utils/incidentStorage';
 import { getEmployees } from '../utils/storage';
 import { getDepartments } from '../utils/departmentStorage';
-import { formatDateUAE } from '../utils/uaeValidators';
+import { formatDateUAE, validatePastDate } from '../utils/uaeValidators';
 import { useCompany } from '../context/CompanyContext';
 import LoadError from './LoadError';
 import ConfirmModal from './ConfirmModal';
@@ -43,6 +43,9 @@ function IncidentModal({ incident, employees, departments, onSave, onClose }) {
     e.preventDefault();
     setErr('');
     if (!form.incidentDate) { setErr('Incident date is required.'); return; }
+    // Incidents describe things that already happened — reject future dates.
+    const dateCheck = validatePastDate(form.incidentDate, 'Incident date');
+    if (!dateCheck.valid) { setErr(dateCheck.message); return; }
     if (!form.description.trim()) { setErr('Description is required.'); return; }
     setSaving(true);
     try { await onSave(form); }
