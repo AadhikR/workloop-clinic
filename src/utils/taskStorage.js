@@ -69,8 +69,8 @@ async function fetchAdminApprovalTasks() {
         .in('status', ['pending', 'manager_approved']).order('created_at'),
       supabase.from('salary_advances').select('id, employee_id, status, amount, created_at, employees!left(name)')
         .eq('status', 'pending').order('created_at'),
-      supabase.from('letter_requests').select('id, employee_id, status, letter_type, created_at, employees!left(name)')
-        .eq('status', 'pending').order('created_at'),
+      supabase.from('letter_requests').select('id, employee_id, status, request_kind, letter_type, requested_at, employees!left(name)')
+        .eq('status', 'pending').order('requested_at'),
       supabase.from('employee_documents').select('id, employee_id, doc_type, status, created_at, employees!left(name)')
         .eq('status', 'pending_verification').order('created_at'),
       supabase.from('certifications').select('id, employee_id, certification_name, status, created_at, employees!left(name)')
@@ -108,9 +108,9 @@ async function fetchAdminApprovalTasks() {
   const letterItems = extractData(letters).map(r => ({
     id: `letter-${r.id}`, entity: 'letters', entityId: r.id,
     title: `${r.employees?.name || 'Employee'} — ${(r.letter_type || '').replace(/_/g, ' ')}`,
-    subtitle: 'Pending', urgency: 'action', createdAt: r.created_at,
+    subtitle: r.request_kind === 'custom' ? 'Custom request pending' : 'Letter pending', urgency: 'action', createdAt: r.requested_at,
   }));
-  if (letterItems.length) categories.push({ label: 'Letter Requests', icon: 'mail', items: letterItems });
+  if (letterItems.length) categories.push({ label: 'Requests', icon: 'mail', items: letterItems });
 
   const docItems = extractData(docs).map(r => ({
     id: `doc-${r.id}`, entity: 'employees', entityId: r.id,
@@ -387,7 +387,7 @@ export async function getEmployeeTasks() {
         .eq('employee_id', emp.id).eq('status', 'pending'),
       supabase.from('expense_claims').select('id, amount, status, description')
         .eq('employee_id', emp.id).in('status', ['pending', 'manager_approved']),
-      supabase.from('letter_requests').select('id, letter_type, status')
+      supabase.from('letter_requests').select('id, request_kind, letter_type, status')
         .eq('employee_id', emp.id).eq('status', 'pending'),
       supabase.from('attendance_records').select('id, date, clock_in_time, clock_out_time')
         .eq('employee_id', emp.id).not('clock_in_time', 'is', null).is('clock_out_time', null),

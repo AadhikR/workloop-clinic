@@ -7,9 +7,9 @@
  */
 
 import { useState, useEffect } from 'react';
-import { GraduationCap, Award, AlertTriangle, ExternalLink, Plus, Edit2, X } from 'lucide-react';
+import { GraduationCap, Award, AlertTriangle, ExternalLink, Plus, Edit2, X, Upload, FileText } from 'lucide-react';
 import { getMyEmployeeRecord } from '../../utils/profileStorage';
-import { getEmployeeTrainingRecords, getEmployeeCertifications, employeeSaveTrainingRecord, employeeSaveCertification } from '../../utils/trainingStorage';
+import { getEmployeeTrainingRecords, getEmployeeCertifications, employeeSaveTrainingRecord, employeeSaveCertification, uploadCertificateFile, getCertificateSignedUrl } from '../../utils/trainingStorage';
 import { formatDateUAE } from '../../utils/uaeValidators';
 
 const TRAINING_TYPES = [
@@ -83,13 +83,24 @@ function CertForm({ record, employeeId, onSave, onCancel }) {
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
+  const [file, setFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const handleSubmit = async e => {
     e.preventDefault(); setErr('');
     if (!form.certificationName.trim()) { setErr('Certification name is required.'); return; }
     setSaving(true);
-    try { await onSave(form); } catch (ex) { setErr(ex.message || 'Failed to save.'); setSaving(false); }
+    try {
+      let extra = {};
+      if (file) {
+        setUploading(true);
+        const { storagePath, fileName } = await uploadCertificateFile(form.employeeId, file);
+        extra = { storagePath, fileName };
+        setUploading(false);
+      }
+      await onSave({ ...form, ...extra });
+    } catch (ex) { setErr(ex.message || 'Failed to save.'); setSaving(false); setUploading(false); }
   };
 
   return (
@@ -129,9 +140,24 @@ function CertForm({ record, employeeId, onSave, onCancel }) {
             </div>
           </div>
           <div className="form-group">
-            <label className="form-label" style={{ fontSize: 12 }}>Certificate URL</label>
-            <input className="form-control" value={form.certificateUrl} onChange={e => set('certificateUrl', e.target.value)}
-              placeholder="https://..." style={{ fontSize: 13 }} />
+            <label className="form-label" style={{ fontSize: 12 }}>Certificate File</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px',
+                border: '1px dashed var(--gray-200)', borderRadius: 6, cursor: 'pointer',
+                fontSize: 12, color: 'var(--gray-500)',
+              }}>
+                <Upload size={12} />
+                {file ? file.name : record?.fileName ? `Current: ${record.fileName}` : 'Upload file…'}
+                <input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" style={{ display: 'none' }}
+                  onChange={e => { if (e.target.files[0]) setFile(e.target.files[0]); }} />
+              </label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--gray-400)' }}>
+                <span>or URL:</span>
+                <input className="form-control" value={form.certificateUrl} onChange={e => set('certificateUrl', e.target.value)}
+                  placeholder="https://…" style={{ fontSize: 11, flex: 1 }} />
+              </div>
+            </div>
           </div>
           <div className="form-group">
             <label className="form-label" style={{ fontSize: 12 }}>Notes</label>
@@ -140,7 +166,7 @@ function CertForm({ record, employeeId, onSave, onCancel }) {
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
           <button type="submit" className="btn btn-primary btn-sm" disabled={saving}>
-            {saving ? 'Submitting…' : isEdit ? 'Save Changes' : 'Submit for Review'}
+            {uploading ? 'Uploading…' : saving ? 'Submitting…' : isEdit ? 'Save Changes' : 'Submit for Review'}
           </button>
           <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel}>Cancel</button>
         </div>
@@ -168,13 +194,24 @@ function TrainingForm({ record, employeeId, onSave, onCancel }) {
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
+  const [file, setFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const handleSubmit = async e => {
     e.preventDefault(); setErr('');
     if (!form.trainingTitle.trim()) { setErr('Training title is required.'); return; }
     setSaving(true);
-    try { await onSave(form); } catch (ex) { setErr(ex.message || 'Failed to save.'); setSaving(false); }
+    try {
+      let extra = {};
+      if (file) {
+        setUploading(true);
+        const { storagePath, fileName } = await uploadCertificateFile(form.employeeId, file);
+        extra = { storagePath, fileName };
+        setUploading(false);
+      }
+      await onSave({ ...form, ...extra });
+    } catch (ex) { setErr(ex.message || 'Failed to save.'); setSaving(false); setUploading(false); }
   };
 
   return (
@@ -220,16 +257,29 @@ function TrainingForm({ record, employeeId, onSave, onCancel }) {
               <input type="date" className="form-control" value={form.endDate} onChange={e => set('endDate', e.target.value)} style={{ fontSize: 13 }} />
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <div className="form-group">
-              <label className="form-label" style={{ fontSize: 12 }}>Duration (hours)</label>
-              <input type="number" className="form-control" value={form.durationHours} onChange={e => set('durationHours', e.target.value)}
-                placeholder="e.g. 8" min="0" step="0.5" style={{ fontSize: 13 }} />
-            </div>
-            <div className="form-group">
-              <label className="form-label" style={{ fontSize: 12 }}>Certificate URL</label>
-              <input className="form-control" value={form.certificateUrl} onChange={e => set('certificateUrl', e.target.value)}
-                placeholder="https://…" style={{ fontSize: 13 }} />
+          <div className="form-group">
+            <label className="form-label" style={{ fontSize: 12 }}>Duration (hours)</label>
+            <input type="number" className="form-control" value={form.durationHours} onChange={e => set('durationHours', e.target.value)}
+              placeholder="e.g. 8" min="0" step="0.5" style={{ fontSize: 13 }} />
+          </div>
+          <div className="form-group">
+            <label className="form-label" style={{ fontSize: 12 }}>Certificate / Document</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px',
+                border: '1px dashed var(--gray-200)', borderRadius: 6, cursor: 'pointer',
+                fontSize: 12, color: 'var(--gray-500)',
+              }}>
+                <Upload size={12} />
+                {file ? file.name : record?.fileName ? `Current: ${record.fileName}` : 'Upload file…'}
+                <input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" style={{ display: 'none' }}
+                  onChange={e => { if (e.target.files[0]) setFile(e.target.files[0]); }} />
+              </label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--gray-400)' }}>
+                <span>or URL:</span>
+                <input className="form-control" value={form.certificateUrl} onChange={e => set('certificateUrl', e.target.value)}
+                  placeholder="https://…" style={{ fontSize: 11, flex: 1 }} />
+              </div>
             </div>
           </div>
           <div className="form-group">
@@ -264,7 +314,7 @@ function TrainingForm({ record, employeeId, onSave, onCancel }) {
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
           <button type="submit" className="btn btn-primary btn-sm" disabled={saving}>
-            {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Training'}
+            {uploading ? 'Uploading…' : saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Training'}
           </button>
           <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel}>Cancel</button>
         </div>
@@ -455,10 +505,17 @@ export default function EmpTraining() {
                         {r.passed ? 'Passed' : 'Failed'}
                       </span>
                     )}
-                    {r.certificateUrl && (
-                      <a href={r.certificateUrl} target="_blank" rel="noopener noreferrer"
-                        style={{ color: 'var(--primary)', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                        View Certificate <ExternalLink size={11} />
+                    {r.isCme && <span className="badge badge-blue" style={{ fontSize: 9, padding: '1px 5px' }}>CME</span>}
+                    {(r.storagePath || r.certificateUrl) && (
+                      <a href={r.certificateUrl || '#'} target="_blank" rel="noopener noreferrer"
+                        style={{ color: 'var(--primary)', display: 'inline-flex', alignItems: 'center', gap: 3 }}
+                        onClick={async ev => {
+                          if (r.storagePath) {
+                            ev.preventDefault();
+                            try { const url = await getCertificateSignedUrl(r.storagePath); window.open(url, '_blank'); } catch { /* ignore */ }
+                          }
+                        }}>
+                        {r.storagePath ? <>View File <FileText size={11} /></> : <>View Certificate <ExternalLink size={11} /></>}
                       </a>
                     )}
                   </div>
@@ -509,10 +566,17 @@ export default function EmpTraining() {
                         <div style={{ flex: 1 }}>
                           <div style={{ fontWeight: 600, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
                             {c.certificationName}
-                            {c.certificateUrl && (
-                              <a href={c.certificateUrl} target="_blank" rel="noopener noreferrer"
-                                style={{ color: 'var(--primary)', display: 'inline-flex', alignItems: 'center' }} title="View certificate">
-                                <ExternalLink size={12} />
+                            {(c.storagePath || c.certificateUrl) && (
+                              <a href={c.certificateUrl || '#'} target="_blank" rel="noopener noreferrer"
+                                title={c.storagePath ? `File: ${c.fileName}` : 'View certificate'}
+                                style={{ color: 'var(--primary)', display: 'inline-flex', alignItems: 'center' }}
+                                onClick={async ev => {
+                                  if (c.storagePath) {
+                                    ev.preventDefault();
+                                    try { const url = await getCertificateSignedUrl(c.storagePath); window.open(url, '_blank'); } catch { /* ignore */ }
+                                  }
+                                }}>
+                                {c.storagePath ? <FileText size={12} /> : <ExternalLink size={12} />}
                               </a>
                             )}
                           </div>

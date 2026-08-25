@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { DollarSign, AlertCircle, Clock, CheckCircle, XCircle, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { getAdvances } from '../../utils/storage';
+import { getAdvances, withdrawEmployeeAdvance } from '../../utils/storage';
 import { formatDateUAE, validateAmount } from '../../utils/uaeValidators';
 import { getMyEmployeeRecord } from '../../utils/profileStorage';
 
@@ -89,10 +89,10 @@ export default function EmpAdvances() {
     setCancellingId(adv.id);
     setFormError('');
     try {
-      const { error } = await supabase.rpc('employee_cancel_advance', { p_advance_id: adv.id });
-      if (error) throw error;
-      const updated = await getAdvances(emp?.id).catch(() => advances);
-      setAdvances(updated);
+      await withdrawEmployeeAdvance(adv.id);
+      setAdvances(current => current.map(item => item.id === adv.id
+        ? { ...item, status: 'cancelled', rejectionReason: 'Withdrawn by employee' }
+        : item));
       setSuccess('Your advance request has been withdrawn.');
       setTimeout(() => setSuccess(''), 5000);
     } catch (err) {
@@ -132,6 +132,12 @@ export default function EmpAdvances() {
         {success && (
           <div className="alert alert-success mb-4">
             <CheckCircle size={15}/> {success}
+          </div>
+        )}
+
+        {formError && !showForm && (
+          <div className="alert alert-danger mb-4">
+            <AlertCircle size={14}/> {formError}
           </div>
         )}
 

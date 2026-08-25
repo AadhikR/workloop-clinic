@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp, Download } from 'lucide-react';
 import { getMyPayslips, getMyEmployeeRecord } from '../../utils/profileStorage';
 import { getCompany } from '../../utils/storage';
 import { downloadPayslip } from '../../utils/payslipGenerator';
+import { calculatePayrollEntry } from '../../utils/payrollCalculator';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -82,12 +83,10 @@ export default function EmpPayslips() {
               const snap     = ps.snapshot ?? {};
               const expanded = expandedId === ps.id;
 
-              const gross = ps.grossPay;
-              const totalDeductions =
-                (snap.deductions || []).reduce((s, d) => s + (parseFloat(d.amount) || 0), 0) +
-                (parseFloat(snap.leaveDeduction) || 0) +
-                (parseFloat(snap.duCost) || 0);
-              const net = ps.netPay;
+              const calc = calculatePayrollEntry(snap);
+              const gross = ps.grossPay || calc.grossEarnings;
+              const totalDeductions = calc.totalDeductions;
+              const net = ps.netPay || calc.netPay;
 
               return (
                 <div key={ps.id} className="emp-card" style={{ marginBottom: 12 }}>
@@ -123,10 +122,8 @@ export default function EmpPayslips() {
                         { label: 'Basic Salary',        amount: snap.basicSalary },
                         { label: 'Housing Allowance',    amount: snap.housingAllowance },
                         { label: 'Transport Allowance',  amount: snap.transportAllowance },
-                        // Show fixed allowance only when there is no housing/transport breakdown
-                        ...(!parseFloat(snap.housingAllowance) && !parseFloat(snap.transportAllowance) && parseFloat(snap.allowance) > 0
-                          ? [{ label: 'Fixed Allowance', amount: snap.allowance }]
-                          : []),
+                        { label: 'Other Fixed Allowance', amount: snap.allowance },
+                        { label: 'Increment',             amount: snap.increment },
                         { label: 'Bonus / Incentive',    amount: snap.bonus },
                         { label: 'Other Pay',            amount: snap.otherPay },
                         ...(snap.additionalAllowances || []).map(a => ({ label: a.label, amount: a.amount })),

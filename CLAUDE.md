@@ -14,6 +14,7 @@ npm run preview       # Preview the production build
 
 # Testing (Playwright E2E — dev server auto-starts via playwright.config.js webServer block)
 npm test                        # Full test suite, headless
+npm run test:unit               # Fast pure-logic unit tests (no Supabase)
 npm run test:ui                 # Playwright UI mode (best for debugging)
 npm run test:auth               # Auth flows only
 npm run test:attendance         # Attendance flows only
@@ -157,11 +158,13 @@ All DB access goes through `src/utils/` modules — components never call `supab
 - `'Advance Repayment'` — written to `entry.deductions[]`.
 - `'Expense Reimbursement'` — written to `entry.additionalAllowances[]`.
 - `'Overtime (Roster)'` — written to `entry.additionalAllowances[]`.
-When adding a fourth auto-apply panel, follow this same pattern: filter existing by label, then append. Do not skip the filter — "already applied" detection depends on it.
+When adding a fourth auto-apply panel, follow this same pattern: filter existing by label, then append. Do not skip the filter — "already applied" detection depends on it. Applied rows render an Undo action that removes only the reserved-label line item; Apply and Undo both trigger payroll autosave.
 
-**Advance repayment schedule display**: `AdvancesManager` shows a "MMM YYYY → MMM YYYY" window under the Repayment months column for `active` advances, computed from `disbursedDate + repaymentMonths`. This is display-only — no state change.
+**Canonical payroll calculations**: Always use `payrollCalculator.js` for gross earnings, deductions, net pay, and WPS variable allowance. Do not recreate payroll formulas in components, reports, payslips, or storage. `payrollValidation.js` is the single pre-approval validation source. Repeat Payroll carries only JSON adjustment items explicitly marked `recurrence: 'recurring'`; all legacy/unclassified items are treated as one-time.
 
-**Employee-side advance withdraw**: `EmpAdvances` shows a Withdraw button on rows with `status = 'pending'`. Uses `employee_cancel_advance(p_advance_id)` RPC (migration 049) — the RPC refuses if status is anything other than `'pending'` or if the row isn't owned by the calling employee.
+**Advance repayment scheduling**: migration `050_advance_repayment_scheduling.sql` adds `repayment_start_month` and idempotent per-payroll repayments. `advanceSchedule.js` is the single schedule source. Repayments default to the disbursement month, can be manually restaged in `AdvancesManager`, appear only in their exact payroll month, and are capped/extended so WPS variable allowance never goes negative. Payroll finalisation records staged installments and updates outstanding/settled state.
+
+**Employee request actions**: `EmpAdvances` shows Withdraw only for `pending` rows and calls `employee_cancel_advance(p_advance_id)`. `EmpExpenses` shows Delete only for `pending`, `rejected`, or `manager_rejected` rows and calls `employee_delete_expense(p_expense_id)`. Migration 051 defines both ownership-checked RPCs; manager-approved, HR-approved, active, settled, and paid records remain protected for audit/payroll integrity.
 
 **Soft-delete employees**: `archiveEmployee()` sets `active = false, employment_status = 'Terminated', termination_date = today`. Must set `termination_date` — `buildTurnoverReport` depends on it.
 
@@ -185,7 +188,7 @@ When adding a fourth auto-apply panel, follow this same pattern: filter existing
 
 **`generateExpiryNotifications`** runs async after Dashboard load. Signature: `(employees, _company, insurancePolicies, allEmpInsurance, allCertifications = [], allEmployeeDocs = [])`. Generates 8 types: visa/passport/EID/labour card, clinical credentials (90/30/14d), uploaded docs (60/30/14d), insurance, probation, contracts, certifications, professional licences.
 
-**SIF compliance gate** (Clinic 7.1): `handleDownload()` checks three dimensions — expired licence, Emirates ID, Visa — shows override modal requiring ≥10 char reason before download.
+**SIF compliance reminders**: `sifCompliance.js` checks included employees against the payroll payment date for expired Visa (non-UAE nationals), Emirates ID, labour card/work permit, passport, and required professional licence. These are warnings, not blockers: the Payroll Editor shows an amber reminder and validation details, while approval, generation, preview, and SIF download remain available. Technical SIF errors (invalid MOL ID/IBAN/routing code or invalid pay) remain blocking.
 
 **Roster publish gate** (Clinic 7.2): `handlePublish()` checks staffing rules violations before publish, shows override modal. Skipped entirely when `activeCompany.enableStaffingRules === false`. The old separate "Licence Compliance Alerts" banner above the roster grid has been **removed** at user request — per-row licence status dots in the grid still surface individual expiries.
 
@@ -252,6 +255,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
 - **043** — Employee portal fixes: storage INSERT/SELECT policies for employee document upload/download, plus `employees_self_update_contact` UPDATE policy for profile editing.
 - **047** — CME hour tracking: `cme_requirements` table (annual per-employee target) + `training_records.is_cme` BOOLEAN flag. `training_records.duration_hours` already existed.
 - **049** — Per-company feature toggles: `companies.enable_nafis` / `enable_staffing_rules` / `enable_biometric_import` (all `BOOLEAN NOT NULL DEFAULT true` — backward-safe). Adds `employee_cancel_advance(UUID)` SECURITY DEFINER RPC — employees can withdraw only their own `pending` advances.
+- **051** — Repairs the employee advance-withdraw RPC's ambiguous return-column bug and adds `employee_delete_expense(UUID)` for deleting only the caller's pending/rejected claims.
 
 ### RLS model
 

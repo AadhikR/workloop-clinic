@@ -72,7 +72,7 @@ function exportBalancesCSV(employees, leaveTypes, allBalances) {
   const rows = employees.map(emp => {
     const cols = leaveTypes.map(lt => {
       const bal = allBalances.find(b => b.employeeId === emp.id && b.leaveTypeCode === lt.code);
-      return bal ? `${bal.usedDays}/${bal.entitledDays}` : '0/0';
+      return bal ? `${Math.round(bal.usedDays)}/${Math.round(bal.entitledDays)}` : '0/0';
     });
     return [emp.name, emp.department || '—', emp.employmentStatus || 'Active', ...cols];
   });
@@ -760,9 +760,9 @@ export default function LeaveManager() {
                             ) : (
                               <div>
                                 <span style={{ fontWeight:600, color: remaining < 0 ? 'var(--danger)' : 'var(--gray-800)' }}>
-                                  {remaining}
+                                  {Math.round(remaining)}
                                 </span>
-                                <span style={{ fontSize:10, color:'var(--gray-400)', marginLeft:4 }}>/ {entitled}</span>
+                                <span style={{ fontSize:10, color:'var(--gray-400)', marginLeft:4 }}>/ {Math.round(entitled)}</span>
                               </div>
                             )}
                           </td>

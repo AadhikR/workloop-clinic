@@ -22,6 +22,14 @@ const STATUS_LABEL = {
 };
 const CYCLE_STATUS_BADGE = { draft: 'badge-amber', active: 'badge-green', closed: 'badge-red' };
 
+function appraisalErrorMessage(error, fallback = 'Unable to load appraisals. Please try again.') {
+  if (typeof error === 'string' && error.trim()) return error;
+  if (typeof error?.message === 'string' && error.message.trim()) return error.message;
+  if (typeof error?.details === 'string' && error.details.trim()) return error.details;
+  if (typeof error?.hint === 'string' && error.hint.trim()) return error.hint;
+  return fallback;
+}
+
 function RatingInput({ value, onChange, disabled, small }) {
   return (
     <div style={{ display: 'flex', gap: small ? 2 : 4, alignItems: 'center' }}>
@@ -81,7 +89,7 @@ function AppraisalModal({ appraisal, employee, onSave, onClose, reviewerEmail, d
       });
       onSave(saved);
     } catch (e) {
-      setErr(e.message);
+      setErr(appraisalErrorMessage(e, 'Failed to save appraisal review.'));
     } finally {
       setSaving(false);
     }
@@ -234,7 +242,7 @@ export default function AppraisalManager() {
         setEmployees(e.filter(emp => emp.active !== false));
         if (c.length && !activeCycleId) setActiveCycleId(c[0].id);
       })
-      .catch(e => setErr(e.message))
+      .catch(e => setErr(appraisalErrorMessage(e)))
       .finally(() => setLoading(false));
   }, []);
 
@@ -257,7 +265,7 @@ export default function AppraisalManager() {
       setCycleForm({ name: '', reviewFrom: '', reviewTo: '', status: 'draft' });
       showToast('success', 'Cycle saved.');
     } catch (e) {
-      showToast('error', e.message);
+      showToast('error', appraisalErrorMessage(e, 'Failed to save appraisal cycle.'));
     } finally {
       setSavingCycle(false);
     }
@@ -271,7 +279,7 @@ export default function AppraisalManager() {
       if (activeCycleId === id) setActiveCycleId(cycles[0]?.id || null);
       showToast('success', 'Cycle deleted.');
     } catch (e) {
-      showToast('error', e.message);
+      showToast('error', appraisalErrorMessage(e, 'Failed to delete appraisal cycle.'));
     }
   };
 
@@ -289,7 +297,7 @@ export default function AppraisalManager() {
       const refreshed = await getAppraisalsForCycle(activeCycleId);
       setAppraisals(refreshed);
     } catch (e) {
-      showToast('error', e.message);
+      showToast('error', appraisalErrorMessage(e, 'Failed to generate appraisals.'));
     }
   };
 
@@ -300,7 +308,7 @@ export default function AppraisalManager() {
       setAppraisals(prev => prev.filter(a => a.id !== id));
       showToast('success', 'Appraisal deleted.');
     } catch (e) {
-      showToast('error', e.message);
+      showToast('error', appraisalErrorMessage(e, 'Failed to delete appraisal.'));
     }
   };
 
@@ -450,29 +458,28 @@ export default function AppraisalManager() {
                             {c.status.charAt(0).toUpperCase() + c.status.slice(1)}
                           </span>
                         </td>
-                        <td className="text-right">
-                          <button
-                            className="btn btn-secondary"
-                            style={{ fontSize: 12, padding: '4px 10px', marginRight: 6 }}
-                            onClick={() => { setActiveCycleId(c.id); setTab('reviews'); }}
-                          >
-                            Reviews
-                          </button>
-                          <button
-                            className="btn btn-secondary"
-                            style={{ fontSize: 12, padding: '4px 10px', marginRight: 6 }}
-                            onClick={() => { setCycleForm({ ...c }); setShowCycleForm(true); }}
-                          >
-                            Edit
-                          </button>
-                          <button
-                            className="btn btn-secondary"
-                            style={{ fontSize: 12, padding: '4px 10px', color: 'var(--danger)' }}
-                            title="Delete cycle"
-                            onClick={() => handleDeleteCycle(c.id)}
-                          >
-                            <Trash2 size={13} />
-                          </button>
+                        <td>
+                          <div className="appraisal-cycle-actions">
+                            <button
+                              className="btn appraisal-cycle-action"
+                              onClick={() => { setActiveCycleId(c.id); setTab('reviews'); }}
+                            >
+                              Reviews
+                            </button>
+                            <button
+                              className="btn appraisal-cycle-action"
+                              onClick={() => { setCycleForm({ ...c }); setShowCycleForm(true); }}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="btn btn-secondary appraisal-cycle-delete"
+                              title="Delete cycle"
+                              onClick={() => handleDeleteCycle(c.id)}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}

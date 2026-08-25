@@ -1,12 +1,11 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { Download, Eye, Upload, AlertCircle, Plus, ChevronDown, CheckCircle, FileText, Info, Send, Lock, ShieldCheck, RefreshCw, GitCompare, Search } from 'lucide-react';
+import { Download, Eye, Upload, AlertCircle, Plus, ChevronDown, CheckCircle, FileText, Info, Send, Lock, ShieldCheck, RefreshCw, GitCompare, Search, Undo2, X, ListChecks, Clock } from 'lucide-react';
 import { generateSIF, generateSIFFilename, generateCorrectedSIF } from '../utils/sifGenerator';
 import { parseCSV, readFileAsText } from '../utils/csvImport';
-import { savePayroll, createPayslipRecords, saveWpsTracking,
-         submitPayrollForApproval, approvePayroll, rejectPayroll, recallPayrollApproval,
-         saveComplianceOverride } from '../utils/storage';
+import { createPayslipRecords, saveWpsTracking,
+         submitPayrollForApproval, approvePayroll, rejectPayroll, recallPayrollApproval } from '../utils/storage';
 import { createNotifications } from '../utils/notificationStorage';
-import AllowDeductPanel, { computeFinalAllowance } from './AllowDeductPanel';
+import AllowDeductPanel from './AllowDeductPanel';
 import SIFPreviewModal from './SIFPreviewModal';
 import { downloadPayslip, downloadAllPayslips } from '../utils/payslipGenerator';
 import { calculatePayrollLeaveDeductions } from '../utils/leaveEngine';
@@ -15,7 +14,11 @@ import { getAttendancePayrollData, getOvertimeFromRoster } from '../utils/attend
 import { getAdvances } from '../utils/storage';
 import { formatDateUAE, daysUntil, validateBankRoutingCode } from '../utils/uaeValidators';
 import { getApprovedUnpaidExpenses, markExpensesPaid } from '../utils/expenseStorage';
-import { getPayrollSummaryFromAttendance, formatHours } from '../utils/attendanceEngine';
+import { getPayrollSummaryFromAttendance } from '../utils/attendanceEngine';
+import { calculatePayrollEntry, calculatePayrollTotals, withCalculatedPayrollFields } from '../utils/payrollCalculator';
+import { validatePayrollRun } from '../utils/payrollValidation';
+import { getAdvanceInstallmentForPeriod, stageAdvancesForPayroll } from '../utils/advanceSchedule';
+import { saveAdvanceRepayment } from '../utils/storage';
 
 function getMonthName(month) {
   return ['January','February','March','April','May','June',
@@ -37,6 +40,36 @@ function normaliseEntry(e) {
     deductions: e.deductions ?? [],
     ...e,
   };
+}
+
+/** Add, replace, or remove a reserved payroll integration line item. */
+function updateAutoPayrollItem(entries, employeeId, field, label, amount = null, metadata = {}) {
+  return entries.map(entry => {
+    if (entry.employeeId !== employeeId) return entry;
+    const remaining = (entry[field] || []).filter(item => item.label !== label);
+    return {
+      ...entry,
+      [field]: amount === null
+        ? remaining
+        : [...remaining, { label, amount: parseFloat(amount.toFixed(2)), recurrence: 'one_time', source: 'automatic', ...metadata }],
+    };
+  });
+}
+
+function PayrollBreakdownRow({ label, amount, source, deduction = false, total = false }) {
+  const numericAmount = parseFloat(amount) || 0;
+  if (!total && numericAmount === 0) return null;
+  return (
+    <div className={`payroll-breakdown-row${total ? ' total' : ''}`}>
+      <div>
+        <span>{label}</span>
+        {source && <small>{source}</small>}
+      </div>
+      <strong className={deduction ? 'deduction' : ''}>
+        {deduction && numericAmount > 0 ? '− ' : ''}AED {numericAmount.toLocaleString('en-AE', { minimumFractionDigits: 2 })}
+      </strong>
+    </div>
+  );
 }
 
 // ── WPS tracking helpers (Feature 9) ─────────────────────────────────────────
@@ -79,10 +112,12 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
   const [submitting, setSubmitting]       = useState(false);
   const [importMsg, setImportMsg] = useState(null);
   const [showPanel, setShowPanel] = useState(false);
-  const [autoSaved, setAutoSaved] = useState(false);
+  const [saveStatus, setSaveStatus] = useState('saved'); // saved | unsaved | saving | failed
+  const [saveError, setSaveError] = useState('');
   const [leaveDeductions, setLeaveDeductions] = useState({}); // { [employeeId]: deductionResult }
   const [attendanceData, setAttendanceData]   = useState(null); // { periodClosed, payrollReady, byEmployee }
   const [advanceData, setAdvanceData]         = useState({}); // { [employeeId]: advance[] }
+  const [advancesLoaded, setAdvancesLoaded]   = useState(false);
   const [expenseData, setExpenseData]         = useState({}); // { [employeeId]: expense[] } — approved+unpaid
   const [rosterOvertime, setRosterOvertime]   = useState({}); // { [employeeId]: { overtimeHours, plannedHours, actualHours } }
   const [attendanceWarning, setAttendanceWarning] = useState(false);
@@ -113,17 +148,21 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
   const [approvalMsg,     setApprovalMsg]     = useState(null); // { type, text }
   const [rejectOpen,      setRejectOpen]      = useState(false);
   const [rejectReason,    setRejectReason]    = useState('');
-  const [approvedBy,      setApprovedBy]      = useState(payroll.approvedBy      ?? '');
-  const [approvedAt,      setApprovedAt]      = useState(payroll.approvedAt      ?? null);
+  const [approvedBy]                          = useState(payroll.approvedBy      ?? '');
+  const [, setApprovedAt]                     = useState(payroll.approvedAt      ?? null);
   const [submittedBy,     setSubmittedBy]     = useState(payroll.submittedBy     ?? '');
   const [rejectionReason, setRejectionReason] = useState(payroll.rejectionReason ?? '');
 
-  // Licence compliance gate state (Feature 7.1)
-  const [licenceGate, setLicenceGate] = useState(null); // { expiredStaff, overrideReason, pendingDownload }
-  const [licenceOverrideReason, setLicenceOverrideReason] = useState('');
+  const isLocked = payroll.status === 'generated';
+  const approvalLocked = !isLocked && (approvalStatus === 'pending_approval' || approvalStatus === 'approved');
+  const editingLocked  = isLocked || approvalLocked;
 
   // View Changes modal state (PAY-7)
   const [showChanges, setShowChanges] = useState(false);
+  const [showValidation, setShowValidation] = useState(false);
+  const [entrySearch, setEntrySearch] = useState('');
+  const [entryFilter, setEntryFilter] = useState('all');
+  const [detailEmployeeId, setDetailEmployeeId] = useState(null);
 
   // WPS per-employee search (PAY-14)
   const [wpsSearch, setWpsSearch] = useState('');
@@ -160,18 +199,22 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
     }).catch(() => {}); // leave module may not be set up yet — fail silently
   }, [payroll.period, employees]);
 
-  // Load active advances for all employees — shown as an informational panel
+  // Load only advances scheduled for this exact payroll period. Settled,
+  // cancelled, pending, and out-of-period advances are intentionally omitted.
   useEffect(() => {
     getAdvances().then(all => {
-      const active = all.filter(a => a.status === 'active');
       const byEmp = {};
-      for (const adv of active) {
-        if (!byEmp[adv.employeeId]) byEmp[adv.employeeId] = [];
-        byEmp[adv.employeeId].push(adv);
+      for (const entry of payroll.entries.map(normaliseEntry)) {
+        const due = all.filter(advance =>
+          advance.employeeId === entry.employeeId &&
+          getAdvanceInstallmentForPeriod(advance, payroll.period) > 0
+        );
+        if (due.length) byEmp[entry.employeeId] = due;
       }
       setAdvanceData(byEmp);
-    }).catch(() => {}); // salary_advances table may not exist yet — fail silently
-  }, []);
+    }).catch(() => setAdvanceData({})).finally(() => setAdvancesLoaded(true));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payroll.period]);
 
   // Load approved+unpaid expenses — shown as informational panel; marked paid on submit (Feature 14)
   useEffect(() => {
@@ -200,34 +243,75 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
     }).catch(() => {}); // attendance module may not be set up yet — fail silently
   }, [payroll.period]);
 
+  const payrollPayload = useCallback((updatedEntries, updatedMeta, overrides = {}) => ({
+    ...payroll,
+    ...updatedMeta,
+    ...overrides,
+    sequenceNo: updatedMeta.sequenceNo,
+    entries: updatedEntries.map(withCalculatedPayrollFields),
+  }), [payroll]);
+
+  const saveNow = useCallback(async (updatedEntries, updatedMeta, overrides = {}) => {
+    const payload = payrollPayload(updatedEntries, updatedMeta, overrides);
+    setSaveStatus('saving');
+    setSaveError('');
+    try {
+      await onSave(payload);
+      setSaveStatus('saved');
+      return payload;
+    } catch (err) {
+      console.error('Payroll save failed:', err);
+      setSaveStatus('failed');
+      setSaveError(err.message || 'Could not save payroll changes.');
+      throw err;
+    }
+  }, [onSave, payrollPayload]);
+
   // Auto-save helper — debounced 800ms after last change
   const triggerAutoSave = useCallback((updatedEntries, updatedMeta) => {
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    setSaveStatus('unsaved');
+    setSaveError('');
     autoSaveTimer.current = setTimeout(async () => {
-      const p = {
-        ...payroll,
-        ...updatedMeta,
-        sequenceNo: updatedMeta.sequenceNo,
-        entries: updatedEntries.map(e => ({
-          ...e,
-          variableAllowance: computeFinalAllowance(e),
-        })),
-      };
       try {
-        await savePayroll(p);
-        onSave(p);
-        setAutoSaved(true);
-        setTimeout(() => setAutoSaved(false), 2000);
-      } catch (err) {
-        console.error('Auto-save failed:', err);
-      }
+        await saveNow(updatedEntries, updatedMeta);
+      } catch { /* visible failed state is rendered in the header */ }
     }, 800);
-  }, [payroll, onSave]);
+  }, [saveNow]);
 
-  const isLocked = payroll.status === 'generated';
-  // approvalLocked: editing is frozen while pending review or after approval (but not yet generated)
-  const approvalLocked = !isLocked && (approvalStatus === 'pending_approval' || approvalStatus === 'approved');
-  const editingLocked  = isLocked || approvalLocked;
+  useEffect(() => () => {
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+  }, []);
+
+  // Reconcile the system-generated advance deduction after advance data loads.
+  // This removes stale deductions immediately when an advance is settled or when
+  // the opened payroll is not one of its scheduled months.
+  useEffect(() => {
+    if (!advancesLoaded || editingLocked) return;
+    const next = entries.map(entry => {
+      const remaining = (entry.deductions || []).filter(item => item.label !== 'Advance Repayment');
+      const staging = stageAdvancesForPayroll(advanceData[entry.employeeId] || [], payroll.period, entry);
+      const staged = staging.staged;
+      const total = staging.total;
+      return {
+        ...entry,
+        deductions: total > 0 ? [...remaining, {
+          label: 'Advance Repayment',
+          amount: total,
+          source: 'automatic',
+          recurrence: 'one_time',
+          payrollPeriod: payroll.period,
+          advanceRepayments: staged.map(item => ({ id: item.advance.id, amount: item.amount })),
+        }] : remaining,
+      };
+    });
+    if (JSON.stringify(next) === JSON.stringify(entries)) return;
+    setEntries(next);
+    saveNow(next, meta).catch(() => { /* visible failed state is rendered in the header */ });
+  // Reconcile only when the fetched monthly staging changes; entry edits should
+  // not repeatedly recreate a deduction the user explicitly undid.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [advancesLoaded, advanceData, editingLocked, leaveDeductions]);
 
   const [year, month] = payroll.period.split('-').map(Number);
   const daysInMonth = getDaysInMonth(year, month);
@@ -293,26 +377,131 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
     return rows;
   }), [entries, employees]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const totalBasic      = activeEntries.reduce((s, e) => s + (parseFloat(e.basicSalary) || 0), 0);
+  const payrollTotals   = calculatePayrollTotals(activeEntries);
+  const totalBasic      = payrollTotals.basicSalary;
   const totalAllowance  = activeEntries.reduce((s, e) => s + (parseFloat(e.allowance) || 0), 0);
   const totalIncrement  = activeEntries.reduce((s, e) => s + (parseFloat(e.increment) || 0), 0);
   const totalBonus      = activeEntries.reduce((s, e) => s + (parseFloat(e.bonus) || 0), 0);
   const totalOtherPay   = activeEntries.reduce((s, e) => s + (parseFloat(e.otherPay) || 0), 0);
-  const totalDuCost     = activeEntries.reduce((s, e) => s + (parseFloat(e.duCost) || 0), 0);
   const totalAddAllow   = activeEntries.reduce((s, e) => s + (e.additionalAllowances || []).reduce((a, x) => a + (parseFloat(x.amount) || 0), 0), 0);
   const totalDeductions = activeEntries.reduce((s, e) => s + (e.deductions || []).reduce((a, x) => a + (parseFloat(x.amount) || 0), 0), 0);
-  const totalFinal      = activeEntries.reduce((s, e) => s + computeFinalAllowance(e), 0);
-  const grandTotal      = totalBasic + totalFinal;
+  const grandTotal      = payrollTotals.netPay;
 
   const buildPayroll = () => ({
     ...payroll,
     ...meta,
     sequenceNo: parseInt(meta.sequenceNo),
-    entries: entries.map(e => ({
-      ...e,
-      variableAllowance: computeFinalAllowance(e),
-    })),
+    entries: entries.map(withCalculatedPayrollFields),
   });
+
+  const validation = useMemo(() => validatePayrollRun({
+    entries,
+    employees,
+    company,
+    meta,
+    period: payroll.period,
+    attendanceClosed: attendanceData ? attendanceData.periodClosed : null,
+  }), [entries, employees, company, meta, payroll.period, attendanceData]);
+  const sifDocumentWarnings = validation.warnings.filter(current => [
+    'visa_expired',
+    'emirates_id_expired',
+    'labour_card_expired',
+    'passport_expired',
+    'professional_licence_expired',
+  ].includes(current.code));
+
+  const changedEmployeeIds = useMemo(() => new Set(changeRows.map(row => row.emp.id)), [changeRows]);
+  const getEntryStatus = useCallback(entry => {
+    if (entry.excluded) return 'excluded';
+    if ((validation.byEmployee[entry.employeeId] || []).some(current => current.severity === 'error')) return 'needs_review';
+    if (changedEmployeeIds.has(entry.employeeId)) return 'changed';
+    return 'ready';
+  }, [validation.byEmployee, changedEmployeeIds]);
+
+  const filteredEntries = useMemo(() => {
+    const query = entrySearch.trim().toLowerCase();
+    return entries.filter(entry => {
+      const emp = employees.find(employee => employee.id === entry.employeeId);
+      const matchesSearch = !query || [emp?.name, emp?.empNo, emp?.molId]
+        .some(value => String(value || '').toLowerCase().includes(query));
+      const status = getEntryStatus(entry);
+      return matchesSearch && (entryFilter === 'all' || status === entryFilter);
+    });
+  }, [entries, employees, entrySearch, entryFilter, getEntryStatus]);
+
+  const detailEntry = detailEmployeeId ? entries.find(entry => entry.employeeId === detailEmployeeId) : null;
+  const detailEmployee = detailEmployeeId ? employees.find(employee => employee.id === detailEmployeeId) : null;
+  const detailCalc = detailEntry ? calculatePayrollEntry(detailEntry) : null;
+
+  const openValidationIssue = current => {
+    if (current.employeeId) {
+      setEntryFilter('all');
+      setEntrySearch('');
+      setDetailEmployeeId(current.employeeId);
+    }
+    setShowValidation(false);
+  };
+
+  const pendingAutomaticAdjustmentCount = useMemo(() => {
+    const employeeIds = new Set();
+
+    for (const [employeeId, advances] of Object.entries(advanceData)) {
+      const entry = entries.find(current => current.employeeId === employeeId);
+      const applied = (entry?.deductions || []).some(item => item.label === 'Advance Repayment');
+      if (entry && !applied && stageAdvancesForPayroll(advances, payroll.period, entry).total > 0) {
+        employeeIds.add(employeeId);
+      }
+    }
+
+    for (const [employeeId, expenses] of Object.entries(expenseData)) {
+      const entry = entries.find(current => current.employeeId === employeeId);
+      const applied = (entry?.additionalAllowances || []).some(item => item.label === 'Expense Reimbursement');
+      const amount = expenses.reduce((sum, expense) => sum + (expense.amount || 0), 0);
+      if (entry && !applied && amount > 0) employeeIds.add(employeeId);
+    }
+
+    for (const [employeeId, overtime] of Object.entries(rosterOvertime)) {
+      const entry = entries.find(current => current.employeeId === employeeId);
+      const employee = employees.find(current => current.id === employeeId);
+      const applied = (entry?.additionalAllowances || []).some(item => item.label === 'Overtime (Roster)');
+      const amount = (overtime?.overtimeHours || 0) * ((parseFloat(employee?.basicSalary) || 0) / 208) * 1.25;
+      if (entry && !applied && amount > 0) employeeIds.add(employeeId);
+    }
+
+    return employeeIds.size;
+  }, [advanceData, expenseData, rosterOvertime, entries, employees, payroll.period]);
+
+  const applyAllAutomaticAdjustments = () => {
+    let next = entries;
+    for (const [employeeId, advances] of Object.entries(advanceData)) {
+      const entry = next.find(current => current.employeeId === employeeId);
+      const staging = stageAdvancesForPayroll(advances, payroll.period, entry);
+      const amount = staging.total;
+      if (amount > 0) next = updateAutoPayrollItem(next, employeeId, 'deductions', 'Advance Repayment', amount, {
+        payrollPeriod: payroll.period,
+        advanceRepayments: staging.staged.map(item => ({ id: item.advance.id, amount: item.amount })),
+      });
+    }
+    for (const [employeeId, expenses] of Object.entries(expenseData)) {
+      const amount = expenses.reduce((sum, expense) => sum + (expense.amount || 0), 0);
+      if (amount > 0) next = updateAutoPayrollItem(next, employeeId, 'additionalAllowances', 'Expense Reimbursement', amount);
+    }
+    for (const [employeeId, overtime] of Object.entries(rosterOvertime)) {
+      if (!overtime?.overtimeHours) continue;
+      const employee = employees.find(current => current.id === employeeId);
+      const hourlyRate = (parseFloat(employee?.basicSalary) || 0) / 208;
+      const amount = overtime.overtimeHours * hourlyRate * 1.25;
+      if (amount > 0) next = updateAutoPayrollItem(next, employeeId, 'additionalAllowances', 'Overtime (Roster)', amount);
+    }
+    setEntries(next);
+    triggerAutoSave(next, meta);
+  };
+
+  const applyPayrollItem = (employeeId, field, label, amount = null, metadata = {}) => {
+    const next = updateAutoPayrollItem(entries, employeeId, field, label, amount, metadata);
+    setEntries(next);
+    saveNow(next, meta).catch(() => { /* visible failed state is rendered in the header */ });
+  };
 
   const doDownload = (p) => {
     const content = generateSIF(company, employees, p);
@@ -330,6 +519,7 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
   };
 
   const handlePreview = () => {
+    if (!canGenerate) { setShowValidation(true); return; }
     const p = buildPayroll();
     const content = generateSIF(company, employees, p);
     const filename = generateSIFFilename(company, p);
@@ -337,41 +527,7 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
   };
 
   const handleDownload = async () => {
-    // Compliance gate: check for expired professional licences, Emirates ID, and Visa
-    const today = new Date().toISOString().split('T')[0];
-    const violations = [];
-    entries.filter(e => !e.excluded).forEach(entry => {
-      const emp = employees.find(e => e.id === entry.employeeId);
-      if (!emp) return;
-      if (emp.licenceAuthority && emp.licenceAuthority !== 'None' && emp.licenceExpiry && emp.licenceExpiry < today)
-        violations.push({ emp, type: emp.licenceAuthority + ' Licence', expiry: emp.licenceExpiry });
-      if (emp.emiratesIdExpiry && emp.emiratesIdExpiry < today)
-        violations.push({ emp, type: 'Emirates ID', expiry: emp.emiratesIdExpiry });
-      if (emp.visaExpiry && emp.visaExpiry < today)
-        violations.push({ emp, type: 'Visa', expiry: emp.visaExpiry });
-    });
-    if (violations.length > 0 && !licenceGate) {
-      setLicenceGate({ violations });
-      return; // show confirmation modal
-    }
-    if (licenceGate) {
-      // HR overriding — log the override then proceed
-      if (licenceOverrideReason.trim().length < 10) {
-        alert('Please provide a reason for the compliance override (minimum 10 characters).');
-        return;
-      }
-      try {
-        await saveComplianceOverride({
-          overrideType: 'payroll_sif',
-          employeeIds:  [...new Set(licenceGate.violations.map(v => v.emp.id))],
-          reason:       licenceOverrideReason.trim(),
-        });
-      } catch (err) {
-        console.error('Compliance override log failed:', err);
-      }
-      setLicenceGate(null);
-      setLicenceOverrideReason('');
-    }
+    if (!canGenerate) { setShowValidation(true); return; }
 
     const p = buildPayroll();
     doDownload(p);
@@ -398,6 +554,19 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
       .filter(([, v]) => v.status === 'rejected')
       .map(([k]) => k);
     if (!rejectedIds.length) return;
+    const correctedEntries = entries.map(entry => ({
+      ...entry,
+      excluded: entry.excluded || !rejectedIds.includes(entry.employeeId),
+    }));
+    const correctedValidation = validatePayrollRun({
+      entries: correctedEntries,
+      employees,
+      company,
+      meta,
+      period: payroll.period,
+      attendanceClosed: true,
+    });
+    if (!correctedValidation.ready) { setShowValidation(true); return; }
     const p = buildPayroll();
     const content  = generateCorrectedSIF(company, employees, p, rejectedIds);
     const filename = 'CORRECTED_' + generateSIFFilename(company, p);
@@ -444,9 +613,46 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
   const handleSubmitPayroll = async () => {
     setSubmitting(true);
     try {
-      const p = buildPayroll();
+      // Refresh advance state immediately before finalisation so an advance
+      // settled/cancelled after this editor opened cannot remain deducted.
+      const latestAdvances = await getAdvances();
+      const current = buildPayroll();
+      const refreshedEntries = current.entries.map(entry => {
+        const employeeAdvances = latestAdvances.filter(advance => advance.employeeId === entry.employeeId);
+        const staging = stageAdvancesForPayroll(employeeAdvances, current.period, entry);
+        const remaining = (entry.deductions || []).filter(item => item.label !== 'Advance Repayment');
+        return withCalculatedPayrollFields({
+          ...entry,
+          deductions: staging.total > 0 ? [...remaining, {
+            label: 'Advance Repayment',
+            amount: staging.total,
+            source: 'automatic',
+            recurrence: 'one_time',
+            payrollPeriod: current.period,
+            advanceRepayments: staging.staged.map(item => ({ id: item.advance.id, amount: item.amount })),
+          }] : remaining,
+        });
+      });
+      const p = { ...current, entries: refreshedEntries };
       const finalised = { ...p, status: 'generated' };
-      onSave(finalised);
+      await onSave(finalised);
+
+      // Record only the advance installments embedded in this payroll. The RPC
+      // is idempotent per advance+payroll and updates outstanding/settled state.
+      const advanceRepayments = finalised.entries
+        .filter(entry => !entry.excluded)
+        .flatMap(entry => (entry.deductions || [])
+          .filter(item => item.label === 'Advance Repayment')
+          .flatMap(item => item.advanceRepayments || []));
+      for (const repayment of advanceRepayments) {
+        await saveAdvanceRepayment({
+          advanceId: repayment.id,
+          payrollRunId: finalised.id,
+          amount: repayment.amount,
+          paidDate: finalised.paymentDate,
+        });
+      }
+
       await createPayslipRecords(finalised);
 
       // Notify employees with linked portal accounts that their payslip is ready
@@ -455,7 +661,7 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
         .map(e => {
           const emp = employees.find(em => em.id === e.employeeId);
           if (!emp?.authUserId) return null;
-          const net = (parseFloat(e.basicSalary) || 0) + (parseFloat(e.variableAllowance) || 0);
+          const net = calculatePayrollEntry(e).netPay;
           return {
             recipientUserId:   emp.authUserId,
             type:              'payslip_available',
@@ -471,10 +677,18 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
       }
 
       // Mark approved expenses as paid and link to this payroll run (Feature 14)
-      const allExpenseIds = Object.values(expenseData).flat().map(e => e.id);
+      const reimbursedEmployeeIds = new Set(finalised.entries
+        .filter(entry => !entry.excluded && (entry.additionalAllowances || []).some(item => item.label === 'Expense Reimbursement'))
+        .map(entry => entry.employeeId));
+      const allExpenseIds = Object.entries(expenseData)
+        .filter(([employeeId]) => reimbursedEmployeeIds.has(employeeId))
+        .flatMap(([, expenses]) => expenses.map(expense => expense.id));
       if (allExpenseIds.length > 0) {
         markExpensesPaid(allExpenseIds, finalised.id).catch(() => {});
       }
+    } catch (err) {
+      console.error('Payroll finalisation failed:', err);
+      alert('Payroll could not be finalised: ' + (err.message || 'Unknown error'));
     } finally {
       setSubmitting(false);
       setConfirmSubmit(false);
@@ -489,10 +703,11 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
     });
   };
 
-  const handleSaveDraft = () => {
-    onSave({ ...buildPayroll(), status: payroll.status === 'generated' ? 'generated' : 'draft' });
-    setAutoSaved(true);
-    setTimeout(() => setAutoSaved(false), 2000);
+  const handleSaveDraft = async () => {
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    try {
+      await saveNow(entries, meta, { status: payroll.status === 'generated' ? 'generated' : 'draft' });
+    } catch { /* visible failed state is rendered in the header */ }
   };
 
   // ── Payroll Approval handlers (Feature 17) ──────────────────────────────────
@@ -502,6 +717,10 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
   };
 
   const handleSubmitForApproval = async () => {
+    if (!validation.ready || saveStatus !== 'saved') {
+      setShowValidation(true);
+      return;
+    }
     setApprovalBusy(true);
     try {
       await submitPayrollForApproval(payroll.id);
@@ -585,6 +804,7 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
         return entry;
       });
       setEntries(next);
+      triggerAutoSave(next, meta);
       setImportMsg({ type: 'success', text: `Updated ${matched} employee entries from CSV.` });
       setTimeout(() => setImportMsg(null), 5000);
     } catch (err) {
@@ -592,7 +812,7 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
     }
   };
 
-  const canGenerate = company?.molEmployerId && meta.paymentDate && meta.scrBankRoutingCode && activeEntries.length > 0;
+  const canGenerate = validation.ready && saveStatus === 'saved';
 
   const hdrClickable = {
     cursor: 'pointer',
@@ -621,10 +841,14 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
           </h2>
         </div>
         <div className="page-header-actions">
-          {autoSaved && (
-            <span className="auto-save-indicator">
-              <CheckCircle size={14} /> Auto-saved
-            </span>
+          <span className={`payroll-save-state ${saveStatus}`}>
+            {saveStatus === 'saving' && <><RefreshCw size={13} className="spin-icon" /> Saving…</>}
+            {saveStatus === 'saved' && <><CheckCircle size={13} /> All changes saved</>}
+            {saveStatus === 'unsaved' && <><Clock size={13} /> Unsaved changes</>}
+            {saveStatus === 'failed' && <><AlertCircle size={13} /> Save failed</>}
+          </span>
+          {saveStatus === 'failed' && (
+            <button className="btn btn-outline btn-sm" onClick={handleSaveDraft} title={saveError}>Retry Save</button>
           )}
           {!editingLocked && (
             <>
@@ -652,6 +876,12 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
             <GitCompare size={14} /> View Changes
           </button>
           <button
+            className={`btn btn-sm ${validation.ready ? 'btn-outline' : 'btn-danger'}`}
+            onClick={() => setShowValidation(true)}
+          >
+            <ListChecks size={14} /> Validate ({validation.errors.length})
+          </button>
+          <button
             className="btn btn-outline btn-sm"
             title="Download payslips for all active employees"
             onClick={() => downloadAllPayslips(company, employees, buildPayroll())}
@@ -659,10 +889,10 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
           >
             <FileText size={14} /> All Payslips
           </button>
-          <button className="btn btn-outline btn-sm" onClick={handlePreview} disabled={!canGenerate}>
+          <button className="btn btn-outline btn-sm" onClick={handlePreview}>
             <Eye size={14} /> Preview SIF
           </button>
-          <button className="btn btn-success btn-sm" onClick={handleDownload} disabled={!canGenerate}>
+          <button className="btn btn-success btn-sm" onClick={handleDownload}>
             <Download size={14} /> Download SIF
           </button>
           {isLocked && Object.values(wpsEntryStatuses).some(v => v.status === 'rejected') && (
@@ -672,7 +902,7 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
           )}
           {/* Draft: submit for approval (Feature 17) */}
           {!isLocked && approvalStatus === 'draft' && (
-            <button className="btn btn-primary btn-sm" onClick={handleSubmitForApproval} disabled={!canGenerate || approvalBusy}>
+            <button className="btn btn-primary btn-sm" onClick={handleSubmitForApproval} disabled={approvalBusy}>
               <Send size={14} /> {approvalBusy ? 'Submitting…' : 'Submit for Approval'}
             </button>
           )}
@@ -691,7 +921,7 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
           )}
           {/* Approved: generate payroll (Feature 17) */}
           {!isLocked && approvalStatus === 'approved' && (
-            <button className="btn btn-primary btn-sm" onClick={() => setConfirmSubmit(true)} disabled={!canGenerate}>
+            <button className="btn btn-primary btn-sm" onClick={() => canGenerate ? setConfirmSubmit(true) : setShowValidation(true)}>
               <Send size={14} /> Generate Payroll
             </button>
           )}
@@ -713,6 +943,21 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
         {approvalMsg && (
           <div className={`alert alert-${approvalMsg.type === 'error' ? 'danger' : 'success'} mb-4`}>
             <AlertCircle size={14} /> {approvalMsg.text}
+          </div>
+        )}
+
+        {sifDocumentWarnings.length > 0 && (
+          <div className="alert alert-warning mb-4" style={{ alignItems: 'center' }}>
+            <AlertCircle size={18} />
+            <div style={{ flex: 1 }}>
+              <strong>Compliance reminder — {sifDocumentWarnings.length} expired document{sifDocumentWarnings.length !== 1 ? 's' : ''}.</strong>
+              <div style={{ fontSize: 12, marginTop: 3 }}>
+                {new Set(sifDocumentWarnings.map(current => current.employeeId)).size} employee{new Set(sifDocumentWarnings.map(current => current.employeeId)).size !== 1 ? 's are' : ' is'} affected. You may continue, but review and update these records promptly.
+              </div>
+            </div>
+            <button className="btn btn-outline btn-sm" onClick={() => setShowValidation(true)}>
+              Review reminders
+            </button>
           </div>
         )}
 
@@ -995,17 +1240,17 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
             <div className="stat-sub">{entries.length - activeEntries.length} excluded</div>
           </div>
           <div className="stat-card">
-            <div className="stat-label">Total Basic</div>
-            <div className="stat-value">{totalBasic.toLocaleString('en-AE')}</div>
+            <div className="stat-label">Gross Earnings</div>
+            <div className="stat-value">{payrollTotals.grossEarnings.toLocaleString('en-AE')}</div>
             <div className="stat-sub">AED</div>
           </div>
           <div className="stat-card">
-            <div className="stat-label">Total WPS Allowance</div>
-            <div className="stat-value">{totalFinal.toLocaleString('en-AE')}</div>
-            <div className="stat-sub">AED (Final Allowance)</div>
+            <div className="stat-label">Total Deductions</div>
+            <div className="stat-value" style={{ color: 'var(--danger)' }}>{payrollTotals.totalDeductions.toLocaleString('en-AE')}</div>
+            <div className="stat-sub">AED</div>
           </div>
           <div className="stat-card">
-            <div className="stat-label">Grand Total (WPS)</div>
+            <div className="stat-label">Net Payroll</div>
             <div className="stat-value" style={{ color: 'var(--primary)' }}>
               {grandTotal.toLocaleString('en-AE')}
             </div>
@@ -1022,6 +1267,21 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
               UAE Labour Law requires payroll to be based on finalised attendance data.
               Please close the attendance period in the <strong>Attendance</strong> module before running payroll.
             </div>
+          </div>
+        )}
+
+        {pendingAutomaticAdjustmentCount > 0 && !editingLocked && (
+          <div className="payroll-auto-review card mb-4">
+            <div>
+              <span className="payroll-auto-review-icon"><RefreshCw size={17} /></span>
+              <div>
+                <h3>{pendingAutomaticAdjustmentCount} employee{pendingAutomaticAdjustmentCount !== 1 ? 's have' : ' has'} unapplied automatic payroll adjustments</h3>
+                <p>Review and apply current advance repayments, approved expenses, and roster overtime. Existing matching items are updated, never duplicated.</p>
+              </div>
+            </div>
+            <button className="btn btn-primary btn-sm" onClick={applyAllAutomaticAdjustments}>
+              <CheckCircle size={14} /> Apply all adjustments
+            </button>
           </div>
         )}
 
@@ -1077,16 +1337,6 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
           // employee entry. If a line with that label already exists it is
           // replaced (so re-clicking after a value change stays consistent).
           const advanceLabel = 'Advance Repayment';
-          const applyAdvanceToEntry = (employeeId, deductionAmount) => {
-            setEntries(prev => prev.map(entry => {
-              if (entry.employeeId !== employeeId) return entry;
-              const existing = (entry.deductions || []).filter(d => d.label !== advanceLabel);
-              return {
-                ...entry,
-                deductions: [...existing, { label: advanceLabel, amount: parseFloat(deductionAmount.toFixed(2)) }],
-              };
-            }));
-          };
           return (
           <div className="card mb-4">
             <div className="card-header">
@@ -1110,10 +1360,12 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                 <tbody>
                   {Object.entries(advanceData).map(([empId, advs]) => {
                     const emp = employees.find(e => e.id === empId);
-                    // Total this-month deduction across all advances for the employee.
-                    const totalDeduction = advs.reduce((s, a) => s + (a.monthlyDeduction || 0), 0);
+                    const entry = entries.find(e => e.employeeId === empId);
+                    const staging = stageAdvancesForPayroll(advs, payroll.period, entry);
+                    const stagedById = new Map(staging.staged.map(item => [item.advance.id, item]));
+                    const totalDeduction = staging.total;
                     return advs.map((adv, i) => {
-                      const entry = entries.find(e => e.employeeId === empId);
+                      const stagedItem = stagedById.get(adv.id);
                       const applied = (entry?.deductions || []).some(d => d.label === advanceLabel);
                       return (
                         <tr key={adv.id}>
@@ -1128,20 +1380,24 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                             {adv.outstandingBalance.toLocaleString('en-AE', { minimumFractionDigits:2 })}
                           </td>
                           <td className="text-right" style={{ color:'var(--danger)', fontWeight:600 }}>
-                            -{adv.monthlyDeduction.toLocaleString('en-AE', { minimumFractionDigits:2 })}
+                            -{(stagedItem?.amount || 0).toLocaleString('en-AE', { minimumFractionDigits:2 })}
+                            {stagedItem?.cappedForWps && <div style={{ fontSize: 9, color: 'var(--warning)' }}>WPS capped</div>}
                           </td>
                           <td>
                             {i === 0 && (
                               applied ? (
-                                <span className="badge badge-green" style={{ fontSize: 11 }}>✓ Applied</span>
+                                <div className="payroll-applied-action">
+                                  <span className="payroll-applied-label"><CheckCircle size={13} /> Applied</span>
+                                  <button type="button" className="payroll-undo-btn" onClick={() => applyPayrollItem(empId, 'deductions', advanceLabel)} disabled={editingLocked}>
+                                    <Undo2 size={12} /> Undo
+                                  </button>
+                                </div>
                               ) : (
-                                <button
-                                  className="btn btn-secondary"
-                                  style={{ fontSize: 11, padding: '3px 10px' }}
-                                  onClick={() => applyAdvanceToEntry(empId, totalDeduction)}
-                                  disabled={editingLocked}
-                                >
-                                  Apply to Payroll
+                                <button type="button" className="btn btn-primary btn-sm payroll-apply-btn" onClick={() => applyPayrollItem(empId, 'deductions', advanceLabel, totalDeduction, {
+                                  payrollPeriod: payroll.period,
+                                  advanceRepayments: staging.staged.map(item => ({ id: item.advance.id, amount: item.amount })),
+                                })} disabled={editingLocked}>
+                                  <Plus size={13} strokeWidth={2.5} /> Apply to Payroll
                                 </button>
                               )
                             )}
@@ -1157,9 +1413,11 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                       Total Advance Deductions This Month
                     </td>
                     <td className="text-right" style={{ color:'var(--danger)' }}>
-                      -{Object.values(advanceData)
-                          .flat()
-                          .reduce((s, a) => s + a.monthlyDeduction, 0)
+                      -{Object.entries(advanceData)
+                          .reduce((sum, [employeeId, advances]) => {
+                            const entry = entries.find(current => current.employeeId === employeeId);
+                            return sum + stageAdvancesForPayroll(advances, payroll.period, entry).total;
+                          }, 0)
                           .toLocaleString('en-AE', { minimumFractionDigits:2 })} AED
                     </td>
                     <td></td>
@@ -1170,7 +1428,7 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
             <div style={{ padding:'10px 20px', fontSize:12, color:'var(--gray-500)', borderTop:'1px solid var(--gray-100)' }}>
               <Info size={12} style={{ marginRight:4 }}/>
               Click <strong>Apply to Payroll</strong> to add the monthly repayment as an "Advance Repayment" deduction on that employee's entry.
-              Re-click after amount changes to update.
+              Use <strong>Undo</strong> to remove it if needed.
             </div>
           </div>
           );
@@ -1181,19 +1439,7 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
           const empIds = Object.keys(rosterOvertime).filter(id => rosterOvertime[id].overtimeHours > 0);
           if (!empIds.length) return null;
 
-          const applyOvertimeToEntry = (employeeId, overtimePay) => {
-            setEntries(prev => prev.map(entry => {
-              if (entry.employeeId !== employeeId) return entry;
-              const existing = (entry.additionalAllowances || []);
-              const alreadyApplied = existing.some(a => a.label === 'Overtime (Roster)');
-              if (alreadyApplied) return entry; // idempotent — don't double-apply
-              return {
-                ...entry,
-                additionalAllowances: [...existing, { label: 'Overtime (Roster)', amount: parseFloat(overtimePay.toFixed(2)) }],
-              };
-            }));
-          };
-
+          const overtimeLabel = 'Overtime (Roster)';
           return (
             <div className="card mb-4">
               <div className="card-header">
@@ -1222,7 +1468,7 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                       if (!emp) return null;
                       const hourlyRate  = (parseFloat(emp.basicSalary) || 0) / 208; // 26d × 8h
                       const overtimePay = ot.overtimeHours * hourlyRate * 1.25;      // Art. 19 UAE Labour Law
-                      const applied     = (entry?.additionalAllowances || []).some(a => a.label === 'Overtime (Roster)');
+                      const applied     = (entry?.additionalAllowances || []).some(a => a.label === overtimeLabel);
                       return (
                         <tr key={empId}>
                           <td><strong>{emp.name}</strong></td>
@@ -1236,15 +1482,15 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                           </td>
                           <td>
                             {applied ? (
-                              <span className="badge badge-green" style={{ fontSize: 11 }}>✓ Applied</span>
+                              <div className="payroll-applied-action">
+                                <span className="payroll-applied-label"><CheckCircle size={13} /> Applied</span>
+                                <button type="button" className="payroll-undo-btn" onClick={() => applyPayrollItem(empId, 'additionalAllowances', overtimeLabel)} disabled={editingLocked}>
+                                  <Undo2 size={12} /> Undo
+                                </button>
+                              </div>
                             ) : (
-                              <button
-                                className="btn btn-secondary"
-                                style={{ fontSize: 11, padding: '3px 10px' }}
-                                onClick={() => applyOvertimeToEntry(empId, overtimePay)}
-                                disabled={editingLocked}
-                              >
-                                Apply to Payroll
+                              <button type="button" className="btn btn-primary btn-sm payroll-apply-btn" onClick={() => applyPayrollItem(empId, 'additionalAllowances', overtimeLabel, overtimePay)} disabled={editingLocked}>
+                                <Plus size={13} strokeWidth={2.5} /> Apply to Payroll
                               </button>
                             )}
                           </td>
@@ -1265,16 +1511,6 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
         {/* ── Expense Reimbursements Panel (Feature 14) ── */}
         {Object.keys(expenseData).length > 0 && (() => {
           const expenseLabel = 'Expense Reimbursement';
-          const applyExpenseToEntry = (employeeId, totalAmount) => {
-            setEntries(prev => prev.map(entry => {
-              if (entry.employeeId !== employeeId) return entry;
-              const existing = (entry.additionalAllowances || []).filter(a => a.label !== expenseLabel);
-              return {
-                ...entry,
-                additionalAllowances: [...existing, { label: expenseLabel, amount: parseFloat(totalAmount.toFixed(2)) }],
-              };
-            }));
-          };
           return (
           <div className="card mb-4">
             <div className="card-header">
@@ -1318,15 +1554,15 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                           <td>
                             {i === 0 && (
                               applied ? (
-                                <span className="badge badge-green" style={{ fontSize: 11 }}>✓ Applied</span>
+                                <div className="payroll-applied-action">
+                                  <span className="payroll-applied-label"><CheckCircle size={13} /> Applied</span>
+                                  <button type="button" className="payroll-undo-btn" onClick={() => applyPayrollItem(empId, 'additionalAllowances', expenseLabel)} disabled={editingLocked}>
+                                    <Undo2 size={12} /> Undo
+                                  </button>
+                                </div>
                               ) : (
-                                <button
-                                  className="btn btn-secondary"
-                                  style={{ fontSize: 11, padding: '3px 10px' }}
-                                  onClick={() => applyExpenseToEntry(empId, totalAmount)}
-                                  disabled={editingLocked}
-                                >
-                                  Apply to Payroll
+                                <button type="button" className="btn btn-primary btn-sm payroll-apply-btn" onClick={() => applyPayrollItem(empId, 'additionalAllowances', expenseLabel, totalAmount)} disabled={editingLocked}>
+                                  <Plus size={13} strokeWidth={2.5} /> Apply to Payroll
                                 </button>
                               )
                             )}
@@ -1355,7 +1591,7 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
             <div style={{ padding:'10px 20px', fontSize:12, color:'var(--gray-500)', borderTop:'1px solid var(--gray-100)' }}>
               <Info size={12} style={{ marginRight:4 }}/>
               Click <strong>Apply to Payroll</strong> to add the reimbursement as an "Expense Reimbursement" allowance line.
-              These claims are automatically marked <strong>Paid</strong> when payroll is submitted.
+              Use <strong>Undo</strong> to remove it if needed. These claims are automatically marked <strong>Paid</strong> when payroll is submitted.
             </div>
           </div>
           );
@@ -1414,10 +1650,29 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
         )}
 
         {/* ── Entry Table ── */}
-        <div className="card">
-          <div className="card-header">
-            <h3>Employee Salary Entries</h3>
-            <div className="flex items-center gap-2">
+        <div className="card payroll-entries-card">
+          <div className="card-header payroll-entries-header">
+            <div>
+              <h3>Employee Salary Entries</h3>
+              <p className="text-sm text-muted" style={{ marginTop: 3 }}>Review exceptions first, then open an employee for a full pay breakdown.</p>
+            </div>
+            <div className="payroll-entries-toolbar">
+              <div className="payroll-entry-search">
+                <Search size={13} />
+                <input
+                  value={entrySearch}
+                  onChange={event => setEntrySearch(event.target.value)}
+                  placeholder="Search employee…"
+                  aria-label="Search payroll employees"
+                />
+              </div>
+              <select className="form-control payroll-status-filter" value={entryFilter} onChange={event => setEntryFilter(event.target.value)}>
+                <option value="all">All employees</option>
+                <option value="needs_review">Needs review</option>
+                <option value="changed">Changed</option>
+                <option value="ready">Ready</option>
+                <option value="excluded">Excluded</option>
+              </select>
               {!isLocked && (
                 <button className="btn btn-outline btn-sm" onClick={() => setShowPanel(true)}>
                   <Plus size={13} /> Allowances &amp; Deductions
@@ -1433,19 +1688,19 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
             <table>
               <thead>
                 <tr>
-                  <th style={{ width: 36 }}>✓</th>
-                  <th>Name</th>
-                  <th>MOL ID</th>
-                  <th style={{ width: 110 }}>Basic</th>
-                  <th style={{ width: 100 }}>Housing</th>
-                  <th style={{ width: 100 }}>Transport</th>
-                  <th style={{ width: 110 }}>Allowance</th>
-                  <th style={{ width: 100 }}>Increment</th>
-                  <th style={{ width: 110 }}>Bonus/Incentive</th>
-                  <th style={{ width: 100 }}>Other Pay</th>
-                  <th style={{ width: 100, color:'var(--danger)' }}>Leave Ded.</th>
+                  <th style={{ width: 34 }}>✓</th>
+                  <th style={{ width: 125 }}>Employee / Status</th>
+                  <th style={{ width: 105 }}>MOL ID</th>
+                  <th style={{ width: 76 }}>Basic</th>
+                  <th style={{ width: 76 }}>Housing</th>
+                  <th style={{ width: 76 }}>Transport</th>
+                  <th style={{ width: 76 }}>Allowance</th>
+                  <th style={{ width: 76 }}>Increment</th>
+                  <th style={{ width: 76 }}>Bonus/Incentive</th>
+                  <th style={{ width: 76 }}>Other Pay</th>
+                  <th style={{ width: 76, color:'var(--danger)' }}>Leave Ded.</th>
                   <th
-                    style={{ width: 90 }}
+                    style={{ width: 72 }}
                     title={isLocked ? undefined : 'Click to add named additional allowances per employee'}
                     onClick={() => !isLocked && setShowPanel(true)}
                   >
@@ -1454,7 +1709,7 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                       : <span style={hdrClickable}>Add. Allow <ChevronDown size={11} /></span>}
                   </th>
                   <th
-                    style={{ width: 90 }}
+                    style={{ width: 72 }}
                     title={isLocked ? undefined : 'Click to add named deductions per employee'}
                     onClick={() => !isLocked && setShowPanel(true)}
                   >
@@ -1462,21 +1717,22 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                       ? <span>Deductions</span>
                       : <span style={{ ...hdrClickable, color: 'var(--danger)' }}>Deductions <ChevronDown size={11} /></span>}
                   </th>
-                  <th style={{ width: 100, background: 'var(--primary-light)', color: 'var(--primary-dark)' }}>
-                    Final Allow.
+                  <th style={{ width: 92, background: 'var(--primary-light)', color: 'var(--primary-dark)' }}>
+                    Gross Earnings
                   </th>
-                  <th style={{ width: 100 }}>Total (AED)</th>
-                  <th style={{ width: 60 }}>Payslip</th>
+                  <th style={{ width: 92 }}>Net Pay</th>
+                  <th style={{ width: 48 }}>Payslip</th>
                 </tr>
               </thead>
               <tbody>
-                {entries.map((entry, idx) => {
+                {filteredEntries.map((entry) => {
                   const emp = getEmp(entry.employeeId);
                   if (!emp) return null;
-                  const finalAllow = computeFinalAllowance(entry);
+                  const idx = entries.findIndex(current => current.employeeId === entry.employeeId);
+                  const calc = calculatePayrollEntry(entry);
                   const addAllow = (entry.additionalAllowances || []).reduce((s, a) => s + (parseFloat(a.amount) || 0), 0);
                   const deds = (entry.deductions || []).reduce((s, d) => s + (parseFloat(d.amount) || 0), 0);
-                  const total = (parseFloat(entry.basicSalary) || 0) + finalAllow;
+                  const entryStatus = getEntryStatus(entry);
                   return (
                     <tr key={entry.employeeId} className={entry.excluded ? 'excluded' : ''}>
                       <td>
@@ -1488,7 +1744,10 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                         />
                       </td>
                       <td style={{ fontWeight: 500 }}>
-                        {emp.name}
+                        <button type="button" className="payroll-employee-link" onClick={() => setDetailEmployeeId(emp.id)}>
+                          {emp.name}
+                        </button>
+                        <span className={`payroll-row-status ${entryStatus}`}>{entryStatus.replace('_', ' ')}</span>
                         {empExpiryWarnings[emp.id] && (
                           <span
                             title={empExpiryWarnings[emp.id].join('\n')}
@@ -1569,13 +1828,13 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                           color: entry.excluded ? 'var(--gray-400)' : 'var(--primary-dark)',
                         }}
                       >
-                        {finalAllow.toLocaleString('en-AE')}
+                        {calc.grossEarnings.toLocaleString('en-AE')}
                       </td>
                      <td
                        className="text-right font-bold"
                        style={{ color: entry.excluded ? 'var(--gray-400)' : 'var(--gray-800)' }}
                      >
-                       {total.toLocaleString('en-AE')}
+                        {calc.netPay.toLocaleString('en-AE')}
                      </td>
                      <td>
                        {!entry.excluded && canGenerate && (
@@ -1618,7 +1877,7 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
                     {totalDeductions > 0 ? `-${totalDeductions.toLocaleString('en-AE')}` : '—'}
                   </td>
                   <td className="text-right" style={{ background: 'var(--primary-light)', color: 'var(--primary-dark)' }}>
-                    {totalFinal.toLocaleString('en-AE')}
+                    {payrollTotals.grossEarnings.toLocaleString('en-AE')}
                   </td>
                   <td className="text-right" style={{ color: 'var(--primary)' }}>
                     {grandTotal.toLocaleString('en-AE')}
@@ -1632,6 +1891,149 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
       </div>
 
       {/* ── Panels / Modals ── */}
+
+      {showValidation && (
+        <div className="modal-overlay">
+          <div className="modal payroll-validation-modal">
+            <div className="modal-header">
+              <div>
+                <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <ListChecks size={17} /> Payroll Validation
+                </h3>
+                <p className="text-sm text-muted" style={{ marginTop: 3 }}>
+                  Resolve blocking errors before submitting payroll for approval.
+                </p>
+              </div>
+              <button className="btn btn-ghost btn-icon" onClick={() => setShowValidation(false)} aria-label="Close validation">
+                <X size={17} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className={`payroll-validation-summary ${validation.ready ? 'ready' : 'blocked'}`}>
+                {validation.ready ? <CheckCircle size={22} /> : <AlertCircle size={22} />}
+                <div>
+                  <strong>{validation.ready ? 'Payroll is ready for approval' : `${validation.errors.length} blocking issue${validation.errors.length !== 1 ? 's' : ''}`}</strong>
+                  <p>{activeEntries.length} employees included · {validation.warnings.length} warning{validation.warnings.length !== 1 ? 's' : ''}</p>
+                </div>
+              </div>
+
+              {saveStatus !== 'saved' && (
+                <button type="button" className="payroll-validation-item error" onClick={handleSaveDraft}>
+                  <AlertCircle size={15} />
+                  <span><strong>Payroll changes are not safely saved.</strong><small>{saveStatus === 'failed' ? saveError : 'Wait for autosave or click to save now.'}</small></span>
+                  <span>Save now →</span>
+                </button>
+              )}
+
+              {validation.errors.map((current, index) => (
+                <button
+                  type="button"
+                  className="payroll-validation-item error"
+                  key={`${current.code}-${current.employeeId || 'run'}-${index}`}
+                  onClick={() => openValidationIssue(current)}
+                >
+                  <AlertCircle size={15} />
+                  <span>{current.message}</span>
+                  {current.employeeId && <span>Review →</span>}
+                </button>
+              ))}
+              {validation.warnings.map((current, index) => (
+                <button
+                  type="button"
+                  className="payroll-validation-item warning"
+                  key={`${current.code}-${current.employeeId || 'run'}-${index}`}
+                  onClick={() => openValidationIssue(current)}
+                >
+                  <Info size={15} />
+                  <span>{current.message}</span>
+                  {current.employeeId && <span>Review →</span>}
+                </button>
+              ))}
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={() => setShowValidation(false)}>Close</button>
+              {!validation.ready && (
+                <button className="btn btn-primary" onClick={() => { setEntryFilter('needs_review'); setShowValidation(false); }}>
+                  Review affected employees
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {detailEntry && detailEmployee && detailCalc && (
+        <div className="payroll-drawer-backdrop" onClick={() => setDetailEmployeeId(null)}>
+          <aside className="payroll-detail-drawer" onClick={event => event.stopPropagation()} aria-label={`${detailEmployee.name} payroll details`}>
+            <div className="payroll-drawer-header">
+              <div>
+                <span className={`payroll-row-status ${getEntryStatus(detailEntry)}`}>{getEntryStatus(detailEntry).replace('_', ' ')}</span>
+                <h3>{detailEmployee.name}</h3>
+                <p>{detailEmployee.empNo || 'No employee number'} · MOL {detailEmployee.molId || 'missing'}</p>
+              </div>
+              <button className="btn btn-ghost btn-icon" onClick={() => setDetailEmployeeId(null)} aria-label="Close employee details">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="payroll-drawer-body">
+              {(validation.byEmployee[detailEmployee.id] || []).length > 0 && (
+                <div className="payroll-drawer-issues">
+                  {(validation.byEmployee[detailEmployee.id] || []).map((current, index) => (
+                    <div key={`${current.code}-${index}`} className={current.severity}>
+                      <AlertCircle size={14} /> {current.message}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <section className="payroll-breakdown-section">
+                <h4>Earnings</h4>
+                <PayrollBreakdownRow label="Basic salary" amount={detailCalc.basicSalary} source="Employee profile" />
+                <PayrollBreakdownRow label="Housing allowance" amount={detailCalc.housingAllowance} source="Employee profile" />
+                <PayrollBreakdownRow label="Transport allowance" amount={detailCalc.transportAllowance} source="Employee profile" />
+                <PayrollBreakdownRow label="Other fixed allowance" amount={detailCalc.otherFixedAllowance} source="Employee profile" />
+                <PayrollBreakdownRow label="Increment" amount={detailCalc.increment} source="This payroll" />
+                <PayrollBreakdownRow label="Bonus / incentive" amount={detailCalc.bonus} source="This payroll" />
+                <PayrollBreakdownRow label="Other earnings" amount={detailCalc.otherPay} source="This payroll" />
+                {(detailEntry.additionalAllowances || []).map((item, index) => (
+                  <PayrollBreakdownRow
+                    key={`earning-${index}`}
+                    label={item.label || 'Additional earning'}
+                    amount={parseFloat(item.amount) || 0}
+                    source={item.source === 'automatic' ? 'Automatic' : item.recurrence === 'recurring' ? 'Recurring' : 'Manual'}
+                  />
+                ))}
+                <PayrollBreakdownRow label="Gross earnings" amount={detailCalc.grossEarnings} total />
+              </section>
+
+              <section className="payroll-breakdown-section deductions">
+                <h4>Deductions</h4>
+                <PayrollBreakdownRow label="Leave deduction" amount={detailCalc.leaveDeduction} source="Leave module" deduction />
+                {(detailEntry.deductions || []).map((item, index) => (
+                  <PayrollBreakdownRow
+                    key={`deduction-${index}`}
+                    label={item.label || 'Deduction'}
+                    amount={parseFloat(item.amount) || 0}
+                    source={item.source === 'automatic' ? 'Automatic' : item.recurrence === 'recurring' ? 'Recurring' : 'Manual'}
+                    deduction
+                  />
+                ))}
+                <PayrollBreakdownRow label="Total deductions" amount={detailCalc.totalDeductions} total deduction />
+              </section>
+
+              <div className="payroll-net-result">
+                <span>Net Pay</span>
+                <strong>AED {detailCalc.netPay.toLocaleString('en-AE', { minimumFractionDigits: 2 })}</strong>
+              </div>
+            </div>
+            <div className="payroll-drawer-footer">
+              {!editingLocked && <button className="btn btn-outline" onClick={() => { setDetailEmployeeId(null); setShowPanel(true); }}>Edit adjustments</button>}
+              <button className="btn btn-primary" onClick={() => setDetailEmployeeId(null)}>Done</button>
+            </div>
+          </aside>
+        </div>
+      )}
 
       {/* View Changes modal (PAY-7) */}
       {showChanges && (
@@ -1697,7 +2099,11 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
           entries={entries}
           employees={employees}
           onClose={() => setShowPanel(false)}
-          onSave={(updated) => { setEntries(updated); setShowPanel(false); }}
+          onSave={(updated) => {
+            setEntries(updated);
+            triggerAutoSave(updated, meta);
+            setShowPanel(false);
+          }}
         />
       )}
 
@@ -1744,56 +2150,6 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
         />
       )}
 
-      {/* Compliance override gate — expired licences, Emirates ID, or Visa */}
-      {licenceGate && (
-        <div className="modal-overlay" style={{ zIndex: 2000 }}>
-          <div className="modal" style={{ maxWidth: 540 }}>
-            <div className="modal-header" style={{ background: '#fff5f5', borderBottom: '1px solid #fecaca' }}>
-              <h3 style={{ color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <AlertCircle size={18} /> Expired Compliance Documents
-              </h3>
-            </div>
-            <div className="modal-body">
-              <p style={{ color: 'var(--gray-700)', marginBottom: 12 }}>
-                The following staff members have <strong>expired documents</strong> that may prevent legal employment.
-                Proceeding will be logged as a compliance override.
-              </p>
-              <table className="table" style={{ marginBottom: 16 }}>
-                <thead><tr><th>Employee</th><th>Document</th><th>Expired on</th></tr></thead>
-                <tbody>
-                  {licenceGate.violations.map((v, i) => (
-                    <tr key={i} style={{ background: '#fff5f5' }}>
-                      <td style={{ fontWeight: 500 }}>{v.emp.name}</td>
-                      <td><span className="badge badge-red">{v.type}</span></td>
-                      <td style={{ color: 'var(--danger)', fontSize: 13 }}>{v.expiry}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div className="form-group">
-                <label style={{ color: 'var(--danger)', fontWeight: 600 }}>
-                  Override Reason (HR authority required) *
-                </label>
-                <textarea
-                  className="form-control"
-                  rows={3}
-                  value={licenceOverrideReason}
-                  onChange={e => setLicenceOverrideReason(e.target.value)}
-                  placeholder="State the justification for proceeding despite expired documents (min 10 characters)…"
-                />
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn btn-outline" onClick={() => { setLicenceGate(null); setLicenceOverrideReason(''); }}>
-                Cancel — Resolve Documents First
-              </button>
-              <button className="btn btn-danger" onClick={handleDownload} disabled={licenceOverrideReason.trim().length < 10}>
-                <Download size={14} /> Override &amp; Download SIF
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

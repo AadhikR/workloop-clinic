@@ -15,6 +15,8 @@ function baseStyle() {
       * { margin: 0; padding: 0; box-sizing: border-box; }
       body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #1a1a1a; padding: 40px 56px; }
       .letterhead { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #08122e; padding-bottom: 16px; margin-bottom: 24px; }
+      .letterhead-left { display: flex; align-items: center; gap: 14px; }
+      .letterhead-logo { width: 60px; height: 60px; object-fit: contain; flex-shrink: 0; }
       .company-name { font-size: 20px; font-weight: 700; color: #08122e; }
       .company-sub { font-size: 11px; color: #555; margin-top: 3px; }
       .date { font-size: 12px; color: #555; text-align: right; }
@@ -32,11 +34,20 @@ function baseStyle() {
 
 function letterhead(company, refSuffix) {
   const ref = `HR/${new Date().getFullYear()}/${String(Date.now()).slice(-5)}`;
+  // Render the uploaded logo (data URL or remote URL) when present. The
+  // <img> is emitted with alt text so screen readers and PDF-print pipelines
+  // still convey meaning if the image fails to load.
+  const logo = company?.logoUrl
+    ? `<img class="letterhead-logo" src="${company.logoUrl}" alt="${(company?.name || 'Company').replace(/"/g, '&quot;')} logo" />`
+    : '';
   return `
     <div class="letterhead">
-      <div>
-        <div class="company-name">${company?.name || 'Company Name'}</div>
-        <div class="company-sub">Dubai, United Arab Emirates</div>
+      <div class="letterhead-left">
+        ${logo}
+        <div>
+          <div class="company-name">${company?.name || 'Company Name'}</div>
+          <div class="company-sub">Dubai, United Arab Emirates</div>
+        </div>
       </div>
       <div>
         <div class="date">${todayUAE()}</div>

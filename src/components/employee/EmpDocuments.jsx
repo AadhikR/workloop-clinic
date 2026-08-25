@@ -67,15 +67,17 @@ export default function EmpDocuments() {
       if (!eidCheck.valid) { showToast('error', eidCheck.message); return; }
     }
 
-    // Clinical licence uploads MUST carry the licence number so HR (and the SIF
-    // compliance gate) can match against MoHRE / DHA / DOH / MOH portals.
+    // Document number is required on ALL uploads — HR needs it to match against
+    // MoHRE / DHA / DOH / MOH portals, and the SIF compliance gate looks it up.
+    const num = (form.number || '').trim();
+    if (!num) {
+      showToast('error', 'Document number is required — please enter it before uploading.');
+      return;
+    }
+    // Clinical licence numbers follow a stricter format so they can be matched
+    // one-to-one against the government portals.
     const CLINICAL_LICENCE_TYPES = new Set(['DHA Licence', 'DOH Licence', 'MOH Licence']);
     if (CLINICAL_LICENCE_TYPES.has(form.type)) {
-      const num = (form.number || '').trim();
-      if (!num) {
-        showToast('error', `${form.type} requires the licence number — please enter it before uploading.`);
-        return;
-      }
       if (!/^[A-Za-z0-9\-/]{3,30}$/.test(num)) {
         showToast('error', 'Licence number must be 3–30 letters/digits (hyphens and slashes allowed).');
         return;
@@ -177,7 +179,7 @@ export default function EmpDocuments() {
               <div className="form-group">
                 <label>
                   Document Number
-                  <span style={{ color: 'var(--gray-400)', fontWeight: 400, marginLeft: 4 }}>(optional)</span>
+                  <span aria-hidden="true" style={{ color: 'var(--danger)', marginLeft: 3, fontWeight: 700 }}>*</span>
                 </label>
                 <input
                   className="form-control"

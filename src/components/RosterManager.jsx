@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { getEmployees, getAllEmployeeDocuments, saveComplianceOverride } from '../utils/storage';
 import { getDeptStaffingRules } from '../utils/staffingStorage';
+import { getLeaveRequests } from '../utils/leaveStorage';
+import { createNotifications } from '../utils/notificationStorage';
 import { CLINICAL_DOC_TYPES } from './EmployeeModal';
 import { useCompany } from '../context/CompanyContext';
 import {
@@ -170,7 +172,7 @@ function exportRosterCsv({ year, month, daysInMonth, employees, shifts, rosterDa
 // ── component ─────────────────────────────────────────────────────────────────
 
 export default function RosterManager() {
-  const { activeCompany } = useCompany();
+  const { activeCompany, activeCompanyId } = useCompany();
   const staffingRulesEnabled = activeCompany?.enableStaffingRules !== false;
   const [tab, setTab]         = useState('templates');
   const [loading, setLoading] = useState(true);
@@ -200,7 +202,14 @@ export default function RosterManager() {
   // Staffing rules (Feature 7.2)
   const [staffingRules, setStaffingRules] = useState([]);
   // Publish block modal state
-  const [publishGate, setPublishGate] = useState(null); // { violations } or null
+  const [publishGate, setPublishGate] = useState(null); // { violations, leaveConflicts } or null
+
+  // Leave conflicts — map key `${empId}_${dateStr}` → { status, code }
+  // Populated per-month load. Statuses considered blocking:
+  //   'Approved'         — HR final approval, hardest block
+  //   'ManagerApproved'  — awaiting HR, treat as blocking with softer message
+  //   'Pending'          — advisory, no block (employee hasn't been told yes yet)
+  const [leaveMap, setLeaveMap] = useState({});
 
   const initialLoadDone = useRef(false);
 
@@ -214,18 +223,25 @@ export default function RosterManager() {
   useEffect(() => {
     if (!initialLoadDone.current) return;
     loadRoster();
-  }, [rosterMonth]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [rosterMonth, activeCompanyId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reload everything when the admin switches active company.
+  useEffect(() => {
+    if (!initialLoadDone.current) return;
+    loadAll();
+  }, [activeCompanyId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadAll() {
     setLoading(true);
     try {
-      const [emps, shfts, swapReqs, roster, allDocs, deptRules] = await Promise.all([
-        getEmployees(),
+      const [emps, shfts, swapReqs, roster, allDocs, deptRules, leaves] = await Promise.all([
+        getEmployees(activeCompanyId),
         getShifts(),
-        getShiftSwapRequests().catch(() => []),
-        getRosterForMonth(rYear, rMonth).catch(() => []),
+        getShiftSwapRequests({}, activeCompanyId).catch(() => []),
+        getRosterForMonth(rYear, rMonth, activeCompanyId).catch(() => []),
         getAllEmployeeDocuments().catch(() => []),
         getDeptStaffingRules().catch(() => []),
+        getLeaveRequests().catch(() => []),
       ]);
       setStaffingRules(deptRules);
       const activeEmps = emps.filter(e => e.employmentStatus !== 'Terminated');
@@ -233,6 +249,7 @@ export default function RosterManager() {
       setShifts(shfts);
       setSwaps(swapReqs);
       buildRosterMap(roster);
+      buildLeaveMap(leaves);
 
       // Build licence compliance map (Feature 7.1)
       const PRIMARY_LICENCES = new Set(['DHA Licence', 'DOH Licence', 'MOH Licence']);
@@ -261,11 +278,44 @@ export default function RosterManager() {
 
   async function loadRoster() {
     try {
-      const roster = await getRosterForMonth(rYear, rMonth);
+      const [roster, leaves] = await Promise.all([
+        getRosterForMonth(rYear, rMonth, activeCompanyId),
+        // Unfiltered leave fetch, then bucket in-flight statuses. Matches the
+        // "call getLeaveRequests unfiltered" pattern (see CLAUDE.md — report
+        // builders trap).
+        getLeaveRequests().catch(() => []),
+      ]);
       buildRosterMap(roster);
+      buildLeaveMap(leaves);
     } catch (err) {
       showMsg('danger', 'Failed to load roster: ' + err.message);
     }
+  }
+
+  // Expand each blocking leave request into per-date entries covering the
+  // currently-viewed month, so cell edits and the publish gate can look up
+  // `${empId}_${dateStr}` in O(1).
+  function buildLeaveMap(leaves) {
+    const monthStart = new Date(rYear, rMonth - 1, 1);
+    const monthEnd   = new Date(rYear, rMonth, 0);
+    const map = {};
+    for (const lr of leaves) {
+      if (!['Approved', 'ManagerApproved'].includes(lr.status)) continue;
+      if (!lr.startDate || !lr.endDate) continue;
+      const start = new Date(lr.startDate);
+      const end   = new Date(lr.endDate);
+      // Clip to the visible month for cheap iteration.
+      const from = start < monthStart ? monthStart : start;
+      const to   = end   > monthEnd   ? monthEnd   : end;
+      for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+        const key = `${lr.employeeId}_${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+        // If multiple overlapping requests, prefer the harder status.
+        if (!map[key] || (map[key].status === 'ManagerApproved' && lr.status === 'Approved')) {
+          map[key] = { status: lr.status, code: lr.leaveTypeCode || '' };
+        }
+      }
+    }
+    setLeaveMap(map);
   }
 
   function buildRosterMap(assignments) {
@@ -329,6 +379,24 @@ export default function RosterManager() {
 
   async function handleCellChange(empId, dateStr, shiftId) {
     const cellKey = `${empId}_${dateStr}`;
+
+    // Leave-conflict guard — only when assigning (not when clearing).
+    if (shiftId) {
+      const conflict = leaveMap[cellKey];
+      if (conflict) {
+        const emp   = employees.find(e => e.id === empId);
+        const label = conflict.status === 'Approved'
+          ? 'APPROVED leave (HR-signed off)'
+          : 'manager-approved leave (awaiting HR)';
+        const ok = window.confirm(
+          `${emp?.name || 'This employee'} has ${label}` +
+          (conflict.code ? ` (${conflict.code})` : '') +
+          ` on ${formatDateUAE(dateStr)}.\n\nAssign the shift anyway?`,
+        );
+        if (!ok) return;
+      }
+    }
+
     setSavingCell(cellKey);
     try {
       if (!shiftId) {
@@ -343,6 +411,7 @@ export default function RosterManager() {
           date:         dateStr,
           plannedHours: sh?.expectedHours ?? null,
           published:    existing?.published ?? false,
+          companyId:    activeCompanyId,
         });
         setRosterData(prev => ({ ...prev, [cellKey]: saved }));
       }
@@ -354,15 +423,16 @@ export default function RosterManager() {
   }
 
   async function handlePublish() {
+    let violations     = [];
+    let leaveConflicts = [];
+    const daysInMonth  = new Date(rYear, rMonth, 0).getDate();
+
     // Feature 7.2 — staffing compliance check before publish. Skipped entirely
     // when the company has the Staffing Rules module disabled.
     if (staffingRulesEnabled && staffingRules.length > 0) {
-      const violations = [];
-      const daysInMonth = new Date(rYear, rMonth, 0).getDate();
       for (let d = 1; d <= daysInMonth; d++) {
         const dateStr = `${rYear}-${pad2(rMonth)}-${pad2(d)}`;
         for (const rule of staffingRules) {
-          // rosterData is a flat map: `${empId}_${dateStr}` → assignment
           const count = employees.filter(emp => {
             if (emp.department !== rule.department) return false;
             const assignment = rosterData[`${emp.id}_${dateStr}`];
@@ -375,10 +445,30 @@ export default function RosterManager() {
           }
         }
       }
-      if (violations.length > 0) {
-        setPublishGate({ violations });
-        return;
+    }
+
+    // Leave-conflict check — any (employee, day) that has both a shift and an
+    // in-flight approved leave request. Surfaces the same override-modal so
+    // the admin can either fix the roster or record why the double-book is OK
+    // (rare — leave usually wins).
+    for (const key of Object.keys(rosterData)) {
+      if (leaveMap[key]) {
+        const [empId, dateStr] = key.split('_');
+        const emp = employees.find(e => e.id === empId);
+        if (!emp) continue; // e.g. terminated employee's stale row
+        leaveConflicts.push({
+          date:       dateStr,
+          employee:   emp.name,
+          department: emp.department || '',
+          status:     leaveMap[key].status,
+          code:       leaveMap[key].code || '',
+        });
       }
+    }
+
+    if (violations.length > 0 || leaveConflicts.length > 0) {
+      setPublishGate({ violations, leaveConflicts });
+      return;
     }
     await doPublish();
   }
@@ -393,9 +483,32 @@ export default function RosterManager() {
           reason:       overrideReason,
         }).catch(() => {});
       }
-      await publishRoster(rYear, rMonth);
+      await publishRoster(rYear, rMonth, activeCompanyId);
       await loadRoster();
       setPublishGate(null);
+
+      // Notify each employee whose row appears in this month. Dedup key
+      // embeds the month so re-publishing is silent — matches the ON CONFLICT
+      // DO NOTHING pattern used elsewhere in notificationStorage.js.
+      try {
+        const monthLabel = rosterMonth.toLocaleString('en-AE', { month: 'long', year: 'numeric' });
+        const empIdsInMonth = new Set(Object.values(rosterData).map(a => a.employeeId));
+        const notifs = employees
+          .filter(e => e.authUserId && empIdsInMonth.has(e.id))
+          .map(e => ({
+            recipientUserId:   e.authUserId,
+            type:              'roster_published',
+            title:             `Roster published — ${monthLabel}`,
+            body:              `Your shifts for ${monthLabel} are now visible in the Schedule tab.`,
+            relatedEntityType: 'roster',
+            relatedEntityId:   `roster_${rYear}-${pad2(rMonth)}`,
+          }));
+        if (notifs.length > 0) await createNotifications(notifs);
+      } catch (err) {
+        // Non-fatal — publish itself already succeeded.
+        console.warn('roster publish notifications:', err);
+      }
+
       showMsg('success', 'Roster published — employees can now view their schedule.');
     } catch (err) {
       showMsg('danger', 'Failed to publish roster: ' + err.message);
@@ -411,7 +524,14 @@ export default function RosterManager() {
     try {
       const updated = await updateShiftSwapRequest(id, status);
       setSwaps(prev => prev.map(s => s.id === id ? updated : s));
-      showMsg('success', `Swap request ${status}.`);
+      // Approval mutates roster_assignments (sql/052_shift_swap_execution.sql),
+      // so pull the roster back in for whichever month(s) are affected.
+      if (status === 'approved') {
+        await loadRoster();
+        showMsg('success', 'Swap approved — roster has been rewritten.');
+      } else {
+        showMsg('success', `Swap request ${status}.`);
+      }
     } catch (err) {
       showMsg('danger', 'Failed: ' + err.message);
     } finally {
@@ -428,6 +548,10 @@ export default function RosterManager() {
     : employees;
   const pendingSwaps    = swaps.filter(s => s.status === 'pending');
   const monthIsPublished = Object.values(rosterData).some(a => a.published);
+  // Any assignment in the visible month that has never been published, OR
+  // that was added/edited after the last publish (still !published on this row).
+  const unpublishedCount = Object.values(rosterData).filter(a => !a.published).length;
+  const hasUnpublishedChanges = monthIsPublished && unpublishedCount > 0;
 
   function getEmpPlannedHours(empId) {
     let total = 0;
@@ -810,12 +934,24 @@ export default function RosterManager() {
                   <Download size={13} /> Export CSV
                 </button>
                 <button
-                  className="btn btn-primary btn-sm"
+                  className={`btn btn-sm ${hasUnpublishedChanges ? 'btn-warning' : 'btn-primary'}`}
                   onClick={handlePublish}
                   disabled={publishing || Object.keys(rosterData).length === 0}
-                  title={monthIsPublished ? 'Re-publish (update employee view)' : 'Publish roster for employees to see'}
+                  title={
+                    hasUnpublishedChanges
+                      ? `${unpublishedCount} unpublished change${unpublishedCount === 1 ? '' : 's'} since last publish`
+                      : monthIsPublished
+                        ? 'Re-publish (update employee view)'
+                        : 'Publish roster for employees to see'
+                  }
+                  style={hasUnpublishedChanges ? { background: '#f59e0b', borderColor: '#f59e0b', color: '#fff' } : undefined}
                 >
-                  <Send size={13} /> {publishing ? 'Publishing…' : monthIsPublished ? 'Re-publish' : 'Publish'}
+                  <Send size={13} />
+                  {publishing
+                    ? 'Publishing…'
+                    : hasUnpublishedChanges
+                      ? `Re-publish · ${unpublishedCount} pending`
+                      : monthIsPublished ? 'Re-publish' : 'Publish'}
                 </button>
               </div>
             </div>
@@ -925,7 +1061,9 @@ export default function RosterManager() {
                             const assignment = rosterData[cellKey];
                             const sh         = assignment ? shifts.find(s => s.id === assignment.shiftId) : null;
                             const dow        = new Date(dateStr).toLocaleString('en-AE', { weekday: 'short' });
-                            const isWeekend  = dow === 'Fri' || dow === 'Sat';
+                            // UAE government/healthcare weekend is Sat–Sun (matches the
+                            // column header shading on line 855). Was Fri/Sat pre-2022.
+                            const isWeekend  = dow === 'Sat' || dow === 'Sun';
                             const isSaving   = savingCell === cellKey;
                             const beforeJoin = isBeforeJoin(emp, dateStr);
                             const joinDay    = isJoinDay(emp, dateStr);
@@ -1236,41 +1374,83 @@ export default function RosterManager() {
         )}
       </div>
 
-      {/* Feature 7.2 — Publish staffing compliance gate */}
+      {/* Feature 7.2 — Publish staffing compliance + leave-conflict gate */}
       {publishGate && (
         <div className="modal-overlay" style={{ zIndex: 2000 }}>
-          <div className="modal" style={{ maxWidth: 560 }}>
+          <div className="modal" style={{ maxWidth: 640 }}>
             <div className="modal-header" style={{ background: '#fff5f5', borderBottom: '1px solid #fecaca' }}>
               <h3 style={{ color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <AlertCircle size={18} /> Staffing Below Minimum
+                <AlertCircle size={18} />
+                {publishGate.violations.length > 0 && publishGate.leaveConflicts?.length > 0
+                  ? 'Staffing + Leave Conflicts'
+                  : publishGate.violations.length > 0
+                    ? 'Staffing Below Minimum'
+                    : 'Leave Conflicts'}
               </h3>
             </div>
             <div className="modal-body">
-              <p style={{ color: 'var(--gray-700)', marginBottom: 12 }}>
-                The roster has <strong>{publishGate.violations.length} date/shift combinations</strong> below the required minimum staff.
-                Publishing will make this visible to employees.
-              </p>
-                <div style={{ maxHeight: 240, overflowY: 'auto', marginBottom: 16 }}>
-                  <table className="table">
-                    <thead><tr><th>Date</th><th>Department</th><th>Shift</th><th>Required</th><th>Assigned</th></tr></thead>
-                    <tbody>
-                      {publishGate.violations.slice(0, 30).map((v, i) => (
-                        <tr key={i} style={{ background: '#fff5f5' }}>
-                          <td style={{ fontSize: 13 }}>{formatDateUAE(v.date)}</td>
-                          <td style={{ fontWeight: 500 }}>{v.department}</td>
-                          <td>{CATEGORY_LABELS[v.shiftCategory] || v.shiftCategory}</td>
-                          <td><span className="badge badge-blue">{v.required}</span></td>
-                          <td><span className="badge badge-red">{v.actual}</span></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {publishGate.violations.length > 30 && (
-                    <p style={{ fontSize: 12, color: 'var(--gray-400)', textAlign: 'center', margin: '8px 0 0' }}>
-                      …and {publishGate.violations.length - 30} more violations
-                    </p>
-                  )}
-                </div>
+              {publishGate.violations.length > 0 && (
+                <>
+                  <p style={{ color: 'var(--gray-700)', marginBottom: 12 }}>
+                    The roster has <strong>{publishGate.violations.length} date/shift combinations</strong> below the required minimum staff.
+                    Publishing will make this visible to employees.
+                  </p>
+                  <div style={{ maxHeight: 200, overflowY: 'auto', marginBottom: 16 }}>
+                    <table className="table">
+                      <thead><tr><th>Date</th><th>Department</th><th>Shift</th><th>Required</th><th>Assigned</th></tr></thead>
+                      <tbody>
+                        {publishGate.violations.slice(0, 30).map((v, i) => (
+                          <tr key={i} style={{ background: '#fff5f5' }}>
+                            <td style={{ fontSize: 13 }}>{formatDateUAE(v.date)}</td>
+                            <td style={{ fontWeight: 500 }}>{v.department}</td>
+                            <td>{CATEGORY_LABELS[v.shiftCategory] || v.shiftCategory}</td>
+                            <td><span className="badge badge-blue">{v.required}</span></td>
+                            <td><span className="badge badge-red">{v.actual}</span></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {publishGate.violations.length > 30 && (
+                      <p style={{ fontSize: 12, color: 'var(--gray-400)', textAlign: 'center', margin: '8px 0 0' }}>
+                        …and {publishGate.violations.length - 30} more violations
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {publishGate.leaveConflicts?.length > 0 && (
+                <>
+                  <p style={{ color: 'var(--gray-700)', marginBottom: 12 }}>
+                    <strong>{publishGate.leaveConflicts.length} shift assignment{publishGate.leaveConflicts.length !== 1 ? 's' : ''}</strong> collide with approved leave.
+                    Employees on leave will still see these shifts once published.
+                  </p>
+                  <div style={{ maxHeight: 200, overflowY: 'auto', marginBottom: 16 }}>
+                    <table className="table">
+                      <thead><tr><th>Date</th><th>Employee</th><th>Department</th><th>Leave Status</th></tr></thead>
+                      <tbody>
+                        {publishGate.leaveConflicts.slice(0, 30).map((c, i) => (
+                          <tr key={i} style={{ background: '#fffbeb' }}>
+                            <td style={{ fontSize: 13 }}>{formatDateUAE(c.date)}</td>
+                            <td style={{ fontWeight: 500 }}>{c.employee}</td>
+                            <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{c.department || '—'}</td>
+                            <td>
+                              <span className={`badge ${c.status === 'Approved' ? 'badge-red' : 'badge-amber'}`}>
+                                {c.status}{c.code ? ` · ${c.code}` : ''}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {publishGate.leaveConflicts.length > 30 && (
+                      <p style={{ fontSize: 12, color: 'var(--gray-400)', textAlign: 'center', margin: '8px 0 0' }}>
+                        …and {publishGate.leaveConflicts.length - 30} more conflicts
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
                 <div className="form-group">
                   <label style={{ color: 'var(--danger)', fontWeight: 600 }}>
                     Override Reason (required to publish despite violations)

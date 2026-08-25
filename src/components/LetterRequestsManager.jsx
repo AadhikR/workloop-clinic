@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
-import { Mail, XCircle, Printer } from 'lucide-react';
+import { Fragment, useEffect, useState } from 'react';
+import { CheckCircle, Mail, XCircle, Printer } from 'lucide-react';
 import { getLetterRequests, completeLetterRequest, rejectLetterRequest } from '../utils/letterStorage';
 import { getCompany, getEmployees } from '../utils/storage';
 import { printLetter } from '../utils/letterTemplates';
 import { useCompany } from '../context/CompanyContext';
 import { formatDateUAE } from '../utils/uaeValidators';
+import { REQUEST_KINDS } from '../utils/requestUtils';
+import ExpandableText from './ExpandableText';
 
 const STATUS_BADGE = {
   pending:   { cls: 'badge-amber', label: 'Pending' },
@@ -29,19 +31,23 @@ export default function LetterRequestsManager() {
   const [rejectReason, setRejectReason] = useState('');
 
   useEffect(() => {
-    setLoading(true);
-    Promise.all([getEmployees(activeCompanyId), getCompany(activeCompanyId)])
+    let cancelled = false;
+    Promise.resolve()
+      .then(() => setLoading(true))
+      .then(() => Promise.all([getEmployees(activeCompanyId), getCompany(activeCompanyId)]))
       .then(([emps, co]) =>
         getLetterRequests(emps).then(reqs => {
+          if (cancelled) return;
           setRequests(reqs);
           setCompany(co);
           setLoading(false);
         })
       );
+    return () => { cancelled = true; };
   }, [activeCompanyId]);
 
   const handleComplete = async (req) => {
-    printLetter(req, company);
+    if (req.requestKind === REQUEST_KINDS.LETTER) printLetter(req, company);
     try {
       await completeLetterRequest(req.id);
       setRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'completed', completedAt: new Date().toISOString() } : r));
@@ -76,56 +82,70 @@ export default function LetterRequestsManager() {
   if (loading) return <div className="page-body"><div style={{ padding: 40, textAlign: 'center', color: 'var(--gray-400)' }}>Loading…</div></div>;
 
   return (
-    <div className="page-body">
+    <>
+      {/* page-header sits as a SIBLING of page-body (not nested inside it)
+          to match every other module in the app — nesting made the header
+          narrower than the cards below because both .page-header's margin
+          and .page-body's padding were stacking. */}
       <div className="page-header">
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700 }}>Letter Requests</h1>
+          <h1 style={{ fontSize: 22, fontWeight: 700 }}>Requests</h1>
           <p style={{ color: 'var(--gray-500)', fontSize: 13, marginTop: 2 }}>
-            Generate and manage employee HR letter requests
+            Review and manage employee and manager letter or custom requests
           </p>
         </div>
       </div>
 
-      {/* Filter tabs */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-        {FILTERS.map(f => (
-          <button
-            key={f.key}
-            className={`btn tab-btn ${filter === f.key ? 'tab-btn-active' : ''}`}
-            onClick={() => setFilter(f.key)}
-          >
-            {f.label}
-            {counts[f.key] > 0 && (
-              <span
-                className={`badge ${f.key === 'pending' ? 'badge-amber' : f.key === 'rejected' ? 'badge-red' : 'badge-blue'}`}
-                style={{ marginLeft: 6, fontSize: 11 }}
+      <div className="page-body">
+        {/* Filter tabs — wrapped in a white card so they read as a proper
+            control strip aligned with the header and the table card below. */}
+        <div className="card" style={{ padding: '10px 14px', marginBottom: 16 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {FILTERS.map(f => (
+              <button
+                key={f.key}
+                className={`btn tab-btn ${filter === f.key ? 'tab-btn-active' : ''}`}
+                onClick={() => setFilter(f.key)}
               >
-                {counts[f.key]}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
+                {f.label}
+                {counts[f.key] > 0 && (
+                  <span
+                    className={`badge ${f.key === 'pending' ? 'badge-amber' : f.key === 'rejected' ? 'badge-red' : 'badge-blue'}`}
+                    style={{ marginLeft: 6, fontSize: 11 }}
+                  >
+                    {counts[f.key]}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
 
       {visible.length === 0 ? (
         <div className="card" style={{ padding: '48px 24px', textAlign: 'center' }}>
           <Mail size={36} style={{ margin: '0 auto 12px', display: 'block', opacity: 0.25 }} />
           <p style={{ color: 'var(--gray-500)', fontSize: 14 }}>
-            {filter === 'pending'   ? 'No pending letter requests.' :
+            {filter === 'pending'   ? 'No pending requests.' :
          filter === 'completed' ? 'No completed requests yet.' :
          filter === 'rejected'  ? 'No rejected requests.' :
-         'No letter requests yet.'}
+         'No requests yet.'}
           </p>
         </div>
       ) : (
         <div className="card">
           <div className="table-wrap">
-            <table>
+            {/* Scoped override: the global `thead tr { background:#e2e8f0 }`
+                rule tints every table header the same soft blue-gray. Here we
+                want a plain white header so the row reads as a clean divider
+                strip rather than a chip. Only this table opts in via the
+                class below — every other module keeps the default. */}
+            <table className="letters-table">
               <thead>
                 <tr>
                   <th style={{ minWidth: 140 }}>Employee</th>
-                  <th style={{ minWidth: 180 }}>Letter Type</th>
-                  <th style={{ minWidth: 140 }}>Purpose</th>
+                  <th style={{ minWidth: 90 }}>Type</th>
+                  <th style={{ minWidth: 180 }}>Subject</th>
+                  <th style={{ minWidth: 180 }}>Details</th>
                   <th style={{ minWidth: 100 }}>Requested</th>
                   <th style={{ minWidth: 100 }}>Status</th>
                   <th style={{ minWidth: 200 }}>Rejection Reason</th>
@@ -137,14 +157,15 @@ export default function LetterRequestsManager() {
                   const badge = STATUS_BADGE[req.status] || STATUS_BADGE.pending;
                   const isRejectingThis = rejectId === req.id;
                   return (
-                    <>
-                      <tr key={req.id} style={req.status === 'pending' ? { background: 'rgba(217,119,6,0.03)' } : undefined}>
+                    <Fragment key={req.id}>
+                      <tr style={req.status === 'pending' ? { background: 'rgba(217,119,6,0.03)' } : undefined}>
                         <td>
                           <div style={{ fontWeight: 600, fontSize: 13 }}>{req.employeeName}</div>
                           <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>{req.jobTitle || '—'} {req.department ? `· ${req.department}` : ''}</div>
                         </td>
-                        <td style={{ fontSize: 13 }}>{req.letterType}</td>
-                        <td style={{ fontSize: 12, color: 'var(--gray-500)', maxWidth: 180 }}>{req.purpose || <span style={{ color: 'var(--gray-300)' }}>—</span>}</td>
+                        <td><span className={`badge ${req.requestKind === REQUEST_KINDS.CUSTOM ? 'badge-blue' : 'badge-gray'}`}>{req.requestKind === REQUEST_KINDS.CUSTOM ? 'Custom' : 'Letter'}</span></td>
+                        <td style={{ fontSize: 13, fontWeight: 500 }}>{req.letterType}</td>
+                        <td className="request-text-cell" style={{ width: 280, maxWidth: 360 }}><ExpandableText text={req.purpose} /></td>
                         <td style={{ fontSize: 12, color: 'var(--gray-500)', whiteSpace: 'nowrap' }}>{formatDateUAE(req.requestedAt)}</td>
                         <td>
                           <span className={`badge ${badge.cls}`} style={{ fontSize: 11 }}>{badge.label}</span>
@@ -152,10 +173,11 @@ export default function LetterRequestsManager() {
                             <div style={{ fontSize: 10, color: 'var(--gray-400)', marginTop: 2 }}>{formatDateUAE(req.completedAt)}</div>
                           )}
                         </td>
-                        <td style={{ fontSize: 12, color: 'var(--danger)' }}>
-                          {req.status === 'rejected' && req.rejectionReason
-                            ? req.rejectionReason
-                            : <span style={{ color: 'var(--gray-300)' }}>—</span>}
+                        <td className="request-text-cell" style={{ width: 240, maxWidth: 300 }}>
+                          <ExpandableText
+                            text={req.status === 'rejected' ? req.rejectionReason : ''}
+                            tone="danger"
+                          />
                         </td>
                         <td>
                           {req.status === 'pending' && (
@@ -163,10 +185,11 @@ export default function LetterRequestsManager() {
                               <button
                                 className="btn btn-primary btn-sm"
                                 style={{ gap: 5, display: 'flex', alignItems: 'center' }}
-                                title="Print letter and mark complete"
+                                title={req.requestKind === REQUEST_KINDS.CUSTOM ? 'Mark request complete' : 'Print letter and mark complete'}
                                 onClick={() => handleComplete(req)}
                               >
-                                <Printer size={13} /> Generate
+                                {req.requestKind === REQUEST_KINDS.CUSTOM ? <CheckCircle size={13} /> : <Printer size={13} />}
+                                {req.requestKind === REQUEST_KINDS.CUSTOM ? 'Complete' : 'Generate'}
                               </button>
                               <button
                                 className="btn btn-ghost btn-sm text-danger"
@@ -177,7 +200,7 @@ export default function LetterRequestsManager() {
                               </button>
                             </div>
                           )}
-                          {req.status === 'completed' && (
+                          {req.status === 'completed' && req.requestKind === REQUEST_KINDS.LETTER && (
                             <button
                               className="btn btn-ghost btn-sm"
                               style={{ gap: 5, display: 'flex', alignItems: 'center', color: 'var(--gray-500)' }}
@@ -191,7 +214,7 @@ export default function LetterRequestsManager() {
                       </tr>
                       {isRejectingThis && (
                         <tr key={`reject-${req.id}`}>
-                          <td colSpan={7} style={{ background: 'rgba(220,38,38,0.04)', padding: '10px 16px' }}>
+                          <td colSpan={8} style={{ background: 'rgba(220,38,38,0.04)', padding: '10px 16px' }}>
                             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                               <input
                                 className="form-control"
@@ -207,7 +230,7 @@ export default function LetterRequestsManager() {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </Fragment>
                   );
                 })}
               </tbody>
@@ -215,6 +238,7 @@ export default function LetterRequestsManager() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }

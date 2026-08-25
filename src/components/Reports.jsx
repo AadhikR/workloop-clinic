@@ -13,7 +13,7 @@
 import { useState, useEffect } from 'react';
 import { BarChart2, Users, DollarSign, CalendarDays, Clock, FileText, TrendingUp, UserMinus, Download, AlertCircle, ShieldCheck, Landmark, Flag, Wallet, ClipboardList } from 'lucide-react';
 import { getEmployees, getPayrolls, getAllEmployeeDocuments, getAllJobHistory } from '../utils/storage';
-import { getLeaveRequests } from '../utils/leaveStorage';
+import { getLeaveRequests, getAllLeaveBalances } from '../utils/leaveStorage';
 import { getAttendanceRecords, getRosterForMonth } from '../utils/attendanceStorage';
 import { getDeptStaffingRules } from '../utils/staffingStorage';
 import { formatDateUAE } from '../utils/uaeValidators';
@@ -22,7 +22,8 @@ import {
   buildHeadcountReport,     headcountToRows,
   buildPayrollCostReport,   payrollCostToRows,
   buildLeaveUtilizationReport, leaveUtilToRows,
-  buildAttendanceSummaryReport, attendanceSummaryToRows,
+  buildAttendanceSummaryReport,
+  buildOvertimeReport,        overtimeToRows,
   buildDocumentExpiryReport, docExpiryToRows,
   buildSalaryMovementReport, salaryMovementToRows,
   buildTurnoverReport,      turnoverJoinersToRows, turnoverLeaversToRows,
@@ -38,6 +39,7 @@ const ALL_TABS = [
   { id: 'payroll',     label: 'Payroll Cost',        icon: DollarSign },
   { id: 'leave',       label: 'Leave Usage',         icon: CalendarDays },
   { id: 'attendance',  label: 'Attendance',          icon: Clock },
+  { id: 'overtime',    label: 'Overtime',            icon: TrendingUp },
   { id: 'documents',   label: 'Doc Expiry',          icon: FileText },
   { id: 'salary',      label: 'Salary History',      icon: TrendingUp },
   { id: 'turnover',    label: 'Staff Turnover',      icon: UserMinus },
@@ -269,7 +271,16 @@ function LeaveUsageTab({ employees, leaveRequests }) {
 function AttendanceTab({ employees, attendanceRecords }) {
   const [period, setPeriod] = useState(thisPeriod);
   const report = buildAttendanceSummaryReport(employees, attendanceRecords, period);
-  const rows   = attendanceSummaryToRows(report);
+  const rows = report.map(row => ({
+    Employee: row.name,
+    Department: row.department,
+    'Days Recorded': row.totalDays,
+    Present: row.present,
+    Absent: row.absent,
+    Late: row.late,
+    'Early Departure': row.earlyDep,
+    'Total Hours': row.totalHours,
+  }));
 
   return (
     <div>
@@ -326,6 +337,43 @@ function AttendanceTab({ employees, attendanceRecords }) {
   );
 }
 
+// ─── Overtime ────────────────────────────────────────────────────────────────
+function OvertimeTab({ employees, attendanceRecords }) {
+  const [period, setPeriod] = useState(thisPeriod);
+  const report = buildOvertimeReport(employees, attendanceRecords, period);
+  const rows = overtimeToRows(report);
+  const totals = report.reduce((acc, row) => ({
+    hours: acc.hours + row.approvedHours,
+    pending: acc.pending + row.pendingHours,
+    cost: acc.cost + row.approvedCost,
+  }), { hours: 0, pending: 0, cost: 0 });
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+        <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--gray-600)' }}>Period</label>
+        <input className="form-control" type="month" style={{ width: 160 }} value={period} onChange={e => setPeriod(e.target.value)} />
+        <span className="text-muted text-sm">{report.length} employee{report.length !== 1 ? 's' : ''} with overtime</span>
+      </div>
+      <div className="stats-grid" style={{ marginBottom: 20 }}>
+        <div className="stat-card"><div className="stat-label">Approved Hours</div><div className="stat-value">{Math.round(totals.hours * 10) / 10}</div></div>
+        <div className="stat-card"><div className="stat-label">Pending Hours</div><div className="stat-value">{Math.round(totals.pending * 10) / 10}</div></div>
+        <div className="stat-card"><div className="stat-label">Approved Cost</div><div className="stat-value">{fmtAED(totals.cost)}</div></div>
+      </div>
+      {!rows.length ? <EmptyState message={`No overtime records found for ${period}.`} /> : (
+        <div className="card"><div className="table-wrap"><table>
+          <thead><tr>{Object.keys(rows[0]).map(header => <th key={header}>{header}</th>)}</tr></thead>
+          <tbody>{rows.map((row, index) => <tr key={report[index].empId}>{Object.values(row).map((value, cell) => <td key={cell}>{value}</td>)}</tr>)}</tbody>
+        </table></div></div>
+      )}
+      <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
+        <button className="btn btn-outline btn-sm" disabled={!rows.length} onClick={() => exportCSV(rows, `overtime_${period}.csv`)}><Download size={13} /> Export CSV</button>
+        <button className="btn btn-outline btn-sm" disabled={!rows.length} onClick={() => exportPDF(`Overtime Report ${period}`, Object.keys(rows[0] || {}), rows, `overtime_${period}.pdf`)}><Download size={13} /> Export PDF</button>
+      </div>
+    </div>
+  );
+}
+
 // ─── 5. Document Expiry ───────────────────────────────────────────────────────
 function DocExpiryTab({ employees, documents }) {
   const [days, setDays] = useState(90);
@@ -357,6 +405,7 @@ function DocExpiryTab({ employees, documents }) {
                   <th>Employee</th>
                   <th>Department</th>
                   <th>Document Type</th>
+                  <th>Source</th>
                   <th>Expiry Date</th>
                   <th className="text-right">Days Remaining</th>
                   <th>Status</th>
@@ -368,6 +417,7 @@ function DocExpiryTab({ employees, documents }) {
                     <td style={{ fontWeight: 500 }}>{r.employee}</td>
                     <td className="text-muted">{r.department}</td>
                     <td>{r.documentType}</td>
+                    <td><span className={`badge ${r.source === 'Employee Profile' ? 'badge-blue' : 'badge-gray'}`}>{r.source}</span></td>
                     <td className="font-mono text-sm">{formatDateUAE(r.expiryDate)}</td>
                     <td className="text-right font-bold" style={{ color: r.daysRemaining < 0 ? 'var(--danger)' : r.daysRemaining < 30 ? 'var(--danger)' : r.daysRemaining < 60 ? 'var(--warning)' : 'var(--gray-600)' }}>
                       {r.daysRemaining < 0 ? `${Math.abs(r.daysRemaining)}d ago` : `${r.daysRemaining}d`}
@@ -385,7 +435,7 @@ function DocExpiryTab({ employees, documents }) {
         <button className="btn btn-outline btn-sm" disabled={!rows.length} onClick={() => exportCSV(rows, `doc_expiry_${days}d.csv`)}>
           <Download size={13} /> Export CSV
         </button>
-        <button className="btn btn-outline btn-sm" disabled={!rows.length} onClick={() => exportPDF(`Document Expiry Report (${days} days)`, ['Employee','Department','Document Type','Expiry Date','Days Remaining','Status'], rows, `doc_expiry_${days}d.pdf`)}>
+        <button className="btn btn-outline btn-sm" disabled={!rows.length} onClick={() => exportPDF(`Document Expiry Report (${days} days)`, ['Employee','Department','Document Type','Source','Expiry Date','Days Remaining','Status'], rows, `doc_expiry_${days}d.pdf`)}>
           <Download size={13} /> Export PDF
         </button>
       </div>
@@ -512,7 +562,7 @@ function TurnoverTab({ employees }) {
                   <tr key={e.id}>
                     <td style={{ fontWeight: 500 }}>{e.name}</td>
                     <td className="text-muted">{e.department || '—'}</td>
-                    <td>{e.employmentStartDate || e.startDate || '—'}</td>
+                    <td>{formatDateUAE(e.employmentStartDate || e.startDate)}</td>
                     <td className="text-muted">{e.jobTitle || '—'}</td>
                     <td>{e.contractType || '—'}</td>
                   </tr>
@@ -539,8 +589,8 @@ function TurnoverTab({ employees }) {
                   <tr key={e.id}>
                     <td style={{ fontWeight: 500 }}>{e.name}</td>
                     <td className="text-muted">{e.department || '—'}</td>
-                    <td>{e.employmentStartDate || e.startDate || '—'}</td>
-                    <td style={{ color: 'var(--danger)' }}>{e.terminationDate || '—'}</td>
+                    <td>{formatDateUAE(e.employmentStartDate || e.startDate)}</td>
+                    <td style={{ color: 'var(--danger)' }}>{formatDateUAE(e.terminationDate)}</td>
                     <td className="text-muted text-sm">{e.terminationReason || '—'}</td>
                   </tr>
                 ))}
@@ -558,20 +608,26 @@ function TurnoverTab({ employees }) {
 }
 
 // ─── 8. Staffing Compliance ────────────────────────────────────────────────────
-function StaffingComplianceTab({ employees, staffingRules }) {
+function StaffingComplianceTab({ employees, staffingRules, companyId }) {
   const [month, setMonth]   = useState(thisPeriod);
   const [roster, setRoster] = useState([]);
   const [loading, setLoading] = useState(true);
   const SHIFT_LABELS = { morning: '☀ Morning', afternoon: '🌤 Afternoon', night: '🌙 Night' };
 
   useEffect(() => {
-    setLoading(true);
+    let cancelled = false;
     const [y, m] = month.split('-').map(Number);
-    getRosterForMonth(y, m).then(r => {
-      setRoster(r);
+    Promise.resolve()
+      .then(() => setLoading(true))
+      .then(() => getRosterForMonth(y, m, companyId)).then(r => {
+      if (cancelled) return;
+      setRoster(r.filter(assignment => assignment.published === true));
       setLoading(false);
-    }).catch(() => { setRoster([]); setLoading(false); });
-  }, [month]);
+    }).catch(() => {
+      if (!cancelled) { setRoster([]); setLoading(false); }
+    });
+    return () => { cancelled = true; };
+  }, [month, companyId]);
 
   if (!staffingRules.length) {
     return (
@@ -579,19 +635,19 @@ function StaffingComplianceTab({ employees, staffingRules }) {
     );
   }
 
-  const MonthPicker = () => (
+  const monthPicker = (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
       <label style={{ fontSize: 13, fontWeight: 600 }}>Month:</label>
       <input type="month" className="form-control" style={{ display: 'inline-block', width: 'auto' }} value={month} onChange={e => setMonth(e.target.value)} />
     </div>
   );
 
-  if (loading) return <div><MonthPicker /><div style={{ padding: 24, textAlign: 'center', color: 'var(--gray-400)' }}>Loading roster…</div></div>;
+  if (loading) return <div>{monthPicker}<div style={{ padding: 24, textAlign: 'center', color: 'var(--gray-400)' }}>Loading roster…</div></div>;
 
   if (!roster.length) {
     return (
       <div>
-        <MonthPicker />
+        {monthPicker}
         <EmptyState message="No roster data for this month. Publish the roster first." />
       </div>
     );
@@ -608,12 +664,13 @@ function StaffingComplianceTab({ employees, staffingRules }) {
   const rows = staffingRules.map(rule => {
     const dayCounts = days.map(dateStr => {
       const count = roster.filter(r => {
-        if (r.date !== dateStr) return false;
+        if (r.date !== dateStr || r.published !== true) return false;
         const emp = employees.find(e => e.id === r.employeeId);
         if (!emp || emp.department !== rule.department) return false;
         return (r.shift?.shiftCategory || '') === rule.shiftCategory;
       }).length;
-      return { dateStr, count, ok: count >= rule.minStaff };
+      const effective = (!rule.effectiveFrom || dateStr >= rule.effectiveFrom) && (!rule.effectiveTo || dateStr <= rule.effectiveTo);
+      return { dateStr, count, effective, ok: !effective || count >= rule.minStaff };
     });
     const violations = dayCounts.filter(d => !d.ok).length;
     return { rule, dayCounts, violations };
@@ -646,25 +703,25 @@ function StaffingComplianceTab({ employees, staffingRules }) {
             </span>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-            {dayCounts.map(({ dateStr, count, ok }) => (
+            {dayCounts.map(({ dateStr, count, effective, ok }) => (
               <div
                 key={dateStr}
-                title={`${dateStr}: ${count} staff (min ${rule.minStaff})`}
+                title={effective ? `${dateStr}: ${count} staff (min ${rule.minStaff})` : `${dateStr}: rule not effective`}
                 style={{
                   width: 28, height: 28, borderRadius: 4,
-                  background: ok ? '#dcfce7' : '#fee2e2',
-                  border: `1px solid ${ok ? '#a7f3d0' : '#fca5a5'}`,
+                  background: !effective ? '#f1f5f9' : ok ? '#dcfce7' : '#fee2e2',
+                  border: `1px solid ${!effective ? '#cbd5e1' : ok ? '#a7f3d0' : '#fca5a5'}`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: 10, fontWeight: 600,
-                  color: ok ? '#16a34a' : '#dc2626',
+                  color: !effective ? '#94a3b8' : ok ? '#16a34a' : '#dc2626',
                 }}
               >
-                {count}
+                {effective ? count : '—'}
               </div>
             ))}
           </div>
           <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 6 }}>
-            Each cell = day count (green ≥ min, red &lt; min)
+            Each cell = published staff count (green ≥ min, red &lt; min, grey = rule not effective)
           </div>
         </div>
       ))}
@@ -699,6 +756,10 @@ function WpsComplianceTab({ payrolls }) {
           <div style={{ fontSize: 11, color: '#64748b' }}>Pending</div>
         </div>
         <div className="card" style={{ padding: 14, flex: 1, minWidth: 120, textAlign: 'center' }}>
+          <div style={{ fontSize: 24, fontWeight: 700, color: '#ef4444' }}>{report.failed.length}</div>
+          <div style={{ fontSize: 11, color: '#64748b' }}>Failed / Partial</div>
+        </div>
+        <div className="card" style={{ padding: 14, flex: 1, minWidth: 120, textAlign: 'center' }}>
           <div style={{ fontSize: 24, fontWeight: 700, color: report.complianceRate >= 80 ? '#10b981' : '#ef4444' }}>{report.complianceRate}%</div>
           <div style={{ fontSize: 11, color: '#64748b' }}>Compliance Rate</div>
         </div>
@@ -715,8 +776,8 @@ function WpsComplianceTab({ payrolls }) {
 }
 
 // ─── Emiratization ──────────────────────────────────────────────────────────
-function EmiratizationTab({ employees }) {
-  const report = buildEmiratizationReport(employees);
+function EmiratizationTab({ employees, company }) {
+  const report = buildEmiratizationReport(employees, company?.nafisQuotaPercent);
   const rows = emiratizationToRows(employees);
   return (
     <div className="card" style={{ padding: '18px 20px' }}>
@@ -737,10 +798,15 @@ function EmiratizationTab({ employees }) {
           <div style={{ fontSize: 11, color: '#64748b' }}>UAE Nationals</div>
         </div>
         <div className="card" style={{ padding: 14, flex: 1, minWidth: 120, textAlign: 'center' }}>
-          <div style={{ fontSize: 24, fontWeight: 700, color: parseFloat(report.ratio) >= 2 ? '#10b981' : '#ef4444' }}>{report.ratio}%</div>
+          <div style={{ fontSize: 24, fontWeight: 700, color: report.compliant ? '#10b981' : '#ef4444' }}>{report.ratio}%</div>
           <div style={{ fontSize: 11, color: '#64748b' }}>Emiratization Rate</div>
         </div>
+        <div className="card" style={{ padding: 14, flex: 1, minWidth: 140, textAlign: 'center' }}>
+          <div style={{ fontSize: 24, fontWeight: 700, color: report.compliant ? '#10b981' : '#ef4444' }}>{report.tier === 'not_mandatory' ? 'N/A' : `${report.emiratis.length}/${report.requiredCount}`}</div>
+          <div style={{ fontSize: 11, color: '#64748b' }}>{report.tier === 'not_mandatory' ? 'Not Mandatory (<20)' : 'Required UAE Nationals'}</div>
+        </div>
       </div>
+      {!report.compliant && <div className="alert alert-danger" style={{ marginBottom: 16 }}>Shortfall: {report.gap} UAE national{report.gap !== 1 ? 's' : ''}. Potential monthly fine: {fmtAED(report.monthlyFine)}.</div>}
       <h4 style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 8 }}>By Department</h4>
       <div style={{ overflowX: 'auto', marginBottom: 16 }}>
         <table className="table"><thead><tr><th>Department</th><th>Total</th><th>Emirati</th><th>Rate</th></tr></thead>
@@ -789,9 +855,26 @@ function EOSLiabilityTab({ employees }) {
 }
 
 // ─── Leave Balance ──────────────────────────────────────────────────────────
-function LeaveBalanceTab({ employees, leaveRequests }) {
+function LeaveBalanceTab({ employees, leaveBalances }) {
   const [year, setYear] = useState(new Date().getFullYear());
-  const balanceData = buildLeaveBalanceReport(employees, leaveRequests, year);
+  const [balances, setBalances] = useState(leaveBalances || []);
+  const [loadingBalances, setLoadingBalances] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.resolve()
+      .then(() => setLoadingBalances(true))
+      .then(() => getAllLeaveBalances(year)).then(data => {
+      if (!cancelled) setBalances(data.filter(balance => employees.some(employee => employee.id === balance.employeeId)));
+    }).catch(() => {
+      if (!cancelled) setBalances([]);
+    }).finally(() => {
+      if (!cancelled) setLoadingBalances(false);
+    });
+    return () => { cancelled = true; };
+  }, [year, employees]);
+
+  const balanceData = buildLeaveBalanceReport(employees, balances, year);
   const rows = leaveBalanceToRows(balanceData);
   return (
     <div className="card" style={{ padding: '18px 20px' }}>
@@ -810,7 +893,7 @@ function LeaveBalanceTab({ employees, leaveRequests }) {
           <button className="btn btn-ghost btn-sm" onClick={() => exportPDF(`Leave Balance ${year}`, Object.keys(rows[0] || {}), rows.map(Object.values), `leave-balance-${year}.pdf`)}><Download size={13}/> PDF</button>
         </div>
       </div>
-      {rows.length === 0 ? <p style={{ color: '#94a3b8', fontSize: 13 }}>No active employees.</p> : (
+      {loadingBalances ? <p style={{ color: '#94a3b8', fontSize: 13 }}>Loading leave balances…</p> : rows.length === 0 ? <p style={{ color: '#94a3b8', fontSize: 13 }}>No active employees.</p> : (
         <div style={{ overflowX: 'auto' }}>
           <table className="table"><thead><tr>{Object.keys(rows[0]).map(h => <th key={h}>{h}</th>)}</tr></thead>
             <tbody>{rows.map((r, i) => <tr key={i}>{Object.values(r).map((v, j) => <td key={j}>{v}</td>)}</tr>)}</tbody>
@@ -823,7 +906,7 @@ function LeaveBalanceTab({ employees, leaveRequests }) {
 
 // ─── Main Reports component ───────────────────────────────────────────────────
 export default function Reports() {
-  const { activeCompany } = useCompany();
+  const { activeCompany, activeCompanyId } = useCompany();
   const TABS = ALL_TABS.filter(t => {
     if (t.feature === 'nafis'    && activeCompany?.enableNafis         === false) return false;
     if (t.feature === 'staffing' && activeCompany?.enableStaffingRules === false) return false;
@@ -840,31 +923,42 @@ export default function Reports() {
   const [documents,         setDocuments]         = useState([]);
   const [jobHistory,        setJobHistory]        = useState([]);
   const [staffingRules,     setStaffingRules]     = useState([]);
+  const [leaveBalances,     setLeaveBalances]     = useState([]);
 
   useEffect(() => {
-    Promise.all([
-      getEmployees(),
-      getPayrolls(),
+    let cancelled = false;
+    Promise.resolve()
+      .then(() => { setLoading(true); setError(null); })
+      .then(() => Promise.all([
+      getEmployees(activeCompanyId),
+      getPayrolls(activeCompanyId),
       getLeaveRequests(),
       getAttendanceRecords(),
       getAllEmployeeDocuments(),
       getAllJobHistory(),
       getDeptStaffingRules().catch(() => []),
-    ]).then(([emps, pays, leaves, attn, docs, hist, rules]) => {
+      getAllLeaveBalances().catch(() => []),
+    ])).then(([emps, pays, leaves, attn, docs, hist, rules, balances]) => {
+      if (cancelled) return;
+      const employeeIds = new Set(emps.map(employee => employee.id));
+      const departments = new Set(emps.map(employee => employee.department).filter(Boolean));
       setEmployees(emps);
       setPayrolls(pays);
-      setLeaveRequests(leaves);
-      setAttendanceRecords(attn);
-      setDocuments(docs);
-      setJobHistory(hist);
-      setStaffingRules(rules);
+      setLeaveRequests(leaves.filter(request => employeeIds.has(request.employeeId)));
+      setAttendanceRecords(attn.filter(record => employeeIds.has(record.employeeId)));
+      setDocuments(docs.filter(document => employeeIds.has(document.employeeId)));
+      setJobHistory(hist.filter(history => employeeIds.has(history.employeeId)));
+      setStaffingRules(rules.filter(rule => departments.has(rule.department)));
+      setLeaveBalances(balances.filter(balance => employeeIds.has(balance.employeeId)));
       setLoading(false);
     }).catch(err => {
+      if (cancelled) return;
       console.error('Reports load failed:', err);
-      setError(err.message);
+      setError(typeof err?.message === 'string' ? err.message : 'Unable to load report data.');
       setLoading(false);
     });
-  }, []);
+    return () => { cancelled = true; };
+  }, [activeCompanyId]);
 
   if (loading) {
     return <div style={{ padding: 40, textAlign: 'center', color: 'var(--gray-400)' }}>Loading reports…</div>;
@@ -886,14 +980,15 @@ export default function Reports() {
       case 'payroll':    return <PayrollCostTab payrolls={payrolls} employees={employees} />;
       case 'leave':      return <LeaveUsageTab  employees={employees} leaveRequests={leaveRequests} />;
       case 'attendance': return <AttendanceTab  employees={employees} attendanceRecords={attendanceRecords} />;
+      case 'overtime':   return <OvertimeTab employees={employees} attendanceRecords={attendanceRecords} />;
       case 'documents':  return <DocExpiryTab   employees={employees} documents={documents} />;
       case 'salary':     return <SalaryHistoryTab employees={employees} jobHistory={jobHistory} />;
       case 'turnover':   return <TurnoverTab    employees={employees} />;
-      case 'staffing':   return <StaffingComplianceTab employees={employees} staffingRules={staffingRules} />;
+      case 'staffing':   return <StaffingComplianceTab employees={employees} staffingRules={staffingRules} companyId={activeCompanyId} />;
       case 'wps':          return <WpsComplianceTab payrolls={payrolls} />;
-      case 'emiratization': return <EmiratizationTab employees={employees} />;
+      case 'emiratization': return <EmiratizationTab employees={employees} company={activeCompany} />;
       case 'eos':          return <EOSLiabilityTab employees={employees} />;
-      case 'leaveBalance': return <LeaveBalanceTab employees={employees} leaveRequests={leaveRequests} />;
+      case 'leaveBalance': return <LeaveBalanceTab employees={employees} leaveBalances={leaveBalances} />;
       default:           return null;
     }
   };
@@ -902,7 +997,7 @@ export default function Reports() {
     <div>
       <div className="page-header">
         <h2><BarChart2 size={18} style={{ marginRight: 8, display: 'inline' }} />HR Reports & Analytics</h2>
-        <span className="text-muted text-sm">{employees.filter(e => e.active).length} active employees</span>
+        <span className="text-muted text-sm">{employees.filter(e => e.active !== false && e.employmentStatus !== 'Terminated').length} active employees</span>
       </div>
 
       <div className="page-body">

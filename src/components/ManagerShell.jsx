@@ -31,7 +31,7 @@ const TABS = [
   { id: 'appraisals',  label: 'Appraisals',     icon: Star         },
   { id: 'leave',       label: 'My Leave',       icon: CalendarDays },
   { id: 'schedule',    label: 'Schedule',       icon: CalendarClock },
-  { id: 'attendance',  label: 'Attendance',     icon: Clock        },
+  { id: 'attendance',  label: 'My Attendance',  icon: Clock        },
   { id: 'payslips',    label: 'Payslips',       icon: FileText     },
   { id: 'advances',    label: 'Advances',       icon: DollarSign   },
   { id: 'my-expenses', label: 'Expenses',       icon: Receipt      },

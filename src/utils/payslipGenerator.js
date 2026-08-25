@@ -12,8 +12,9 @@
  */
 
 import { jsPDF } from 'jspdf';
+import { zipSync } from 'fflate';
 import { formatDateUAE, formatAED } from './uaeValidators';
-import { computeFinalAllowance } from '../components/AllowDeductPanel';
+import { calculatePayrollEntry } from './payrollCalculator';
 
 const MONTH_NAMES = [
   'January','February','March','April','May','June',
@@ -28,11 +29,33 @@ async function tryLoadImage(url) {
   if (!url) return null;
   return new Promise(resolve => {
     const img = new Image();
-    img.crossOrigin = 'anonymous';
+    // crossOrigin only matters for cross-origin http(s) resources. Setting
+    // it on a data: URI is a no-op at best and, on some browser/jsPDF
+    // combinations, silently blocks the load — leaving the payslip
+    // falling back to text with no visible error.
+    if (!/^data:/i.test(url)) img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
-    img.onerror = () => resolve(null);
+    img.onerror = (e) => {
+      // Surface the failure so a broken logo doesn't disappear silently.
+      console.warn('[payslip] Company logo failed to load. URL prefix:',
+        url.slice(0, 60), e);
+      resolve(null);
+    };
     img.src = url;
   });
+}
+
+// Detect image format from a data: URI so we can pass it explicitly to
+// jsPDF's addImage — auto-detection from an HTMLImageElement source can be
+// unreliable for data URIs.
+function detectFormat(url) {
+  if (!url) return null;
+  const m = /^data:image\/(png|jpeg|jpg|webp|svg\+xml)/i.exec(url);
+  if (!m) return null;
+  const f = m[1].toLowerCase();
+  if (f === 'jpg') return 'JPEG';
+  if (f === 'svg+xml') return 'PNG'; // shouldn't happen — upload util rasterizes
+  return f.toUpperCase();
 }
 
 /**
@@ -46,7 +69,17 @@ async function tryLoadImage(url) {
  */
 export async function generatePayslipPDF(company, employee, payroll, entry) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const logoImg = await tryLoadImage(company?.logoUrl);
+
+  // Diagnostic: surface the state of the logo so silent "no logo showing"
+  // reports are one console glance away. Logs to console once per payslip.
+  const logoUrl = company?.logoUrl || '';
+  if (!logoUrl) {
+    console.info('[payslip] No company logo configured (company.logoUrl is empty). Upload one in Company Settings → Payroll Settings.');
+  } else {
+    console.info(`[payslip] Loading company logo (${Math.round(logoUrl.length / 1024)}KB, type=${logoUrl.slice(5, 25)}…)`);
+  }
+
+  const logoImg = await tryLoadImage(logoUrl);
 
   const [year, month] = payroll.period.split('-').map(Number);
   const periodLabel   = `${getMonthName(month)} ${year}`;
@@ -71,28 +104,37 @@ export async function generatePayslipPDF(company, employee, payroll, entry) {
   doc.rect(0, 0, pageW, 32, 'F');
 
   doc.setTextColor(...WHITE);
+  let logoDrawn = false;
   if (logoImg) {
     const maxLogoH = 22;
-    const aspect   = logoImg.width / logoImg.height;
+    const aspect   = (logoImg.naturalWidth || logoImg.width) / (logoImg.naturalHeight || logoImg.height);
     const logoW    = Math.min(aspect * maxLogoH, 50);
     const logoH    = logoW / aspect;
+    // Prefer the raw data URL over the HTMLImageElement when we have one —
+    // jsPDF is more consistent decoding a data URI string than reading pixels
+    // out of an Image element (especially with mixed browsers).
+    const src = /^data:/i.test(company?.logoUrl || '') ? company.logoUrl : logoImg;
+    const fmt = detectFormat(company?.logoUrl) || 'PNG';
     try {
-      doc.addImage(logoImg, margin, (32 - logoH) / 2, logoW, logoH);
-    } catch {
-      // fallback to text if image format unsupported
-      doc.setFontSize(18);
-      doc.setFont('helvetica', 'bold');
-      doc.text(company?.name || 'Company Name', margin, 13);
+      doc.addImage(src, fmt, margin, (32 - logoH) / 2, logoW, logoH);
+      logoDrawn = true;
+    } catch (err) {
+      // Log so silent breakage is diagnosable; fall through to text branch.
+      console.warn('[payslip] jsPDF addImage failed, falling back to text:',
+        err?.message || err);
     }
-    const textStart = margin + logoW + 4;
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text(company?.name || '', textStart, 13);
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.text('SALARY PAYSLIP', textStart, 20);
-    doc.text(`Period: ${periodLabel}`, textStart, 26);
-  } else {
+    if (logoDrawn) {
+      const textStart = margin + logoW + 4;
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text(company?.name || '', textStart, 13);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text('SALARY PAYSLIP', textStart, 20);
+      doc.text(`Period: ${periodLabel}`, textStart, 26);
+    }
+  }
+  if (!logoDrawn) {
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
     doc.text(company?.name || 'Company Name', margin, 13);
@@ -180,11 +222,16 @@ export async function generatePayslipPDF(company, employee, payroll, entry) {
   const bonus            = parseFloat(entry.bonus) || 0;
   const otherPay         = parseFloat(entry.otherPay) || 0;
   const additionalAllowances = entry.additionalAllowances || [];
+  const calc = calculatePayrollEntry({
+    ...entry,
+    housingAllowance,
+    transportAllowance,
+  });
 
   y = tableRow('Basic Salary', basicSalary, y);
   if (housingAllowance > 0) y = tableRow('Housing Allowance', housingAllowance, y);
   if (transportAllowance > 0) y = tableRow('Transport Allowance', transportAllowance, y);
-  if (baseAllowance > 0 && !housingAllowance && !transportAllowance) y = tableRow('Fixed Allowance', baseAllowance, y);
+  if (baseAllowance > 0) y = tableRow('Other Fixed Allowance', baseAllowance, y);
   if (increment > 0) y = tableRow('Increment', increment, y);
   if (bonus > 0) y = tableRow('Bonus / Incentive', bonus, y);
   if (otherPay > 0) y = tableRow('Other Pay', otherPay, y);
@@ -192,10 +239,7 @@ export async function generatePayslipPDF(company, employee, payroll, entry) {
     if (parseFloat(a.amount) > 0) y = tableRow(a.label || 'Additional Allowance', parseFloat(a.amount), y);
   });
 
-  const totalEarnings = basicSalary + housingAllowance + transportAllowance +
-    (housingAllowance || transportAllowance ? 0 : baseAllowance) +
-    increment + bonus + otherPay +
-    additionalAllowances.reduce((s, a) => s + (parseFloat(a.amount) || 0), 0);
+  const totalEarnings = calc.grossEarnings;
 
   y = tableRow('TOTAL EARNINGS', totalEarnings, y, true, SUCCESS);
   y += 4;
@@ -203,20 +247,22 @@ export async function generatePayslipPDF(company, employee, payroll, entry) {
   // ── DEDUCTIONS ───────────────────────────────────────────────────────────
   const deductions = entry.deductions || [];
   const duCost     = parseFloat(entry.duCost) || 0;
-  const totalDeductions = deductions.reduce((s, d) => s + (parseFloat(d.amount) || 0), 0) + duCost;
+  const leaveDeduction = parseFloat(entry.leaveDeduction) || 0;
+  const totalDeductions = calc.totalDeductions;
 
   if (totalDeductions > 0) {
     y = sectionHeader('DEDUCTIONS', y);
     deductions.forEach(d => {
       if (parseFloat(d.amount) > 0) y = tableRow(d.label || 'Deduction', parseFloat(d.amount), y);
     });
+    if (leaveDeduction > 0) y = tableRow('Leave Deduction', leaveDeduction, y);
     if (duCost > 0) y = tableRow('DU / Telecom Cost', duCost, y);
     y = tableRow('TOTAL DEDUCTIONS', totalDeductions, y, true, DANGER);
     y += 4;
   }
 
   // ── NET PAY ──────────────────────────────────────────────────────────────
-  const netPay = totalEarnings - totalDeductions;
+  const netPay = calc.netPay;
 
   doc.setFillColor(...PRIMARY);
   doc.rect(margin, y, contentW, 14, 'F');
@@ -280,8 +326,23 @@ export async function downloadPayslip(company, employee, payroll, entry) {
  */
 export async function downloadAllPayslips(company, employees, payroll) {
   const activeEntries = payroll.entries.filter(e => !e.excluded);
+  const files = {};
   for (const entry of activeEntries) {
     const emp = employees.find(e => e.id === entry.employeeId);
-    if (emp) await downloadPayslip(company, emp, payroll, entry);
+    if (!emp) continue;
+    const doc = await generatePayslipPDF(company, emp, payroll, entry);
+    const [year, month] = payroll.period.split('-').map(Number);
+    const safeName = (emp.name || emp.empNo || 'Employee').replace(/[^a-z0-9_-]+/gi, '_');
+    const filename = `Payslip_${safeName}_${getMonthName(month)}_${year}.pdf`;
+    files[filename] = new Uint8Array(doc.output('arraybuffer'));
   }
+  if (!Object.keys(files).length) return;
+  const zipped = zipSync(files, { level: 6 });
+  const blob = new Blob([zipped], { type: 'application/zip' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `Payslips_${payroll.period}.zip`;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }

@@ -6,11 +6,14 @@ import { generateExpiryNotifications } from '../utils/notificationStorage';
 import { getPendingLetterCount } from '../utils/letterStorage';
 import { getAppraisalCycles, getAppraisalsForCycle } from '../utils/appraisalStorage';
 import { useCompany } from '../context/CompanyContext';
+import { useAuth } from '../context/AuthContext';
+import { calculatePayrollTotals } from '../utils/payrollCalculator';
 import NafisReportModal from './NafisReportModal';
 import LoadError from './LoadError';
 
 export default function Dashboard({ onNavigate }) {
   const { activeCompanyId } = useCompany();
+  const { user } = useAuth();
   const [company, setCompany]         = useState(null);
   const [employees, setEmployees]     = useState([]);
   const [payrolls, setPayrolls]       = useState([]);
@@ -95,17 +98,38 @@ export default function Dashboard({ onNavigate }) {
   const getMonthName = (month) =>
     ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month - 1];
 
-  const trendRuns = [...generatedRuns]
-    .sort((a, b) => a.period.localeCompare(b.period))
-    .slice(-6)
-    .map(p => {
+  // Fixed Jan–Dec calendar view — months with no generated run render as a
+  // black placeholder bar instead of being omitted from the chart.
+  const trendYear = generatedRuns.length > 0
+    ? Math.max(...generatedRuns.map(p => Number(p.period.split('-')[0])))
+    : new Date().getFullYear();
+
+  const runByMonth = {};
+  generatedRuns
+    .filter(p => p.period.startsWith(`${trendYear}-`))
+    .forEach(p => {
       const active = (p.entries ?? []).filter(e => !e.excluded);
-      const total = active.reduce((s, e) =>
-        s + (parseFloat(e.basicSalary) || 0) + (parseFloat(e.variableAllowance) || 0), 0);
-      const [y, m] = p.period.split('-').map(Number);
-      return { period: p.period, label: `${getMonthName(m)} ${y}`, total, count: active.length };
+      const [, m] = p.period.split('-').map(Number);
+      runByMonth[m] = { total: calculatePayrollTotals(active).netPay, count: active.length };
     });
-  const trendMax = Math.max(...trendRuns.map(r => r.total), 1);
+
+  const trendMonths = Array.from({ length: 12 }, (_, i) => {
+    const m = i + 1;
+    const data = runByMonth[m];
+    return {
+      month: m,
+      label: getMonthName(m),
+      total: data ? data.total : null,
+      count: data ? data.count : 0,
+      hasRun: !!data,
+    };
+  });
+
+  const monthsWithData = trendMonths.filter(t => t.hasRun);
+  const trendMax        = Math.max(...monthsWithData.map(t => t.total), 1);
+  const lastWithData     = monthsWithData[monthsWithData.length - 1] || null;
+  const prevWithData      = monthsWithData[monthsWithData.length - 2] || null;
+  const trendDelta         = lastWithData && prevWithData ? lastWithData.total - prevWithData.total : 0;
 
   // ── WPS 30-day deadline tracker (UAE Labour Law Article 56) ─────────────────
   const today = new Date();
@@ -150,16 +174,17 @@ export default function Dashboard({ onNavigate }) {
   })).sort((a, b) => a.days - b.days);
 
   // ── Certification expiry alert (Feature 19) ───────────────────────────────
+  // Show certs expiring within 60 days AND recently expired (up to 30 days overdue)
   const certExpiring = allCertifications.filter(cert => {
     if (!cert.expiryDate) return false;
     const days = Math.ceil((new Date(cert.expiryDate) - today) / 86400000);
-    return days >= 0 && days <= 60;
+    return days >= -30 && days <= 60;
   }).map(cert => ({
     cert,
     days: Math.ceil((new Date(cert.expiryDate) - today) / 86400000),
   })).sort((a, b) => a.days - b.days);
 
-  // ── Document expiry summary (next 30 days) ──────────────────────────────────
+  // ── Document expiry summary (expiring soon + recently expired) ──────────────
   const docWarnings = [];
   employees.forEach(emp => {
     if (emp.employmentStatus === 'Terminated') return;
@@ -173,7 +198,8 @@ export default function Dashboard({ onNavigate }) {
       if (!date) return;
       const expiry = new Date(date);
       const diffDays = Math.ceil((expiry - today) / (1000 * 60 * 60 * 24));
-      if (diffDays <= days && diffDays >= 0) {
+      // Include recently expired (up to 30 days overdue) AND upcoming within threshold
+      if (diffDays <= days && diffDays >= -30) {
         docWarnings.push({ emp: emp.name, label, expiry: date, daysLeft: diffDays });
       }
     });
@@ -181,22 +207,22 @@ export default function Dashboard({ onNavigate }) {
   const criticalDocs = docWarnings.filter(d => d.daysLeft < 30);
 
   // ── Insurance expiry alerts ──────────────────────────────────────────────────
-  // Employee-level: coverage expiring within 60 days
+  // Employee-level: coverage expiring within 60 days or recently expired (30 days)
   const insuranceCovWarnings = [];
   allEmpInsurance.forEach(ins => {
     if (!ins.expiryDate) return;
     const emp = employees.find(e => e.id === ins.employeeId);
     if (!emp || emp.employmentStatus === 'Terminated') return;
     const days = Math.ceil((new Date(ins.expiryDate) - today) / (1000 * 60 * 60 * 24));
-    if (days <= 60 && days >= 0) {
+    if (days <= 60 && days >= -30) {
       insuranceCovWarnings.push({ empName: emp.name, daysLeft: days });
     }
   });
-  // Policy-level: renewal date within 60 days
+  // Policy-level: renewal date within 60 days or recently past (30 days)
   const policyRenewalWarnings = insurancePolicies.filter(p => {
     if (!p.renewalDate) return false;
     const days = Math.ceil((new Date(p.renewalDate) - today) / (1000 * 60 * 60 * 24));
-    return days <= 60 && days >= 0;
+    return days <= 60 && days >= -30;
   }).map(p => ({
     name:     `${p.insurerName}${p.tierName ? ` (${p.tierName})` : ''}`,
     daysLeft: Math.ceil((new Date(p.renewalDate) - today) / (1000 * 60 * 60 * 24)),
@@ -256,8 +282,8 @@ export default function Dashboard({ onNavigate }) {
               Workloop — UAE Payroll &amp; HRMS
             </h3>
             <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14 }}>
-              {company?.name
-                ? `Welcome back, ${company.name}`
+              {user?.email
+                ? `Welcome back, ${user.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}`
                 : 'Manage payroll, employees, WPS/SIF files, and UAE compliance — all in one place.'}
             </p>
           </div>
@@ -350,12 +376,12 @@ export default function Dashboard({ onNavigate }) {
           <div className="alert alert-warning mb-4">
             <AlertCircle size={16} />
             <div>
-              <strong>{certExpiring.length} certification{certExpiring.length !== 1 ? 's' : ''} expiring within 60 days: </strong>
+              <strong>{certExpiring.length} certification{certExpiring.length !== 1 ? 's' : ''} expiring or recently expired: </strong>
               {certExpiring.slice(0, 3).map(({ cert, days }, i) => (
                 <span key={cert.id}>
                   {i > 0 && ', '}
                   <strong>{cert.employeeName}</strong>{' '}
-                  ({cert.certificationName} — {days === 0 ? 'today' : `${days}d`})
+                  ({cert.certificationName} — {days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? 'today' : `${days}d`})
                 </span>
               ))}
               {certExpiring.length > 3 && ` and ${certExpiring.length - 3} more.`}
@@ -368,16 +394,16 @@ export default function Dashboard({ onNavigate }) {
           </div>
         )}
 
-        {/* Pending letter requests alert (Feature 1.3) */}
+        {/* Pending employee/manager requests alert */}
         {pendingLetters > 0 && (
           <div className="alert alert-info mb-4">
             <Mail size={16} />
             <div>
-              <strong>{pendingLetters} letter request{pendingLetters !== 1 ? 's' : ''} pending.</strong>
-              {' '}Employees are waiting for HR letters to be generated.{' '}
+              <strong>{pendingLetters} request{pendingLetters !== 1 ? 's' : ''} pending.</strong>
+              {' '}Employees and managers are waiting for HR review.{' '}
               <button className="btn btn-ghost btn-sm" style={{ padding: '0 4px', textDecoration: 'underline' }}
                 onClick={() => onNavigate('letters')}>
-                View Letter Requests
+                View Requests
               </button>
             </div>
           </div>
@@ -403,9 +429,9 @@ export default function Dashboard({ onNavigate }) {
           <div className="alert alert-danger mb-4">
             <ShieldAlert size={16} />
             <div>
-              <strong>{criticalDocs.length} document{criticalDocs.length !== 1 ? 's' : ''} expiring within 30 days:</strong>{' '}
+              <strong>{criticalDocs.length} document{criticalDocs.length !== 1 ? 's' : ''} expiring or recently expired:</strong>{' '}
               {criticalDocs.slice(0, 3).map((d, i) => (
-                <span key={i}>{d.emp} ({d.label} — {d.daysLeft}d){i < Math.min(criticalDocs.length, 3) - 1 ? ', ' : ''}</span>
+                <span key={i}>{d.emp} ({d.label} — {d.daysLeft < 0 ? `${Math.abs(d.daysLeft)}d overdue` : `${d.daysLeft}d`}){i < Math.min(criticalDocs.length, 3) - 1 ? ', ' : ''}</span>
               ))}
               {criticalDocs.length > 3 && ` and ${criticalDocs.length - 3} more.`}
               {' '}
@@ -478,51 +504,53 @@ export default function Dashboard({ onNavigate }) {
           </div>
         )}
 
-        {/* Setup checklist */}
-        <div className="card mb-4">
-          <div className="card-header">
-            <h3>Setup Checklist</h3>
-          </div>
-          <div className="card-body" style={{ padding: 0 }}>
-            {steps.map((step, i) => {
-              const Icon = step.icon;
-              return (
-                <div
-                  key={i}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 14,
-                    padding: '14px 20px',
-                    borderBottom: i < steps.length - 1 ? '1px solid var(--gray-100)' : 'none',
-                    cursor: 'pointer',
-                  }}
-                  onClick={() => onNavigate(step.nav)}
-                >
-                  <div style={{
-                    width: 36, height: 36, borderRadius: '50%',
-                    background: step.done ? 'var(--success-light)' : 'var(--gray-100)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    flexShrink: 0,
-                  }}>
-                    {step.done
-                      ? <CheckCircle size={18} color="var(--success)" />
-                      : <Icon size={18} color="var(--gray-400)" />}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600, fontSize: 14, color: step.done ? 'var(--gray-800)' : 'var(--gray-600)' }}>
-                      {step.label}
+        {/* Setup checklist — hidden once every step is complete */}
+        {steps.some(step => !step.done) && (
+          <div className="card mb-4">
+            <div className="card-header">
+              <h3>Setup Checklist</h3>
+            </div>
+            <div className="card-body" style={{ padding: 0 }}>
+              {steps.map((step, i) => {
+                const Icon = step.icon;
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 14,
+                      padding: '14px 20px',
+                      borderBottom: i < steps.length - 1 ? '1px solid var(--gray-100)' : 'none',
+                      cursor: 'pointer',
+                    }}
+                    onClick={() => onNavigate(step.nav)}
+                  >
+                    <div style={{
+                      width: 36, height: 36, borderRadius: '50%',
+                      background: step.done ? 'var(--success-light)' : 'var(--gray-100)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      flexShrink: 0,
+                    }}>
+                      {step.done
+                        ? <CheckCircle size={18} color="var(--success)" />
+                        : <Icon size={18} color="var(--gray-400)" />}
                     </div>
-                    <div style={{ fontSize: 12.5, color: 'var(--gray-500)', marginTop: 2 }}>
-                      {step.desc}
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14, color: step.done ? 'var(--gray-800)' : 'var(--gray-600)' }}>
+                        {step.label}
+                      </div>
+                      <div style={{ fontSize: 12.5, color: 'var(--gray-500)', marginTop: 2 }}>
+                        {step.desc}
+                      </div>
                     </div>
+                    <ArrowRight size={16} color="var(--gray-400)" />
                   </div>
-                  <ArrowRight size={16} color="var(--gray-400)" />
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Stats */}
         <div className="stats-grid">
@@ -653,62 +681,62 @@ export default function Dashboard({ onNavigate }) {
         </div>
         )}
 
-        {/* Payroll trend */}
+        {/* Payroll trend — fixed Jan–Dec calendar view */}
         <div className="card mb-4">
           <div className="card-header">
             <h3>Payroll Cost Trend</h3>
             <span style={{ fontSize:12, color:'var(--gray-500)' }}>
-              {trendRuns.length >= 2 ? `Last ${trendRuns.length} processed months` : 'No generated runs yet'}
+              {monthsWithData.length > 0
+                ? `${monthsWithData.length} of 12 months processed — ${trendYear}`
+                : `No payroll runs generated yet — ${trendYear}`}
             </span>
           </div>
           <div className="card-body">
-            {trendRuns.length < 2 ? (
-              <div style={{ textAlign:'center', color:'var(--gray-400)', padding:'20px 0', fontSize:13 }}>
-                Generate at least 2 payroll runs to see the cost trend chart.
-                <div style={{ marginTop:8 }}>
-                  <button className="btn btn-ghost btn-sm" style={{ textDecoration:'underline' }}
-                    onClick={() => onNavigate('payroll')}>
-                    Go to Payroll Module →
-                  </button>
-                </div>
+            <div style={{ display:'flex', alignItems:'flex-end', gap:6, height:120 }}>
+              {trendMonths.map(t => {
+                const pct = t.hasRun && trendMax > 0 ? (t.total / trendMax) * 100 : 0;
+                const isLastWithData = lastWithData && t.month === lastWithData.month;
+                return (
+                  <div key={t.month} style={{ flex:1, minWidth:0, display:'flex', flexDirection:'column', alignItems:'center', gap:4 }}>
+                    {isLastWithData && trendDelta !== 0 && (
+                      <div style={{ fontSize:10, fontWeight:700, color: trendDelta > 0 ? 'var(--success)' : 'var(--danger)', whiteSpace:'nowrap' }}>
+                        {trendDelta > 0 ? '▲' : '▼'} {Math.abs(trendDelta).toLocaleString('en-AE', { maximumFractionDigits:0 })}
+                      </div>
+                    )}
+                    <div
+                      title={t.hasRun
+                        ? `${t.label} ${trendYear}: AED ${t.total.toLocaleString('en-AE', { minimumFractionDigits:0 })}`
+                        : `${t.label} ${trendYear}: no payroll run generated`}
+                      style={{
+                        width:'60%', maxWidth:26, borderRadius:'3px 3px 0 0',
+                        background: !t.hasRun ? '#0F172A' : (isLastWithData ? 'var(--primary)' : 'var(--primary-light)'),
+                        // Fixed-px height scaled from pct — a % height here would resolve
+                        // against the column wrapper's auto height and collapse to 0.
+                        height: t.hasRun ? `${(Math.max(pct, 4) / 100) * 80}px` : '4px',
+                        transition: 'height 0.3s',
+                      }}
+                    />
+                    <div style={{ fontSize:10, color: t.hasRun ? 'var(--gray-500)' : 'var(--gray-300)', textAlign:'center', whiteSpace:'nowrap' }}>
+                      {t.label}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {lastWithData ? (
+              <div style={{ marginTop:8, fontSize:12, color:'var(--gray-500)', textAlign:'right' }}>
+                Latest: <strong style={{ color:'var(--gray-800)' }}>
+                  AED {lastWithData.total.toLocaleString('en-AE', { minimumFractionDigits:0 })}
+                </strong>
               </div>
             ) : (
-              <>
-                <div style={{ display:'flex', alignItems:'flex-end', gap:12, height:100 }}>
-                  {trendRuns.map((r, i) => {
-                    const pct = trendMax > 0 ? (r.total / trendMax) * 100 : 0;
-                    const prev = trendRuns[i - 1];
-                    const delta = prev ? r.total - prev.total : 0;
-                    const isLast = i === trendRuns.length - 1;
-                    return (
-                      <div key={r.period} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:4 }}>
-                        {isLast && delta !== 0 && (
-                          <div style={{ fontSize:10, fontWeight:700, color: delta > 0 ? 'var(--success)' : 'var(--danger)' }}>
-                            {delta > 0 ? '▲' : '▼'} {Math.abs(delta).toLocaleString('en-AE', { maximumFractionDigits:0 })}
-                          </div>
-                        )}
-                        <div
-                          title={`${r.label}: AED ${r.total.toLocaleString('en-AE', { minimumFractionDigits:0 })}`}
-                          style={{
-                            width:'100%', borderRadius:'4px 4px 0 0',
-                            background: isLast ? 'var(--primary)' : 'var(--primary-light)',
-                            height: `${Math.max(pct, 4)}%`,
-                            transition: 'height 0.3s',
-                          }}
-                        />
-                        <div style={{ fontSize:10, color:'var(--gray-500)', textAlign:'center', whiteSpace:'nowrap' }}>
-                          {r.label.split(' ')[0]}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div style={{ marginTop:8, fontSize:12, color:'var(--gray-500)', textAlign:'right' }}>
-                  Latest: <strong style={{ color:'var(--gray-800)' }}>
-                    AED {trendRuns[trendRuns.length - 1]?.total.toLocaleString('en-AE', { minimumFractionDigits:0 })}
-                  </strong>
-                </div>
-              </>
+              <div style={{ marginTop:8, fontSize:12, color:'var(--gray-400)', textAlign:'center' }}>
+                Generate your first payroll run to start tracking costs.{' '}
+                <button className="btn btn-ghost btn-sm" style={{ textDecoration:'underline', padding:0 }}
+                  onClick={() => onNavigate('payroll')}>
+                  Go to Payroll Module →
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -738,9 +766,7 @@ export default function Dashboard({ onNavigate }) {
                   {recentPayrolls.map(p => {
                     const [y, m] = p.period.split('-').map(Number);
                     const active = p.entries.filter(e => !e.excluded);
-                    const total  = active.reduce(
-                      (s, e) => s + (parseFloat(e.basicSalary) || 0) + (parseFloat(e.variableAllowance) || 0), 0
-                    );
+                    const total = calculatePayrollTotals(active).netPay;
                     return (
                       <tr key={p.id} style={{ cursor: 'pointer' }} onClick={() => onNavigate('payroll')}>
                         <td style={{ fontWeight: 600 }}>{getMonthName(m)} {y}</td>

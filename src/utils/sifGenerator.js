@@ -30,6 +30,7 @@
  *   Most likely the bank generates the filename — we'll use: {MOL_ID}{YYYYMMDD}{seq_padded_to_10}
  *   and let the user rename if needed, OR use YYMMDD format to match the examples.
  */
+import { calculatePayrollEntry } from './payrollCalculator';
 
 function padLeft(str, len, char = '0') {
   return String(str).padStart(len, char);
@@ -71,8 +72,9 @@ export function generateSIF(company, employees, payroll) {
     const emp = employees.find(e => e.id === entry.employeeId);
     if (!emp || entry.excluded) continue;
 
-    const basicAED = toIntAED(entry.basicSalary ?? emp.basicSalary);
-    const allowanceAED = toIntAED(entry.variableAllowance ?? 0);
+    const calc = calculatePayrollEntry({ ...entry, basicSalary: entry.basicSalary ?? emp.basicSalary });
+    const basicAED = toIntAED(calc.basicSalary);
+    const allowanceAED = toIntAED(calc.wpsVariableAmount);
     const daysOnLeave = parseInt(entry.daysOnLeave ?? 0);
 
     totalAmount += basicAED + allowanceAED;

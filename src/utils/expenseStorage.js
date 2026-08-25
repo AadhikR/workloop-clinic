@@ -13,6 +13,7 @@
  *
  * Employee functions (via RPC):
  *   employee_submit_expense RPC is called directly in EmpExpenses.jsx
+ *   deleteEmployeeExpense(claimId) deletes the caller's pending/rejected claim
  *   Employees read their own claims via expense_claims_employee_read RLS policy.
  */
 import { supabase } from '../lib/supabase';
@@ -153,6 +154,18 @@ export async function deleteExpenseClaim(claimId) {
     .eq('id', claimId)
     .eq('user_id', user.id);
   if (error) throw error;
+}
+
+/**
+ * Delete the signed-in employee's own pending or rejected expense claim.
+ * The SECURITY DEFINER RPC enforces ownership and protected statuses server-side.
+ */
+export async function deleteEmployeeExpense(claimId) {
+  const { data, error } = await supabase.rpc('employee_delete_expense', {
+    p_expense_id: claimId,
+  });
+  if (error) throw error;
+  if (data !== true) throw new Error('The expense claim could not be deleted.');
 }
 
 /**

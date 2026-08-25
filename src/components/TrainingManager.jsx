@@ -9,7 +9,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Edit2, Trash2, GraduationCap, Award, X, AlertTriangle, ExternalLink, CheckCircle, XCircle, BookOpen } from 'lucide-react';
+import { Plus, Edit2, Trash2, GraduationCap, Award, X, AlertTriangle, ExternalLink, CheckCircle, XCircle, BookOpen, Upload, FileText } from 'lucide-react';
 import { getEmployees } from '../utils/storage';
 import { formatDateUAE } from '../utils/uaeValidators';
 import {
@@ -17,6 +17,7 @@ import {
   getCertifications,  saveCertification,  deleteCertification,
   getCmeRequirements, saveCmeRequirement, deleteCmeRequirement,
   getCmeTrainingRecords,
+  uploadCertificateFile, getCertificateSignedUrl,
 } from '../utils/trainingStorage';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -77,6 +78,8 @@ function TrainingModal({ record, employees, onSave, onClose }) {
 
   const [saving, setSaving] = useState(false);
   const [err,    setErr]    = useState('');
+  const [file,   setFile]   = useState(null);
+  const [uploading, setUploading] = useState(false);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -86,8 +89,17 @@ function TrainingModal({ record, employees, onSave, onClose }) {
     if (!form.employeeId)            { setErr('Please select an employee.');       return; }
     if (!form.trainingTitle.trim())  { setErr('Training title is required.');       return; }
     setSaving(true);
-    try { await onSave(form); }
-    catch (ex) { setErr(ex.message || 'Failed to save.'); setSaving(false); }
+    try {
+      let extra = {};
+      if (file) {
+        setUploading(true);
+        const { storagePath, fileName } = await uploadCertificateFile(form.employeeId, file);
+        extra = { storagePath, fileName };
+        setUploading(false);
+      }
+      await onSave({ ...form, ...extra });
+    }
+    catch (ex) { setErr(ex.message || 'Failed to save.'); setSaving(false); setUploading(false); }
   };
 
   return (
@@ -201,10 +213,25 @@ function TrainingModal({ record, employees, onSave, onClose }) {
             )}
 
             <div className="form-group">
-              <label className="form-label">Certificate / Document URL</label>
-              <input className="form-control" value={form.certificateUrl}
-                onChange={e => set('certificateUrl', e.target.value)}
-                placeholder="https://drive.google.com/… or leave blank" />
+              <label className="form-label">Certificate / Document</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
+                  border: '1px dashed var(--gray-200)', borderRadius: 6, cursor: 'pointer',
+                  fontSize: 13, color: 'var(--gray-500)',
+                }}>
+                  <Upload size={14} />
+                  {file ? file.name : record?.fileName ? `Current: ${record.fileName}` : 'Upload certificate file…'}
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" style={{ display: 'none' }}
+                    onChange={e => { if (e.target.files[0]) setFile(e.target.files[0]); }} />
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--gray-400)' }}>
+                  <span>or paste URL:</span>
+                  <input className="form-control" value={form.certificateUrl}
+                    onChange={e => set('certificateUrl', e.target.value)}
+                    placeholder="https://…" style={{ fontSize: 12, flex: 1 }} />
+                </div>
+              </div>
             </div>
 
             <div className="form-group">
@@ -223,7 +250,7 @@ function TrainingModal({ record, employees, onSave, onClose }) {
           <div className="modal-footer">
             <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
             <button type="submit" className="btn btn-primary" disabled={saving}>
-              {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Record'}
+              {uploading ? 'Uploading…' : saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Record'}
             </button>
           </div>
         </form>
@@ -251,6 +278,8 @@ function CertModal({ cert, employees, onSave, onClose }) {
 
   const [saving, setSaving] = useState(false);
   const [err,    setErr]    = useState('');
+  const [file,   setFile]   = useState(null);
+  const [uploading, setUploading] = useState(false);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -260,8 +289,17 @@ function CertModal({ cert, employees, onSave, onClose }) {
     if (!form.employeeId)               { setErr('Please select an employee.');           return; }
     if (!form.certificationName.trim()) { setErr('Certification name is required.');      return; }
     setSaving(true);
-    try { await onSave(form); }
-    catch (ex) { setErr(ex.message || 'Failed to save.'); setSaving(false); }
+    try {
+      let extra = {};
+      if (file) {
+        setUploading(true);
+        const { storagePath, fileName } = await uploadCertificateFile(form.employeeId, file);
+        extra = { storagePath, fileName };
+        setUploading(false);
+      }
+      await onSave({ ...form, ...extra });
+    }
+    catch (ex) { setErr(ex.message || 'Failed to save.'); setSaving(false); setUploading(false); }
   };
 
   return (
@@ -330,10 +368,25 @@ function CertModal({ cert, employees, onSave, onClose }) {
             </div>
 
             <div className="form-group">
-              <label className="form-label">Certificate URL</label>
-              <input className="form-control" value={form.certificateUrl}
-                onChange={e => set('certificateUrl', e.target.value)}
-                placeholder="https://drive.google.com/… or leave blank" />
+              <label className="form-label">Certificate File</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
+                  border: '1px dashed var(--gray-200)', borderRadius: 6, cursor: 'pointer',
+                  fontSize: 13, color: 'var(--gray-500)',
+                }}>
+                  <Upload size={14} />
+                  {file ? file.name : cert?.fileName ? `Current: ${cert.fileName}` : 'Upload certificate file…'}
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" style={{ display: 'none' }}
+                    onChange={e => { if (e.target.files[0]) setFile(e.target.files[0]); }} />
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--gray-400)' }}>
+                  <span>or paste URL:</span>
+                  <input className="form-control" value={form.certificateUrl}
+                    onChange={e => set('certificateUrl', e.target.value)}
+                    placeholder="https://…" style={{ fontSize: 12, flex: 1 }} />
+                </div>
+              </div>
             </div>
 
             <div className="form-group">
@@ -346,7 +399,7 @@ function CertModal({ cert, employees, onSave, onClose }) {
           <div className="modal-footer">
             <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
             <button type="submit" className="btn btn-primary" disabled={saving}>
-              {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Certification'}
+              {uploading ? 'Uploading…' : saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Certification'}
             </button>
           </div>
         </form>
@@ -751,10 +804,23 @@ export default function TrainingManager() {
                           <td style={{ fontWeight: 500 }}>{r.employeeName}</td>
                           <td>
                             {r.trainingTitle}
-                            {r.certificateUrl && (
-                              <a href={r.certificateUrl} target="_blank" rel="noopener noreferrer"
-                                title="View certificate" style={{ marginLeft: 6, color: 'var(--primary)', verticalAlign: 'middle' }}>
-                                <ExternalLink size={12} />
+                            {r.isCme && (
+                              <span className="badge badge-blue" style={{ marginLeft: 6, fontSize: 9, padding: '1px 5px' }}>CME</span>
+                            )}
+                            {(r.storagePath || r.certificateUrl) && (
+                              <a href={r.certificateUrl || '#'} target="_blank" rel="noopener noreferrer"
+                                title={r.storagePath ? `File: ${r.fileName}` : 'View certificate'}
+                                style={{ marginLeft: 6, color: 'var(--primary)', verticalAlign: 'middle' }}
+                                onClick={async ev => {
+                                  if (r.storagePath) {
+                                    ev.preventDefault();
+                                    try {
+                                      const url = await getCertificateSignedUrl(r.storagePath);
+                                      window.open(url, '_blank');
+                                    } catch { /* ignore */ }
+                                  }
+                                }}>
+                                {r.storagePath ? <FileText size={12} /> : <ExternalLink size={12} />}
                               </a>
                             )}
                           </td>
@@ -908,10 +974,20 @@ export default function TrainingManager() {
                           <td style={{ fontWeight: 500 }}>{c.employeeName}</td>
                           <td>
                             {c.certificationName}
-                            {c.certificateUrl && (
-                              <a href={c.certificateUrl} target="_blank" rel="noopener noreferrer"
-                                title="View certificate" style={{ marginLeft: 6, color: 'var(--primary)', verticalAlign: 'middle' }}>
-                                <ExternalLink size={12} />
+                            {(c.storagePath || c.certificateUrl) && (
+                              <a href={c.certificateUrl || '#'} target="_blank" rel="noopener noreferrer"
+                                title={c.storagePath ? `File: ${c.fileName}` : 'View certificate'}
+                                style={{ marginLeft: 6, color: 'var(--primary)', verticalAlign: 'middle' }}
+                                onClick={async ev => {
+                                  if (c.storagePath) {
+                                    ev.preventDefault();
+                                    try {
+                                      const url = await getCertificateSignedUrl(c.storagePath);
+                                      window.open(url, '_blank');
+                                    } catch { /* ignore */ }
+                                  }
+                                }}>
+                                {c.storagePath ? <FileText size={12} /> : <ExternalLink size={12} />}
                               </a>
                             )}
                             {isPending && <span style={{ fontSize: 10, color: '#92400e', marginLeft: 6 }}>Self-submitted</span>}
@@ -1046,9 +1122,10 @@ export default function TrainingManager() {
                             </button>
                           </td>
                         </tr>
-                      ) : empSummary.map(e => {
+                      ) : empSummary.flatMap(e => {
                         const pct = e.target > 0 ? Math.min(100, Math.round(e.completed / e.target * 100)) : 0;
-                        return (
+                        const empRecs = yearRecs.filter(r => r.employeeId === e.id);
+                        const rows = [
                           <tr key={e.id}>
                             <td style={{ fontWeight: 500 }}>{e.name}</td>
                             <td style={{ fontSize: 13, color: 'var(--gray-500)' }}>{e.department || '—'}</td>
@@ -1087,8 +1164,38 @@ export default function TrainingManager() {
                                 )}
                               </div>
                             </td>
-                          </tr>
-                        );
+                          </tr>,
+                        ];
+                        if (empRecs.length > 0) {
+                          rows.push(
+                            <tr key={`${e.id}-detail`}>
+                              <td colSpan={8} style={{ padding: '4px 16px 12px 32px', background: '#f8fafc' }}>
+                                <div style={{ fontSize: 11, color: 'var(--gray-500)', marginBottom: 4 }}>Contributing training records:</div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                  {empRecs.map(r => (
+                                    <span key={r.id} style={{
+                                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                                      padding: '3px 8px', borderRadius: 4, fontSize: 11,
+                                      background: r.status === 'completed' ? '#ecfdf5' : '#f0f9ff',
+                                      color: r.status === 'completed' ? '#065f46' : '#1e40af',
+                                      border: `1px solid ${r.status === 'completed' ? '#a7f3d0' : '#bfdbfe'}`,
+                                    }}>
+                                      <span style={{ fontWeight: 500 }}>{r.trainingTitle}</span>
+                                      <span style={{ color: 'inherit', opacity: 0.7 }}>
+                                        {r.durationHours ? `${r.durationHours}h` : '—'}
+                                      </span>
+                                      <span className={`badge ${r.status === 'completed' ? 'badge-green' : 'badge-blue'}`}
+                                        style={{ fontSize: 9, padding: '0 4px' }}>
+                                        {r.status === 'completed' ? '✓' : '…'}
+                                      </span>
+                                    </span>
+                                  ))}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        }
+                        return rows;
                       })}
                     </tbody>
                   </table>

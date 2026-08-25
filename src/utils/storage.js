@@ -7,6 +7,7 @@
  */
 
 import { supabase } from '../lib/supabase';
+import { calculatePayrollEntry, calculatePayrollTotals } from './payrollCalculator';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -84,6 +85,60 @@ export async function saveCompany(company) {
     if (error) { console.error('saveCompany insert:', error); throw error; }
     return data ? { ...dbToCompany(data) } : company;
   }
+}
+
+/**
+ * Targeted update: persist only the company logo (data URL or empty string).
+ *
+ * Used by CompanySettings' logo picker so the user doesn't have to click
+ * the global "Save Settings" button — uploading is the intent to save. This
+ * also avoids clobbering unsaved edits on other fields.
+ *
+ * Returns { ok: true } on success. Throws with a user-friendly message
+ * (surfacing PostgREST body-size errors, RLS denials, etc.) so callers can
+ * show it in the UI rather than a silent no-op.
+ */
+export async function saveCompanyLogo(companyId, logoDataUrl) {
+  if (!companyId) throw new Error('saveCompanyLogo: companyId is required.');
+  const { error } = await supabase
+    .from('companies')
+    .update({ logo_url: logoDataUrl ?? '' })
+    .eq('id', companyId);
+  if (error) {
+    console.error('saveCompanyLogo:', error);
+    throw new Error(error.message || 'Failed to save logo.');
+  }
+  return { ok: true };
+}
+
+/**
+ * Cascade a new SCR bank routing code from Company Settings down onto every
+ * still-editable payroll run for the same branch.
+ *
+ * Scope is intentionally narrow — we only touch runs where BOTH:
+ *   - status = 'draft'                 (not yet generated / locked)
+ *   - approval_status = 'draft'        (not submitted for HR sign-off)
+ * so a run mid-approval or already generated is never rewritten. Future runs
+ * pick up the new code automatically because PayrollList pre-fills each new
+ * run from `company.defaultBankRoutingCode`.
+ *
+ * Returns { count } — number of draft payrolls updated, for the UI to show
+ * a "X drafts synced" confirmation. Does not throw when 0 rows match.
+ */
+export async function cascadeBankRoutingCodeToDrafts(companyId, newCode) {
+  if (!companyId) throw new Error('cascadeBankRoutingCodeToDrafts: companyId is required.');
+  const { data, error } = await supabase
+    .from('payroll_runs')
+    .update({ scr_bank_routing_code: newCode ?? '' })
+    .eq('company_id', companyId)
+    .eq('status', 'draft')
+    .eq('approval_status', 'draft')
+    .select('id');   // returns updated rows so we can count them
+  if (error) {
+    console.error('cascadeBankRoutingCodeToDrafts:', error);
+    throw new Error(error.message || 'Failed to sync routing code to drafts.');
+  }
+  return { count: data?.length || 0 };
 }
 
 /**
@@ -373,9 +428,7 @@ export async function savePayroll(payroll) {
 
   // Calculate totals for audit trail
   const activeEntries = (payroll.entries || []).filter(e => !e.excluded);
-  const totalDisbursed = activeEntries.reduce((s, e) => {
-    return s + (parseFloat(e.basicSalary) || 0) + (parseFloat(e.variableAllowance) || 0);
-  }, 0);
+  const totalDisbursed = calculatePayrollTotals(activeEntries).netPay;
 
   const runRow = {
     id:                   payroll.id,
@@ -455,18 +508,7 @@ export async function createPayslipRecords(payroll) {
   if (!activeEntries.length) return;
 
   const rows = activeEntries.map(entry => {
-    const gross =
-      (parseFloat(entry.basicSalary)       || 0) +
-      (parseFloat(entry.variableAllowance) || 0) +
-      (parseFloat(entry.housingAllowance)  || 0) +
-      (parseFloat(entry.transportAllowance)|| 0) +
-      (parseFloat(entry.bonus)             || 0) +
-      (parseFloat(entry.otherPay)          || 0) +
-      (entry.additionalAllowances || []).reduce((s, a) => s + (parseFloat(a.amount) || 0), 0);
-
-    const totalDeductions =
-      (entry.deductions || []).reduce((s, d) => s + (parseFloat(d.amount) || 0), 0) +
-      (parseFloat(entry.leaveDeduction) || 0);
+    const calc = calculatePayrollEntry(entry);
 
     return {
       user_id:        user.id,
@@ -474,8 +516,8 @@ export async function createPayslipRecords(payroll) {
       employee_id:    entry.employeeId,
       period:         payroll.period,
       payment_date:   payroll.paymentDate || null,
-      gross_pay:      gross,
-      net_pay:        gross - totalDeductions,
+      gross_pay:      calc.grossEarnings,
+      net_pay:        calc.netPay,
       data_snapshot:  entry,
     };
   });
@@ -864,6 +906,19 @@ export async function getAdvances(employeeId) {
   return (data || []).map(dbToAdvance);
 }
 
+/** Withdraw the signed-in employee's own pending advance request. */
+export async function withdrawEmployeeAdvance(advanceId) {
+  const { data, error } = await supabase.rpc('employee_cancel_advance', {
+    p_advance_id: advanceId,
+  });
+  if (error) throw error;
+
+  // Migration 051 returns true. Accept the older row-returning shape as a
+  // backward-compatible success response while environments are upgraded.
+  const succeeded = data === true || (Array.isArray(data) && data.length > 0);
+  if (!succeeded) throw new Error('The advance request could not be withdrawn.');
+}
+
 /**
  * Saves (inserts or updates) a salary advance.
  * Pass the full camelCase advance object; auto-computes monthly_deduction if not set.
@@ -883,6 +938,7 @@ export async function saveAdvance(advance) {
     employee_id:         advance.employeeId,
     amount:              parseFloat(advance.amount) || 0,
     disbursed_date:      advance.disbursedDate || null,
+    repayment_start_month: advance.repaymentStartMonth ? `${advance.repaymentStartMonth}-01` : null,
     reason:              advance.reason ?? '',
     repayment_months:    parseInt(advance.repaymentMonths) || 1,
     monthly_deduction:   monthlyDeduction,
@@ -893,17 +949,21 @@ export async function saveAdvance(advance) {
     rejection_reason:    advance.rejectionReason ?? null,
   };
 
-  if (advance.id) {
-    const { data, error } = await supabase
-      .from('salary_advances').update(row).eq('id', advance.id).select().single();
-    if (error) throw error;
-    return dbToAdvance(data);
-  } else {
-    const { data, error } = await supabase
-      .from('salary_advances').insert(row).select().single();
-    if (error) throw error;
-    return dbToAdvance(data);
+  const persist = async candidate => {
+    const query = advance.id
+      ? supabase.from('salary_advances').update(candidate).eq('id', advance.id)
+      : supabase.from('salary_advances').insert(candidate);
+    return query.select().single();
+  };
+
+  let { data, error } = await persist(row);
+  if (error && /repayment_start_month/i.test(error.message || '')) {
+    const legacyRow = { ...row };
+    delete legacyRow.repayment_start_month;
+    ({ data, error } = await persist(legacyRow));
   }
+  if (error) throw error;
+  return dbToAdvance(data);
 }
 
 /**
@@ -925,7 +985,7 @@ export async function updateAdvanceBalance(id, newBalance) {
 export async function getAdvanceRepayments(advanceId) {
   const { data, error } = await supabase
     .from('advance_repayments')
-    .select('*')
+    .select('*, payroll_runs(period)')
     .eq('advance_id', advanceId)
     .order('paid_date', { ascending: false });
   if (error) { console.error('getAdvanceRepayments:', error); return []; }
@@ -952,6 +1012,7 @@ function dbToAdvance(row) {
     employeeId:         row.employee_id,
     amount:             parseFloat(row.amount) || 0,
     disbursedDate:      row.disbursed_date || '',
+    repaymentStartMonth: row.repayment_start_month ? row.repayment_start_month.slice(0, 7) : '',
     reason:             row.reason || '',
     repaymentMonths:    parseInt(row.repayment_months) || 1,
     monthlyDeduction:   parseFloat(row.monthly_deduction) || 0,
@@ -967,6 +1028,7 @@ function dbToAdvanceRepayment(row) {
     id:           row.id,
     advanceId:    row.advance_id,
     payrollRunId: row.payroll_run_id || '',
+    payrollPeriod: row.payroll_runs?.period || '',
     amount:       parseFloat(row.amount) || 0,
     paidDate:     row.paid_date || '',
     createdAt:    row.created_at,

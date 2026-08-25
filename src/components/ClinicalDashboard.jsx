@@ -39,7 +39,7 @@ function daysUntil(dateStr) {
 function credentialStatus(expiryDate) {
   const d = daysUntil(expiryDate);
   if (d === null) return 'none';
-  if (d < 0)  return 'expired';
+  if (d <= 0) return 'expired';   // expires today or already past
   if (d <= 90) return 'expiring';
   return 'valid';
 }
@@ -114,7 +114,7 @@ export default function ClinicalDashboard() {
       getAllEmployeeDocuments().catch(() => []),
       getRosterForMonth(now.getFullYear(), now.getMonth() + 1).catch(() => []),
       getDepartments().catch(() => []),
-      getLeaveRequests({ status: 'Approved' }).catch(() => []),
+      getLeaveRequests().catch(() => []),
       getAttendanceRecords({ dateFrom: todayStr, dateTo: todayStr }).catch(() => []),
       getDeptStaffingRules().catch(() => []),
     ]);
@@ -141,14 +141,31 @@ export default function ClinicalDashboard() {
     const activeEmps = employees.filter(e => e.active !== false && e.employmentStatus !== 'Terminated');
 
     // Build doc index per employee: employee_id → [{documentType, expiryDate, ...}]
+    // Includes BOTH employee_documents rows (clinical types) AND the employee-level
+    // professional licence fields (licenceAuthority / licenceExpiry on the employees table).
     const clinicalDocsByEmp = {};
     for (const doc of documents) {
       if (!CLINICAL_DOC_TYPES.has(doc.documentType)) continue;
       if (!clinicalDocsByEmp[doc.employeeId]) clinicalDocsByEmp[doc.employeeId] = [];
       clinicalDocsByEmp[doc.employeeId].push(doc);
     }
+    // Inject employee-level professional licence as a synthetic credential entry
+    for (const emp of activeEmps) {
+      if (emp.licenceAuthority && emp.licenceAuthority !== 'None' && emp.licenceExpiry) {
+        if (!clinicalDocsByEmp[emp.id]) clinicalDocsByEmp[emp.id] = [];
+        clinicalDocsByEmp[emp.id].push({
+          id: `licence-${emp.id}`,
+          employeeId: emp.id,
+          documentType: `${emp.licenceAuthority} Licence`,
+          expiryDate: emp.licenceExpiry,
+          documentNumber: emp.licenceNumber || '',
+          _isEmpLicence: true, // marker to distinguish from uploaded docs
+        });
+      }
+    }
 
-    // Credential compliance
+    // Credential compliance — per employee, track whether they have ANY expired
+    // clinical credential, regardless of whether they also hold a valid one.
     const withValidCred   = [];
     const withExpiredCred = [];
     const noCredentials   = [];
@@ -161,28 +178,35 @@ export default function ClinicalDashboard() {
       }
       const hasValid   = docs.some(d => credentialStatus(d.expiryDate) === 'valid');
       const hasExpired = docs.some(d => credentialStatus(d.expiryDate) === 'expired');
-      if (hasValid) withValidCred.push(emp);
-      if (hasExpired && !hasValid) withExpiredCred.push(emp);
+      const hasExpiring = docs.some(d => credentialStatus(d.expiryDate) === 'expiring');
+      // Count as "valid" if they have at least one valid or expiring credential
+      if (hasValid || hasExpiring) withValidCred.push(emp);
+      // Count as "expired" if ANY credential is expired — even if they also have a valid one
+      if (hasExpired) withExpiredCred.push(emp);
+      // Only completely non-compliant if no valid/expiring creds at all and they have docs
+      if (!hasValid && !hasExpiring && !hasExpired) noCredentials.push(emp);
     }
 
-    const credentialTotal  = withValidCred.length + withExpiredCred.length;
+    // Compliance rate: employees with at least one valid credential / all who hold any credentials
+    const credentialledEmps = new Set([...withValidCred, ...withExpiredCred].map(e => e.id));
+    const credentialTotal  = credentialledEmps.size;
     const complianceRate   = credentialTotal === 0 ? null
       : Math.round(withValidCred.length / credentialTotal * 100);
 
-    // Expiring docs (clinical, within 90 days, not expired)
-    const expiringDocs = documents.filter(d => {
-      if (!CLINICAL_DOC_TYPES.has(d.documentType)) return false;
-      const s = credentialStatus(d.expiryDate);
-      return s === 'expiring';
+    // Expiring docs (clinical, within 90 days, not yet expired) — includes emp-level licences
+    const allClinicalDocs = Object.values(clinicalDocsByEmp).flat();
+    const expiringDocs = allClinicalDocs.filter(d => {
+      return credentialStatus(d.expiryDate) === 'expiring';
     }).map(d => ({
       ...d,
       empName: activeEmps.find(e => e.id === d.employeeId)?.name || '—',
       daysLeft: daysUntil(d.expiryDate),
     })).sort((a, b) => a.daysLeft - b.daysLeft);
 
-    // Expired clinical docs
-    const expiredDocs = documents.filter(d => {
-      if (!CLINICAL_DOC_TYPES.has(d.documentType)) return false;
+    // Expired clinical docs — only for active employees, includes emp-level licences
+    const activeEmpIds = new Set(activeEmps.map(e => e.id));
+    const expiredDocs = allClinicalDocs.filter(d => {
+      if (!activeEmpIds.has(d.employeeId)) return false;
       return credentialStatus(d.expiryDate) === 'expired';
     }).map(d => ({
       ...d,
@@ -524,15 +548,20 @@ export default function ClinicalDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {withExpiredCred.map(e => (
-                    <tr key={e.id} style={{ background: '#fff5f5' }}>
-                      <td style={{ fontWeight: 500 }}>{e.name}</td>
-                      <td>{e.department || '—'}</td>
-                      <td>
-                        <span className="badge badge-red">Expired credential — no valid licence</span>
-                      </td>
-                    </tr>
-                  ))}
+                  {withExpiredCred.map(e => {
+                    const hasAlsoValid = withValidCred.some(v => v.id === e.id);
+                    return (
+                      <tr key={e.id} style={{ background: '#fff5f5' }}>
+                        <td style={{ fontWeight: 500 }}>{e.name}</td>
+                        <td>{e.department || '—'}</td>
+                        <td>
+                          <span className={`badge ${hasAlsoValid ? 'badge-amber' : 'badge-red'}`}>
+                            {hasAlsoValid ? 'Has expired credential(s)' : 'Expired credential — no valid licence'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {noCredentials.map(e => (
                     <tr key={e.id}>
                       <td style={{ fontWeight: 500 }}>{e.name}</td>

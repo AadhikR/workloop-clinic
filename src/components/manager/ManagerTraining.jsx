@@ -3,13 +3,14 @@
  * for direct reports + view own training (sub-view toggle).
  */
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Edit2, Trash2, GraduationCap, Award, X, AlertTriangle, ExternalLink, Users, User } from 'lucide-react';
+import { Plus, Edit2, Trash2, GraduationCap, Award, X, AlertTriangle, ExternalLink, Users, User, Upload, FileText } from 'lucide-react';
 import { formatDateUAE } from '../../utils/uaeValidators';
 import {
   getTeamTrainingRecords, saveTeamTrainingRecord, deleteTeamTrainingRecord,
   getTeamCertifications, saveTeamCertification, deleteTeamCertification,
   getEmployeeTrainingRecords, getEmployeeCertifications, employeeSaveTrainingRecord,
   employeeSaveCertification, getManagerDirectReports,
+  uploadCertificateFile, getCertificateSignedUrl,
 } from '../../utils/trainingStorage';
 import { TRAINING_TYPES, TRAINING_STATUSES, certExpiryInfo } from '../TrainingManager';
 
@@ -38,6 +39,8 @@ function TrainingModal({ record, employees, onSave, onClose }) {
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
+  const [file, setFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const handleSubmit = async e => {
@@ -45,7 +48,16 @@ function TrainingModal({ record, employees, onSave, onClose }) {
     if (!form.employeeId) { setErr('Please select an employee.'); return; }
     if (!form.trainingTitle.trim()) { setErr('Training title is required.'); return; }
     setSaving(true);
-    try { await onSave(form); } catch (ex) { setErr(ex.message || 'Failed to save.'); setSaving(false); }
+    try {
+      let extra = {};
+      if (file) {
+        setUploading(true);
+        const { storagePath, fileName } = await uploadCertificateFile(form.employeeId, file);
+        extra = { storagePath, fileName };
+        setUploading(false);
+      }
+      await onSave({ ...form, ...extra });
+    } catch (ex) { setErr(ex.message || 'Failed to save.'); setSaving(false); setUploading(false); }
   };
 
   return (
@@ -124,8 +136,23 @@ function TrainingModal({ record, employees, onSave, onClose }) {
               </div>
             )}
             <div className="form-group">
-              <label className="form-label">Certificate URL</label>
-              <input className="form-control" value={form.certificateUrl} onChange={e => set('certificateUrl', e.target.value)} placeholder="https://… or leave blank" />
+              <label className="form-label">Certificate / Document</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
+                  border: '1px dashed var(--gray-200)', borderRadius: 6, cursor: 'pointer',
+                  fontSize: 13, color: 'var(--gray-500)',
+                }}>
+                  <Upload size={14} />
+                  {file ? file.name : record?.fileName ? `Current: ${record.fileName}` : 'Upload certificate file…'}
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" style={{ display: 'none' }}
+                    onChange={e => { if (e.target.files[0]) setFile(e.target.files[0]); }} />
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--gray-400)' }}>
+                  <span>or paste URL:</span>
+                  <input className="form-control" value={form.certificateUrl} onChange={e => set('certificateUrl', e.target.value)} placeholder="https://…" style={{ fontSize: 12, flex: 1 }} />
+                </div>
+              </div>
             </div>
             <div className="form-group">
               <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
@@ -140,7 +167,7 @@ function TrainingModal({ record, employees, onSave, onClose }) {
           </div>
           <div className="modal-footer">
             <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Record'}</button>
+            <button type="submit" className="btn btn-primary" disabled={saving}>{uploading ? 'Uploading…' : saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Record'}</button>
           </div>
         </form>
       </div>
@@ -160,6 +187,8 @@ function CertModal({ cert, employees, onSave, onClose }) {
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
+  const [file, setFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const handleSubmit = async e => {
@@ -167,7 +196,16 @@ function CertModal({ cert, employees, onSave, onClose }) {
     if (!form.employeeId) { setErr('Please select an employee.'); return; }
     if (!form.certificationName.trim()) { setErr('Certification name is required.'); return; }
     setSaving(true);
-    try { await onSave(form); } catch (ex) { setErr(ex.message || 'Failed to save.'); setSaving(false); }
+    try {
+      let extra = {};
+      if (file) {
+        setUploading(true);
+        const { storagePath, fileName } = await uploadCertificateFile(form.employeeId, file);
+        extra = { storagePath, fileName };
+        setUploading(false);
+      }
+      await onSave({ ...form, ...extra });
+    } catch (ex) { setErr(ex.message || 'Failed to save.'); setSaving(false); setUploading(false); }
   };
 
   return (
@@ -212,8 +250,23 @@ function CertModal({ cert, employees, onSave, onClose }) {
               </div>
             </div>
             <div className="form-group">
-              <label className="form-label">Certificate URL</label>
-              <input className="form-control" value={form.certificateUrl} onChange={e => set('certificateUrl', e.target.value)} placeholder="https://… or leave blank" />
+              <label className="form-label">Certificate File</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
+                  border: '1px dashed var(--gray-200)', borderRadius: 6, cursor: 'pointer',
+                  fontSize: 13, color: 'var(--gray-500)',
+                }}>
+                  <Upload size={14} />
+                  {file ? file.name : cert?.fileName ? `Current: ${cert.fileName}` : 'Upload certificate file…'}
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" style={{ display: 'none' }}
+                    onChange={e => { if (e.target.files[0]) setFile(e.target.files[0]); }} />
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--gray-400)' }}>
+                  <span>or paste URL:</span>
+                  <input className="form-control" value={form.certificateUrl} onChange={e => set('certificateUrl', e.target.value)} placeholder="https://…" style={{ fontSize: 12, flex: 1 }} />
+                </div>
+              </div>
             </div>
             <div className="form-group">
               <label className="form-label">Notes</label>
@@ -222,7 +275,7 @@ function CertModal({ cert, employees, onSave, onClose }) {
           </div>
           <div className="modal-footer">
             <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Certification'}</button>
+            <button type="submit" className="btn btn-primary" disabled={saving}>{uploading ? 'Uploading…' : saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Certification'}</button>
           </div>
         </form>
       </div>
@@ -261,13 +314,24 @@ function MyTrainingForm({ record, employeeId, onSave, onCancel }) {
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
+  const [file, setFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const handleSubmit = async e => {
     e.preventDefault(); setErr('');
     if (!form.trainingTitle.trim()) { setErr('Training title is required.'); return; }
     setSaving(true);
-    try { await onSave(form); } catch (ex) { setErr(ex.message || 'Failed to save.'); setSaving(false); }
+    try {
+      let extra = {};
+      if (file) {
+        setUploading(true);
+        const { storagePath, fileName } = await uploadCertificateFile(form.employeeId, file);
+        extra = { storagePath, fileName };
+        setUploading(false);
+      }
+      await onSave({ ...form, ...extra });
+    } catch (ex) { setErr(ex.message || 'Failed to save.'); setSaving(false); setUploading(false); }
   };
 
   return (
@@ -317,6 +381,25 @@ function MyTrainingForm({ record, employeeId, onSave, onCancel }) {
               placeholder="e.g. 8" min="0" step="0.5" style={{ fontSize: 13 }} />
           </div>
           <div className="form-group">
+            <label className="form-label" style={{ fontSize: 12 }}>Certificate / Document</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px',
+                border: '1px dashed var(--gray-200)', borderRadius: 6, cursor: 'pointer',
+                fontSize: 12, color: 'var(--gray-500)',
+              }}>
+                <Upload size={12} />
+                {file ? file.name : record?.fileName ? `Current: ${record.fileName}` : 'Upload file…'}
+                <input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" style={{ display: 'none' }}
+                  onChange={e => { if (e.target.files[0]) setFile(e.target.files[0]); }} />
+              </label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--gray-400)' }}>
+                <span>or URL:</span>
+                <input className="form-control" value={form.certificateUrl} onChange={e => set('certificateUrl', e.target.value)} placeholder="https://…" style={{ fontSize: 11, flex: 1 }} />
+              </div>
+            </div>
+          </div>
+          <div className="form-group">
             <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}>
               <input type="checkbox" checked={!!form.isCme} onChange={e => set('isCme', e.target.checked)} />
               <span>Count these hours toward my <strong>CME</strong> (Continuing Medical Education) requirement</span>
@@ -325,7 +408,7 @@ function MyTrainingForm({ record, employeeId, onSave, onCancel }) {
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
           <button type="submit" className="btn btn-primary btn-sm" disabled={saving}>
-            {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Training'}
+            {uploading ? 'Uploading…' : saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Training'}
           </button>
           <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel}>Cancel</button>
         </div>
@@ -348,13 +431,24 @@ function MyCertForm({ record, employeeId, onSave, onCancel }) {
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
+  const [file, setFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const handleSubmit = async e => {
     e.preventDefault(); setErr('');
     if (!form.certificationName.trim()) { setErr('Certification name is required.'); return; }
     setSaving(true);
-    try { await onSave(form); } catch (ex) { setErr(ex.message || 'Failed to save.'); setSaving(false); }
+    try {
+      let extra = {};
+      if (file) {
+        setUploading(true);
+        const { storagePath, fileName } = await uploadCertificateFile(form.employeeId, file);
+        extra = { storagePath, fileName };
+        setUploading(false);
+      }
+      await onSave({ ...form, ...extra });
+    } catch (ex) { setErr(ex.message || 'Failed to save.'); setSaving(false); setUploading(false); }
   };
 
   return (
@@ -391,8 +485,23 @@ function MyCertForm({ record, employeeId, onSave, onCancel }) {
             </div>
           </div>
           <div className="form-group">
-            <label className="form-label" style={{ fontSize: 12 }}>Certificate URL</label>
-            <input className="form-control" value={form.certificateUrl} onChange={e => set('certificateUrl', e.target.value)} placeholder="https://..." style={{ fontSize: 13 }} />
+            <label className="form-label" style={{ fontSize: 12 }}>Certificate File</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px',
+                border: '1px dashed var(--gray-200)', borderRadius: 6, cursor: 'pointer',
+                fontSize: 12, color: 'var(--gray-500)',
+              }}>
+                <Upload size={12} />
+                {file ? file.name : record?.fileName ? `Current: ${record.fileName}` : 'Upload file…'}
+                <input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" style={{ display: 'none' }}
+                  onChange={e => { if (e.target.files[0]) setFile(e.target.files[0]); }} />
+              </label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--gray-400)' }}>
+                <span>or URL:</span>
+                <input className="form-control" value={form.certificateUrl} onChange={e => set('certificateUrl', e.target.value)} placeholder="https://…" style={{ fontSize: 11, flex: 1 }} />
+              </div>
+            </div>
           </div>
           <div className="form-group">
             <label className="form-label" style={{ fontSize: 12 }}>Notes</label>
@@ -401,7 +510,7 @@ function MyCertForm({ record, employeeId, onSave, onCancel }) {
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
           <button type="submit" className="btn btn-primary btn-sm" disabled={saving}>
-            {saving ? 'Submitting…' : isEdit ? 'Save Changes' : 'Submit for Review'}
+            {uploading ? 'Uploading…' : saving ? 'Submitting…' : isEdit ? 'Save Changes' : 'Submit for Review'}
           </button>
           <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel}>Cancel</button>
         </div>
@@ -563,9 +672,17 @@ function MyTrainingView({ emp }) {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
                       <div style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>
                         {c.certificationName}
-                        {c.certificateUrl && (
-                          <a href={c.certificateUrl} target="_blank" rel="noopener noreferrer" style={{ marginLeft: 6, color: 'var(--primary)' }}>
-                            <ExternalLink size={11} />
+                        {(c.storagePath || c.certificateUrl) && (
+                          <a href={c.certificateUrl || '#'} target="_blank" rel="noopener noreferrer"
+                            title={c.storagePath ? `File: ${c.fileName}` : 'View certificate'}
+                            style={{ marginLeft: 6, color: 'var(--primary)' }}
+                            onClick={async ev => {
+                              if (c.storagePath) {
+                                ev.preventDefault();
+                                try { const url = await getCertificateSignedUrl(c.storagePath); window.open(url, '_blank'); } catch { /* ignore */ }
+                              }
+                            }}>
+                            {c.storagePath ? <FileText size={11} /> : <ExternalLink size={11} />}
                           </a>
                         )}
                       </div>
@@ -829,9 +946,17 @@ export default function ManagerTraining({ emp }) {
                       {r.status === 'completed' && r.passed !== null && (
                         <span style={{ color: r.passed ? '#10b981' : '#ef4444', fontWeight: 600 }}>{r.passed ? 'Passed' : 'Failed'}</span>
                       )}
-                      {r.certificateUrl && (
-                        <a href={r.certificateUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                          Certificate <ExternalLink size={11} />
+                      {r.isCme && <span className="badge badge-blue" style={{ fontSize: 9, padding: '1px 5px' }}>CME</span>}
+                      {(r.storagePath || r.certificateUrl) && (
+                        <a href={r.certificateUrl || '#'} target="_blank" rel="noopener noreferrer"
+                          style={{ color: 'var(--primary)', display: 'inline-flex', alignItems: 'center', gap: 3 }}
+                          onClick={async ev => {
+                            if (r.storagePath) {
+                              ev.preventDefault();
+                              try { const url = await getCertificateSignedUrl(r.storagePath); window.open(url, '_blank'); } catch { /* ignore */ }
+                            }
+                          }}>
+                          Certificate {r.storagePath ? <FileText size={11} /> : <ExternalLink size={11} />}
                         </a>
                       )}
                     </div>
@@ -859,9 +984,16 @@ export default function ManagerTraining({ emp }) {
                         <div style={{ flex: 1 }}>
                           <div style={{ fontWeight: 600, fontSize: 14 }}>
                             {c.certificationName}
-                            {c.certificateUrl && (
-                              <a href={c.certificateUrl} target="_blank" rel="noopener noreferrer" style={{ marginLeft: 6, color: 'var(--primary)' }}>
-                                <ExternalLink size={12} />
+                            {(c.storagePath || c.certificateUrl) && (
+                              <a href={c.certificateUrl || '#'} target="_blank" rel="noopener noreferrer"
+                                style={{ marginLeft: 6, color: 'var(--primary)' }}
+                                onClick={async ev => {
+                                  if (c.storagePath) {
+                                    ev.preventDefault();
+                                    try { const url = await getCertificateSignedUrl(c.storagePath); window.open(url, '_blank'); } catch { /* ignore */ }
+                                  }
+                                }}>
+                                {c.storagePath ? <FileText size={12} /> : <ExternalLink size={12} />}
                               </a>
                             )}
                           </div>

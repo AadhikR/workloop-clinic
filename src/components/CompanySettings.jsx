@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
-import { Building2, Info, CheckCircle, Save, AlertCircle, Loader, MapPin, Calendar, ShieldCheck, Heart, Plus, Trash2, Edit2 } from 'lucide-react';
-import { getCompany, saveCompany, getInsurancePolicies, saveInsurancePolicy, deleteInsurancePolicy } from '../utils/storage';
+import { useState, useEffect, useRef } from 'react';
+import { Building2, Info, CheckCircle, Save, AlertCircle, Loader, MapPin, Calendar, ShieldCheck, Heart, Plus, Trash2, Edit2, Upload, X, Image as ImageIcon } from 'lucide-react';
+import { getCompany, saveCompany, saveCompanyLogo, cascadeBankRoutingCodeToDrafts, getInsurancePolicies, saveInsurancePolicy, deleteInsurancePolicy } from '../utils/storage';
 import { useCompany } from '../context/CompanyContext';
 import { formatDateUAE, validateEmail, validateBankRoutingCode, clampNumber } from '../utils/uaeValidators';
+import { processLogoFile } from '../utils/logoUpload';
 
 // UAE sectors with their approximate 2024 Emiratization quota targets (Cabinet Res. 27/2023)
 const SECTORS = [
@@ -77,11 +78,27 @@ export default function CompanySettings() {
   const [policySaving, setPolicySaving] = useState(false);
   const [policyError, setPolicyError]   = useState('');
 
+  // ── Logo upload state ──
+  const logoFileRef = useRef(null);
+  const [logoError, setLogoError]     = useState('');
+  const [logoBusy, setLogoBusy]       = useState(false);
+  const [logoSavedTick, setLogoSavedTick] = useState(false); // shows "Saved ✓" after auto-save
+
+  // Snapshot of the last-persisted SCR bank routing code. We compare against
+  // this on save to detect a real change; if the code changed, we cascade the
+  // new value onto every still-editable draft payroll for this branch (see
+  // handleSave). Ref (not state) so updating it doesn't trigger a re-render.
+  const savedRoutingCodeRef = useRef('');
+  const [cascadeMsg, setCascadeMsg] = useState('');
+
   useEffect(() => {
     setLoading(true);
     Promise.all([getCompany(activeCompanyId), getInsurancePolicies()]).then(([stored, pols]) => {
       if (stored) setCompany({ ...DEFAULT_COMPANY, ...stored });
       else setCompany(DEFAULT_COMPANY); // fresh branch — start blank
+      // Snapshot the DB-persisted routing code so a later handleSave() can
+      // detect whether the user actually changed it (and cascade to drafts).
+      savedRoutingCodeRef.current = (stored?.defaultBankRoutingCode || '').trim();
       setPolicies(pols);
       setLoading(false);
     }).catch(err => {
@@ -149,28 +166,167 @@ export default function CompanySettings() {
     }
   };
 
+  // Debounce timer for auto-save + refs that always hold the latest values.
+  // Refs (not state) are essential here because:
+  //   - The debounced setTimeout captures a stale render-scope closure if we
+  //     read `company` or `saving` directly. Refs give us the real latest.
+  //   - `saving` is state; setSaving(true) doesn't take effect until the next
+  //     render, so a same-tick `if (saving)` check is unreliable. `savingRef`
+  //     tracks the in-flight flag synchronously.
+  //   - `pendingSaveRef` — if a silent save is skipped because another save
+  //     is already in flight, we set this flag; the running save re-fires
+  //     itself when it completes so the latest edits reach the DB. This
+  //     kills the "typed during a save, changes lost" race.
+  const autoSaveTimerRef = useRef(null);
+  const companyRef       = useRef(company);
+  const savingRef        = useRef(false);
+  const pendingSaveRef   = useRef(false);
+  const userHasEditedRef = useRef(false);
+
+  // Keep companyRef pointed at the latest state — every render.
+  useEffect(() => {
+    companyRef.current = company;
+  }, [company]);
+
   const handleChange = (field, value) => {
     setCompany(prev => ({ ...prev, [field]: value }));
     setSaved(false);
     setError('');
+    userHasEditedRef.current = true;
+
+    // Schedule an auto-save. Any subsequent handleChange within 800 ms
+    // resets the timer so we save once, not once per keystroke. Reads
+    // `companyRef.current` at fire time so it sees the very latest state.
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => {
+      handleSave({ silent: true, from: companyRef.current })
+        .catch(() => { /* swallow — silent path */ });
+    }, 800);
   };
 
-  const handleSave = async () => {
+  // Cleanup the debounce timer on unmount so React doesn't complain about
+  // state updates on an unmounted component after the user navigates away.
+  useEffect(() => () => {
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+  }, []);
+
+  // Auto-save the logo the moment it's uploaded / removed. Uploading is the
+  // user's intent to save — waiting for a global "Save Settings" click leaves
+  // the logo in local state only, so the payslip generator (which reads the
+  // DB via getCompany) still sees an empty logo_url. A targeted UPDATE that
+  // only touches logo_url also avoids clobbering unsaved edits on other
+  // fields.
+  const persistLogo = async (dataUrl) => {
+    // No id yet → this is a brand-new company that hasn't been saved for the
+    // first time. Fall back to updating local state; the global Save Settings
+    // handler will pick it up on the initial insert.
+    if (!company.id) {
+      handleChange('logoUrl', dataUrl);
+      return;
+    }
+    handleChange('logoUrl', dataUrl);
+    try {
+      await saveCompanyLogo(company.id, dataUrl);
+      setLogoSavedTick(true);
+      setTimeout(() => setLogoSavedTick(false), 2500);
+    } catch (err) {
+      setLogoError(`Saved locally but DB write failed: ${err.message}. Click "Save Settings" to retry.`);
+    }
+  };
+
+  const handleLogoFile = async (file) => {
+    if (!file) return;
+    setLogoError('');
+    setLogoBusy(true);
+    try {
+      const dataUrl = await processLogoFile(file);
+      await persistLogo(dataUrl);
+    } catch (err) {
+      setLogoError(err.message || 'Failed to process image.');
+    } finally {
+      setLogoBusy(false);
+      // Allow re-selecting the same file after an error
+      if (logoFileRef.current) logoFileRef.current.value = '';
+    }
+  };
+
+  const handleLogoRemove = async () => {
+    setLogoError('');
+    setLogoBusy(true);
+    try {
+      await persistLogo('');
+    } finally {
+      setLogoBusy(false);
+      if (logoFileRef.current) logoFileRef.current.value = '';
+    }
+  };
+
+  const handleSave = async (opts = {}) => {
+    // `silent`     — auto-save calls this after debounce. On silent runs we
+    //                do NOT show error banners for partial/invalid input; we
+    //                simply skip the DB write and try again next tick.
+    // `from`       — optional snapshot of the latest company object (passed
+    //                by the debounced auto-save so it doesn't read stale
+    //                closure state). Manual save omits it and uses `company`.
+    const silent = opts && typeof opts.silent === 'boolean' && opts.silent;
+    const src    = (opts && opts.from) ? opts.from : company;
+
+    // Serialisation: only ONE save runs at a time. If a silent auto-save
+    // arrives while a save is in flight, we don't drop the change — we
+    // mark it pending, and the running save re-fires after it finishes so
+    // the latest edit reaches the DB.
+    if (savingRef.current) {
+      if (silent) pendingSaveRef.current = true;
+      return;
+    }
+
     // Format guards — only enforced when the field is non-empty so first-run
     // partial setups can still save.
-    const emailCheck = validateEmail(company.contactEmail);
-    if (!emailCheck.valid) { setError(emailCheck.message); return; }
-    const rcCheck = validateBankRoutingCode(company.defaultBankRoutingCode);
-    if (!rcCheck.valid) { setError(rcCheck.message); return; }
+    const emailCheck = validateEmail(src.contactEmail);
+    if (!emailCheck.valid) { if (!silent) setError(emailCheck.message); return; }
+    const rcCheck = validateBankRoutingCode(src.defaultBankRoutingCode);
+    if (!rcCheck.valid) { if (!silent) setError(rcCheck.message); return; }
 
+    savingRef.current = true;
     setSaving(true);
     setError('');
     setSaved(false);
+    setCascadeMsg('');
     try {
-      const result = await saveCompany(company);
-      if (result?.id && !company.id) {
+      // Snapshot whether the SCR routing code was actually changed BEFORE
+      // saving, so we know if the cascade needs to run afterwards.
+      const newCode      = (src.defaultBankRoutingCode || '').trim();
+      const routingChanged = newCode !== savedRoutingCodeRef.current;
+
+      const result = await saveCompany(src);
+      if (result?.id && !src.id) {
         setCompany(prev => ({ ...prev, id: result.id }));
       }
+
+      // Cascade the new SCR routing code down to every still-editable draft
+      // payroll for this branch so the next SIF picks it up. Only runs when
+      // (a) the value actually changed, and (b) we already have a company id
+      // (no drafts can exist before the first save anyway). Locked runs —
+      // approved, generated, mid-approval — are untouched by the RPC.
+      const targetCompanyId = src.id || result?.id;
+      if (routingChanged && targetCompanyId) {
+        try {
+          const { count } = await cascadeBankRoutingCodeToDrafts(targetCompanyId, newCode);
+          savedRoutingCodeRef.current = newCode;
+          if (count > 0) {
+            setCascadeMsg(`SCR routing code applied to ${count} draft payroll${count !== 1 ? 's' : ''}.`);
+            setTimeout(() => setCascadeMsg(''), 5000);
+          }
+        } catch (cascadeErr) {
+          // Non-fatal — company save already succeeded. Surface the failure
+          // so the user knows to update drafts by hand.
+          setCascadeMsg(`Saved, but couldn't push routing code to drafts: ${cascadeErr.message}`);
+        }
+      } else if (!routingChanged) {
+        // Keep the snapshot in sync even when nothing changed (safe no-op).
+        savedRoutingCodeRef.current = newCode;
+      }
+
       // Refresh the branch switcher so renamed branches show the new label
       refreshCompanies().catch(() => {});
       setSaved(true);
@@ -179,7 +335,19 @@ export default function CompanySettings() {
       console.error('Failed to save company:', err);
       setError(err.message || 'Failed to save. Please try again.');
     } finally {
+      savingRef.current = false;
       setSaving(false);
+      // If a silent auto-save was requested while this one was in flight,
+      // fire it now with the latest state so the user's most recent edit
+      // definitely reaches the DB.
+      if (pendingSaveRef.current) {
+        pendingSaveRef.current = false;
+        // Defer one tick so the finally-block's state updates settle first.
+        setTimeout(() => {
+          handleSave({ silent: true, from: companyRef.current })
+            .catch(() => { /* swallow */ });
+        }, 0);
+      }
     }
   };
 
@@ -193,7 +361,19 @@ export default function CompanySettings() {
 
   return (
     <div>
-      <div className="page-header">
+      {/* Inline `position: sticky` reinforces the global .page-header rule so
+          the title + Save button remain visible while the user scrolls a long
+          settings form. Explicit top/z-index/background guarantee it works
+          even if a later CSS change to .main-content changes overflow. */}
+      <div
+        className="page-header"
+        style={{
+          position: 'sticky',
+          top: 'var(--sidebar-gap)',
+          zIndex: 60,
+          background: '#ffffff',
+        }}
+      >
         <h2>Company / Employer Settings</h2>
         <div className="page-header-actions">
           {saved && !saving && (
@@ -201,9 +381,14 @@ export default function CompanySettings() {
               <CheckCircle size={14} /> Saved
             </span>
           )}
+          {saving && (
+            <span className="auto-save-indicator" style={{ opacity: 0.7 }}>
+              <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Auto-saving…
+            </span>
+          )}
           <button
             className="btn btn-primary"
-            onClick={handleSave}
+            onClick={() => handleSave()}
             disabled={saving}
             style={{ display: 'flex', alignItems: 'center', gap: 6 }}
           >
@@ -214,6 +399,12 @@ export default function CompanySettings() {
       </div>
 
       <div className="page-body">
+
+        {cascadeMsg && (
+          <div className="alert alert-success" style={{ marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
+            <CheckCircle size={16} /> {cascadeMsg}
+          </div>
+        )}
 
         {error && (
           <div className="alert alert-danger mb-4">
@@ -323,14 +514,79 @@ export default function CompanySettings() {
                 </span>
               </div>
               <div className="form-group">
-                <label>Company Logo (for Payslips)</label>
+                <label>Company Logo (for Payslips &amp; Letters)</label>
                 <input
-                  className="form-control"
-                  value={company.logoUrl}
-                  onChange={e => handleChange('logoUrl', e.target.value)}
-                  placeholder="https://... or leave blank"
+                  ref={logoFileRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                  style={{ display: 'none' }}
+                  onChange={e => handleLogoFile(e.target.files?.[0])}
                 />
-                <span className="hint">URL to your company logo — displayed on PDF payslips</span>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: 10, border: '1px solid rgba(100,116,139,0.20)',
+                  borderRadius: 10, background: '#f8fafc',
+                }}>
+                  {/* Preview thumbnail */}
+                  <div style={{
+                    width: 56, height: 56, borderRadius: 8,
+                    background: '#ffffff',
+                    border: '1px solid rgba(100,116,139,0.14)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    overflow: 'hidden', flexShrink: 0,
+                  }}>
+                    {company.logoUrl
+                      ? <img
+                          src={company.logoUrl}
+                          alt="Company logo"
+                          style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                        />
+                      : <ImageIcon size={22} color="var(--gray-400)" />
+                    }
+                  </div>
+                  {/* Actions */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-sm"
+                        onClick={() => logoFileRef.current?.click()}
+                        disabled={logoBusy}
+                      >
+                        <Upload size={13} />
+                        {logoBusy
+                          ? 'Processing…'
+                          : company.logoUrl ? 'Replace' : 'Upload logo'}
+                      </button>
+                      {company.logoUrl && !logoBusy && (
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          onClick={handleLogoRemove}
+                          style={{ color: 'var(--danger)' }}
+                        >
+                          <X size={13} /> Remove
+                        </button>
+                      )}
+                    </div>
+                    <span className="hint" style={{ fontSize: 11 }}>
+                      PNG, JPG, WebP, or SVG · auto-resized to 300 px · auto-saved on upload
+                    </span>
+                    {logoSavedTick && (
+                      <span style={{
+                        fontSize: 11, color: 'var(--success)',
+                        display: 'flex', alignItems: 'center', gap: 4,
+                      }}>
+                        <CheckCircle size={12} /> Saved to database
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {logoError && (
+                  <div className="hint" style={{ color: 'var(--danger)', marginTop: 6, display: 'flex', gap: 4, alignItems: 'center' }}>
+                    <AlertCircle size={12} /> {logoError}
+                  </div>
+                )}
               </div>
             </div>
           </div>

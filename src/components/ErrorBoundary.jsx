@@ -1,6 +1,12 @@
 import { Component } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 
+function safeErrorMessage(error) {
+  if (typeof error === 'string') return error;
+  if (typeof error?.message === 'string') return error.message;
+  return 'An unexpected error occurred.';
+}
+
 export default class ErrorBoundary extends Component {
   state = { hasError: false, error: null };
 
@@ -49,7 +55,7 @@ export default class ErrorBoundary extends Component {
               borderRadius: 8, padding: '10px 14px', marginBottom: 20,
               textAlign: 'left', overflow: 'auto', maxHeight: 80,
             }}>
-              {this.state.error.message || String(this.state.error)}
+              {safeErrorMessage(this.state.error)}
             </pre>
           )}
           <button

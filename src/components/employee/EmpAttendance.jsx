@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
-import { LogIn, LogOut, AlertCircle, CheckCircle, Clock } from 'lucide-react';
+import { AlertCircle, CheckCircle, Clock, Info } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { getAttendanceRecords, recordClockEvent } from '../../utils/attendanceStorage';
+import { getAttendanceRecords } from '../../utils/attendanceStorage';
 import { ATTENDANCE_STATUS, STATUS_LABELS, STATUS_COLORS } from '../../utils/attendanceEngine';
 import { supabase } from '../../lib/supabase';
 
@@ -30,7 +30,6 @@ export default function EmpAttendance() {
   const [todayRec, setTodayRec]   = useState(null);
   const [history, setHistory]     = useState([]);
   const [loading, setLoading]     = useState(true);
-  const [clocking, setClocking]   = useState(false);
   const [toast, setToast]         = useState(null);
 
   // Regularisation form
@@ -132,48 +131,6 @@ export default function EmpAttendance() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  async function clock(eventType) {
-    setClocking(true);
-    const now = new Date().toISOString();
-
-    // Optimistic update first — Clock Out button enables immediately after Clock In
-    const snapshot = todayRec;
-    setTodayRec(prev => {
-      const base = prev ?? {
-        date: todayUAE(), status: ATTENDANCE_STATUS.PRESENT,
-        lateMinutes: 0, totalHours: 0, overtimeHours: 0,
-        clockInTime: null, clockOutTime: null,
-      };
-      return eventType === 'CLOCK_IN'
-        ? { ...base, clockInTime: now, status: ATTENDANCE_STATUS.PRESENT }
-        : { ...base, clockOutTime: now };
-    });
-
-    const { data: rpcData, error: rpcError } = await supabase.rpc('employee_record_clock_event', {
-      p_event_type: eventType,
-      p_notes: '',
-    });
-
-    if (!rpcError && rpcData?.success) {
-      showToast('success', eventType === 'CLOCK_IN' ? 'Clocked in.' : 'Clocked out.');
-      await loadData(); // refresh with server-computed record
-    } else {
-      const rpcMsg = rpcError?.message ?? rpcData?.error ?? 'unknown';
-      console.error('[Attendance] RPC failed:', rpcMsg);
-
-      try {
-        await recordClockEvent({ employeeId: profile.employeeId, eventType, method: 'WEB' });
-        showToast('success', eventType === 'CLOCK_IN' ? 'Clocked in.' : 'Clocked out.');
-      } catch (fallbackErr) {
-        console.error('[Attendance] Direct insert failed:', fallbackErr?.message);
-        setTodayRec(snapshot); // revert optimistic update
-        showToast('error', `Clock failed: ${rpcMsg}`);
-      }
-    }
-
-    setClocking(false);
-  }
-
   async function submitRegularisation(e) {
     e.preventDefault();
     setRegSaving(true);
@@ -192,9 +149,6 @@ export default function EmpAttendance() {
     setShowRegForm(false);
     setRegDate(''); setRegClockIn(''); setRegClockOut(''); setRegReason('');
   }
-
-  const canClockIn  = !todayRec?.clockInTime;
-  const canClockOut = !!todayRec?.clockInTime && !todayRec?.clockOutTime;
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--gray-400)' }}>Loading…</div>;
 
@@ -215,9 +169,10 @@ export default function EmpAttendance() {
           </div>
         )}
 
-        {/* Today's card + clock buttons */}
+        {/* Today's card — view-only. Clock events come from the biometric device
+             or HR manual entry; employees no longer self-clock via the portal. */}
         <div className="emp-card" style={{ marginBottom: 16 }}>
-          <div style={{ padding: '16px 16px 12px' }}>
+          <div style={{ padding: '16px 16px 14px' }}>
             <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
               Today
             </div>
@@ -231,7 +186,7 @@ export default function EmpAttendance() {
               </div>
               <div>
                 <div style={{ fontSize: 18, fontWeight: 700, color: todayRec ? STATUS_COLORS[todayRec.status] : 'var(--gray-500)' }}>
-                  {todayRec ? STATUS_LABELS[todayRec.status] : 'Not started'}
+                  {todayRec ? STATUS_LABELS[todayRec.status] : 'Not recorded yet'}
                 </div>
                 {todayRec?.totalHours > 0 && (
                   <div style={{ fontSize: 13, color: 'var(--gray-500)' }}>
@@ -243,7 +198,7 @@ export default function EmpAttendance() {
             </div>
 
             {/* Time row */}
-            <div style={{ display: 'flex', gap: 24, marginBottom: 16 }}>
+            <div style={{ display: 'flex', gap: 24, marginBottom: 12 }}>
               <div>
                 <div style={{ fontSize: 11, color: 'var(--gray-400)', fontWeight: 500 }}>CLOCK IN</div>
                 <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--gray-800)', marginTop: 2 }}>
@@ -266,26 +221,19 @@ export default function EmpAttendance() {
               )}
             </div>
 
-            {/* Clock buttons */}
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button
-                className="btn btn-success"
-                style={{ flex: 1, justifyContent: 'center', fontSize: 14, padding: '10px 0' }}
-                disabled={!canClockIn || clocking}
-                onClick={() => clock('CLOCK_IN')}
-              >
-                <LogIn size={16} />
-                {clocking && canClockIn ? 'Clocking in…' : 'Clock In'}
-              </button>
-              <button
-                className="btn btn-danger"
-                style={{ flex: 1, justifyContent: 'center', fontSize: 14, padding: '10px 0' }}
-                disabled={!canClockOut || clocking}
-                onClick={() => clock('CLOCK_OUT')}
-              >
-                <LogOut size={16} />
-                {clocking && canClockOut ? 'Clocking out…' : 'Clock Out'}
-              </button>
+            {/* Info footnote — replaces the old Clock In / Clock Out buttons */}
+            <div style={{
+              display: 'flex', alignItems: 'flex-start', gap: 8,
+              padding: '10px 12px', borderRadius: 8,
+              background: 'rgba(37,99,235,0.06)',
+              border: '1px solid rgba(37,99,235,0.12)',
+              fontSize: 12, color: '#475569', lineHeight: 1.5,
+            }}>
+              <Info size={14} style={{ marginTop: 1, color: '#2563EB', flexShrink: 0 }} />
+              <span>
+                Attendance is captured by the biometric device or entered by HR.
+                If a punch was missed, submit a correction request below.
+              </span>
             </div>
           </div>
         </div>

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { FileText, Plus, Trash2, X, Download, AlertCircle, Calendar, ChevronRight, Copy } from 'lucide-react';
+import { FileText, Plus, Trash2, X, AlertCircle, Calendar, ChevronRight, Copy } from 'lucide-react';
 import { getPayrolls, getEmployees, getCompany, savePayroll, deletePayroll } from '../utils/storage';
 import { useCompany } from '../context/CompanyContext';
-import { generateSIF, generateSIFFilename } from '../utils/sifGenerator';
+import { generateSIFFilename } from '../utils/sifGenerator';
 import LoadError from './LoadError';
+import { calculatePayrollTotals } from '../utils/payrollCalculator';
 
 function getMonthName(month) {
   return ['January','February','March','April','May','June',
@@ -174,10 +175,31 @@ export default function PayrollList({ onEdit }) {
 
     setCreating(true);
     try {
-      const copiedEntries = repeatSource.entries.map(entry => ({
-        ...entry,
-        variableAllowance: 0,
-      }));
+      const copiedEntries = employees
+        .filter(employee => employee.active && employee.employmentStatus !== 'Terminated')
+        .map(employee => {
+          const previous = repeatSource.entries.find(entry => entry.employeeId === employee.id);
+          return {
+            employeeId: employee.id,
+            basicSalary: employee.basicSalary,
+            housingAllowance: employee.housingAllowance ?? 0,
+            transportAllowance: employee.transportAllowance ?? 0,
+            allowance: employee.allowance ?? 0,
+            increment: 0,
+            bonus: 0,
+            otherPay: 0,
+            duCost: 0,
+            leaveDeduction: 0,
+            additionalAllowances: (previous?.additionalAllowances || [])
+              .filter(item => item.recurrence === 'recurring')
+              .map(item => ({ ...item })),
+            deductions: (previous?.deductions || [])
+              .filter(item => item.recurrence === 'recurring')
+              .map(item => ({ ...item })),
+            variableAllowance: 0,
+            excluded: false,
+          };
+        });
 
       const [y, m] = repeatForm.period.split('-').map(Number);
       const names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -189,6 +211,7 @@ export default function PayrollList({ onEdit }) {
         entries: copiedEntries,
         createdAt: new Date().toISOString(),
         status: 'draft',
+        companyId: activeCompanyId,
         description: repeatForm.description || `Sal for ${names[m - 1]} ${y}`,
       };
 
@@ -217,26 +240,6 @@ export default function PayrollList({ onEdit }) {
       return next;
     });
     setRepeatErrors(p => ({ ...p, [field]: undefined }));
-  };
-
-  const handleQuickDownload = async (payroll) => {
-    const content  = generateSIF(company, employees, payroll);
-    const filename = generateSIFFilename(company, payroll);
-    // Use Uint8Array + application/octet-stream — prevents browser line-ending normalisation
-    const bytes = new TextEncoder().encode(content);
-    const blob = new Blob([bytes], { type: 'application/octet-stream' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href = url; a.download = filename; a.click();
-    URL.revokeObjectURL(url);
-
-    const updated = { ...payroll, status: 'generated' };
-    try {
-      await savePayroll(updated);
-      setPayrolls(prev => prev.map(p => p.id === payroll.id ? updated : p));
-    } catch (err) {
-      console.error('Failed to update payroll status:', err);
-    }
   };
 
   const sortedPayrolls = [...payrolls].sort((a, b) => b.period.localeCompare(a.period));
@@ -344,9 +347,7 @@ export default function PayrollList({ onEdit }) {
                   {sortedPayrolls.map(p => {
                     const [y, m]      = p.period.split('-').map(Number);
                     const activeEntries = p.entries.filter(e => !e.excluded);
-                    const total       = activeEntries.reduce(
-                      (s, e) => s + (parseFloat(e.basicSalary) || 0) + (parseFloat(e.variableAllowance) || 0), 0
-                    );
+                    const total = calculatePayrollTotals(activeEntries).netPay;
                     const filename = company?.molEmployerId ? generateSIFFilename(company, p) : '—';
                     return (
                       <tr key={p.id} style={{ cursor: 'pointer' }} onClick={() => onEdit(p)}>
@@ -390,15 +391,6 @@ export default function PayrollList({ onEdit }) {
                             >
                               <ChevronRight size={14} />
                             </button>
-                            {company?.molEmployerId && p.paymentDate && (
-                              <button
-                                className="btn btn-ghost btn-icon btn-sm text-success"
-                                title="Quick Download SIF"
-                                onClick={() => handleQuickDownload(p)}
-                              >
-                                <Download size={14} />
-                              </button>
-                            )}
                             <button
                               className="btn btn-ghost btn-icon btn-sm text-danger"
                               title="Delete"
@@ -497,8 +489,8 @@ export default function PayrollList({ onEdit }) {
               <div className="alert alert-info mb-3">
                 <AlertCircle size={16} />
                 <span>
-                  Copying all salary entries from <strong>{repeatSource.description || repeatSource.period}</strong>.
-                  All amounts, allowances, deductions and DU costs will be carried over — you can edit them after creation.
+                  Creating from <strong>{repeatSource.description || repeatSource.period}</strong> using the latest active employee salaries.
+                  Only adjustments marked <strong>Recurring</strong> carry forward. Bonuses, overtime, expenses, leave deductions, advance repayments, and exclusions are reset.
                 </span>
               </div>
               <div className="form-grid form-grid-2">

@@ -136,6 +136,8 @@ The most recent migrations you should not skip:
 - `047_cme_tracking.sql` — `cme_requirements` table + `training_records.is_cme` flag.
 - `048_incident_reports.sql` — clinical incident reporting.
 - **`049_feature_toggles.sql`** — per-company `enable_nafis` / `enable_staffing_rules` / `enable_biometric_import` columns + `employee_cancel_advance(UUID)` RPC for the employee-side pending-advance withdrawal.
+- **`050_advance_repayment_scheduling.sql`** — month-specific advance staging, repayment start month, and idempotent payroll repayment recording.
+- **`051_employee_request_actions.sql`** — fixes employee pending-advance withdrawal and adds ownership-checked deletion for pending/rejected employee expense claims.
 
 ### 4. Create the storage bucket
 

@@ -3,6 +3,7 @@
  */
 
 import { supabase } from '../lib/supabase';
+import { normalizeRequestKind } from './requestUtils';
 
 function dbToRequest(row) {
   return {
@@ -14,6 +15,7 @@ function dbToRequest(row) {
     basicSalary:     parseFloat(row.employees?.basic_salary) || 0,
     allowance:       parseFloat(row.employees?.allowance)    || 0,
     joinDate:        row.employees?.join_date   || '',
+    requestKind:     normalizeRequestKind(row.request_kind),
     letterType:      row.letter_type,
     purpose:         row.purpose                || '',
     status:          row.status                 || 'pending',
@@ -96,6 +98,7 @@ export async function getMyLetterRequests() {
   if (error) { console.error('getMyLetterRequests:', error); return []; }
   return (data || []).map(row => ({
     id:              row.id,
+    requestKind:     normalizeRequestKind(row.request_kind),
     letterType:      row.letter_type,
     purpose:         row.purpose         || '',
     status:          row.status          || 'pending',

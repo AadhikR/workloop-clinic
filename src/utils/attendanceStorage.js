@@ -665,19 +665,28 @@ export async function getOvertimeFromRoster(year, month) {
 /**
  * Fetch all roster assignments for a calendar month.
  * Joins shifts table to include shift name and color.
+ *
+ * When `companyId` is passed, results are scoped to that company using the
+ * project-standard "own-company OR legacy-null" filter — matching how
+ * getEmployees / getPayrolls handle multi-company scoping (see CLAUDE.md).
  */
-export async function getRosterForMonth(year, month) {
+export async function getRosterForMonth(year, month, companyId = null) {
   const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
   const lastDay    = new Date(year, month, 0).getDate();
   const monthEnd   = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
-  const { data, error } = await supabase
+  let q = supabase
     .from('roster_assignments')
     .select('*, shifts(*)')
     .gte('date', monthStart)
     .lte('date', monthEnd)
     .order('date', { ascending: true });
 
+  if (companyId) {
+    q = q.or(`company_id.eq.${companyId},company_id.is.null`);
+  }
+
+  const { data, error } = await q;
   if (error) { console.error('getRosterForMonth:', error); return []; }
   return (data || []).map(dbToRosterAssignment);
 }
@@ -686,16 +695,24 @@ export async function getRosterForMonth(year, month) {
  * Upsert a single roster assignment (employee × date → shift).
  * Uses ON CONFLICT on (employee_id, date) to update if already assigned.
  */
-export async function saveRosterAssignment({ employeeId, shiftId, date, notes = '', published = false, plannedHours = null }) {
+export async function saveRosterAssignment({ employeeId, shiftId, date, notes = '', published = false, plannedHours = null, companyId = null }) {
   const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
 
+  const row = {
+    user_id:       user.id,
+    employee_id:   employeeId,
+    shift_id:      shiftId,
+    date,
+    notes,
+    published,
+    planned_hours: plannedHours,
+  };
+  if (companyId) row.company_id = companyId;
+
   const { data, error } = await supabase
     .from('roster_assignments')
-    .upsert(
-      { user_id: user.id, employee_id: employeeId, shift_id: shiftId, date, notes, published, planned_hours: plannedHours },
-      { onConflict: 'employee_id,date' }
-    )
+    .upsert(row, { onConflict: 'employee_id,date' })
     .select('*, shifts(*)')
     .single();
 
@@ -718,8 +735,9 @@ export async function deleteRosterAssignment(employeeId, date) {
 /**
  * Mark all roster assignments for a given month as published.
  * Once published, employees can see their schedule in the portal.
+ * Scoped to the active company when `companyId` is provided.
  */
-export async function publishRoster(year, month) {
+export async function publishRoster(year, month, companyId = null) {
   const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
 
@@ -727,13 +745,18 @@ export async function publishRoster(year, month) {
   const lastDay    = new Date(year, month, 0).getDate();
   const monthEnd   = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
-  const { error } = await supabase
+  let q = supabase
     .from('roster_assignments')
     .update({ published: true })
     .eq('user_id', user.id)
     .gte('date', monthStart)
     .lte('date', monthEnd);
 
+  if (companyId) {
+    q = q.or(`company_id.eq.${companyId},company_id.is.null`);
+  }
+
+  const { error } = await q;
   if (error) throw error;
 }
 
@@ -755,13 +778,16 @@ function dbToRosterAssignment(row) {
 
 // ── SHIFT SWAP REQUESTS (Feature 8) ──────────────────────────────────────────
 
-export async function getShiftSwapRequests(filters = {}) {
+export async function getShiftSwapRequests(filters = {}, companyId = null) {
   let query = supabase
     .from('shift_swap_requests')
     .select('*')
     .order('created_at', { ascending: false });
 
   if (filters.status) query = query.eq('status', filters.status);
+  if (companyId) {
+    query = query.or(`company_id.eq.${companyId},company_id.is.null`);
+  }
 
   const { data, error } = await query;
   if (error) { console.error('getShiftSwapRequests:', error); return []; }
@@ -770,11 +796,47 @@ export async function getShiftSwapRequests(filters = {}) {
 
 /**
  * Admin approves or rejects a shift swap request.
+ *
+ * Approval routes through the `admin_execute_shift_swap` SECURITY DEFINER RPC
+ * (sql/052_shift_swap_execution.sql) which atomically swaps the two
+ * `roster_assignments` rows *and* flips the request's status in one
+ * transaction. Rejection remains a simple UPDATE — no roster mutation.
+ *
+ * If the RPC hasn't been deployed yet (older environments), we fall back to
+ * the pre-052 status-only update so the admin can still clear the queue —
+ * but they'll see a warning message explaining the roster wasn't rewritten.
  */
 export async function updateShiftSwapRequest(id, status, rejectionReason = '') {
   const user = await getSessionUser();
   if (!user) throw new Error('Not authenticated');
 
+  if (status === 'approved') {
+    const { error: rpcError } = await supabase.rpc('admin_execute_shift_swap', {
+      p_swap_id: id,
+    });
+    if (rpcError) {
+      // Undeployed RPC on an older Supabase environment — surface a specific
+      // error so the admin knows to apply migration 052 rather than blaming
+      // the swap itself.
+      if (/function .* does not exist/i.test(rpcError.message || '')) {
+        throw new Error(
+          'Swap approval requires SQL migration 052 (admin_execute_shift_swap). ' +
+          'Apply sql/052_shift_swap_execution.sql in Supabase and retry.',
+        );
+      }
+      throw rpcError;
+    }
+    // Re-read the row so callers get the freshest admin_approved_* fields.
+    const { data, error } = await supabase
+      .from('shift_swap_requests')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (error) throw error;
+    return dbToShiftSwapRequest(data);
+  }
+
+  // Rejection / cancellation: status-only, no roster impact.
   const { data, error } = await supabase
     .from('shift_swap_requests')
     .update({

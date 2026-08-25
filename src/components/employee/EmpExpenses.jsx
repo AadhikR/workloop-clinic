@@ -5,13 +5,15 @@
  *  - Submit new expense claims (via employee_submit_expense SECURITY DEFINER RPC)
  *  - View their past claims and current status
  *  - See rejection reasons
+ *  - Delete their own pending or rejected claims
  */
 import { useState, useEffect } from 'react';
-import { Receipt, AlertCircle, CheckCircle, Clock, X, Plus } from 'lucide-react';
+import { Receipt, AlertCircle, CheckCircle, Clock, X, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { getMyEmployeeRecord } from '../../utils/profileStorage';
 import { formatDateUAE, validateAmount, validatePastDate } from '../../utils/uaeValidators';
 import { EXPENSE_CATEGORIES } from '../ExpensesManager';
+import { deleteEmployeeExpense } from '../../utils/expenseStorage';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -54,15 +56,9 @@ export default function EmpExpenses() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError]   = useState('');
   const [success, setSuccess]       = useState('');
+  const [deletingId, setDeletingId] = useState(null);
 
-  useEffect(() => {
-    getMyEmployeeRecord().then(e => {
-      setEmp(e);
-      if (e?.id) return loadClaims(e.id);
-    }).finally(() => setLoading(false));
-  }, []);
-
-  const loadClaims = async (employeeId) => {
+  async function loadClaims(employeeId) {
     const { data, error } = await supabase
       .from('expense_claims')
       .select('*')
@@ -81,9 +77,33 @@ export default function EmpExpenses() {
         createdAt:       r.created_at,
       })));
     }
-  };
+  }
+
+  useEffect(() => {
+    getMyEmployeeRecord().then(e => {
+      setEmp(e);
+      if (e?.id) return loadClaims(e.id);
+    }).finally(() => setLoading(false));
+  }, []);
 
   const handleField = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const handleDelete = async claim => {
+    if (!window.confirm(`Delete this ${STATUS_LABEL[claim.status]?.toLowerCase() || ''} expense claim for AED ${claim.amount.toLocaleString('en-AE', { minimumFractionDigits: 2 })}? This cannot be undone.`)) return;
+    setDeletingId(claim.id);
+    setFormError('');
+    setSuccess('');
+    try {
+      await deleteEmployeeExpense(claim.id);
+      setClaims(current => current.filter(item => item.id !== claim.id));
+      setSuccess('Your expense claim has been deleted.');
+      setTimeout(() => setSuccess(''), 5000);
+    } catch (err) {
+      setFormError(err.message || 'Could not delete the expense claim. Please try again.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const handleSubmit = async () => {
     setFormError('');
@@ -101,7 +121,7 @@ export default function EmpExpenses() {
 
     setSubmitting(true);
     try {
-      const { data, error } = await supabase.rpc('employee_submit_expense', {
+      const { error } = await supabase.rpc('employee_submit_expense', {
         p_category:     form.category,
         p_amount:       amt,
         p_expense_date: form.expenseDate,
@@ -163,6 +183,12 @@ export default function EmpExpenses() {
         {success && (
           <div className="alert alert-success mb-4">
             <CheckCircle size={15} /> {success}
+          </div>
+        )}
+
+        {formError && !showForm && (
+          <div className="alert alert-danger mb-4">
+            <AlertCircle size={14} /> {formError}
           </div>
         )}
 
@@ -299,6 +325,8 @@ export default function EmpExpenses() {
             titleColor="var(--warning)"
             icon={<Clock size={14} />}
             claims={pending}
+            onDelete={handleDelete}
+            deletingId={deletingId}
           />
         )}
 
@@ -320,6 +348,8 @@ export default function EmpExpenses() {
             icon={<X size={14} />}
             claims={managerRejected}
             showReason
+            onDelete={handleDelete}
+            deletingId={deletingId}
           />
         )}
 
@@ -351,6 +381,8 @@ export default function EmpExpenses() {
             icon={<X size={14} />}
             claims={rejected}
             showReason
+            onDelete={handleDelete}
+            deletingId={deletingId}
           />
         )}
 
@@ -370,7 +402,7 @@ export default function EmpExpenses() {
 }
 
 // ── ClaimSection sub-component ────────────────────────────────────────────────
-function ClaimSection({ title, titleColor, icon, claims, showReason = false }) {
+function ClaimSection({ title, titleColor, icon, claims, showReason = false, onDelete = null, deletingId = null }) {
   return (
     <div className="emp-card mb-4" style={{ padding: '16px 18px' }}>
       <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: titleColor, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -417,6 +449,18 @@ function ClaimSection({ title, titleColor, icon, claims, showReason = false }) {
               <span className={`badge ${STATUS_BADGE[c.status] || 'badge-amber'}`} style={{ fontSize: 10 }}>
                 {STATUS_LABEL[c.status] || c.status}
               </span>
+              {onDelete && (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  style={{ marginTop: 5, padding: '3px 7px', color: 'var(--danger)', fontSize: 10.5 }}
+                  onClick={() => onDelete(c)}
+                  disabled={deletingId === c.id}
+                  title="Delete this expense claim"
+                >
+                  <Trash2 size={11} /> {deletingId === c.id ? 'Deleting…' : 'Delete'}
+                </button>
+              )}
             </div>
           </div>
         </div>

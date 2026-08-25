@@ -211,30 +211,64 @@ function DocumentExpiryPanel({ employees, allDocs = [] }) {
         <h3><AlertTriangle size={16} style={{ display:'inline', marginRight:6 }}/>Document Expiry — Next 90 Days</h3>
         <span className="badge badge-red">{warnings.length} alert{warnings.length !== 1 ? 's' : ''}</span>
       </div>
-      <div style={{ padding:'0 20px 16px' }}>
+      {/* Groups laid out side-by-side in a wrapping row so the card actually
+          uses its horizontal space instead of leaving a huge empty column
+          to the right of each stacked table. Each group is its own column
+          with header + compact table underneath. */}
+      <div style={{ padding: '4px 20px 16px', display: 'flex', flexWrap: 'wrap', gap: 20 }}>
         {Object.entries(groups).map(([groupName, items]) => {
           if (!items.length) return null;
           return (
-            <div key={groupName} style={{ marginTop:16 }}>
+            <div key={groupName} style={{ marginTop: 12 }}>
               <div style={{ fontWeight:600, fontSize:12, textTransform:'uppercase', letterSpacing:'0.05em', color:'var(--gray-500)', marginBottom:8 }}>
                 {groupName} ({items.length})
               </div>
-              <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
-                {items.map((w, i) => {
-                  const cls = expiryBadgeClass(w.daysLeft);
-                  return (
-                    <div key={i} style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 12px', borderRadius:6, background:'var(--gray-50)', border:'1px solid var(--gray-200)', fontSize:12.5 }}>
-                      <span className={`badge ${cls}`} style={{ fontSize:11 }}>
-                        {w.daysLeft < 0 ? 'EXPIRED' : `${w.daysLeft}d`}
-                      </span>
-                      <span style={{ fontWeight:500 }}>{w.emp}</span>
-                      {groupName === 'Uploaded Documents' && (
-                        <span style={{ color:'var(--gray-500)' }}>{w.label}</span>
-                      )}
-                      <span style={{ color:'var(--gray-500)' }}>{formatDateUAE(w.date)}</span>
-                    </div>
-                  );
-                })}
+              {/* Per-group table — 3 columns (Name · Expiring In · Date), plus
+                  a Type column for the mixed "Uploaded Documents" group so
+                  the reader knows what each row refers to.
+
+                  Shrinks to content instead of stretching to the full card
+                  width, so Name/Expiring In/Date sit compactly together on
+                  the left rather than the badge and date floating to the far
+                  right with a lake of empty space in between. Table gets
+                  `width:auto` to override the global `table { width:100% }`. */}
+              <div className="table-wrap" style={{
+                border: '1px solid var(--gray-200)',
+                borderRadius: 8,
+                width: 'fit-content',
+                maxWidth: '100%',
+              }}>
+                <table className="table" style={{ marginBottom: 0, width: 'auto' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ minWidth: 200 }}>Name</th>
+                      {groupName === 'Uploaded Documents' && <th style={{ minWidth: 140 }}>Type</th>}
+                      <th style={{ width: 110 }}>Expiring In</th>
+                      <th style={{ width: 110 }}>Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((w, i) => {
+                      const cls = expiryBadgeClass(w.daysLeft);
+                      return (
+                        <tr key={i}>
+                          <td style={{ fontWeight: 500 }}>{w.emp}</td>
+                          {groupName === 'Uploaded Documents' && (
+                            <td style={{ color: 'var(--gray-500)' }}>{w.label}</td>
+                          )}
+                          <td>
+                            <span className={`badge ${cls}`} style={{ fontSize: 11, minWidth: 68, textAlign: 'center' }}>
+                              {w.daysLeft < 0 ? 'EXPIRED' : `${w.daysLeft}d`}
+                            </span>
+                          </td>
+                          <td style={{ color: 'var(--gray-500)', whiteSpace: 'nowrap' }}>
+                            {formatDateUAE(w.date)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
           );

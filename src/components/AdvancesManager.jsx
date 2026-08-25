@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Plus, Check, X, DollarSign, Clock, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
+import { Plus, Check, X, DollarSign, Clock, ChevronDown, ChevronUp, AlertCircle, CalendarDays, Save } from 'lucide-react';
 import { getEmployees } from '../utils/storage';
 import { getAdvances, saveAdvance, getAdvanceRepayments } from '../utils/storage';
 import { formatDateUAE, validateAmount, validateRejectionReason } from '../utils/uaeValidators';
 import ConfirmModal from './ConfirmModal';
+import { createAdvancePlan, dateToMonth, getAdvanceProgress } from '../utils/advanceSchedule';
 
 const STATUS_BADGE = {
   pending:   'badge-amber',
@@ -16,6 +17,7 @@ const EMPTY_FORM = {
   employeeId:      '',
   amount:          '',
   disbursedDate:   new Date().toISOString().split('T')[0],
+  repaymentStartMonth: new Date().toISOString().slice(0, 7),
   reason:          '',
   repaymentMonths: '3',
 };
@@ -33,6 +35,8 @@ export default function AdvancesManager() {
   const [repayments, setRepayments]   = useState({});
   const [loadingReps, setLoadingReps] = useState(false);
   const [settleConfirm, setSettleConfirm] = useState(null);
+  const [scheduleEdit, setScheduleEdit] = useState(null);
+  const [scheduleSaving, setScheduleSaving] = useState(false);
 
   // Inline reject/cancel form state
   const [rejectingId,  setRejectingId]  = useState(null); // advance id being acted on
@@ -48,13 +52,21 @@ export default function AdvancesManager() {
       .finally(() => setLoading(false));
   }, []);
 
-  const handleField = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const handleField = (k, v) => setForm(f => ({
+    ...f,
+    [k]: v,
+    ...(k === 'disbursedDate' ? { repaymentStartMonth: dateToMonth(v) } : {}),
+  }));
 
   const monthlyDeduction = () => {
-    const amt    = parseFloat(form.amount) || 0;
-    const months = parseInt(form.repaymentMonths) || 1;
-    return amt > 0 && months > 0 ? (amt / months).toFixed(2) : '0.00';
+    const employee = employees.find(current => current.id === form.employeeId);
+    return createAdvancePlan({ ...form, employee }).monthlyDeduction.toFixed(2);
   };
+
+  const formPlan = createAdvancePlan({
+    ...form,
+    employee: employees.find(current => current.id === form.employeeId),
+  });
 
   const handleCreate = async () => {
     setFormError('');
@@ -64,18 +76,29 @@ export default function AdvancesManager() {
     const amtCheck = validateAmount(form.amount, { min: 1, max: 10_000_000, fieldName: 'Amount' });
     if (!amtCheck.valid) { setFormError(amtCheck.message); return; }
     if (!form.reason.trim()) { setFormError('Reason is required.'); return; }
+    if (formPlan.fixedWpsCapacity <= 0) {
+      setFormError('This employee has no fixed non-basic WPS allowance available for payroll recovery. Add a housing, transport, or other fixed allowance before staging this advance.');
+      return;
+    }
 
     setSaving(true);
     try {
-      const months = parseInt(form.repaymentMonths) || 1;
       const amount = parseFloat(form.amount);
+      const plan = createAdvancePlan({
+        amount,
+        repaymentMonths: form.repaymentMonths,
+        disbursedDate: form.disbursedDate,
+        repaymentStartMonth: form.repaymentStartMonth,
+        employee: employees.find(current => current.id === form.employeeId),
+      });
       const saved = await saveAdvance({
         employeeId:         form.employeeId,
         amount,
         disbursedDate:      form.disbursedDate,
         reason:             form.reason.trim(),
-        repaymentMonths:    months,
-        monthlyDeduction:   parseFloat((amount / months).toFixed(2)),
+        repaymentStartMonth: plan.startMonth,
+        repaymentMonths:    plan.effectiveMonths,
+        monthlyDeduction:   plan.monthlyDeduction,
         outstandingBalance: amount,
         status:             'active',
       });
@@ -91,11 +114,26 @@ export default function AdvancesManager() {
 
   const handleApprove = async (adv) => {
     try {
-      const months  = adv.repaymentMonths || 1;
+      const employee = employees.find(current => current.id === adv.employeeId);
+      const approvalDate = new Date().toISOString().split('T')[0];
+      const plan = createAdvancePlan({
+        amount: adv.amount,
+        repaymentMonths: adv.repaymentMonths,
+        disbursedDate: approvalDate,
+        repaymentStartMonth: dateToMonth(approvalDate),
+        employee,
+      });
+      if (plan.fixedWpsCapacity <= 0) {
+        alert('This employee has no fixed non-basic WPS allowance available. Update their salary structure before approving payroll recovery.');
+        return;
+      }
       const updated = await saveAdvance({
         ...adv,
         status:             'active',
-        monthlyDeduction:   parseFloat((adv.amount / months).toFixed(2)),
+        disbursedDate:      approvalDate,
+        repaymentStartMonth: plan.startMonth,
+        repaymentMonths:    plan.effectiveMonths,
+        monthlyDeduction:   plan.monthlyDeduction,
         outstandingBalance: adv.amount,
       });
       setAdvances(prev => prev.map(a => a.id === updated.id ? updated : a));
@@ -156,6 +194,39 @@ export default function AdvancesManager() {
       const reps = await getAdvanceRepayments(advId).catch(() => []);
       setRepayments(prev => ({ ...prev, [advId]: reps }));
       setLoadingReps(false);
+    }
+  };
+
+  const openScheduleEdit = (adv) => {
+    setScheduleEdit({
+      id: adv.id,
+      repaymentStartMonth: adv.repaymentStartMonth || adv.disbursedDate?.slice(0, 7) || new Date().toISOString().slice(0, 7),
+      repaymentMonths: String(adv.repaymentMonths || 1),
+    });
+  };
+
+  const saveSchedule = async (adv) => {
+    setScheduleSaving(true);
+    try {
+      const plan = createAdvancePlan({
+        amount: adv.outstandingBalance || adv.amount,
+        repaymentMonths: scheduleEdit.repaymentMonths,
+        disbursedDate: adv.disbursedDate,
+        repaymentStartMonth: scheduleEdit.repaymentStartMonth,
+        employee: employees.find(current => current.id === adv.employeeId),
+      });
+      const updated = await saveAdvance({
+        ...adv,
+        repaymentStartMonth: plan.startMonth,
+        repaymentMonths: plan.effectiveMonths,
+        monthlyDeduction: plan.monthlyDeduction,
+      });
+      setAdvances(prev => prev.map(current => current.id === updated.id ? updated : current));
+      setScheduleEdit(null);
+    } catch (err) {
+      alert('Could not save repayment schedule: ' + err.message);
+    } finally {
+      setScheduleSaving(false);
     }
   };
 
@@ -250,8 +321,16 @@ export default function AdvancesManager() {
                   {parseFloat(form.amount) > 0 && (
                     <span className="hint">
                       Monthly deduction: AED {monthlyDeduction()}
+                      {formPlan.extendedForWps && ` · extended to ${formPlan.effectiveMonths} months to protect WPS basic pay`}
                     </span>
                   )}
+                </div>
+                <div className="form-group">
+                  <label>First Repayment Month *</label>
+                  <input className="form-control" type="month"
+                    value={form.repaymentStartMonth}
+                    onChange={e => handleField('repaymentStartMonth', e.target.value)} />
+                  <span className="hint">Defaults to the disbursement month. Change it to stage repayment later.</span>
                 </div>
                 <div className="form-group" style={{ gridColumn: '1/-1' }}>
                   <label>Reason *</label>
@@ -324,23 +403,9 @@ export default function AdvancesManager() {
                         <td className="text-sm">{adv.disbursedDate ? formatDateUAE(adv.disbursedDate) : '—'}</td>
                         <td className="text-sm">
                           {adv.repaymentMonths} month{adv.repaymentMonths !== 1 ? 's' : ''}
-                          {adv.status === 'active' && adv.disbursedDate && (() => {
-                            // First deduction month = payroll month after disbursement.
-                            // Show "MMM YYYY → MMM YYYY" so admin sees which payroll runs will carry the deduction.
-                            const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-                            const d = new Date(adv.disbursedDate);
-                            if (isNaN(d.getTime())) return null;
-                            const startIdx = d.getMonth();
-                            const startYr  = d.getFullYear();
-                            const endIdx   = startIdx + adv.repaymentMonths - 1;
-                            const endMonth = ((endIdx % 12) + 12) % 12;
-                            const endYear  = startYr + Math.floor(endIdx / 12);
-                            return (
-                              <div style={{ fontSize: 10, color: 'var(--gray-500)', marginTop: 2 }}>
-                                {monthNames[startIdx]} {startYr} → {monthNames[endMonth]} {endYear}
-                              </div>
-                            );
-                          })()}
+                          <div style={{ fontSize: 10, color: 'var(--gray-500)', marginTop: 2 }}>
+                            {adv.repaymentStartMonth || adv.disbursedDate?.slice(0, 7) || 'Not staged'}
+                          </div>
                         </td>
                         <td className="text-right text-sm" style={{ color: 'var(--danger)' }}>
                           {adv.status === 'active'
@@ -384,6 +449,10 @@ export default function AdvancesManager() {
                             )}
                             {adv.status === 'active' && (
                               <>
+                                <button className="btn btn-outline btn-sm" title="Edit repayment schedule"
+                                  onClick={() => openScheduleEdit(adv)} style={{ fontSize: 11, padding: '2px 8px' }}>
+                                  <CalendarDays size={12} /> Schedule
+                                </button>
                                 <button className="btn btn-success btn-sm" title="Mark as settled"
                                   onClick={() => handleSettle(adv)}
                                   style={{ fontSize: 11, padding: '2px 8px' }}>
@@ -444,7 +513,17 @@ export default function AdvancesManager() {
                       {expandedId === adv.id && (
                         <tr key={`${adv.id}-reps`}>
                           <td colSpan={10} style={{ background: 'var(--gray-50)', padding: '12px 20px' }}>
-                            <strong style={{ fontSize: 12 }}>Repayment History</strong>
+                            {(() => {
+                              const progress = getAdvanceProgress(adv, repayments[adv.id] || []);
+                              return (
+                                <div className="advance-progress-summary">
+                                  <div><span>Progress</span><strong>{progress.progressPct.toFixed(0)}%</strong></div>
+                                  <div><span>Repaid</span><strong>AED {progress.repaidAmount.toLocaleString('en-AE', { minimumFractionDigits: 2 })}</strong></div>
+                                  <div><span>Next staged month</span><strong>{adv.status === 'active' ? (progress.next?.month || 'Schedule complete') : '—'}</strong></div>
+                                </div>
+                              );
+                            })()}
+                            <strong style={{ fontSize: 12 }}>Repayment Schedule &amp; History</strong>
                             {loadingReps ? (
                               <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 6 }}>Loading…</div>
                             ) : !repayments[adv.id]?.length ? (
@@ -473,6 +552,20 @@ export default function AdvancesManager() {
                                 </tbody>
                               </table>
                             )}
+                            {(() => {
+                              const progress = getAdvanceProgress(adv, repayments[adv.id] || []);
+                              return (
+                                <div className="advance-schedule-grid">
+                                  {progress.schedule.map(item => (
+                                    <div key={item.month} className={progress.paidPeriods.has(item.month) ? 'paid' : progress.next?.month === item.month ? 'next' : ''}>
+                                      <span>{item.month}</span>
+                                      <strong>AED {item.amount.toLocaleString('en-AE', { minimumFractionDigits: 2 })}</strong>
+                                      <small>{progress.paidPeriods.has(item.month) ? 'Paid' : progress.next?.month === item.month ? 'Next' : 'Scheduled'}</small>
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            })()}
                           </td>
                         </tr>
                       )}
@@ -495,6 +588,35 @@ export default function AdvancesManager() {
           onCancel={() => setSettleConfirm(null)}
         />
       )}
+
+      {scheduleEdit && (() => {
+        const adv = advances.find(current => current.id === scheduleEdit.id);
+        if (!adv) return null;
+        const plan = createAdvancePlan({
+          amount: adv.outstandingBalance || adv.amount,
+          repaymentMonths: scheduleEdit.repaymentMonths,
+          repaymentStartMonth: scheduleEdit.repaymentStartMonth,
+          disbursedDate: adv.disbursedDate,
+          employee: employees.find(current => current.id === adv.employeeId),
+        });
+        return (
+          <div className="modal-overlay">
+            <div className="modal" style={{ maxWidth: 480 }}>
+              <div className="modal-header"><h3>Edit Repayment Schedule</h3><button className="btn btn-ghost btn-icon" onClick={() => setScheduleEdit(null)}><X size={17}/></button></div>
+              <div className="modal-body">
+                <div className="form-grid form-grid-2">
+                  <div className="form-group"><label>First repayment month</label><input className="form-control" type="month" value={scheduleEdit.repaymentStartMonth} onChange={e => setScheduleEdit(prev => ({ ...prev, repaymentStartMonth: e.target.value }))}/></div>
+                  <div className="form-group"><label>Requested months</label><input className="form-control" type="number" min="1" max="60" value={scheduleEdit.repaymentMonths} onChange={e => setScheduleEdit(prev => ({ ...prev, repaymentMonths: e.target.value }))}/></div>
+                </div>
+                <div className={`alert ${plan.extendedForWps ? 'alert-warning' : 'alert-info'} mt-3`}>
+                  <AlertCircle size={15}/><span>AED {plan.monthlyDeduction.toLocaleString('en-AE', { minimumFractionDigits: 2 })} from {plan.startMonth} to {plan.endMonth}. {plan.extendedForWps && `Term extended to ${plan.effectiveMonths} months so the deduction does not reduce WPS below basic pay.`}</span>
+                </div>
+              </div>
+              <div className="modal-footer"><button className="btn btn-outline" onClick={() => setScheduleEdit(null)}>Cancel</button><button className="btn btn-primary" disabled={scheduleSaving} onClick={() => saveSchedule(adv)}><Save size={14}/> {scheduleSaving ? 'Saving…' : 'Save Schedule'}</button></div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

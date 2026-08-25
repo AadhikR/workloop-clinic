@@ -42,6 +42,15 @@ export const CLINICAL_DOC_TYPES = new Set([
   'NRP Certificate', 'CME Certificate',
 ]);
 
+// Small helper to render a red asterisk next to a mandatory field's label so
+// the user can spot required inputs at a glance. Kept as an inline element
+// (with a small left margin) so it hugs the label text.
+function Req() {
+  return (
+    <span aria-hidden="true" style={{ color: 'var(--danger)', marginLeft: 3, fontWeight: 700 }}>*</span>
+  );
+}
+
 function formatFileSize(bytes) {
   if (!bytes) return '';
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
@@ -194,15 +203,17 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
       setUploadErr('File exceeds 10 MB limit. Please compress or choose a smaller file.');
       return;
     }
-    // Clinical licence uploads must carry the licence number so HR can match
-    // against MoHRE / DHA / DOH / MOH portals and the SIF compliance gate works.
+    // Document number is required on ALL uploads — HR needs it to match against
+    // MoHRE / DHA / DOH / MOH portals, and the SIF compliance gate looks it up.
+    const num = (uploadForm.documentNumber || '').trim();
+    if (!num) {
+      setUploadErr('Document number is required — enter it before uploading.');
+      return;
+    }
+    // Clinical licence numbers follow a stricter format so they can be matched
+    // one-to-one against the government portals.
     const CLINICAL_LICENCE_TYPES_UP = new Set(['DHA Licence', 'DOH Licence', 'MOH Licence']);
     if (CLINICAL_LICENCE_TYPES_UP.has(uploadForm.type)) {
-      const num = (uploadForm.documentNumber || '').trim();
-      if (!num) {
-        setUploadErr(`${uploadForm.type} requires the licence number — enter it before uploading.`);
-        return;
-      }
       if (!/^[A-Za-z0-9\-/]{3,30}$/.test(num)) {
         setUploadErr('Licence number must be 3–30 letters/digits (hyphens and slashes allowed).');
         return;
@@ -687,12 +698,12 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
           {tab === 'personal' && (
             <div className="form-grid form-grid-2">
               <div className="form-group">
-                <label>Employee No. *</label>
+                <label>Employee No. <Req /></label>
                 <input className="form-control" value={form.empNo} onChange={e => f('empNo', e.target.value)} placeholder="e.g. 1001"/>
                 {errors.empNo && <span className="text-danger text-sm">{errors.empNo}</span>}
               </div>
               <div className="form-group">
-                <label>Full Legal Name (as on passport) *</label>
+                <label>Full Legal Name (as on passport) <Req /></label>
                 <input className="form-control" value={form.name} onChange={e => f('name', e.target.value)} placeholder="e.g. John Smith"/>
                 {errors.name && <span className="text-danger text-sm">{errors.name}</span>}
               </div>
@@ -701,7 +712,7 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
                 <input className="form-control" type="email" value={form.personalEmail} onChange={e => f('personalEmail', e.target.value)} placeholder="personal@email.com"/>
               </div>
               <div className="form-group">
-                <label>Work Email *</label>
+                <label>Work Email <Req /></label>
                 <input className="form-control" type="email" value={form.workEmail} onChange={e => f('workEmail', e.target.value)} placeholder="work@company.com"/>
                 {errors.workEmail && <span className="text-danger text-sm">{errors.workEmail}</span>}
               </div>
@@ -898,13 +909,13 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
           {tab === 'salary' && (
             <div className="form-grid form-grid-2">
               <div className="form-group" style={{ gridColumn:'1/-1' }}>
-                <label>MOL Employee ID (Labour Card No.) *</label>
+                <label>MOL Employee ID (Labour Card No.) <Req /></label>
                 <input className="form-control font-mono" value={form.molId} onChange={e => f('molId', e.target.value.trim())} placeholder="e.g. 10003048635715"/>
                 {errors.molId && <span className="text-danger text-sm">{errors.molId}</span>}
                 <span className="hint">Unique ID provided by Ministry of Labour — used in WPS/SIF files</span>
               </div>
               <div className="form-group">
-                <label>Basic Salary (AED) *</label>
+                <label>Basic Salary (AED) <Req /></label>
                 <input className="form-control" type="number" min="0" step="0.01" value={form.basicSalary} onChange={e => f('basicSalary', e.target.value)} placeholder="e.g. 5000"/>
                 {errors.basicSalary && <span className="text-danger text-sm">{errors.basicSalary}</span>}
               </div>
@@ -1037,17 +1048,17 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
                 <label style={{ fontWeight:600, marginBottom:6, display:'block' }}>Bank Details (for WPS / Payslip)</label>
                 <div className="form-grid form-grid-2" style={{ gap:10 }}>
                   <div className="form-group">
-                    <label>Bank Name *</label>
+                    <label>Bank Name <Req /></label>
                     <input className="form-control" value={form.bankName} onChange={e => f('bankName', e.target.value)} placeholder="e.g. ENBD, FAB, ADCB"/>
                     {errors.bankName && <span className="text-danger text-sm">{errors.bankName}</span>}
                   </div>
                   <div className="form-group">
-                    <label>Bank / Routing Code *</label>
+                    <label>Bank / Routing Code <Req /></label>
                     <input className="form-control font-mono" value={form.bankRoutingCode} onChange={e => f('bankRoutingCode', e.target.value.trim())} placeholder="e.g. 302620122"/>
                     {errors.bankRoutingCode && <span className="text-danger text-sm">{errors.bankRoutingCode}</span>}
                   </div>
                   <div className="form-group" style={{ gridColumn:'1/-1' }}>
-                    <label>IBAN / Account Number *</label>
+                    <label>IBAN / Account Number <Req /></label>
                     <input className="form-control font-mono" value={form.iban} onChange={e => f('iban', e.target.value.trim())} placeholder="e.g. AE080260001014950445301"/>
                     {errors.iban && <span className="text-danger text-sm">{errors.iban}</span>}
                     <span className="hint">UAE IBAN: starts with AE, 23 characters total</span>
@@ -1402,7 +1413,7 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
                       </select>
                     </div>
                     <div className="form-group">
-                      <label>Document Number <span style={{ color:'var(--gray-400)', fontWeight:400 }}>(optional)</span></label>
+                      <label>Document Number <Req /></label>
                       <input className="form-control" value={uploadForm.documentNumber} onChange={e => setUploadForm(p => ({ ...p, documentNumber: e.target.value }))} placeholder="e.g. passport / licence / certificate number" />
                     </div>
                     <div className="form-group">
@@ -1625,7 +1636,7 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
                         onChange={e => setRenewForm(p => ({ ...p, startDate:e.target.value }))} />
                     </div>
                     <div className="form-group">
-                      <label>New End Date *</label>
+                      <label>New End Date <Req /></label>
                       <input className="form-control" type="date" value={renewForm.endDate}
                         onChange={e => setRenewForm(p => ({ ...p, endDate:e.target.value }))} />
                     </div>

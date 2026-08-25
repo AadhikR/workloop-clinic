@@ -1,3 +1,5 @@
+import { calculatePayrollEntry, calculatePayrollTotals } from './payrollCalculator.js';
+import { calculateGratuity } from './gratuityCalculator.js';
 /**
  * reportUtils.js — Pure aggregation helpers for the HR Reports module (Feature 10)
  *
@@ -6,7 +8,7 @@
  */
 import Papa from 'papaparse';
 import { jsPDF } from 'jspdf';
-import { formatDateUAE } from './uaeValidators';
+import { formatDateUAE } from './uaeValidators.js';
 
 // ─── CSV export ───────────────────────────────────────────────────────────────
 
@@ -74,7 +76,7 @@ export function exportPDF(title, headers, rows, filename) {
 // ─── 1. Headcount Report ─────────────────────────────────────────────────────
 
 export function buildHeadcountReport(employees) {
-  const active = employees.filter(e => e.active && e.employmentStatus !== 'Terminated');
+  const active = employees.filter(isActiveEmployee);
 
   const byDept = groupCount(active, e => e.department || 'Unspecified');
   const byNat  = groupCount(active, e => e.nationality || 'Unspecified');
@@ -96,7 +98,7 @@ export function headcountToRows(report) {
   ];
   for (const s of sections) {
     for (const [key, count] of Object.entries(s.data)) {
-      rows.push({ Category: s.label, Group: key, Count: count, 'Share %': `${((count / report.total) * 100).toFixed(1)}%` });
+      rows.push({ Category: s.label, Group: key, Count: count, 'Share %': report.total ? `${((count / report.total) * 100).toFixed(1)}%` : '0.0%' });
     }
   }
   return rows;
@@ -108,10 +110,11 @@ export function buildPayrollCostReport(payrolls, employees) {
   const generated = payrolls.filter(p => p.status === 'generated');
   return generated.map(p => {
     const active = (p.entries || []).filter(e => !e.excluded);
-    const totalBasic = sum(active, e => parseFloat(e.basicSalary) || 0);
-    const totalAllow = sum(active, e => parseFloat(e.variableAllowance) || 0);
+    const totals = calculatePayrollTotals(active);
+    const totalBasic = totals.basicSalary;
     const totalBonus = sum(active, e => (parseFloat(e.bonus) || 0) + (parseFloat(e.otherPay) || 0) + (parseFloat(e.increment) || 0));
-    const totalGross = totalBasic + totalAllow + totalBonus;
+    const totalAllow = totals.grossEarnings - totals.basicSalary - totalBonus;
+    const totalGross = totals.grossEarnings;
 
     // Group by department
     const byDept = {};
@@ -119,7 +122,7 @@ export function buildPayrollCostReport(payrolls, employees) {
       const emp  = employees.find(e => e.id === entry.employeeId);
       const dept = emp?.department || 'Unspecified';
       if (!byDept[dept]) byDept[dept] = 0;
-      byDept[dept] += (parseFloat(entry.basicSalary) || 0) + (parseFloat(entry.variableAllowance) || 0);
+      byDept[dept] += calculatePayrollEntry(entry).grossEarnings;
     }
 
     return {
@@ -146,11 +149,11 @@ export function payrollCostToRows(report) {
 export function buildLeaveUtilizationReport(employees, leaveRequests, year) {
   const yearStr = String(year);
   const approved = leaveRequests.filter(r =>
-    (r.status === 'Approved' || r.status === 'ManagerApproved') && r.startDate?.startsWith(yearStr)
+    r.status === 'Approved' && r.startDate?.startsWith(yearStr)
   );
 
   return employees
-    .filter(e => e.active)
+    .filter(isActiveEmployee)
     .map(emp => {
       const empLeaves = approved.filter(r => r.employeeId === emp.id);
       const byType    = {};
@@ -186,11 +189,12 @@ export function buildAttendanceSummaryReport(employees, attendanceRecords, perio
   const filtered = attendanceRecords.filter(r => r.date?.startsWith(period));
 
   return employees
-    .filter(e => e.active)
+    .filter(isActiveEmployee)
     .map(emp => {
       const recs    = filtered.filter(r => r.employeeId === emp.id);
-      const present = recs.filter(r => r.status === 'PRESENT').length;
-      const absent  = recs.filter(r => r.status === 'ABSENT').length;
+      const workedStatuses = new Set(['PRESENT', 'LATE', 'EARLY_DEPARTURE', 'HALF_DAY', 'OVERTIME', 'PRESENT_REMOTE', 'MISSING_CLOCK_OUT']);
+      const present = recs.filter(r => workedStatuses.has(r.status)).length;
+      const absent  = recs.filter(r => r.status === 'ABSENT' || r.status === 'UNEXPLAINED_ABSENCE').length;
       const late    = recs.filter(r => r.status === 'LATE').length;
       const earlyDep = recs.filter(r => r.status === 'EARLY_DEPARTURE').length;
       const totalHrs = recs.reduce((s, r) => s + (parseFloat(r.totalHours) || 0), 0);
@@ -217,6 +221,41 @@ export function attendanceSummaryToRows(report) {
   }));
 }
 
+// ─── Overtime Report ─────────────────────────────────────────────────────────
+
+export function buildOvertimeReport(employees, attendanceRecords, period) {
+  const filtered = attendanceRecords.filter(r => r.date?.startsWith(period) && (parseFloat(r.overtimeHours) || 0) > 0);
+  return employees
+    .filter(isActiveEmployee)
+    .map(emp => {
+      const records = filtered.filter(r => r.employeeId === emp.id);
+      const approved = records.filter(r => r.overtimeApproved === true);
+      const pending = records.filter(r => r.overtimeApproved !== true);
+      return {
+        empId: emp.id,
+        name: emp.name,
+        department: emp.department || '—',
+        overtimeDays: records.length,
+        approvedHours: round1(sum(approved, r => parseFloat(r.overtimeHours) || 0)),
+        pendingHours: round1(sum(pending, r => parseFloat(r.overtimeHours) || 0)),
+        approvedCost: round2(sum(approved, r => parseFloat(r.overtimeAmount) || 0)),
+      };
+    })
+    .filter(r => r.overtimeDays > 0)
+    .sort((a, b) => b.approvedHours - a.approvedHours || a.name.localeCompare(b.name));
+}
+
+export function overtimeToRows(report) {
+  return report.map(r => ({
+    Employee: r.name,
+    Department: r.department,
+    'Overtime Days': r.overtimeDays,
+    'Approved Hours': r.approvedHours,
+    'Pending Hours': r.pendingHours,
+    'Approved Cost (AED)': fmt(r.approvedCost),
+  }));
+}
+
 // ─── 5. Document Expiry Report ────────────────────────────────────────────────
 
 export function buildDocumentExpiryReport(employees, documents, daysThreshold = 90) {
@@ -225,23 +264,63 @@ export function buildDocumentExpiryReport(employees, documents, daysThreshold = 
   const cutoff  = new Date(today);
   cutoff.setDate(cutoff.getDate() + daysThreshold);
 
-  return documents
-    .filter(doc => {
-      if (!doc.expiryDate) return false;
-      const exp = new Date(doc.expiryDate);
-      return exp <= cutoff; // includes already-expired
-    })
+  const employeeMap = new Map(employees.filter(isActiveEmployee).map(employee => [employee.id, employee]));
+  const candidates = [];
+
+  for (const employee of employeeMap.values()) {
+    const profileDocuments = [
+      { documentType: 'Visa', expiryDate: employee.visaExpiry },
+      { documentType: 'Passport', expiryDate: employee.passportExpiry },
+      { documentType: 'Emirates ID', expiryDate: employee.emiratesIdExpiry },
+      { documentType: 'Labour Card / Work Permit', expiryDate: employee.labourCardExpiry },
+      {
+        documentType: employee.licenceAuthority && employee.licenceAuthority !== 'None'
+          ? `${employee.licenceAuthority} Professional Licence`
+          : 'Professional Licence',
+        expiryDate: employee.licenceExpiry,
+      },
+    ];
+    for (const profileDocument of profileDocuments) {
+      if (!profileDocument.expiryDate) continue;
+      candidates.push({
+        employeeId: employee.id,
+        ...profileDocument,
+        source: 'Employee Profile',
+      });
+    }
+  }
+
+  for (const document of documents) {
+    if (!employeeMap.has(document.employeeId) || !document.expiryDate) continue;
+    candidates.push({
+      employeeId: document.employeeId,
+      documentType: document.documentType || 'Uploaded Document',
+      expiryDate: document.expiryDate,
+      source: 'Uploaded Document',
+    });
+  }
+
+  const unique = new Map();
+  for (const candidate of candidates) {
+    const expiryDate = dateOnly(candidate.expiryDate);
+    if (!expiryDate || expiryDate > cutoff) continue; // includes already-expired
+    const key = `${candidate.employeeId}|${canonicalDocumentType(candidate.documentType)}|${candidate.expiryDate}`;
+    if (!unique.has(key)) unique.set(key, { ...candidate, parsedExpiryDate: expiryDate });
+  }
+
+  return [...unique.values()]
     .map(doc => {
-      const emp  = employees.find(e => e.id === doc.employeeId);
-      const exp  = new Date(doc.expiryDate);
-      const days = Math.ceil((exp - today) / 86400000);
+      const emp = employeeMap.get(doc.employeeId);
+      const days = Math.round((doc.parsedExpiryDate - today) / 86400000);
       return {
-        employee:     emp?.name || '—',
-        department:   emp?.department || '—',
-        documentType: doc.documentType || '—',
-        expiryDate:   doc.expiryDate,
+        employeeId:    doc.employeeId,
+        employee:      emp?.name || '—',
+        department:    emp?.department || '—',
+        documentType:  doc.documentType,
+        source:        doc.source,
+        expiryDate:    doc.expiryDate,
         daysRemaining: days,
-        status:       days < 0 ? 'Expired' : days < 30 ? 'Critical' : days < 60 ? 'Warning' : 'Expiring Soon',
+        status:        days < 0 ? 'Expired' : days < 30 ? 'Critical' : days < 60 ? 'Warning' : 'Expiring Soon',
       };
     })
     .sort((a, b) => a.daysRemaining - b.daysRemaining);
@@ -252,6 +331,7 @@ export function docExpiryToRows(report) {
     Employee:        r.employee,
     Department:      r.department,
     'Document Type': r.documentType,
+    Source:          r.source,
     'Expiry Date':   formatDateUAE(r.expiryDate),
     'Days Remaining': r.daysRemaining,
     Status:          r.status,
@@ -261,13 +341,14 @@ export function docExpiryToRows(report) {
 // ─── 6. Salary Movement History ───────────────────────────────────────────────
 
 export function buildSalaryMovementReport(employees, jobHistory, startDate, endDate) {
-  const start = startDate ? new Date(startDate) : null;
-  const end   = endDate   ? new Date(endDate)   : null;
+  const start = startDate ? startOfDay(startDate) : null;
+  const end   = endDate   ? endOfDay(endDate) : null;
 
   return jobHistory
     .filter(h => {
       if (h.changeType !== 'salary_change') return false;
       const d = new Date(h.changedAt);
+      if (!isValidDate(d) || !employees.some(e => e.id === h.employeeId)) return false;
       if (start && d < start) return false;
       if (end   && d > end)   return false;
       return true;
@@ -308,18 +389,18 @@ export function salaryMovementToRows(report) {
 // ─── 7. Staff Turnover Report ─────────────────────────────────────────────────
 
 export function buildTurnoverReport(employees, startDate, endDate) {
-  const start = new Date(startDate);
-  const end   = new Date(endDate);
+  const start = startOfDay(startDate);
+  const end   = endOfDay(endDate);
 
   const joiners = employees.filter(e => {
     const d = new Date(e.employmentStartDate || e.startDate);
-    return d >= start && d <= end;
+    return isValidDate(d) && d >= start && d <= end;
   });
 
   const leavers = employees.filter(e => {
     if (!e.terminationDate) return false;
     const d = new Date(e.terminationDate);
-    return d >= start && d <= end;
+    return isValidDate(d) && d >= start && d <= end;
   });
 
   // Average tenure of leavers (days)
@@ -327,6 +408,7 @@ export function buildTurnoverReport(employees, startDate, endDate) {
     ? Math.round(leavers.reduce((s, e) => {
         const hired  = new Date(e.employmentStartDate || e.startDate);
         const left   = new Date(e.terminationDate);
+        if (!isValidDate(hired) || !isValidDate(left)) return s;
         return s + Math.max(0, (left - hired) / 86400000);
       }, 0) / leavers.length)
     : 0;
@@ -338,7 +420,7 @@ export function turnoverJoinersToRows(joiners) {
   return joiners.map(e => ({
     Employee:    e.name,
     Department:  e.department || '—',
-    'Start Date': e.employmentStartDate || e.startDate || '—',
+    'Start Date': formatDateUAE(e.employmentStartDate || e.startDate),
     'Job Title': e.jobTitle || '—',
     'Contract':  e.contractType || '—',
   }));
@@ -348,8 +430,8 @@ export function turnoverLeaversToRows(leavers) {
   return leavers.map(e => ({
     Employee:          e.name,
     Department:        e.department || '—',
-    'Start Date':      e.employmentStartDate || e.startDate || '—',
-    'Termination Date': e.terminationDate || '—',
+    'Start Date':      formatDateUAE(e.employmentStartDate || e.startDate),
+    'Termination Date': formatDateUAE(e.terminationDate),
     Reason:            e.terminationReason || '—',
   }));
 }
@@ -358,11 +440,12 @@ export function turnoverLeaversToRows(leavers) {
 
 export function buildWpsComplianceReport(payrolls) {
   const generated = payrolls.filter(p => p.status === 'generated');
-  const submitted = generated.filter(p => p.wpsStatus === 'submitted' || p.wpsStatus === 'confirmed');
+  const submitted = generated.filter(p => ['submitted', 'confirmed', 'partial_rejection', 'failed'].includes(p.wpsStatus));
   const confirmed = generated.filter(p => p.wpsStatus === 'confirmed');
-  const pending   = generated.filter(p => p.wpsStatus !== 'confirmed');
+  const failed = generated.filter(p => p.wpsStatus === 'failed' || p.wpsStatus === 'partial_rejection');
+  const pending = generated.filter(p => ['draft', 'sif_generated', 'submitted'].includes(p.wpsStatus || 'draft'));
 
-  return { generated, submitted, confirmed, pending, complianceRate: generated.length ? Math.round(confirmed.length / generated.length * 100) : 0 };
+  return { generated, submitted, confirmed, failed, pending, complianceRate: generated.length ? Math.round(confirmed.length / generated.length * 100) : 0 };
 }
 
 export function wpsComplianceToRows(payrolls) {
@@ -380,50 +463,45 @@ export function wpsComplianceToRows(payrolls) {
 
 // ─── Emiratization / Nafis Report ───────────────────────────────────────────
 
-export function buildEmiratizationReport(employees) {
-  const active = employees.filter(e => e.active !== false && e.employmentStatus !== 'Terminated');
-  const emiratis = active.filter(e => e.nationality === 'United Arab Emirates');
-  const ratio = active.length ? (emiratis.length / active.length * 100).toFixed(1) : 0;
+export function buildEmiratizationReport(employees, quotaPercent = 2) {
+  const active = employees.filter(isActiveEmployee);
+  const emiratis = active.filter(e => isEmiratiNationality(e.nationality));
+  const ratio = active.length ? (emiratis.length / active.length * 100).toFixed(1) : '0.0';
+  const tier = active.length < 20 ? 'not_mandatory' : active.length < 50 ? 'fixed_two' : 'percentage';
+  const requiredCount = tier === 'fixed_two' ? 2 : tier === 'percentage' ? Math.ceil((Number(quotaPercent) || 2) / 100 * active.length) : 0;
+  const gap = Math.max(0, requiredCount - emiratis.length);
   const byDept = {};
   active.forEach(e => {
     const d = e.department || 'Unassigned';
     if (!byDept[d]) byDept[d] = { total: 0, emirati: 0 };
     byDept[d].total++;
-    if (e.nationality === 'United Arab Emirates') byDept[d].emirati++;
+    if (isEmiratiNationality(e.nationality)) byDept[d].emirati++;
   });
-  return { active, emiratis, ratio, byDept };
+  return { active, emiratis, ratio, byDept, tier, requiredCount, gap, compliant: gap === 0, monthlyFine: gap * 9000 };
 }
 
 export function emiratizationToRows(employees) {
-  const active = employees.filter(e => e.active !== false && e.employmentStatus !== 'Terminated');
+  const active = employees.filter(isActiveEmployee);
   return active.map(e => ({
     Employee:     e.name,
     Department:   e.department || '—',
     Nationality:  e.nationality || '—',
     'Job Title':  e.jobTitle || '—',
-    'Is Emirati': e.nationality === 'United Arab Emirates' ? 'Yes' : 'No',
-    'Nafis ID':   e.nafisId || '—',
+    'Is Emirati': isEmiratiNationality(e.nationality) ? 'Yes' : 'No',
+    'Nafis ID':   e.nafisRegistrationNo || e.nafisId || '—',
   }));
 }
 
 // ─── End of Service Liability Report ────────────────────────────────────────
 
-export function buildEOSLiabilityReport(employees) {
-  const active = employees.filter(e => e.active !== false && e.employmentStatus !== 'Terminated');
-  const now = new Date();
+export function buildEOSLiabilityReport(employees, asOfDate = new Date()) {
+  const active = employees.filter(isActiveEmployee);
   const items = active.map(e => {
-    const start = new Date(e.employmentStartDate || e.startDate);
-    const serviceYears = Math.max(0, (now - start) / (365.25 * 86400000));
-    const basic = parseFloat(e.basicSalary) || 0;
-    const dailyRate = basic / 30;
-    let gratuityDays = 0;
-    if (serviceYears >= 1 && serviceYears <= 5) {
-      gratuityDays = serviceYears * 21;
-    } else if (serviceYears > 5) {
-      gratuityDays = serviceYears * 30;
-    }
-    const liability = Math.min(dailyRate * gratuityDays, basic * 24);
-    return { ...e, serviceYears, liability };
+    const startDate = e.employmentStartDate || e.startDate;
+    const start = new Date(startDate);
+    if (!startDate || !isValidDate(start)) return { ...e, serviceYears: 0, liability: 0, dataWarning: 'Missing start date' };
+    const gratuity = calculateGratuity(e.basicSalary, startDate, asOfDate, 'Termination', e.contractType || 'Unlimited');
+    return { ...e, serviceYears: gratuity.totalYears, liability: gratuity.gratuityCapped, dataWarning: '' };
   });
   const totalLiability = items.reduce((s, i) => s + i.liability, 0);
   return { items, totalLiability };
@@ -433,33 +511,31 @@ export function eosLiabilityToRows(items) {
   return items.map(e => ({
     Employee:        e.name,
     Department:      e.department || '—',
-    'Start Date':    e.employmentStartDate || e.startDate || '—',
+    'Start Date':    formatDateUAE(e.employmentStartDate || e.startDate),
     'Service Years': e.serviceYears.toFixed(1),
     'Basic Salary':  fmt(e.basicSalary),
     'EOS Liability': fmt(e.liability),
+    'Data Note':     e.dataWarning || '—',
   }));
 }
 
 // ─── Leave Balance Report ───────────────────────────────────────────────────
 
-export function buildLeaveBalanceReport(employees, leaveRequests, year) {
-  const active = employees.filter(e => e.active !== false && e.employmentStatus !== 'Terminated');
+export function buildLeaveBalanceReport(employees, leaveBalances, year) {
+  const active = employees.filter(isActiveEmployee);
   return active.map(e => {
-    const empReqs = leaveRequests.filter(r => r.employeeId === e.id && r.startDate?.startsWith(String(year)));
-    const approved = empReqs.filter(r => r.status === 'Approved');
-    const byType = {};
-    approved.forEach(r => {
-      const code = r.leaveTypeCode || 'OTHER';
-      byType[code] = (byType[code] || 0) + (parseFloat(r.daysRequested) || 0);
-    });
+    const balances = leaveBalances.filter(b => b.employeeId === e.id && Number(b.leaveYear) === Number(year));
+    const annual = balances.find(b => b.leaveTypeCode === 'ANNUAL');
     return {
       employee: e,
-      annualUsed: byType.ANNUAL || 0,
-      sickUsed: byType.SICK || 0,
-      maternityUsed: byType.MATERNITY || 0,
-      otherUsed: Object.entries(byType).filter(([k]) => !['ANNUAL', 'SICK', 'MATERNITY'].includes(k)).reduce((s, [, v]) => s + v, 0),
-      totalUsed: Object.values(byType).reduce((s, v) => s + v, 0),
-      pending: empReqs.filter(r => r.status === 'Pending' || r.status === 'ManagerApproved').reduce((s, r) => s + (parseFloat(r.daysRequested) || 0), 0),
+      annualEntitled: annual?.entitledDays || 0,
+      annualAccrued: annual?.accruedDays || 0,
+      annualUsed: annual?.usedDays || 0,
+      annualRemaining: annual?.remaining || 0,
+      totalUsed: round1(sum(balances, b => parseFloat(b.usedDays) || 0)),
+      pending: round1(sum(balances, b => parseFloat(b.pendingDays) || 0)),
+      totalRemaining: round1(sum(balances, b => parseFloat(b.remaining) || 0)),
+      hasBalanceData: balances.length > 0,
     };
   });
 }
@@ -468,12 +544,14 @@ export function leaveBalanceToRows(balanceData) {
   return balanceData.map(b => ({
     Employee:         b.employee.name,
     Department:       b.employee.department || '—',
-    'Annual Used':    b.annualUsed,
-    'Sick Used':      b.sickUsed,
-    'Maternity Used': b.maternityUsed,
-    'Other Used':     b.otherUsed,
-    'Total Used':     b.totalUsed,
-    'Pending':        b.pending,
+    'Annual Entitled': Math.round(b.annualEntitled),
+    'Annual Accrued':  Math.round(b.annualAccrued),
+    'Annual Used':     Math.round(b.annualUsed),
+    'Annual Remaining': Math.round(b.annualRemaining),
+    'All Types Used':  Math.round(b.totalUsed),
+    'Pending':         Math.round(b.pending),
+    'All Types Remaining': Math.round(b.totalRemaining),
+    Status: b.hasBalanceData ? 'Calculated' : 'Not calculated',
   }));
 }
 
@@ -490,6 +568,53 @@ function groupCount(arr, keyFn) {
 
 function sum(arr, fn) {
   return arr.reduce((s, x) => s + fn(x), 0);
+}
+
+function isActiveEmployee(employee) {
+  return employee?.active !== false && employee?.employmentStatus !== 'Terminated';
+}
+
+function isEmiratiNationality(nationality) {
+  const normalized = String(nationality || '').trim().toLowerCase();
+  return ['united arab emirates', 'uae', 'emirati'].includes(normalized);
+}
+
+function isValidDate(date) {
+  return date instanceof Date && Number.isFinite(date.getTime());
+}
+
+function startOfDay(value) {
+  const date = new Date(`${value}T00:00:00`);
+  return isValidDate(date) ? date : null;
+}
+
+function endOfDay(value) {
+  const date = new Date(`${value}T23:59:59.999`);
+  return isValidDate(date) ? date : null;
+}
+
+function dateOnly(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = new Date(`${value}T00:00:00`);
+  return isValidDate(date) ? date : null;
+}
+
+function canonicalDocumentType(documentType) {
+  const type = String(documentType || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (type.includes('visa')) return 'visa';
+  if (type.includes('passport')) return 'passport';
+  if (type.includes('emiratesid') || type === 'eid') return 'emirates-id';
+  if (type.includes('labourcard') || type.includes('laborcard') || type.includes('workpermit')) return 'labour-card';
+  if (type.includes('licence') || type.includes('license')) return 'professional-licence';
+  return type || 'uploaded-document';
+}
+
+function round1(value) {
+  return Math.round((value + Number.EPSILON) * 10) / 10;
+}
+
+function round2(value) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
 function fmt(n) {

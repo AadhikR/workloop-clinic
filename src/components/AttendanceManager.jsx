@@ -1,7 +1,11 @@
 /**
  * AttendanceManager.jsx — Main Attendance Tracking page for Workloop
  *
- * Tabs: Dashboard | Clock | Records | Absences | Overtime | Regularisation | Reports | Settings
+ * Tabs: Dashboard | Manual Entry | Records | Absences | Overtime | Regularisation | Reports | Settings
+ *
+ * Employees no longer self-clock via the portal. Attendance data flows in from
+ * the Biometric Import tab (bulk CSV from ZKTeco / face-scan tablets) or from
+ * the Manual Entry tab (HR/admin logs an individual event on someone's behalf).
  *
  * Integrations:
  *   - Employee Records: reads employee list, shift assignments, termination status
@@ -22,7 +26,7 @@ import { getLeaveRequests, getPublicHolidays, getLeaveSettings } from '../utils/
 import {
   getAttendanceSettings, saveAttendanceSettings,
   getShifts, saveShift, deleteShift, getShiftForEmployee,
-  getClockEvents, recordClockEvent, recordManualClockEvent,
+  getClockEvents, recordManualClockEvent,
   getAttendanceRecords, upsertAttendanceRecord, computeAndSaveAttendance,
   getAttendancePeriods, getAttendancePeriod, closeAttendancePeriod,
   getRegularisationRequests, submitRegularisationRequest,
@@ -174,8 +178,6 @@ export default function AttendanceManager() {
     return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
   });
   const [filterEmp, setFilterEmp]   = useState('');
-  const [clockEmp, setClockEmp]     = useState('');
-  const [manualEntry, setManualEntry] = useState(false);
   const [manualForm, setManualForm] = useState({ employeeId:'', eventType:'CLOCK_IN', eventTime:'', notes:'' });
   const [approvalModal, setApprovalModal] = useState(null);
   const [approvalReason, setApprovalReason] = useState('');
@@ -284,28 +286,6 @@ export default function AttendanceManager() {
     showMsg('success', 'Shift removed.');
   };
 
-  const handleClockIn = async () => {
-    if (!clockEmp) return;
-    setSaving(true);
-    try {
-      await recordClockEvent({ employeeId: clockEmp, eventType: 'CLOCK_IN', method: 'WEB' });
-      showMsg('success', 'Clocked in successfully.');
-      await loadAll();
-    } catch (e) { showMsg('danger', 'Clock-in failed: ' + e.message); }
-    finally { setSaving(false); }
-  };
-
-  const handleClockOut = async () => {
-    if (!clockEmp) return;
-    setSaving(true);
-    try {
-      await recordClockEvent({ employeeId: clockEmp, eventType: 'CLOCK_OUT', method: 'WEB' });
-      showMsg('success', 'Clocked out successfully.');
-      await loadAll();
-    } catch (e) { showMsg('danger', 'Clock-out failed: ' + e.message); }
-    finally { setSaving(false); }
-  };
-
   const handleManualEntry = async () => {
     if (!manualForm.employeeId || !manualForm.eventTime) return;
     setSaving(true);
@@ -319,7 +299,6 @@ export default function AttendanceManager() {
       });
       showMsg('success', 'Manual entry recorded.');
       setManualForm({ employeeId:'', eventType:'CLOCK_IN', eventTime:'', notes:'' });
-      setManualEntry(false);
       await loadAll();
     } catch (e) { showMsg('danger', 'Failed: ' + e.message); }
     finally { setSaving(false); }
@@ -487,7 +466,7 @@ export default function AttendanceManager() {
 
   const TABS = [
     { id:'dashboard',      label:'Dashboard',      icon:BarChart2 },
-    { id:'clock',          label:'Clock In/Out',   icon:Clock },
+    { id:'clock',          label:'Manual Entry',   icon:Clock },
     { id:'records',        label:`Records`,        icon:Calendar },
     { id:'absences',       label:`Absences${unexplainedAbsences.length > 0 ? ` (${unexplainedAbsences.length})` : ''}`, icon:AlertTriangle },
     { id:'overtime',       label:`Overtime${pendingOT.length > 0 ? ` (${pendingOT.length})` : ''}`, icon:AlertCircle },
@@ -673,77 +652,58 @@ export default function AttendanceManager() {
           </>
         )}
 
-        {/* ── CLOCK IN/OUT TAB ── */}
+        {/* ── MANUAL ENTRY TAB ──
+            Employees don't self-clock via the portal — attendance data flows
+            in from the biometric device (Biometric Import tab) or from this
+            manual form. Use manual entry to correct a missed punch or log an
+            offline event; all rows are flagged "MANUAL" in the audit trail. */}
         {tab === 'clock' && (
-          <div className="form-grid form-grid-2" style={{ gap:16 }}>
-            <div className="card">
-              <div className="card-header"><h3><Clock size={15} style={{ marginRight:6 }}/>Clock In / Out</h3></div>
-              <div className="card-body">
-                <div className="form-group mb-4">
-                  <label>Employee</label>
-                  <select className="form-control" value={clockEmp} onChange={e => setClockEmp(e.target.value)}>
+          <div className="card" style={{ maxWidth: 720, margin: '0 auto' }}>
+            <div className="card-header">
+              <h3><Clock size={15} style={{ marginRight:6 }}/>Manual Attendance Entry</h3>
+            </div>
+            <div className="card-body">
+              <div className="alert alert-info" style={{ marginBottom: 16, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <Info size={16} style={{ marginTop: 2, flexShrink: 0 }}/>
+                <div style={{ fontSize: 13, lineHeight: 1.5 }}>
+                  Employees no longer clock in through the portal. Daily attendance is
+                  pulled from the biometric device via the <strong>Biometric Import</strong> tab.
+                  Use this form only to log an event on someone's behalf (missed punch,
+                  device downtime, WFH, etc.) — every entry is stamped <strong>MANUAL</strong> in
+                  the audit trail.
+                </div>
+              </div>
+
+              <div className="form-grid form-grid-2">
+                <div className="form-group">
+                  <label>Employee *</label>
+                  <select className="form-control" value={manualForm.employeeId} onChange={e => setManualForm(p => ({ ...p, employeeId: e.target.value }))}>
+                    <option value="">Select…</option>
                     {employees.filter(e => e.employmentStatus !== 'Terminated').map(e => (
                       <option key={e.id} value={e.id}>{e.name}</option>
                     ))}
                   </select>
                 </div>
-                <div style={{ display:'flex', gap:12 }}>
-                  <button className="btn btn-success" style={{ flex:1, padding:'14px' }} onClick={handleClockIn} disabled={saving}>
-                    <Clock size={18}/> Clock In
-                  </button>
-                  <button className="btn btn-danger" style={{ flex:1, padding:'14px' }} onClick={handleClockOut} disabled={saving}>
-                    <Clock size={18}/> Clock Out
-                  </button>
+                <div className="form-group">
+                  <label>Event Type</label>
+                  <select className="form-control" value={manualForm.eventType} onChange={e => setManualForm(p => ({ ...p, eventType: e.target.value }))}>
+                    <option value="CLOCK_IN">Clock In</option>
+                    <option value="CLOCK_OUT">Clock Out</option>
+                  </select>
                 </div>
-                <div style={{ marginTop:16, textAlign:'center', fontSize:12, color:'var(--gray-500)' }}>
-                  Current time: {new Date().toLocaleTimeString('en-AE', { hour:'2-digit', minute:'2-digit', timeZone:'Asia/Dubai' })} (UAE GMT+4)
+                <div className="form-group" style={{ gridColumn:'1/-1' }}>
+                  <label>Date & Time *</label>
+                  <input className="form-control" type="datetime-local" value={manualForm.eventTime} onChange={e => setManualForm(p => ({ ...p, eventTime: e.target.value }))}/>
+                  <span className="hint">UAE GMT+4 · current time {new Date().toLocaleTimeString('en-AE', { hour:'2-digit', minute:'2-digit', timeZone:'Asia/Dubai' })}</span>
+                </div>
+                <div className="form-group" style={{ gridColumn:'1/-1' }}>
+                  <label>Reason / Notes *</label>
+                  <input className="form-control" value={manualForm.notes} onChange={e => setManualForm(p => ({ ...p, notes: e.target.value }))} placeholder="e.g. Missed punch — reception device offline"/>
                 </div>
               </div>
-            </div>
-
-            <div className="card">
-              <div className="card-header">
-                <h3>Manual Entry (HR)</h3>
-                <button className="btn btn-outline btn-sm" onClick={() => setManualEntry(!manualEntry)}>
-                  {manualEntry ? 'Cancel' : <><Plus size={13}/> Add Manual Entry</>}
-                </button>
-              </div>
-              {manualEntry && (
-                <div className="card-body">
-                  <div className="form-grid form-grid-2">
-                    <div className="form-group">
-                      <label>Employee</label>
-                      <select className="form-control" value={manualForm.employeeId} onChange={e => setManualForm(p => ({ ...p, employeeId: e.target.value }))}>
-                        <option value="">Select…</option>
-                        {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-                      </select>
-                    </div>
-                    <div className="form-group">
-                      <label>Event Type</label>
-                      <select className="form-control" value={manualForm.eventType} onChange={e => setManualForm(p => ({ ...p, eventType: e.target.value }))}>
-                        <option value="CLOCK_IN">Clock In</option>
-                        <option value="CLOCK_OUT">Clock Out</option>
-                      </select>
-                    </div>
-                    <div className="form-group" style={{ gridColumn:'1/-1' }}>
-                      <label>Date & Time *</label>
-                      <input className="form-control" type="datetime-local" value={manualForm.eventTime} onChange={e => setManualForm(p => ({ ...p, eventTime: e.target.value }))}/>
-                    </div>
-                    <div className="form-group" style={{ gridColumn:'1/-1' }}>
-                      <label>Notes (required for manual entries)</label>
-                      <input className="form-control" value={manualForm.notes} onChange={e => setManualForm(p => ({ ...p, notes: e.target.value }))} placeholder="Reason for manual entry"/>
-                    </div>
-                  </div>
-                  <button className="btn btn-primary mt-3" onClick={handleManualEntry} disabled={saving || !manualForm.employeeId || !manualForm.eventTime}>
-                    <Check size={14}/> Save Manual Entry
-                  </button>
-                </div>
-              )}
-              {!manualEntry && (
-                <div style={{ padding:'20px', color:'var(--gray-500)', fontSize:13 }}>
-                  Use manual entry to record clock events on behalf of an employee. All manual entries are flagged as "MANUAL" in the audit trail.
-                </div>
-              )}
+              <button className="btn btn-primary mt-3" onClick={handleManualEntry} disabled={saving || !manualForm.employeeId || !manualForm.eventTime}>
+                <Check size={14}/> Save Manual Entry
+              </button>
             </div>
           </div>
         )}

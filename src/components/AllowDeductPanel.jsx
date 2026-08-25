@@ -1,29 +1,6 @@
 import { useState } from 'react';
 import { X, Plus, Trash2, Info } from 'lucide-react';
 
-/**
- * Compute Final Allowance for an entry (= variable allowance sent via WPS SIF):
- * = housing + transport + allowance + increment + bonus + otherPay + sum(additionalAllowances)
- *   - sum(deductions) - duCost - leaveDeduction
- *
- * Housing and transport are included here so the SIF variable allowance reflects the full
- * package. DU Cost is subtracted (employer-borne cost that reduces net employee transfer).
- */
-export function computeFinalAllowance(entry) {
-  const housing   = parseFloat(entry.housingAllowance) || 0;
-  const transport = parseFloat(entry.transportAllowance) || 0;
-  const base   = parseFloat(entry.allowance) || 0;
-  const inc    = parseFloat(entry.increment) || 0;
-  const bon    = parseFloat(entry.bonus) || 0;
-  const oth    = parseFloat(entry.otherPay) || 0;
-  const du     = parseFloat(entry.duCost) || 0;
-  // leaveDeduction: editable leave deduction (unpaid/sick leave) — subtracted from net allowance
-  const leaveDed = parseFloat(entry.leaveDeduction) || 0;
-  const addAllow = (entry.additionalAllowances || []).reduce((s, a) => s + (parseFloat(a.amount) || 0), 0);
-  const deds     = (entry.deductions || []).reduce((s, d) => s + (parseFloat(d.amount) || 0), 0);
-  return housing + transport + base + inc + bon + oth + addAllow - deds - du - leaveDed;
-}
-
 export default function AllowDeductPanel({ entries, employees, onClose, onSave }) {
   const [localEntries, setLocalEntries] = useState(
     entries.map(e => ({
@@ -43,7 +20,7 @@ export default function AllowDeductPanel({ entries, employees, onClose, onSave }
         deductions: [...(e.deductions || [])],
       }));
       const key = side === 'allow' ? 'additionalAllowances' : 'deductions';
-      next[entryIdx][key] = [...next[entryIdx][key], { label: '', amount: '' }];
+      next[entryIdx][key] = [...next[entryIdx][key], { label: '', amount: '', recurrence: 'one_time', source: 'manual' }];
       return next;
     });
   };
@@ -88,7 +65,7 @@ export default function AllowDeductPanel({ entries, employees, onClose, onSave }
             <Info size={15} />
             <span>
               Add named allowances (e.g. Accommodation, Travel) or deductions (e.g. Loan, Advance) per employee.
-              These affect the <strong>Final Allowance</strong> (WPS variable allowance in the SIF file).
+              Mark an item as recurring only when it should carry into future payrolls. One-time items are safely excluded by Repeat Last Payroll.
             </span>
           </div>
 
@@ -151,6 +128,16 @@ export default function AllowDeductPanel({ entries, employees, onClose, onSave }
                           value={item.amount}
                           onChange={e => updateItem(realIdx, 'allow', iIdx, 'amount', e.target.value)}
                         />
+                        <select
+                          className="form-control"
+                          style={{ flex: 1.1, minWidth: 105 }}
+                          value={item.recurrence || 'one_time'}
+                          onChange={e => updateItem(realIdx, 'allow', iIdx, 'recurrence', e.target.value)}
+                          aria-label="Allowance recurrence"
+                        >
+                          <option value="one_time">One-time</option>
+                          <option value="recurring">Recurring</option>
+                        </select>
                         <button
                           className="btn btn-ghost btn-icon btn-sm text-danger"
                           onClick={() => removeItem(realIdx, 'allow', iIdx)}
@@ -198,6 +185,16 @@ export default function AllowDeductPanel({ entries, employees, onClose, onSave }
                           value={item.amount}
                           onChange={e => updateItem(realIdx, 'deduct', iIdx, 'amount', e.target.value)}
                         />
+                        <select
+                          className="form-control"
+                          style={{ flex: 1.1, minWidth: 105 }}
+                          value={item.recurrence || 'one_time'}
+                          onChange={e => updateItem(realIdx, 'deduct', iIdx, 'recurrence', e.target.value)}
+                          aria-label="Deduction recurrence"
+                        >
+                          <option value="one_time">One-time</option>
+                          <option value="recurring">Recurring</option>
+                        </select>
                         <button
                           className="btn btn-ghost btn-icon btn-sm text-danger"
                           onClick={() => removeItem(realIdx, 'deduct', iIdx)}

@@ -478,7 +478,7 @@ function EmployeeSignInForm({ onBack }) {
 }
 
 // ── Root export ───────────────────────────────────────────────────────────────
-export default function AuthPage() {
+export default function AuthPage({ onBack }) {
   const [view, setView] = useState('landing');
 
   const renderView = () => {
@@ -500,6 +500,17 @@ export default function AuthPage() {
       alignItems: 'center', justifyContent: 'center',
       ...BG_STYLE, padding: '24px',
     }}>
+      {/* Back to landing */}
+      {onBack && (
+        <button onClick={onBack} style={{
+          background: 'none', border: 'none', cursor: 'pointer',
+          fontSize: 13, color: '#64748B', padding: '6px 0', marginBottom: 16,
+          display: 'flex', alignItems: 'center', gap: 6,
+        }}>
+          <ArrowLeft size={14} /> Back to home
+        </button>
+      )}
+
       {/* Brand header */}
       <div style={{ textAlign: 'center', marginBottom: 28 }}>
         <div style={{

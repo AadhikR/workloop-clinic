@@ -5,6 +5,7 @@ import { CompanyProvider, useCompany } from './context/CompanyContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import OfflineBanner from './components/OfflineBanner';
 import AuthPage from './components/AuthPage';
+import LandingPage from './components/LandingPage';
 import NotificationBell from './components/NotificationBell';
 
 const Dashboard = lazy(() => import('./components/Dashboard'));
@@ -35,7 +36,7 @@ const NAV_ITEMS = [
   { id: 'company',            label: 'Company Settings',   icon: Building2 },
   { id: 'employees',          label: 'Employees',          icon: Users },
   { id: 'departments',        label: 'Departments',        icon: GitBranch },
-  { id: 'letters',            label: 'Letter Requests',    icon: Mail },
+  { id: 'letters',            label: 'Requests',           icon: Mail },
   { id: 'payroll',    label: 'Payroll Module',    icon: FileText },
   { id: 'advances',   label: 'Advances',          icon: DollarSign },
   { id: 'expenses',   label: 'Expenses',          icon: Receipt },
@@ -496,6 +497,8 @@ function Root() {
   const { user, profile, loading, signOut } = useAuth();
   // If profile is still null 8 s after loading finished, let the user escape.
   const [profileTimeout, setProfileTimeout] = useState(false);
+  // Landing page vs auth page toggle for unauthenticated users
+  const [showAuth, setShowAuth] = useState(false);
 
   useEffect(() => {
     if (!loading && user && !profile) {
@@ -505,8 +508,16 @@ function Root() {
     setProfileTimeout(false);
   }, [loading, user, profile]);
 
+  // Reset auth page state when user logs out
+  useEffect(() => {
+    if (!user) setShowAuth(false);
+  }, [user]);
+
   if (loading) return <Spinner label="Loading…" />;
-  if (!user)   return <AuthPage />;
+  if (!user) {
+    if (showAuth) return <AuthPage onBack={() => setShowAuth(false)} />;
+    return <LandingPage onSignIn={() => setShowAuth(true)} onGetStarted={() => setShowAuth(true)} />;
+  }
 
   // Profile is being resolved (INITIAL_SESSION handler is running).
   // Show a spinner for up to 8 s, then offer a sign-out escape hatch.

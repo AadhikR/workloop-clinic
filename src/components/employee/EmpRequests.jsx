@@ -5,6 +5,8 @@ import { getMyLetterRequests } from '../../utils/letterStorage';
 import { LETTER_TYPES, printLetter } from '../../utils/letterTemplates';
 import { formatDateUAE } from '../../utils/uaeValidators';
 import { getMyEmployeeRecord, getMyCompany } from '../../utils/profileStorage';
+import { REQUEST_KINDS, validateCustomRequest } from '../../utils/requestUtils';
+import ExpandableText from '../ExpandableText';
 
 const STATUS_BADGE = {
   pending:   { cls: 'badge-amber', label: 'Pending Review', Icon: Clock },
@@ -15,7 +17,7 @@ const STATUS_BADGE = {
 export default function EmpRequests() {
   const [requests,    setRequests]    = useState([]);
   const [loading,     setLoading]     = useState(true);
-  const [form,        setForm]        = useState({ type: LETTER_TYPES[0], purpose: '' });
+  const [form,        setForm]        = useState({ kind: REQUEST_KINDS.LETTER, type: LETTER_TYPES[0], purpose: '', subject: '', details: '' });
   const [submitting,  setSubmitting]  = useState(false);
   const [toast,       setToast]       = useState(null);
   const [emp,         setEmp]         = useState(null);
@@ -47,7 +49,14 @@ export default function EmpRequests() {
 
   const handleSubmit = async e => {
     e.preventDefault();
-    if (EXTERNAL_LETTER_TYPES.has(form.type)) {
+    if (form.kind === REQUEST_KINDS.CUSTOM) {
+      const validationError = validateCustomRequest(form.subject, form.details);
+      if (validationError) {
+        showToast('error', validationError);
+        return;
+      }
+    }
+    if (form.kind === REQUEST_KINDS.LETTER && EXTERNAL_LETTER_TYPES.has(form.type)) {
       const purpose = (form.purpose || '').trim();
       if (purpose.length < 5) {
         showToast('error', 'Please enter the addressee or purpose (at least 5 characters) for this letter type.');
@@ -56,14 +65,21 @@ export default function EmpRequests() {
     }
     setSubmitting(true);
     try {
-      const { error } = await supabase.rpc('employee_request_letter', {
-        p_letter_type: form.type,
-        p_purpose:     form.purpose,
-      });
+      const { error } = form.kind === REQUEST_KINDS.CUSTOM
+        ? await supabase.rpc('employee_request_custom', {
+            p_subject: form.subject.trim(),
+            p_details: form.details.trim(),
+          })
+        : await supabase.rpc('employee_request_letter', {
+            p_letter_type: form.type,
+            p_purpose:     form.purpose,
+          });
       if (error) throw error;
-      setForm({ type: LETTER_TYPES[0], purpose: '' });
+      setForm({ kind: form.kind, type: LETTER_TYPES[0], purpose: '', subject: '', details: '' });
       await load();
-      showToast('success', 'Request submitted. HR will prepare your letter shortly.');
+      showToast('success', form.kind === REQUEST_KINDS.CUSTOM
+        ? 'Custom request submitted to HR.'
+        : 'Request submitted. HR will prepare your letter shortly.');
     } catch (err) {
       showToast('error', err.message || 'Submission failed. Please try again.');
     } finally {
@@ -90,37 +106,59 @@ export default function EmpRequests() {
       {/* Request form */}
       <div className="emp-card" style={{ marginBottom: 20 }}>
         <div className="emp-card-header">
-          <h3>Request a Letter</h3>
+          <h3>Make a Request</h3>
           <p style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 2 }}>
-            HR will generate and send your letter within 1–2 working days.
+            Request an HR letter or send a custom request directly to HR.
           </p>
         </div>
         <div className="emp-card-body">
           <form onSubmit={handleSubmit}>
-            <div className="form-grid form-grid-2" style={{ gap: 14 }}>
-              <div className="form-group">
-                <label>Letter Type</label>
-                <select
-                  className="form-control"
-                  value={form.type}
-                  onChange={e => setForm(p => ({ ...p, type: e.target.value }))}
-                >
-                  {LETTER_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>
-                  Purpose / Addressed To
-                  <span style={{ color: 'var(--gray-400)', fontWeight: 400, marginLeft: 4 }}>(optional)</span>
-                </label>
-                <input
-                  className="form-control"
-                  placeholder="e.g. Abu Dhabi Islamic Bank, UAE Visa Application…"
-                  value={form.purpose}
-                  onChange={e => setForm(p => ({ ...p, purpose: e.target.value }))}
-                />
-              </div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+              <button type="button" className={`btn tab-btn ${form.kind === REQUEST_KINDS.LETTER ? 'tab-btn-active' : ''}`}
+                onClick={() => setForm(p => ({ ...p, kind: REQUEST_KINDS.LETTER }))}>HR Letter</button>
+              <button type="button" className={`btn tab-btn ${form.kind === REQUEST_KINDS.CUSTOM ? 'tab-btn-active' : ''}`}
+                onClick={() => setForm(p => ({ ...p, kind: REQUEST_KINDS.CUSTOM }))}>Custom Request</button>
             </div>
+            {form.kind === REQUEST_KINDS.LETTER ? (
+              <div className="form-grid form-grid-2" style={{ gap: 14 }}>
+                <div className="form-group">
+                  <label>Letter Type</label>
+                  <select
+                    className="form-control"
+                    value={form.type}
+                    onChange={e => setForm(p => ({ ...p, type: e.target.value }))}
+                  >
+                    {LETTER_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>
+                    Purpose / Addressed To
+                    <span style={{ color: 'var(--gray-400)', fontWeight: 400, marginLeft: 4 }}>(optional)</span>
+                  </label>
+                  <input
+                    className="form-control"
+                    placeholder="e.g. Abu Dhabi Islamic Bank, UAE Visa Application…"
+                    value={form.purpose}
+                    onChange={e => setForm(p => ({ ...p, purpose: e.target.value }))}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="form-grid form-grid-2" style={{ gap: 14 }}>
+                <div className="form-group">
+                  <label>Request Subject</label>
+                  <input className="form-control" maxLength={120} required placeholder="e.g. Parking access request"
+                    value={form.subject} onChange={e => setForm(p => ({ ...p, subject: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label>Request Details</label>
+                  <textarea className="form-control" rows={3} maxLength={2000} required
+                    placeholder="Describe what you need and include any relevant dates or context…"
+                    value={form.details} onChange={e => setForm(p => ({ ...p, details: e.target.value }))} />
+                </div>
+              </div>
+            )}
             <div style={{ marginTop: 14, display: 'flex', justifyContent: 'flex-end' }}>
               <button type="submit" className="btn btn-primary" disabled={submitting} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Send size={14} />
@@ -139,15 +177,16 @@ export default function EmpRequests() {
         {requests.length === 0 ? (
           <div style={{ padding: '28px 20px', textAlign: 'center', color: 'var(--gray-500)', fontSize: 13 }}>
             <Mail size={32} style={{ margin: '0 auto 10px', display: 'block', opacity: 0.3 }} />
-            No requests yet. Use the form above to request a letter.
+            No requests yet. Use the form above to make a request.
           </div>
         ) : (
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>Letter Type</th>
-                  <th>Purpose</th>
+                  <th>Type</th>
+                  <th>Subject</th>
+                  <th>Details</th>
                   <th>Requested</th>
                   <th>Status</th>
                   <th>Reason</th>
@@ -156,18 +195,22 @@ export default function EmpRequests() {
               <tbody>
                 {requests.map(req => {
                   const { cls, label, Icon } = STATUS_BADGE[req.status] || STATUS_BADGE.pending;
+                  const statusLabel = req.status === 'completed' && req.requestKind === REQUEST_KINDS.CUSTOM
+                    ? 'Completed'
+                    : label;
                   return (
                     <tr key={req.id}>
+                      <td><span className={`badge ${req.requestKind === REQUEST_KINDS.CUSTOM ? 'badge-blue' : 'badge-gray'}`}>{req.requestKind === REQUEST_KINDS.CUSTOM ? 'Custom' : 'Letter'}</span></td>
                       <td style={{ fontSize: 13, fontWeight: 500 }}>{req.letterType}</td>
-                      <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{req.purpose || <span style={{ color: 'var(--gray-300)' }}>—</span>}</td>
+                      <td className="request-text-cell" style={{ width: 260, maxWidth: 320 }}><ExpandableText text={req.purpose} /></td>
                       <td style={{ fontSize: 12, color: 'var(--gray-500)', whiteSpace: 'nowrap' }}>{formatDateUAE(req.requestedAt)}</td>
                       <td>
                         <span className={`badge ${cls}`} style={{ fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                          <Icon size={10} />{label}
+                          <Icon size={10} />{statusLabel}
                         </span>
                         {req.status === 'completed' && (
                           <div style={{ marginTop: 4 }}>
-                            {emp && company && (
+                            {req.requestKind === REQUEST_KINDS.LETTER && emp && company && (
                               <button
                                 className="btn btn-ghost btn-sm"
                                 style={{ fontSize: 11, padding: '3px 8px', color: 'var(--primary)', display: 'inline-flex', alignItems: 'center', gap: 4 }}
@@ -189,16 +232,17 @@ export default function EmpRequests() {
                             )}
                             {req.completedAt && (
                               <span style={{ fontSize: 10, color: 'var(--gray-400)', marginLeft: 4 }}>
-                                Ready {formatDateUAE(req.completedAt)}
+                                {req.requestKind === REQUEST_KINDS.CUSTOM ? 'Completed' : 'Ready'} {formatDateUAE(req.completedAt)}
                               </span>
                             )}
                           </div>
                         )}
                       </td>
-                      <td style={{ fontSize: 12, color: 'var(--danger)' }}>
-                        {req.status === 'rejected' && req.rejectionReason
-                          ? req.rejectionReason
-                          : <span style={{ color: 'var(--gray-300)' }}>—</span>}
+                      <td className="request-text-cell" style={{ width: 220, maxWidth: 280 }}>
+                        <ExpandableText
+                          text={req.status === 'rejected' ? req.rejectionReason : ''}
+                          tone="danger"
+                        />
                       </td>
                     </tr>
                   );

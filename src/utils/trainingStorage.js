@@ -37,6 +37,8 @@ function dbToTraining(row) {
     score:          row.score,
     passed:         row.passed,
     certificateUrl: row.certificate_url,
+    storagePath:    row.storage_path  || '',
+    fileName:       row.file_name     || '',
     notes:          row.notes,
     isCme:          row.is_cme ?? false,
     createdAt:      row.created_at,
@@ -54,10 +56,43 @@ function dbToCertification(row) {
     issuedDate:        row.issued_date,
     expiryDate:        row.expiry_date,
     certificateUrl:    row.certificate_url,
+    storagePath:       row.storage_path  || '',
+    fileName:          row.file_name     || '',
     notes:             row.notes,
     status:            row.status || 'verified',
     createdAt:         row.created_at,
   };
+}
+
+// ─── File upload helper ──────────────────────────────────────────────────────
+
+/**
+ * Upload a certificate/training file to Supabase Storage.
+ * Returns { storagePath, fileName } on success.
+ * Reuses the existing employee-documents bucket with a certs/ prefix.
+ */
+export async function uploadCertificateFile(employeeId, file) {
+  const user = await getSessionUser();
+  if (!user) throw new Error('Not authenticated');
+  const safeName    = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const storagePath = `${user.id}/certs/${employeeId}/${Date.now()}_${safeName}`;
+  const { error } = await supabase.storage
+    .from('employee-documents')
+    .upload(storagePath, file, { cacheControl: '3600', upsert: false });
+  if (error) throw error;
+  return { storagePath, fileName: file.name };
+}
+
+/**
+ * Generate a 1-hour signed URL from a storage path.
+ * Returns the URL string, or '' on failure.
+ */
+export async function getCertificateSignedUrl(storagePath) {
+  if (!storagePath) return '';
+  const { data } = await supabase.storage
+    .from('employee-documents')
+    .createSignedUrl(storagePath, 3600);
+  return data?.signedUrl ?? '';
 }
 
 // ─── Training Records — Admin ─────────────────────────────────────────────────
@@ -100,6 +135,8 @@ export async function saveTrainingRecord(rec) {
     score:           rec.score          || '',
     passed:          rec.passed         ?? null,
     certificate_url: rec.certificateUrl || '',
+    storage_path:    rec.storagePath    || '',
+    file_name:       rec.fileName       || '',
     notes:           rec.notes          || '',
     is_cme:          rec.isCme          ?? false,
   };
@@ -198,6 +235,8 @@ export async function saveCertification(cert) {
     issued_date:        cert.issuedDate         || null,
     expiry_date:        cert.expiryDate         || null,
     certificate_url:    cert.certificateUrl     || '',
+    storage_path:       cert.storagePath        || '',
+    file_name:          cert.fileName           || '',
     notes:              cert.notes              || '',
     status:             cert.status             || 'verified',
   };
@@ -304,6 +343,8 @@ export async function saveTeamTrainingRecord(rec) {
     score:           rec.score          || '',
     passed:          rec.passed         ?? null,
     certificate_url: rec.certificateUrl || '',
+    storage_path:    rec.storagePath    || '',
+    file_name:       rec.fileName       || '',
     notes:           rec.notes          || '',
     is_cme:          rec.isCme          ?? false,
   };
@@ -344,6 +385,8 @@ export async function saveTeamCertification(cert) {
     issued_date:        cert.issuedDate        || null,
     expiry_date:        cert.expiryDate        || null,
     certificate_url:    cert.certificateUrl    || '',
+    storage_path:       cert.storagePath       || '',
+    file_name:          cert.fileName          || '',
     notes:              cert.notes             || '',
   };
   if (cert.id) {
@@ -391,6 +434,8 @@ export async function employeeSaveTrainingRecord(rec) {
     score:           rec.score          || '',
     passed:          rec.passed         ?? null,
     certificate_url: rec.certificateUrl || '',
+    storage_path:    rec.storagePath    || '',
+    file_name:       rec.fileName       || '',
     notes:           rec.notes          || '',
     is_cme:          rec.isCme          ?? false,
   };
@@ -426,6 +471,8 @@ export async function employeeSaveCertification(cert) {
     issued_date:        cert.issuedDate        || null,
     expiry_date:        cert.expiryDate        || null,
     certificate_url:    cert.certificateUrl    || '',
+    storage_path:       cert.storagePath       || '',
+    file_name:          cert.fileName          || '',
     notes:              cert.notes             || '',
     status:             'pending_review',
   };

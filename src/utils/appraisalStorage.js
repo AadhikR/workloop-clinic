@@ -25,15 +25,28 @@ export const RATING_LABELS = {
 };
 
 // ── Shape converters ──────────────────────────────────────────────────────────
+function scalarText(value, fallback = '') {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return `${value}`;
+  return fallback;
+}
+
+function scalarNumber(value, fallback = null) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : fallback;
+  if (typeof value !== 'string' || !value.trim()) return fallback;
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 function dbToCycle(row) {
   return {
-    id:         row.id,
-    userId:     row.user_id,
-    name:       row.name,
-    reviewFrom: row.review_from,
-    reviewTo:   row.review_to,
-    status:     row.status,
-    createdAt:  row.created_at,
+    id:         scalarText(row?.id),
+    userId:     scalarText(row?.user_id),
+    name:       scalarText(row?.name, 'Unnamed cycle'),
+    reviewFrom: scalarText(row?.review_from),
+    reviewTo:   scalarText(row?.review_to),
+    status:     scalarText(row?.status, 'draft'),
+    createdAt:  scalarText(row?.created_at),
   };
 }
 
@@ -49,34 +62,34 @@ function cycleToDb(cycle, userId) {
 
 function dbToAppraisal(row) {
   return {
-    id:                row.id,
-    userId:            row.user_id,
-    cycleId:           row.cycle_id,
-    employeeId:        row.employee_id,
-    overallRating:     row.overall_rating != null ? parseFloat(row.overall_rating) : null,
-    selfRating:        row.self_rating    != null ? parseFloat(row.self_rating)    : null,
-    status:            row.status,
-    reviewerComments:  row.reviewer_comments,
-    developmentPlan:   row.development_plan,
-    reviewedAt:        row.reviewed_at,
-    reviewedBy:        row.reviewed_by,
-    createdAt:         row.created_at,
-    updatedAt:         row.updated_at,
+    id:                scalarText(row?.id),
+    userId:            scalarText(row?.user_id),
+    cycleId:           scalarText(row?.cycle_id),
+    employeeId:        scalarText(row?.employee_id),
+    overallRating:     scalarNumber(row?.overall_rating),
+    selfRating:        scalarNumber(row?.self_rating),
+    status:            scalarText(row?.status, 'pending'),
+    reviewerComments:  scalarText(row?.reviewer_comments),
+    developmentPlan:   scalarText(row?.development_plan),
+    reviewedAt:        scalarText(row?.reviewed_at),
+    reviewedBy:        scalarText(row?.reviewed_by),
+    createdAt:         scalarText(row?.created_at),
+    updatedAt:         scalarText(row?.updated_at),
     // joined data
-    sections:          (row.appraisal_sections || []).map(dbToSection),
+    sections:          (Array.isArray(row?.appraisal_sections) ? row.appraisal_sections : []).map(dbToSection),
   };
 }
 
 function dbToSection(row) {
   return {
-    id:          row.id,
-    appraisalId: row.appraisal_id,
-    sectionName: row.section_name,
-    weight:      parseFloat(row.weight) || 1,
-    rating:      row.rating     != null ? parseFloat(row.rating)      : null,
-    selfRating:  row.self_rating != null ? parseFloat(row.self_rating) : null,
-    comments:    row.comments,
-    sortOrder:   row.sort_order ?? 0,
+    id:          scalarText(row?.id),
+    appraisalId: scalarText(row?.appraisal_id),
+    sectionName: scalarText(row?.section_name, 'Appraisal section'),
+    weight:      scalarNumber(row?.weight, 1),
+    rating:      scalarNumber(row?.rating),
+    selfRating:  scalarNumber(row?.self_rating),
+    comments:    scalarText(row?.comments),
+    sortOrder:   scalarNumber(row?.sort_order, 0),
   };
 }
 
@@ -234,7 +247,7 @@ export async function managerRateSection(sectionId, { rating, comments }) {
   if (hasAll) { patch.status = 'reviewed'; patch.reviewed_at = new Date().toISOString(); }
   try {
     await supabase.from('appraisals').update(patch).eq('id', sec.appraisal_id);
-  } catch (_) { /* silently ignore if manager UPDATE policy not yet applied */ }
+  } catch { /* silently ignore if manager UPDATE policy not yet applied */ }
 }
 
 /**
