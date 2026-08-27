@@ -1,0 +1,1405 @@
+# DigitalOcean Migration Plan
+
+## Purpose
+
+This document is the working plan for replacing Workloop Clinic's Supabase backend with a portable FastAPI backend and running the development system on DigitalOcean.
+
+Use this file as the source of truth in future sessions. A useful instruction is:
+
+> Read `DIGITALOCEAN_MIGRATION_PLAN.md`, check the current repository state, and continue the next incomplete phase. Do not skip its completion gate.
+
+Update the phase status, decision log, and test evidence as work progresses. Do not mark a phase complete because code was generated. Mark it complete only after its completion gate passes.
+
+## Confirmed Decisions
+
+| Topic | Decision |
+|---|---|
+| Current application | React 19 and Vite frontend using Supabase directly |
+| New backend | FastAPI |
+| Database | DigitalOcean Managed PostgreSQL during development |
+| Authentication | Self-hosted Keycloak using standard OpenID Connect |
+| File storage | Private DigitalOcean Spaces buckets |
+| Frontend hosting | DigitalOcean App Platform |
+| Backend hosting | DigitalOcean App Platform |
+| Source control | Private GitHub repository |
+| DigitalOcean connection | GitHub repository is not connected yet |
+| DigitalOcean access | Team can grant or provide resource-creation permissions |
+| Development address | Default `ondigitalocean.app` addresses are acceptable |
+| Budget | Reasonable development spend is acceptable; add budget alerts before provisioning |
+| Current data | No real clinics, production users, or production records exist |
+| DigitalOcean purpose | Development and staging only, using synthetic data |
+| Final destination | Azure in an approved UAE region before real clinic use |
+| Migration strategy | Keep a separate legacy Supabase build as reference; the migration build uses Keycloak and exposes only dependency-complete FastAPI features |
+
+## Non-Negotiable Boundaries
+
+- Do not enter real employee, patient, payroll, banking, passport, visa, medical, insurance, or clinic data into DigitalOcean.
+- Do not treat DigitalOcean as the final production environment without a new legal and security decision.
+- Do not expose PostgreSQL directly to the browser.
+- Do not store database passwords, Keycloak administrator credentials, Spaces keys, or API tokens in Git.
+- Do not put secrets in variables beginning with `VITE_`; Vite exposes those variables to browser users.
+- Do not write a custom password system inside FastAPI.
+- Do not remove the working Supabase implementation until the replacement passes the relevant tests.
+- Do not move to the next feature solely because its happy path works. Permission and failure-path tests must pass.
+- Do not let the browser choose its trusted role, company, employee identity, or manager scope.
+- Do not make one running frontend switch between Supabase and Keycloak sessions. Legacy and migration builds have separate entry points and authentication systems until final cutover.
+- Do not start Phase 1 or any later phase until the project owner explicitly authorizes that phase.
+
+## Phase Execution Protocol
+
+Every phase requires separate authorization. Completing one phase does not authorize the next phase.
+
+### Before a Phase
+
+The AI must explain, in beginner-oriented steps:
+
+- The phase objective and why it is needed.
+- What will change and what will remain unchanged.
+- Every action the project owner must perform personally.
+- Required accounts, permissions, software, URLs, and non-secret identifiers.
+- Which secrets will be created, where they belong, and what must not be pasted into chat or committed.
+- Expected DigitalOcean or third-party cost changes.
+- Risks, backups, rollback boundaries, and the phase completion gate.
+- Which actions can be completed by AI and which require the project owner or team owner.
+
+The AI must wait for confirmation when an account, billing, permission, legal, security, destructive, or externally visible action is required.
+
+### During a Phase
+
+- Give the project owner exact instructions immediately before each required manual action.
+- State what successful output should look like and what non-secret information can be returned for verification.
+- Never request passwords, private keys, full connection strings, access tokens, recovery codes, or payment details in chat.
+- Stop and explain unexpected cost, permission, security, or destructive consequences before continuing.
+- Keep the phase tracker and progress evidence current.
+
+### After a Phase
+
+The AI must report:
+
+- Files and infrastructure changed.
+- Commands and tests run, including failures.
+- Resources created and their estimated ongoing cost.
+- Secrets created and their storage location, without revealing values.
+- Remaining risks, deferred work, and rollback status.
+- Whether the completion gate passed and the evidence supporting it.
+- The project owner's required checks or cleanup.
+
+The AI must then stop. It may describe the next phase, but it must not begin that phase without explicit authorization.
+
+## Current Architecture
+
+The current React application runs in the browser and uses the Supabase JavaScript client for four services:
+
+1. Supabase Auth identifies users and stores login sessions.
+2. Supabase PostgREST exposes database tables to browser queries.
+3. Supabase RPC exposes protected PostgreSQL functions.
+4. Supabase Storage stores private documents and receipts.
+
+```mermaid
+flowchart LR
+    User["Browser user"] --> React["React application"]
+    React --> Client["Supabase JavaScript client"]
+    Client --> Auth["Supabase Auth"]
+    Client --> API["Supabase table API"]
+    Client --> RPC["Supabase RPC"]
+    Client --> Files["Supabase Storage"]
+    API --> DB[("Supabase PostgreSQL")]
+    RPC --> DB
+```
+
+The replacement must cover all four services. Moving tables alone would leave the application without login, an API, authorization, or file storage.
+
+## Target DigitalOcean Architecture
+
+```mermaid
+flowchart LR
+    GitHub["Private GitHub repository"] --> Frontend["App Platform<br/>React static component"]
+    GitHub --> Backend["App Platform<br/>FastAPI web service"]
+    GitHub --> Identity["App Platform<br/>Keycloak service"]
+
+    User["Synthetic test users"] --> Frontend
+    Frontend -.->|"Initiates browser redirect"| Identity
+    User <-->|"Keycloak login and callback"| Identity
+    Frontend -->|"HTTPS API calls with access token"| Backend
+    Backend -->|"Verify token using JWKS"| Identity
+    Backend --> AppDB[("Managed PostgreSQL<br/>workloop database")]
+    Identity --> KeycloakDB[("Managed PostgreSQL<br/>keycloak database")]
+    Backend --> Files["Private DigitalOcean Space"]
+
+    Backend --> Logs["App Platform logs and alerts"]
+    Identity --> Logs
+    AppDB --> Backups["Managed database backups"]
+    KeycloakDB --> Backups
+```
+
+For development, the Workloop and Keycloak databases may use one managed PostgreSQL cluster with separate databases and separate database users. They must not share credentials. Revisit physical separation before production on Azure.
+
+## Responsibilities After the Change
+
+| Layer | Responsibility |
+|---|---|
+| React | Display screens, collect input, call FastAPI, and perform non-authoritative previews |
+| Keycloak | Register and authenticate users, reset passwords, issue tokens, and manage sessions |
+| FastAPI | Validate tokens, enforce permissions, validate requests, run workflows, access data, and authorize files |
+| PostgreSQL | Persist records, enforce constraints, execute transactions, and optionally provide row-level defense in depth |
+| DigitalOcean Spaces | Store private binary files such as employee documents and expense receipts |
+| Alembic | Create and upgrade the PostgreSQL schema consistently |
+| GitHub | Store source code and trigger deployments |
+| DigitalOcean | Run development infrastructure, logs, networking, and managed database backups |
+
+## Portability Requirements
+
+DigitalOcean is an intermediate environment. The implementation must avoid unnecessary DigitalOcean dependencies so the later Azure move changes infrastructure adapters rather than business features.
+
+- Use standard PostgreSQL supported by both DigitalOcean and Azure PostgreSQL Flexible Server.
+- Use SQLAlchemy and Psycopg for application database access.
+- Use Alembic for every schema change after the baseline.
+- Use standard OIDC and JWT validation for Keycloak integration.
+- Keep roles and company relationships in the Workloop database, not only in Keycloak.
+- Put object storage behind a small application interface.
+- Use the S3-compatible implementation for DigitalOcean Spaces.
+- Add an Azure Blob implementation later without changing feature services.
+- Package FastAPI and Keycloak as containers.
+- Read provider addresses and credentials from environment variables.
+- Avoid DigitalOcean SDK calls in payroll, leave, attendance, or other domain code.
+- Store infrastructure definitions in the repository using Terraform or another agreed infrastructure-as-code tool.
+
+## Proposed Repository Shape
+
+The exact names may be adjusted once implementation starts, but responsibilities should remain separated.
+
+```text
+workloop-clinic/
+  src/                          Existing React frontend
+  backend/
+    app/
+      main.py                   FastAPI startup
+      api/                      Versioned HTTP routes
+      auth/                     OIDC token verification and permission dependencies
+      core/                     Configuration, logging, and shared errors
+      db/                       SQLAlchemy session and shared database behavior
+      models/                   SQLAlchemy table models
+      schemas/                  Pydantic request and response models
+      repositories/             Scoped database queries
+      services/                 Business workflows and transactions
+      storage/                  Object-storage interface and Spaces adapter
+    alembic/                    Database migration files
+    tests/                      Backend unit, API, and authorization tests
+    Dockerfile
+    pyproject.toml
+  keycloak/
+    Dockerfile                  Pinned Keycloak image and startup configuration
+    realm/                      Sanitized development realm configuration if appropriate
+  infra/
+    digitalocean/               Development infrastructure definitions
+    azure/                      Added during the final hosting migration
+  docs/
+  docker-compose.yml            Local PostgreSQL, Keycloak, and backend
+  .env.example                  Names only; no credentials
+```
+
+Do not create abstractions merely to match this diagram. Start with the smallest structure that preserves the security and portability boundaries.
+
+## Phase Tracker
+
+| Phase | Name | Status | Estimated effort |
+|---|---|---|---:|
+| 0 | Baseline and inventory | Completed 2026-08-27 | 2–4 days |
+| 1 | DigitalOcean access and cost controls | On hold — awaiting explicit authorization | 1–2 days |
+| 2 | Local backend and infrastructure foundation | Not started | 4–7 days |
+| 3 | Keycloak authentication foundation | Not started | 1–2 weeks |
+| 4 | Portable database baseline | Not started | 1–2 weeks |
+| 5 | Authorization and tenant isolation | Not started | 1–2 weeks |
+| 6 | Shared API and frontend client | Not started | 3–5 days |
+| 6A | Early DigitalOcean architecture proof | Not started | 3–5 days |
+| 7 | Organization and employee module | Not started | 1–2 weeks |
+| 8 | Leave vertical slice | Not started | 1–2 weeks |
+| 9 | Payroll, advances, and expenses | Not started | 3–4 weeks |
+| 10 | Attendance, biometric import, and roster | Not started | 2–3 weeks |
+| 11 | Documents and supporting HR modules | Not started | 3–5 weeks |
+| 12 | Notifications, tasks, reports, and exports | Not started | 1–2 weeks |
+| 13 | Remove Supabase runtime dependency | Not started | 3–5 days |
+| 14 | DigitalOcean deployment and operations | Not started | 1–2 weeks |
+| 15 | System validation and handoff | Not started | 2–4 weeks |
+
+Estimates include implementation and focused testing. Phase estimates are effort ranges, not promises that every phase can overlap. Use a planning budget of 600–900 hours for the complete migration. At 40 focused hours per week, that is roughly 4–6 months. At 20 focused hours per week, it is roughly 7–11 months. Feature cuts can shorten this; behavior gaps, security defects, and learning time can extend it.
+
+## Phase 0: Baseline and Inventory
+
+### Objective
+
+Record what the current application does before changing its backend.
+
+### Work
+
+- Run and record the current unit tests, lint command, and production build.
+- Record any existing failures without hiding or deleting them.
+- Create a feature checklist for the admin, manager, and employee portals.
+- Inventory every Supabase table query, RPC call, Auth call, and Storage call.
+- Map each frontend operation to its tables, functions, and file buckets.
+- Inventory the SQL files in execution order.
+- Identify PostgreSQL extensions and Supabase-specific schemas in use.
+- Record current request and response shapes used by React.
+- Create synthetic fixtures for at least two companies, two managers, and several employees.
+- Preserve the current Supabase version as the behavioral reference.
+- Decide the infrastructure-as-code tool, supported PostgreSQL version, RLS approach, object-upload method, and criteria for keeping SQL functions.
+- Decide which exports remain in the browser and whether any scheduled jobs are required.
+- Assign an owner for infrastructure, Keycloak, database releases, application releases, recovery, billing, security review, and Supabase deletion.
+
+### Current Known Scope
+
+The source currently contains at least:
+
+- 77 direct `supabase.from(...)` entry points.
+- 32 direct `supabase.rpc(...)` calls.
+- 28 direct Supabase Auth calls.
+- 13 direct Supabase Storage references.
+- 14 feature-specific `*Storage.js` modules, plus the large shared `storage.js` module.
+
+These counts are navigation aids, not API endpoint estimates. Fluent query chains and indirect helper calls make the true workflow count larger.
+
+### User Actions
+
+- Confirm the synthetic organization names and test personas.
+- Identify any feature that can be removed instead of migrated.
+- Confirm which behavior in the current application is authoritative if documentation and code disagree.
+
+### Deliverables
+
+- [`docs/migration/phase-0/README.md`](docs/migration/phase-0/README.md) — baseline report, decisions, ownership, known defects, and gate evidence.
+- [`docs/migration/phase-0/SUPABASE_DEPENDENCY_INVENTORY.md`](docs/migration/phase-0/SUPABASE_DEPENDENCY_INVENTORY.md) — Supabase dependency inventory.
+- [`docs/migration/phase-0/SQL_SCHEMA_INVENTORY.md`](docs/migration/phase-0/SQL_SCHEMA_INVENTORY.md) — SQL schema and migration inventory.
+- [`docs/migration/phase-0/FEATURE_AND_CONTRACT_MATRIX.md`](docs/migration/phase-0/FEATURE_AND_CONTRACT_MATRIX.md) — feature migration and frontend contract matrix.
+- [`docs/migration/phase-0/SYNTHETIC_TEST_DATA.md`](docs/migration/phase-0/SYNTHETIC_TEST_DATA.md) — synthetic test-data specification.
+
+### Completion Gate
+
+Passed on 2026-08-27. Every visible portal feature has an owner phase, the current command baseline is recorded, and all Phase 0 artifacts are linked above.
+
+## Phase 1: DigitalOcean Access and Cost Controls
+
+### Objective
+
+Prepare the team account without creating unmanaged resources or exposing secrets.
+
+### Work
+
+- Confirm permission to create App Platform apps, managed databases, Spaces, projects, VPCs, secrets, and API tokens.
+- Create a dedicated DigitalOcean project for Workloop development.
+- Connect the private GitHub repository to the DigitalOcean team.
+- Grant DigitalOcean access only to the required repository when possible.
+- Create a development branch policy and choose the deployment branch.
+- Set a monthly budget target and billing alert.
+- Choose one DigitalOcean region for App Platform, PostgreSQL, and Spaces where service availability permits.
+- Record resource owners and deletion responsibility.
+- Create a secret inventory without writing secret values into this file.
+
+### Initial Cost Guardrail
+
+Use a planning range of USD 50–150 per month for the shared development environment. Confirm actual prices in the DigitalOcean control panel before creation. Keycloak adds an always-running service and database workload, so the cheapest possible configuration may not be reliable enough even for shared testing.
+
+### User Actions
+
+- Ask the team owner to install or authorize the DigitalOcean GitHub application.
+- Approve repository access.
+- Confirm team permissions and budget alerts.
+- Approve the chosen region and deployment branch.
+
+### Deliverables
+
+- DigitalOcean development project.
+- Confirmed GitHub integration.
+- Permission checklist.
+- Cost estimate and alert.
+- Secret inventory and ownership list.
+
+### Completion Gate
+
+The repository is visible to App Platform, required resources can be created, and no credentials have been committed.
+
+## Phase 2: Local Backend and Infrastructure Foundation
+
+### Objective
+
+Run React, FastAPI, PostgreSQL, and Keycloak locally using repeatable commands.
+
+### Work
+
+- Add the FastAPI project and a `/health` endpoint.
+- Add structured application configuration loaded from environment variables.
+- Add SQLAlchemy, Psycopg, Alembic, Pydantic, and Pytest.
+- Add a production-oriented FastAPI container image.
+- Add a pinned Keycloak container image.
+- Add Docker Compose services for FastAPI, PostgreSQL, and Keycloak.
+- Create separate local Workloop and Keycloak databases and users.
+- Add readiness and health checks.
+- Add JSON-compatible structured logging without sensitive request bodies.
+- Add `.env.example` with variable names and safe examples only.
+- Document startup, shutdown, migration, and test commands.
+- Add CI checks for backend formatting, linting, migrations, and tests.
+
+### Configuration Groups
+
+```text
+Application:
+APP_ENV
+APP_BASE_URL
+FRONTEND_URL
+LOG_LEVEL
+
+Database:
+DATABASE_URL
+
+OIDC:
+OIDC_ISSUER
+OIDC_AUDIENCE
+OIDC_JWKS_URL
+
+Storage:
+STORAGE_PROVIDER
+STORAGE_BUCKET
+STORAGE_ENDPOINT
+STORAGE_REGION
+STORAGE_ACCESS_KEY
+STORAGE_SECRET_KEY
+```
+
+Do not use `VITE_` for backend-only settings.
+
+### User Actions
+
+- Install or approve the local prerequisites, including Docker Desktop and a supported Python version.
+- Run the documented commands instead of relying only on AI output.
+- Confirm that the local services can be stopped and restarted without losing expected development state.
+
+### Deliverables
+
+- Local development stack.
+- FastAPI health endpoint.
+- Backend test command.
+- Container images.
+- Local setup documentation.
+
+### Completion Gate
+
+A fresh checkout can start all local services using documented commands, FastAPI reaches PostgreSQL, Keycloak reports healthy, and automated foundation tests pass.
+
+## Phase 3: Keycloak Authentication Foundation
+
+### Objective
+
+Replace Supabase Auth with a standards-based Keycloak login while keeping business roles in PostgreSQL.
+
+This phase applies to the separate migration build, not the legacy Supabase build. The legacy build continues using Supabase Auth so its unmigrated queries, RPCs, and storage policies still receive a valid Supabase identity. The migration build uses only Keycloak and FastAPI; it must not send a Keycloak token to Supabase or retain a hidden Supabase session.
+
+### Identity Schema Prerequisite
+
+Before role resolution and account-lifecycle tests, add minimal Alembic migrations for `app_users` and the core `companies`, `employees`, and `user_profiles` relationships required by identity mapping. These migrations establish application-owned IDs, issuer and subject fields, account status, roles, and nullable links needed during bootstrap. Phase 4 reviews and extends this baseline into the complete portable schema; it does not replace it.
+
+### Keycloak Design
+
+- Create one development realm for Workloop.
+- Use a maintained OIDC client library with Authorization Code flow, PKCE using `S256`, `state`, and `nonce` validation.
+- Create a public React client and an explicit FastAPI API audience.
+- Configure an audience mapper so Keycloak access tokens contain the FastAPI audience.
+- Do not put a client secret in React.
+- Use exact local and App Platform redirect URLs.
+- Restrict web origins to known frontend addresses.
+- Disable implicit flow, Direct Access Grants, service accounts, wildcard redirects, and unnecessary client scopes for the React client.
+- Configure access-token lifetimes appropriate for development and later review them for production.
+- Enable email verification and password-reset actions once SMTP is available.
+- Disable open public registration unless an approved onboarding workflow requires it.
+- Protect the Keycloak administrator account with a unique secret and MFA where supported.
+- Pin the Keycloak version and schedule dependency updates.
+- Export only sanitized realm configuration. Never commit users, credentials, or private keys.
+
+### Application Identity Model
+
+Keycloak owns credentials. Workloop PostgreSQL owns application identity and permissions.
+
+```text
+Keycloak issuer + token `sub`
+        ↓
+app_users.identity_issuer + app_users.identity_subject
+        ↓
+user_profiles
+        ↓
+role + company_user_id + employee_id
+```
+
+`app_users.id` must be an application-owned UUID. `identity_issuer` and `identity_subject` must be text with a unique composite constraint. Business tables reference `app_users.id`, never the Keycloak subject directly. The subject is opaque even if its current value resembles a UUID. Email is useful for invitations and display, but must not be the permanent authorization key because email addresses can change.
+
+### Account Lifecycle to Implement
+
+- Bootstrap the first development administrator safely.
+- Invite or provision an employee after an HR employee record exists.
+- Link the Keycloak identity to exactly one application user.
+- Promote an eligible employee profile to manager through an authorized admin workflow.
+- Disable application access when employment ends.
+- Handle changed email addresses without changing ownership.
+- Handle password reset and email verification.
+- Revoke or expire sessions when access is removed.
+- Define how abandoned or duplicate Keycloak users are cleaned up.
+- Model provisioning as an idempotent state machine such as `pending_identity`, `active`, and `disabled`.
+- Use a backend-only confidential client with minimum Keycloak Admin API permissions when automated provisioning is introduced.
+- Define retry, compensation, and reconciliation behavior when Keycloak succeeds but PostgreSQL fails, or the reverse.
+- Check active application-user status on every request. Keycloak logout ends its session but does not instantly invalidate an already issued self-contained access token.
+
+### FastAPI Authentication Work
+
+- Read bearer access tokens from the `Authorization` header.
+- Retrieve and cache Keycloak public signing keys from JWKS with bounded HTTP and cache timeouts.
+- Validate token signature, issuer, audience, expiry, and required claims.
+- Allow only the configured asymmetric signing algorithm; reject `none`, symmetric algorithms, and token-selected algorithm changes.
+- Refresh JWKS once for an unknown key ID to support signing-key rotation, then fail closed.
+- Reject ID tokens when an access token is required.
+- Resolve the application user from the verified token subject.
+- Return consistent `401 Unauthorized` and `403 Forbidden` responses.
+- Do not accept role or company claims without a documented trust decision.
+
+### React Authentication Work
+
+- Establish the separate migration-build entry point and configuration before adding OIDC. Add an automated check that it cannot initialize or import the Supabase client.
+- Create a migration-build authentication context using an OIDC client with PKCE.
+- Leave the legacy build's Supabase authentication unchanged until final cutover.
+- Restore login state after page refresh.
+- Prefer in-memory token storage. Any persistent browser storage requires a documented XSS and refresh-token review.
+- Attach access tokens to FastAPI requests.
+- Handle token expiry, refresh-token rotation, callback replay, and silent renewal safely.
+- Implement sign-out from both React and Keycloak.
+- Handle callback, cancellation, and authentication error states.
+- Remove Supabase password-reset behavior only after the Keycloak flow works.
+
+### Tests
+
+- Valid access token is accepted.
+- Expired token is rejected.
+- Wrong issuer is rejected.
+- Wrong audience is rejected.
+- Wrong state or nonce and replayed authorization codes are rejected.
+- Unknown signing key, disallowed algorithm, and malformed claims are rejected.
+- Signing-key rotation and a temporary JWKS outage follow the documented cache and fail-closed behavior.
+- Missing token is rejected on protected routes.
+- Disabled application user is rejected.
+- Changed email does not change record ownership.
+- Logout behavior matches the documented token lifetime, and a disabled application user is rejected immediately even with an otherwise valid token.
+
+### Completion Gate
+
+Synthetic admin, manager, and employee identities can sign in through the isolated migration build; the restricted React client issues the explicit API audience; FastAPI identifies each through issuer and subject; invalid and replayed authentication responses fail closed; disabled users are blocked; the legacy build still authenticates independently; and passwords never enter the Workloop database.
+
+## Phase 4: Portable Database Baseline
+
+### Objective
+
+Translate the Supabase-oriented schema into a versioned, portable PostgreSQL schema.
+
+### Work
+
+- Choose and document the supported PostgreSQL version.
+- Build an ordered schema inventory from root SQL files and `sql/*.sql`.
+- Convert the schema baseline into Alembic migrations.
+- Preserve primary keys, foreign keys, unique constraints, checks, indexes, and audit fields.
+- Use `NUMERIC`, not floating point, for money.
+- Store timestamps consistently in UTC and convert only for display.
+- Confirm UUID generation works on DigitalOcean and Azure PostgreSQL.
+- Identify every use of `auth.uid()`, `auth.users`, `storage.objects`, and Supabase-specific helpers.
+- Convert every `auth.users`, `auth_user_id`, and auth-owned `user_id` relationship to the application-owned identity model explicitly.
+- Replace or remove Supabase-specific dependencies deliberately.
+- Decide which PostgreSQL functions remain and which move into FastAPI services.
+- Add repeatable synthetic seed data separate from schema migrations.
+- Compile the Phase 0 scenario catalogue into an exact version-controlled fixture manifest before implementing the seed.
+- Verify both upgrade and clean-database creation paths.
+
+### Migration Rules
+
+- Alembic migrations are append-only after they are shared.
+- Never edit an applied migration to hide a correction; add a new migration.
+- Seed scripts must be safe for development and must not contain real personal data.
+- Schema creation must not depend on manually running SQL in a cloud console.
+- Database credentials must use least privilege.
+- The FastAPI runtime user should not own the database or have migration privileges.
+- A separate migration identity should apply schema changes.
+
+### Supabase-Specific Areas Requiring Attention
+
+- `auth.uid()` calls in policies and functions.
+- `auth.users` references.
+- Security-definer functions that infer the caller from Supabase JWT state.
+- PostgREST relationship syntax used by frontend queries.
+- Storage bucket policies and `storage.objects` references.
+- Grants written specifically for Supabase `anon`, `authenticated`, or `service_role` roles.
+- Any extension not available in both target PostgreSQL services.
+
+### Completion Gate
+
+Alembic can create an empty Workloop database from scratch and upgrade it to the latest schema without Supabase schemas, roles, or services.
+
+## Phase 5: Authorization and Tenant Isolation
+
+### Objective
+
+Rebuild the security boundary currently provided by Supabase Row Level Security and protected functions.
+
+### Authorization Model
+
+FastAPI must derive trusted context from the authenticated application user:
+
+```text
+authenticated subject
+        ↓
+application user
+        ↓
+role
+        ↓
+company owner or employee identity
+        ↓
+allowed records and actions
+```
+
+The browser may request a resource ID, but the server must prove that the resource belongs to the caller's permitted company or employee scope.
+
+### Work
+
+- Define reusable FastAPI dependencies for authenticated user, admin, manager, employee, and active company scope.
+- Put company and employee scoping inside repository queries, not only route handlers.
+- Implement manager scope through authoritative reporting relationships.
+- Prevent mass-assignment of restricted columns such as role, salary, company owner, and approval status.
+- Add database constraints that protect invariants even if API validation fails.
+- Decide whether to retain PostgreSQL RLS as defense in depth.
+- If retaining RLS, use transaction-local request context and test connection-pool isolation carefully.
+- Create audit events for role changes, approvals, payroll state changes, and sensitive document actions.
+- Return generic authorization errors without revealing whether another company's record exists.
+
+### Required Permission Matrix
+
+Create a version-controlled matrix covering every feature and operation. At minimum it must distinguish:
+
+- Admin access within owned companies and branches.
+- Manager access to direct reports and personal employee features.
+- Employee access to personal records and self-service actions.
+- System-only actions such as migration, scheduled jobs, and expiry processing.
+
+### Required Negative Tests
+
+- Company A admin cannot access Company B records by changing an ID.
+- Employee A cannot access Employee B records or files.
+- Manager A cannot access an employee outside the reporting line.
+- Employee cannot change role, salary, approval status, or company ownership.
+- Manager cannot approve their own restricted request when policy forbids it.
+- Disabled user cannot access data with a valid identity-provider account.
+- Guessed UUIDs and modified query strings do not bypass scope.
+- Bulk endpoints enforce scope on every row.
+
+### Completion Gate
+
+The permission matrix is approved, reusable authorization code exists, and automated cross-company and cross-role tests fail closed.
+
+## Phase 6: Shared API and Frontend Client
+
+### Objective
+
+Create stable conventions before converting business modules.
+
+### API Conventions
+
+- Prefix endpoints with `/api/v1`.
+- Use Pydantic request and response schemas.
+- Use consistent JSON field naming.
+- Use consistent pagination, filtering, and sorting parameters.
+- Return stable machine-readable error codes plus safe user messages.
+- Add request correlation IDs for logs.
+- Define transaction boundaries in service functions.
+- Add idempotency protection where repeated financial or approval requests could duplicate work.
+- Generate and review OpenAPI documentation.
+- Limit request and upload sizes.
+- Configure CORS for exact frontend origins rather than `*` on authenticated endpoints.
+- Add rate limiting before public or production use.
+
+### Frontend Client Conventions
+
+- Create one HTTP client responsible for base URL, tokens, JSON parsing, timeouts, and normalized errors.
+- Keep backend-only secrets out of React.
+- Preserve existing storage-function interfaces where that reduces screen changes.
+- Use a standard cancellation strategy for abandoned requests.
+- Distinguish authentication, authorization, validation, conflict, and server errors.
+- Avoid showing raw database or Python error messages to users.
+
+### Compatibility Strategy
+
+Run two explicit development entry points during migration:
+
+- The legacy build uses Supabase Auth and Supabase-backed screens only. It remains a behavioral reference.
+- The migration build uses Keycloak, FastAPI, and PostgreSQL only. It exposes migrated slices and disables or clearly marks unfinished screens.
+
+Do not mix Supabase and Keycloak sessions in one running frontend. A Keycloak access token cannot authorize current Supabase queries because those policies depend on Supabase identity and `auth.uid()`.
+
+The default cutover unit is a dependency-complete vertical slice: its UI, API, tables, files, and workflows move together. After a slice moves, disable its Supabase write paths. Do not maintain silent bidirectional synchronization.
+
+Core records such as companies, employees, reporting relationships, and roles are shared dependencies. Until all consumers move, use a repeatable one-way synthetic-data refresh from the chosen source into the other development database, freeze edits in the non-authoritative copy, and display which system is authoritative. Record the source, refresh command, and last refresh time.
+
+Each feature cutover requires:
+
+- An authoritative-system declaration.
+- A dependency checklist.
+- A read and write freeze boundary.
+- A repeatable synthetic-data refresh if old consumers remain.
+- A rollback that routes the whole feature back, not individual requests.
+- A check proving no screen writes the same business record to both databases.
+- A mapping from legacy Supabase user IDs to application-owned IDs when synthetic reference data is refreshed.
+
+### Completion Gate
+
+The migration build can call authenticated and public FastAPI endpoints through one client, errors are consistent, CORS is restricted, and a sample protected endpoint passes integration tests. The legacy build still works independently with Supabase, and neither build holds or forwards the other build's token.
+
+## Phase 6A: Early DigitalOcean Architecture Proof
+
+### Objective
+
+Prove the selected cloud architecture before investing in business-module conversion.
+
+### Work
+
+- Deploy the React shell with `npm ci`, `npm run build`, and `dist` as the static output.
+- Deploy FastAPI with `/health` and one authenticated profile endpoint.
+- Deploy one Keycloak replica in production mode with external managed PostgreSQL.
+- Create separate Workloop and Keycloak databases and users.
+- Verify App Platform TLS termination, proxy headers, fixed Keycloak hostname, issuer URL, callback URL, and health endpoints.
+- Create one private test object in Spaces through FastAPI.
+- Run one Alembic migration through a single-run pre-deploy job or explicitly invoked CI job.
+- Restart and redeploy every component and prove that identities, schema, and the test object persist.
+- Record actual monthly cost and resource sizes.
+
+### Completion Gate
+
+The deployed browser completes a real Keycloak login, calls the protected FastAPI endpoint, reaches managed PostgreSQL, stores and retrieves a private test object, survives redeployment, and exposes no wildcard callback, CORS, or public-storage access.
+
+## Phase 7: Organization and Employee Module
+
+### Objective
+
+Move the core records on which every other feature depends.
+
+### Scope
+
+- Companies and branches.
+- Company settings and feature toggles.
+- Departments and staffing rules.
+- Employees and employment status.
+- Job history.
+- Reporting-manager relationships.
+- Salary and bank fields.
+- UAE identity and compliance fields.
+- Admin assignment of employee and manager portal access.
+
+### API Examples
+
+```text
+GET    /api/v1/companies
+POST   /api/v1/companies
+GET    /api/v1/companies/{company_id}
+PATCH  /api/v1/companies/{company_id}
+GET    /api/v1/departments
+POST   /api/v1/departments
+GET    /api/v1/employees
+POST   /api/v1/employees
+GET    /api/v1/employees/{employee_id}
+PATCH  /api/v1/employees/{employee_id}
+POST   /api/v1/employees/{employee_id}/portal-access
+```
+
+### Critical Tests
+
+- Company and branch switching never crosses ownership.
+- Employee lists and counts are company-scoped.
+- Email uniqueness and identity linking rules are explicit.
+- Job and salary changes append the correct audit history.
+- Manager assignment cannot reference an employee in another company.
+- Employees cannot edit protected profile fields through crafted requests.
+- CSV import validates and scopes every row.
+
+### Completion Gate
+
+The admin can manage synthetic organizations and employees through FastAPI, each test identity sees the correct profile, and no organization or employee screen requires Supabase.
+
+## Phase 8: Leave Vertical Slice
+
+### Objective
+
+Prove a complete employee-to-manager-to-admin workflow using the new architecture.
+
+### Scope
+
+- Leave settings and statutory types.
+- Public holidays.
+- Leave balances and accrual.
+- Employee submission and cancellation.
+- Overlap detection.
+- Manager approval and rejection.
+- HR final approval and rejection.
+- Delegation.
+- Attachments.
+- Audit log.
+
+### Workflow
+
+```mermaid
+sequenceDiagram
+    actor Employee
+    participant UI as React
+    participant API as FastAPI
+    participant DB as PostgreSQL
+    actor Manager
+    actor Admin
+
+    Employee->>UI: Submit leave request
+    UI->>API: POST /api/v1/leave-requests
+    API->>DB: Validate identity, overlap, balance, and policy
+    DB-->>API: Save pending request
+    Manager->>API: Manager decision
+    API->>DB: Verify reporting relationship and update status
+    Admin->>API: Final HR decision
+    API->>DB: Update request, balance, and audit log atomically
+```
+
+### Critical Tests
+
+- Date, half-day, probation, holiday, and overlap rules match current behavior.
+- Unauthorized managers cannot see or decide requests.
+- Repeated approval requests do not deduct balance twice.
+- Failed transactions do not leave partial balances or audit rows.
+- Attachment authorization matches request authorization.
+- Concurrent requests cannot overspend the same balance unnoticed.
+
+### Completion Gate
+
+A complete leave workflow passes all three roles, transaction tests, and authorization tests without Supabase.
+
+## Phase 9: Payroll, Advances, and Expenses
+
+### Objective
+
+Move the financially sensitive workflows and make the server authoritative for persisted results.
+
+### Scope
+
+- Payroll runs and entries.
+- Allowances and deductions.
+- Approval states and audit logs.
+- Compliance overrides.
+- Payslip snapshots.
+- Salary advances and repayment schedules.
+- Expense claims, receipts, and approvals.
+- Applying advances, overtime, and expenses to payroll.
+- WPS status and SIF generation inputs.
+- Nafis and Emiratization reporting inputs.
+
+### Design Rules
+
+- FastAPI must calculate or independently verify persisted payroll totals.
+- Use decimal arithmetic and PostgreSQL `NUMERIC` for money.
+- Financial transitions must be transactions.
+- Approval endpoints must enforce valid state transitions.
+- Repeated submissions must not create duplicate repayments or reimbursements.
+- Payslips should use immutable snapshots after approval.
+- The server must not trust company, employee, amount, or approval fields solely because React submitted them.
+- Preserve client-side previews only as convenience, not authority.
+
+### Golden Test Cases
+
+Create reviewed examples with exact expected results for:
+
+- Normal monthly payroll.
+- Allowances and deductions.
+- Approved overtime.
+- Expense reimbursement.
+- Advance repayment.
+- Unpaid leave or attendance deduction.
+- Employee joining or leaving mid-period.
+- Gratuity and final settlement.
+- Compliance override behavior.
+- SIF totals and rounding.
+
+### Completion Gate
+
+Synthetic payroll completes from draft through approval and payslip generation; server totals match golden cases exactly; and retries, concurrent actions, and unauthorized actions do not corrupt financial data.
+
+## Phase 10: Attendance, Biometric Import, and Roster
+
+### Objective
+
+Move time, attendance, shift, and roster workflows while preserving payroll integration.
+
+### Scope
+
+- Attendance settings.
+- Shift templates and assignments.
+- Clock events and manual entries.
+- Attendance derivation.
+- Regularisation requests and approvals.
+- Attendance periods and closure.
+- Biometric mappings and CSV punch import.
+- Monthly rosters and publication.
+- Staffing checks.
+- Shift swaps.
+- Overtime and absence deductions.
+
+### Critical Tests
+
+- UAE-local display and UTC persistence are consistent.
+- Overnight shifts and month boundaries behave correctly.
+- Duplicate biometric punches are handled safely.
+- Imports report unmatched badges without corrupting matched rows.
+- Regularisation validates event order and duration.
+- Published roster restrictions work.
+- Shift swaps are authorized and atomic.
+- Attendance-derived payroll values match reviewed examples.
+
+### Completion Gate
+
+A complete synthetic month can move from roster through clock events, attendance review, period closure, and payroll inputs without Supabase.
+
+## Phase 11: Documents and Supporting HR Modules
+
+### Objective
+
+Convert private files and the remaining domain modules.
+
+### DigitalOcean Spaces Design
+
+- Use a private Space.
+- Disable CDN delivery, public listing, and public object ACLs.
+- Keep Spaces access keys only in FastAPI secrets.
+- Use the narrowest available credentials and document rotation.
+- Use non-guessable object keys without personal names where practical.
+- Store object metadata and ownership in PostgreSQL.
+- Validate file size, extension, and detected content type.
+- Sanitize displayed filenames.
+- Authorize every upload, download, and delete operation.
+- Stream development uploads through FastAPI so it controls the object key and inspects actual bytes before availability.
+- Use short-lived signed download URLs only after FastAPI authorizes the request.
+- Define malware-scanning expectations before real files are allowed.
+- Log sensitive file actions without logging file contents or signed URLs.
+- Use pending and deleting metadata states plus idempotent retries because PostgreSQL and Spaces cannot share one transaction.
+- Add reconciliation for orphaned objects, missing objects, and incomplete deletion.
+- Keep encrypted snapshot backups in a separate private backup target.
+- Record retention, recovery point objective, recovery time objective, and restore owner.
+- Test unauthenticated URLs, bucket listing, public ACL attempts, expired signed URLs, partial failures, and removal of both object and metadata.
+
+### Storage Interface
+
+```text
+put_object(stream, metadata, conditions)
+delete_object(object_id, conditions)
+create_download_url(object_id, expires_in)
+head_object(object_id)
+list_reconciliation_candidates(...)
+```
+
+The interface must define provider-neutral metadata, stream behavior, size limits, not-found and conflict errors, and conditional-write behavior. The DigitalOcean adapter uses its S3-compatible API. A later Azure adapter will use Azure Blob Storage and must pass the same contract tests.
+
+### Module Scope
+
+- Employee documents.
+- Expense receipts.
+- Leave attachments.
+- Training records and certification files.
+- CME requirements.
+- Insurance policies and dependants.
+- Assets and assignments.
+- Appraisal cycles, reviews, and calibration.
+- Clinical incident reports.
+- Contracts and renewals.
+- Letter and custom requests.
+- Offboarding and end-of-service workflows.
+
+### Completion Gate
+
+All supporting modules use FastAPI, private files are inaccessible without authorization, and storage-provider tests pass against local and DigitalOcean-compatible storage.
+
+## Phase 12: Notifications, Tasks, Reports, and Exports
+
+### Objective
+
+Move cross-cutting reads, scheduled work, and generated outputs.
+
+### Scope
+
+- Notifications and unread counts.
+- Expiry notification generation.
+- Cross-module task aggregation by role.
+- Dashboard aggregates.
+- Clinical dashboard aggregates.
+- Reports and filters.
+- CSV exports.
+- PDF and ZIP generation.
+- SIF generation and downloads.
+
+### Design Decisions
+
+- Decide which exports remain browser-generated and which are server-generated.
+- Keep sensitive report queries server-scoped even if rendering remains in React.
+- Add background-job infrastructure only where a real requirement exists.
+- If periodic jobs are needed, define one scheduler owner to prevent duplicate execution.
+- Preserve polling initially; real-time updates are not required to complete the migration.
+- Set report row limits, timeouts, and pagination.
+
+### Completion Gate
+
+Dashboards, tasks, notifications, reports, and exports return role-scoped results through FastAPI and match agreed synthetic reference outputs.
+
+## Phase 13: Remove Supabase Runtime Dependency
+
+### Objective
+
+Prove that the application no longer requires any Supabase service at runtime.
+
+### Work
+
+- Search the entire repository, CI settings, GitHub environments, local examples, tests, and deployment configuration for Supabase dependencies and secrets.
+- Promote the migration build to the only active application after every dependency-complete slice passes its gate.
+- Remove the Supabase client after all call sites are replaced.
+- Remove Supabase environment variables from active deployment configuration.
+- Move any still-needed SQL into Alembic or backend-owned SQL modules.
+- Remove `@supabase/supabase-js` from dependencies.
+- Verify Auth, table, RPC, Realtime, and Storage services are unused.
+- Update setup, architecture, deployment, and recovery documentation.
+- Keep legacy SQL files only if clearly labeled as historical references.
+- Run a clean setup without valid Supabase credentials.
+- Revoke Supabase API keys and remove them from GitHub and DigitalOcean secret stores.
+- Delete obsolete Supabase buckets and data after retaining only approved sanitized historical material.
+- Have the named owner approve final Supabase project deletion after the no-network test and any required retention period.
+
+### Completion Gate
+
+The full application starts and passes its agreed tests with no Supabase project, URL, key, account, bucket, or network access.
+
+## Phase 14: DigitalOcean Deployment and Operations
+
+### Objective
+
+Harden the early DigitalOcean proof into a repeatable shared development environment using default App Platform addresses.
+
+### Recommended Resource Layout
+
+- One DigitalOcean project named for Workloop development.
+- One App Platform application for React and FastAPI, if route and deployment isolation remain manageable.
+- One separately deployable Keycloak App Platform application or service.
+- One managed PostgreSQL development cluster.
+- Separate `workloop` and `keycloak` databases and users.
+- One private Space for synthetic development files.
+- One infrastructure-as-code state strategy with protected access.
+
+### Deployment Work
+
+- Connect the approved GitHub branch.
+- Store a version-controlled App Platform specification where supported.
+- Configure React as a static component using `npm ci`, `npm run build`, and `dist` as output.
+- Configure SPA fallback to `index.html` and route `/api` to FastAPI before the frontend catch-all.
+- Prefer a relative `/api` frontend URL when React and FastAPI share an App Platform application.
+- Record public build-time API and OIDC variables separately from backend secrets.
+- Configure FastAPI as a containerized web service.
+- Configure Keycloak as a production-mode container, not `start-dev`.
+- Pin runtime and container versions.
+- Configure health checks and rolling deployment behavior.
+- Add backend and Keycloak secrets through DigitalOcean settings.
+- Add managed database trusted sources and encrypted connections.
+- Configure exact CORS origins.
+- Add App Platform addresses to Keycloak redirect URI and web-origin settings.
+- Configure Keycloak proxy and hostname behavior for App Platform TLS termination.
+- Add SMTP for verification and reset emails when those flows are tested.
+- Configure Spaces credentials and CORS.
+- Run Alembic once per release through an App Platform pre-deploy job or an explicitly invoked one-shot CI job using the migration identity. Never run migrations independently in every web-service replica.
+- Apply backward-compatible expand, migrate, and contract releases so rolling deployments do not run old code against an incompatible schema.
+- Stop deployment on migration failure and require named approval for destructive migrations.
+- Add alerts for service failure, CPU, memory, database capacity, and budget.
+- Confirm logs redact tokens, credentials, personal fields, and signed URLs.
+- Document redeployment and rollback procedures.
+
+### Keycloak Operational Checks
+
+- Keycloak uses external PostgreSQL, not an ephemeral local database.
+- Begin with one Keycloak replica for development and record memory limits and the expected service port.
+- Use a fixed external hostname and strict issuer behavior.
+- Trust forwarded proxy headers only through the App Platform boundary and use the internal HTTP listener behind platform TLS.
+- Expose dedicated health and readiness endpoints.
+- Realm data survives container replacement.
+- Bootstrap administrator credentials are rotated after setup.
+- Administrative endpoints are protected.
+- Backup and restore include the Keycloak database.
+- Token signing and realm configuration survive deployment.
+- Keycloak version upgrades are tested in development before use elsewhere.
+- Browser redirects and FastAPI issuer discovery resolve to the same external HTTPS address.
+
+### Completion Gate
+
+A GitHub change deploys predictably, all services recover from an application restart, Keycloak and Workloop data persist, alerts work, and the environment can be recreated from documentation and infrastructure code.
+
+## Phase 15: System Validation and Handoff
+
+### Objective
+
+Demonstrate that the migrated development system is complete, secure within its stated scope, recoverable, and ready to become the basis for the Azure deployment.
+
+### Portal Validation
+
+Admin tests must cover organization, employees, payroll, leave, attendance, roster, expenses, advances, documents, training, appraisals, incidents, reports, tasks, and settings.
+
+Manager tests must cover direct-report scope, leave and expense queues, appraisals, training, and personal employee functions.
+
+Employee tests must cover profile, leave, schedule, attendance, payslips, advances, expenses, training, appraisals, documents, requests, and tasks.
+
+### Security Validation
+
+- Cross-company authorization tests.
+- Cross-employee authorization tests.
+- Manager-scope tests.
+- Modified-ID and mass-assignment tests.
+- Expired, malformed, wrong-issuer, and wrong-audience token tests.
+- File upload and download authorization tests.
+- SQL injection and unsafe-filter tests.
+- CORS and browser-security configuration review.
+- Dependency and container vulnerability scans.
+- Secret scanning.
+- Log-redaction review.
+- Rate-limit and abuse-case review.
+- Content Security Policy covering only required API, Keycloak, and file origins.
+- Clickjacking, MIME-sniffing, referrer-policy, HTTPS redirect, and HSTS checks where the platform supports them.
+- Deployed smoke tests against real Keycloak, managed PostgreSQL, and Spaces rather than mocks alone.
+- Deployed signing-key rotation, token renewal, expired URL, unauthenticated object, restart, and redeployment tests.
+
+### Recovery Validation
+
+- Use provisional development objectives of a 24-hour recovery point and a 4-hour recovery time, then confirm them against actual service capabilities.
+- Record backup retention, restore owner, restore frequency, and whether restoration is cluster-wide or database-specific.
+- Restore the Workloop database into a fresh database.
+- Restore the Keycloak database and verify login identity continuity.
+- Restore development objects from the encrypted backup target.
+- Restore both databases to a logically consistent point and verify identity-to-application linkage.
+- Recreate application services from infrastructure definitions.
+- Record recovery steps and actual recovery time.
+- Verify that a failed migration can be rolled back or corrected safely.
+
+### Performance Validation
+
+- Define representative synthetic company and employee counts.
+- Test dashboard and report query performance.
+- Test payroll generation at representative size.
+- Test concurrent login and common API requests.
+- Check database connection-pool limits against managed database capacity.
+- Add indexes based on measured queries, not guesses.
+
+### Handoff Deliverables
+
+- Updated architecture diagram.
+- API documentation.
+- Database migration documentation.
+- Keycloak realm and account-lifecycle documentation.
+- Permission matrix.
+- Infrastructure inventory.
+- Secret ownership list.
+- Backup and recovery runbook.
+- Known limitations and deferred work.
+- Azure migration mapping.
+
+### Completion Gate
+
+The agreed automated and manual suites pass, restore procedures have been exercised, known limitations are documented, and the system contains only synthetic data.
+
+## Feature Migration Matrix Template
+
+Create and maintain the detailed matrix during Phase 0.
+
+| Feature | Current frontend | Current Supabase dependency | New API | New tables/functions | Permission tests | Status |
+|---|---|---|---|---|---|---|
+| Authentication | `AuthContext.jsx` | Supabase Auth and `user_profiles` | OIDC callback/profile endpoints | `app_users`, `user_profiles` | All roles and invalid tokens | Not started |
+| Companies | `CompanyContext.jsx`, settings | `companies` queries | `/api/v1/companies` | Company models and services | Cross-company isolation | Not started |
+| Employees | Employee screens | Employee queries and role RPCs | `/api/v1/employees` | Employee models and services | Admin, manager, self | Not started |
+| Leave | Leave screens | Tables, RPCs, attachments | `/api/v1/leave-*` | Leave services and transactions | Employee, manager, HR | Not started |
+| Payroll | Payroll screens | Tables and replacement RPC | `/api/v1/payroll-*` | Payroll services | Admin and approval states | Not started |
+| Attendance | Attendance screens | Tables and RPCs | `/api/v1/attendance-*` | Attendance services | Admin and self | Not started |
+| Roster | Roster and schedule screens | Tables and shift-swap RPCs | `/api/v1/rosters` | Roster services | Admin, manager, self | Not started |
+| Expenses | Expense screens | Tables, RPCs, receipt storage | `/api/v1/expenses` | Expense services | Employee, manager, HR | Not started |
+| Documents | Document screens | Tables and Storage | `/api/v1/documents` | Metadata plus storage adapter | Admin and self | Not started |
+
+## Testing Strategy
+
+### Test Levels
+
+| Level | Purpose |
+|---|---|
+| Pure unit tests | Verify calculations, validators, and state-transition rules quickly |
+| Repository tests | Verify scoped SQL queries against PostgreSQL |
+| API tests | Verify requests, responses, validation, transactions, and errors |
+| Authorization tests | Prove forbidden cross-role and cross-company access |
+| Contract tests | Keep React expectations aligned with FastAPI response shapes |
+| Browser tests | Verify complete admin, manager, and employee workflows |
+| Infrastructure tests | Verify health, secrets, networking, persistence, and redeployment |
+| Recovery tests | Prove database, Keycloak, and object restoration |
+
+### Test Data Rules
+
+- Use unmistakably synthetic names and identifiers.
+- Use reserved example domains such as `example.test`.
+- Do not copy production-like documents from real people.
+- Keep deterministic fixtures for financial calculations.
+- Include two companies to expose missing tenant filters.
+- Include employees under different managers.
+- Include disabled, expired, and malformed states.
+
+## Security Checklist
+
+### Identity
+
+- Maintained OIDC library using Authorization Code flow, PKCE S256, state, and nonce for React.
+- Exact redirect URIs and web origins.
+- Explicit API audience mapper and restricted React client capabilities.
+- Access-token issuer, audience, signature, algorithm, key ID, and expiry validation.
+- Documented in-memory token, refresh, logout, and revocation behavior.
+- No password storage in Workloop.
+- Protected Keycloak administrator account.
+- Password reset and email verification tested.
+- Session-removal behavior documented.
+
+### API
+
+- Authentication required by default for business routes.
+- Authorization enforced server-side.
+- Input validation and output schemas.
+- Request-size and file-size limits.
+- Safe error messages.
+- Rate limits before real public access.
+- Audit logs for sensitive changes.
+- No secrets or tokens in logs.
+
+### Database
+
+- Encrypted connections.
+- No browser or public application credentials.
+- Separate migration and runtime users.
+- Least-privilege grants.
+- Foreign keys, unique constraints, and checks.
+- Decimal money fields.
+- Tested transactions and concurrency behavior.
+- Backups and restore exercises.
+
+### Files
+
+- Private Space.
+- No CDN, public listing, or public object ACLs.
+- Short-lived signed access.
+- Authorization before signing.
+- Content-type and size validation.
+- Safe object keys and filenames.
+- Malware-scanning decision before production.
+- Storage keys available only to backend services.
+- Partial-failure reconciliation and an explicit backup or disposability decision.
+
+### Browser
+
+- Content Security Policy.
+- Clickjacking protection through `frame-ancestors` or equivalent headers.
+- `X-Content-Type-Options: nosniff`.
+- Restrictive referrer policy.
+- HTTPS redirects and HSTS where supported.
+
+### Delivery
+
+- Protected repository and deployment branch.
+- Dependency lock files.
+- Pinned container versions.
+- Automated tests and vulnerability scans.
+- Secrets stored in platform secret management.
+- Infrastructure changes reviewed before application.
+
+## Operational Runbooks Required
+
+Before the DigitalOcean phase is considered complete, document these procedures:
+
+- Start the local stack from a fresh checkout.
+- Apply and verify a database migration.
+- Roll back or correct a failed migration.
+- Add and disable a test user.
+- Rotate the Keycloak administrator credential.
+- Rotate database and Spaces credentials.
+- Restore Workloop PostgreSQL.
+- Restore Keycloak PostgreSQL.
+- Recover deleted development objects.
+- Deploy and roll back FastAPI.
+- Deploy and roll back React.
+- Upgrade Keycloak safely.
+- Respond to a failed health check.
+- Remove the complete DigitalOcean environment when Azure replaces it.
+
+## Operational Ownership
+
+Names are assigned during Phase 0. One person may fill several roles in development, but ownership must be explicit.
+
+| Responsibility | Primary owner | Backup or reviewer |
+|---|---|---|
+| DigitalOcean infrastructure and cost | Project owner | DigitalOcean team owner |
+| Keycloak administration and upgrades | Project owner | Independent security reviewer before real users |
+| Database migrations | Project owner | Independent database reviewer before real data |
+| FastAPI and React releases | Project owner | Automated checks and designated repository backup |
+| Backup and recovery exercises | Project owner | DigitalOcean team owner during development |
+| Security review and incident response | Project owner | Independent specialist before real users |
+| Supabase decommission approval | Project owner | Designated repository backup |
+| Azure handoff | Project owner | Azure specialist before production |
+
+## Environment Strategy
+
+### Local
+
+Runs on the developer machine with Docker. Uses synthetic fixtures. Optimized for fast iteration.
+
+### DigitalOcean Development
+
+Shared environment using default App Platform addresses. Uses synthetic data only. Used for integration, browser testing, and deployment practice.
+
+### DigitalOcean Staging
+
+Create only if a separate shared test environment is needed. It still uses synthetic data and does not become production by convenience.
+
+### Azure Production
+
+Future environment in an approved UAE region after legal, security, data-residency, and recovery review. It is a separate project governed by an Azure migration plan.
+
+## Supabase Preservation and Copy Policy
+
+The existing Supabase project remains a behavioral reference during migration. Because it contains no real clinic records, the DigitalOcean database should be rebuilt from the reviewed Alembic schema and synthetic fixtures rather than copying the accumulated Supabase schema blindly.
+
+Before the Alembic baseline is finalized:
+
+- Export a schema-only PostgreSQL snapshot of the deployed Supabase project, including tables, columns, constraints, indexes, functions, triggers, policies, and grants that the available connection can read.
+- Compare the deployed catalog with `docs/migration/phase-0/SQL_SCHEMA_INVENTORY.md`, especially the recovered employee/Auth definitions, their later fixes, and the still-missing `manager_get_leave_queue` RPC.
+- Record Auth, Storage bucket, redirect, and policy configuration that is not represented in ordinary PostgreSQL schema output.
+- Store any export containing credentials, user records, or private configuration outside Git in encrypted project-controlled storage.
+
+Before final Supabase decommission:
+
+- Create a final encrypted database export even if it contains only synthetic records.
+- Export or download any Storage objects that must be retained for reference and record object counts and hashes.
+- Record non-secret Auth user identifiers and account links needed for comparison. Keycloak passwords will not be copied from Supabase.
+- Verify that the backup can be read or restored before deleting anything.
+- Revoke keys and delete the project only after Phase 13 passes and the project owner separately approves deletion.
+
+The backup is a safety and comparison artifact. It is not the source of the new DigitalOcean schema. No Supabase password, API key, database connection string, or private file belongs in the Git repository.
+
+## Later Azure Mapping
+
+| DigitalOcean development component | Expected Azure replacement |
+|---|---|
+| App Platform static component | Azure Static Web Apps or approved static hosting |
+| App Platform FastAPI service | Azure Container Apps or App Service |
+| App Platform Keycloak service | Azure Container Apps, AKS, or another reviewed hosting option |
+| Managed PostgreSQL | Azure PostgreSQL Flexible Server |
+| Spaces | Azure Blob Storage |
+| App Platform secrets | Azure Key Vault |
+| DigitalOcean logs and alerts | Azure Monitor and Log Analytics |
+| DigitalOcean infrastructure code | Azure infrastructure code |
+
+Keycloak identity continuity requires moving its database and preserving realm configuration and signing behavior. The Workloop application should continue to trust the same OIDC issuer or undergo a controlled issuer change. Because DigitalOcean has no real users under this plan, Azure may instead start with a fresh realm if that is simpler and approved.
+
+## Risks and Mitigations
+
+| Risk | Impact | Mitigation |
+|---|---|---|
+| Missing company filter | Cross-clinic data exposure | Scoped repositories and negative authorization tests |
+| Incorrect Keycloak configuration | Account takeover or broken login | Standard OIDC flow, strict redirects, token tests, security review |
+| Keycloak data loss | Users cannot sign in | External PostgreSQL, backups, and tested restore |
+| Financial calculation drift | Incorrect payroll | Server authority and golden calculation tests |
+| Partial workflow writes | Corrupt approvals or balances | Database transactions and retry tests |
+| Public object storage | Document exposure | Private Space, authorized signed URLs, configuration tests |
+| AI-generated security defect | Plausible but unsafe implementation | Small phases, negative tests, and independent review |
+| Hidden Supabase dependency | Failure after Supabase removal | Dependency inventory and no-credentials system test |
+| Provider lock-in returns | Expensive Azure move | Standard PostgreSQL, OIDC, containers, and storage interface |
+| Cloud cost growth | Unexpected team charges | Budget alert, resource inventory, and deletion runbook |
+| Development environment becomes production | Residency and security exposure | Synthetic-data rule and explicit production gate |
+| Scope expansion during migration | Timeline becomes uncontrolled | Freeze features or add them explicitly to the matrix |
+
+## Definition of Done
+
+The DigitalOcean migration is complete only when all of the following are true:
+
+- React uses FastAPI for every business-data operation.
+- Keycloak handles login, reset, verification, and sessions.
+- FastAPI validates Keycloak access tokens correctly.
+- PostgreSQL stores application profiles, roles, and all business records.
+- Every business query is scoped to the authenticated user's permitted company or employee context.
+- DigitalOcean Spaces stores files privately through the storage interface.
+- Alembic can create a fresh database without Supabase.
+- No application runtime code requires Supabase Auth, PostgREST, RPC, Realtime, or Storage.
+- Admin, manager, and employee browser workflows pass.
+- Authorization tests include cross-company and cross-role failures.
+- Financial golden tests pass exactly.
+- Database, Keycloak, and file recovery procedures have been exercised.
+- GitHub deployment and rollback procedures are documented.
+- Infrastructure and secret ownership are documented.
+- Only synthetic data exists in DigitalOcean.
+- The remaining work for Azure is recorded clearly.
+
+## Decision Log
+
+Record new decisions here so future sessions do not reopen them without a reason.
+
+| Date | Decision | Reason | Revisit when |
+|---|---|---|---|
+| 2026-08-27 | Use DigitalOcean only for development and staging | DigitalOcean is an intermediate learning and migration environment | Azure planning begins |
+| 2026-08-27 | Leave Supabase entirely | Goal is a portable FastAPI and PostgreSQL architecture | Only if schedule or scope becomes unmanageable |
+| 2026-08-27 | Use self-hosted Keycloak | User selected control and portability over managed identity | Azure identity architecture review |
+| 2026-08-27 | Use default App Platform addresses | A custom development domain is not required | Public pilot or production planning |
+| 2026-08-27 | Use synthetic data only | No real clinics or records exist, and UAE residency is a production concern | Never for DigitalOcean under this plan |
+
+## Progress Log Template
+
+Add an entry after each meaningful checkpoint.
+
+```text
+Date:
+Phase:
+Change completed:
+Tests run:
+Result:
+Known issues:
+Decision needed:
+Next action:
+```
+
+### 2026-08-27 — Phase 0
+
+```text
+Date: 2026-08-27
+Phase: 0 — Baseline and inventory
+Change completed: Recorded command baseline; inventoried Supabase and SQL; mapped features and contracts; defined deterministic synthetic fixtures and architecture defaults.
+Tests run: npm.cmd run test:unit; npm.cmd run lint; npm.cmd run build; npm.cmd test; git diff --check.
+Result: Unit tests and production build pass. Existing lint fails with 114 errors and 9 warnings. Playwright command fails because no Playwright specs are present. Phase 0 gate passes with failures recorded as baseline debt.
+Known issues: See docs/migration/phase-0/README.md and the four linked Phase 0 artifacts.
+Decision needed: None blocks Phase 1. External security, database, Azure, and UAE compliance reviewers must be selected before real users or data.
+Next action: Await explicit project-owner authorization before starting Phase 1.
+```
+
+### 2026-08-27 — Phase 0 source recovery
+
+```text
+Date: 2026-08-27
+Phase: 0 — Source recovery correction
+Change completed: Recovered the original employee/Auth mapping and employee self-service SQL from C:\Users\aadhi\Desktop\sif_file_generator and updated the SQL inventory.
+Tests run: Binary comparison against both original SQL files; npm.cmd run test:unit; npm.cmd run build; git diff --check.
+Result: Both recovered files match their originals. user_profiles, employees.auth_user_id, link_employee_account, employee_cancel_leave_request, and employee_submit_regularisation now have checked-in historical definitions. manager_get_leave_queue remains undefined.
+Known issues: Recovered SQL is Supabase-specific, contains non-idempotent policies and historical function behavior, and must be reviewed rather than replayed as the FastAPI/Alembic target.
+Decision needed: None blocks the completed Phase 0 gate.
+Next action: Continue waiting for explicit project-owner authorization before Phase 1.
+```
+
+## Immediate Next Actions
+
+Phase 1 is on hold. Take no DigitalOcean or Git branching action until the project owner explicitly asks to start Phase 1.
+
+After authorization, Phase 1 will:
+
+1. Confirm DigitalOcean team permissions.
+2. Connect the private GitHub repository to the DigitalOcean team with access limited to this repository where possible.
+3. Create the DigitalOcean development project, cost estimate, and budget alert.
+4. Confirm one region that supports the required App Platform, Managed PostgreSQL, and Spaces resources.
+5. Record the secret inventory and owner without storing secret values in Git.
+6. Prepare the migration branch only after checking the current Git worktree and receiving separate approval for branch or commit actions.

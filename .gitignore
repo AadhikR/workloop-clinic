@@ -33,3 +33,4 @@ dist-ssr
 playwright-report/
 test-results/
 .env.test
+.opencode

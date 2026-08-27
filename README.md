@@ -170,6 +170,8 @@ See `CLAUDE.md` → *Commands* for the full list of feature-specific spec comman
 
 ## Documentation
 
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** — beginner-friendly diagrams of the application stack, startup flow, and data request flow.
+- **[DIGITALOCEAN_MIGRATION_PLAN.md](DIGITALOCEAN_MIGRATION_PLAN.md)** — phased runbook for replacing Supabase with FastAPI, Keycloak, PostgreSQL, and DigitalOcean Spaces.
 - **[CLAUDE.md](CLAUDE.md)** — architecture, RLS model, migration notes, behavioural patterns, known bug patterns. Read this before writing code.
 - **[CLAUDE_TESTING.md](CLAUDE_TESTING.md)** — Playwright test-writing patterns and selector gotchas.
 - **[MANUAL_TEST_CHECKLIST.md](MANUAL_TEST_CHECKLIST.md)** — 13-day structured manual QA plan across all portals.
