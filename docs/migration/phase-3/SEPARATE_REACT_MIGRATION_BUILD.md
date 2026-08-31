@@ -2,7 +2,7 @@
 
 ## Status
 
-**Completed locally on 2026-08-31. GitHub Actions confirmation is pending the Phase 3F commit.**
+**Completed on 2026-08-31.**
 
 Phase 3F adds an isolated Vite build for later migration work. It does not add login, OIDC session
 handling, FastAPI calls, application-user provisioning, authorization, a Keycloak user, or a business
@@ -82,6 +82,10 @@ On 2026-08-31, the local gate passed:
 An independent review found no isolation or secret-boundary issue. It requested real Vite fixture
 builds, dev-entry transformation, and an unapproved-environment-output check. Those checks were added
 before this record.
+
+GitHub Actions run 21 passed on commit `2023524` on 2026-08-31. Backend quality, legacy frontend
+regression, the migration isolation suite, and the full-stack realm, authentication, persistence, and
+Alembic checks all passed.
 
 ## Rollback
 

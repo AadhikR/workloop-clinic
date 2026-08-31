@@ -443,7 +443,7 @@ This phase applies to the separate migration build, not the legacy Supabase buil
 | 3C | Keycloak realm and public clients | Completed 2026-08-31; see [`docs/migration/phase-3/KEYCLOAK_CONFIGURATION.md`](docs/migration/phase-3/KEYCLOAK_CONFIGURATION.md) |
 | 3D | FastAPI token validation | Completed 2026-08-31; see [`docs/migration/phase-3/FASTAPI_TOKEN_VALIDATION.md`](docs/migration/phase-3/FASTAPI_TOKEN_VALIDATION.md) |
 | 3E | Application-user resolution | Completed 2026-08-31; see [`docs/migration/phase-3/APPLICATION_USER_RESOLUTION.md`](docs/migration/phase-3/APPLICATION_USER_RESOLUTION.md) |
-| 3F | Separate React migration build | Completed locally 2026-08-31; GitHub Actions confirmation pending commit; see [`SEPARATE_REACT_MIGRATION_BUILD.md`](docs/migration/phase-3/SEPARATE_REACT_MIGRATION_BUILD.md) |
+| 3F | Separate React migration build | Completed 2026-08-31; see [`SEPARATE_REACT_MIGRATION_BUILD.md`](docs/migration/phase-3/SEPARATE_REACT_MIGRATION_BUILD.md) |
 | 3G | Synthetic login and account lifecycle | On hold |
 | 3H | Security, restart, and completion gate | On hold |
 
