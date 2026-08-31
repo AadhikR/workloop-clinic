@@ -284,10 +284,11 @@ Phase 3B remains on hold. The project owner explicitly requested that work stop 
 
 ## Next model recommendation
 
-Use **GPT-5.6** for Phase 3B. Complexity is high because it establishes the permanent identity
-keys, status constraints, cross-table relationships, migration ownership, and runtime grants that
-later authentication and authorization depend on. A schema mistake here could weaken account or
-tenant isolation.
+Use **GPT-5.6 Terra** for Phase 3B. Complexity is high because it establishes the permanent
+identity keys, status constraints, cross-table relationships, migration ownership, and runtime
+grants that later authentication and authorization depend on. The approved Phase 3A design makes
+the implementation bounded enough for Terra, while migration, permission, and negative tests
+provide the required safety checks.
 
 Switch only from the clean, synchronized branch after Phase 3A checks pass. Phase 3B still needs
 explicit authorization.

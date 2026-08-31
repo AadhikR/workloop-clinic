@@ -98,7 +98,10 @@ The AI must then stop. It may describe the next phase, but it must not begin tha
 At the end of every completed phase or subpart, recommend the model for the next subpart:
 
 - Use GPT-5.6 for security-sensitive, authentication, authorization, database-schema, financial,
-  cross-service, destructive, or difficult debugging work.
+  destructive, ambiguous, or difficult debugging work where design or independent security review
+  is still required.
+- Use GPT-5.6 Terra for complex implementation with an approved design, including bounded schema
+  migrations, cross-service integration, and substantial test work where cost efficiency matters.
 - Use Sonnet 5 for lower-risk documentation, isolated UI work, routine scaffolding, repetitive
   conversions, and straightforward tests.
 
