@@ -14,7 +14,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 ROOT = Path(__file__).resolve().parents[1]
 REALM_FILE = ROOT / "keycloak" / "realm" / "workloop-dev-realm.json"
@@ -95,6 +95,14 @@ def kcadm(*args: str) -> str:
 
 def kcadm_json(*args: str) -> Any:
     return json.loads(kcadm(*args))
+
+
+def verify_stage(name: str, check: Callable[[], None]) -> None:
+    try:
+        check()
+    except AssertionError as error:
+        detail = str(error) or "assertion failed"
+        raise AssertionError(f"{name}: {detail}") from error
 
 
 def request(
@@ -540,7 +548,7 @@ def verify_audience(web_client_id: str) -> None:
             text=True,
         )
         assert password_process.returncode == 0, "could not set transient test credential"
-        verify_real_tokens(username, password)
+        verify_stage("real token flow", lambda: verify_real_tokens(username, password))
     finally:
         if user_id is not None:
             kcadm("delete", f"users/{user_id}", "-r", "workloop-dev")
@@ -564,7 +572,7 @@ def main() -> None:
     )
     try:
         realm = kcadm_json("get", "realms/workloop-dev")
-        verify_realm(realm)
+        verify_stage("realm settings", lambda: verify_realm(realm))
 
         web = only_client(
             kcadm_json("get", "clients", "-r", "workloop-dev", "-q", f"clientId={CLIENT_ID}"),
@@ -574,11 +582,11 @@ def main() -> None:
             kcadm_json("get", "clients", "-r", "workloop-dev", "-q", "clientId=workloop-api"),
             "workloop-api",
         )
-        verify_clients(web, api)
+        verify_stage("client settings", lambda: verify_clients(web, api))
         assert kcadm_json("get", "users", "-r", "workloop-dev") == []
-        verify_audience(web["id"])
+        verify_stage("audience and token checks", lambda: verify_audience(web["id"]))
         assert kcadm_json("get", "users", "-r", "workloop-dev") == []
-        verify_protocol_restrictions()
+        verify_stage("protocol restrictions", verify_protocol_restrictions)
     finally:
         run("exec", "-T", "keycloak", "rm", "-f", KCADM_CONFIG, check=False)
 
@@ -589,5 +597,6 @@ if __name__ == "__main__":
     try:
         main()
     except (AssertionError, RuntimeError, subprocess.CalledProcessError) as error:
-        print(f"Phase 3C Keycloak checks failed: {error}", file=sys.stderr)
+        detail = str(error) or error.__class__.__name__
+        print(f"Phase 3C Keycloak checks failed: {detail}", file=sys.stderr)
         raise SystemExit(1) from error
