@@ -236,7 +236,7 @@ Do not create abstractions merely to match this diagram. Start with the smallest
 | 0 | Baseline and inventory | Completed 2026-08-27 | 2–4 days |
 | 1 | DigitalOcean access and cost controls | Completed 2026-08-27 — spend alert deferred to Phase 6A gate | 1–2 days |
 | 2 | Local backend and infrastructure foundation | Completed 2026-08-31 | 4–7 days |
-| 3 | Keycloak authentication foundation | Phase 3A complete; Phase 3B local validation complete, GitHub checks pending | 1–2 weeks |
+| 3 | Keycloak authentication foundation | Phase 3A and Phase 3B completed; Phase 3C on hold | 1–2 weeks |
 | 4 | Portable database baseline | Not started | 1–2 weeks |
 | 5 | Authorization and tenant isolation | Not started | 1–2 weeks |
 | 6 | Shared API and frontend client | Not started | 3–5 days |
@@ -439,7 +439,7 @@ This phase applies to the separate migration build, not the legacy Supabase buil
 | Part | Scope | Status |
 |---|---|---|
 | 3A | Authentication design | Completed 2026-08-31; see [`docs/migration/phase-3/AUTHENTICATION_DESIGN.md`](docs/migration/phase-3/AUTHENTICATION_DESIGN.md) |
-| 3B | Minimal identity database schema | Local validation complete; GitHub checks pending |
+| 3B | Minimal identity database schema | Completed 2026-08-31; see [`docs/migration/phase-3/IDENTITY_SCHEMA.md`](docs/migration/phase-3/IDENTITY_SCHEMA.md) |
 | 3C | Keycloak realm and public clients | On hold |
 | 3D | FastAPI token validation | On hold |
 | 3E | Application-user resolution | On hold |

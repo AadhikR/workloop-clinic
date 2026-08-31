@@ -2,7 +2,7 @@
 
 ## Status
 
-**Local implementation and validation completed on 2026-08-31. GitHub checks are pending.**
+**Completed on 2026-08-31.**
 
 Phase 3B adds the smallest Workloop-owned identity schema needed for later token-to-user
 resolution. It creates no Keycloak realm, OIDC client, login flow, frontend, seed data, or business
@@ -67,6 +67,5 @@ revision for any shared or populated-schema correction.
 
 ## Completion gate
 
-The local gate passed. Phase 3B remains incomplete until the GitHub workflow passes on the commit that
-contains this revision and documentation. Phase 3C remains on hold until the project owner authorizes
-it.
+The local gate and GitHub Actions run 11 passed on 2026-08-31. Phase 3C remains on hold until the
+project owner authorizes it.

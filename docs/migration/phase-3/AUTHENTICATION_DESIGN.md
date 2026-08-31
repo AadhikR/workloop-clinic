@@ -244,7 +244,7 @@ in all `VITE_` variables.
 | Part | Scope | Status |
 |---|---|---|
 | 3A | Authentication design | Completed 2026-08-31 |
-| 3B | Minimal identity database schema | Local implementation complete; GitHub checks pending |
+| 3B | Minimal identity database schema | Completed 2026-08-31; see [`IDENTITY_SCHEMA.md`](IDENTITY_SCHEMA.md) |
 | 3C | Keycloak realm and public clients | On hold |
 | 3D | FastAPI token validation | On hold |
 | 3E | Application-user resolution | On hold |
@@ -280,9 +280,8 @@ Phase 3A passes because:
 - SMTP and local administrator MFA have time-bound deferrals.
 - No secret, realm, identity, schema, dependency, or runtime behavior changed.
 
-Phase 3B began after explicit project-owner authorization on 2026-08-31. Its local implementation and
-validation are recorded in [`IDENTITY_SCHEMA.md`](IDENTITY_SCHEMA.md). GitHub checks remain part of
-the completion gate.
+Phase 3B completed on 2026-08-31. Its implementation and validation are recorded in
+[`IDENTITY_SCHEMA.md`](IDENTITY_SCHEMA.md).
 
 ## Next model recommendation
 
