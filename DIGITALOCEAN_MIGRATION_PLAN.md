@@ -93,6 +93,25 @@ The AI must report:
 
 The AI must then stop. It may describe the next phase, but it must not begin that phase without explicit authorization.
 
+### Model Selection and Handoff
+
+At the end of every completed phase or subpart, recommend the model for the next subpart:
+
+- Use GPT-5.6 for security-sensitive, authentication, authorization, database-schema, financial,
+  cross-service, destructive, or difficult debugging work.
+- Use Sonnet 5 for lower-risk documentation, isolated UI work, routine scaffolding, repetitive
+  conversions, and straightforward tests.
+
+State the next subpart's complexity and give one concrete reason for the recommendation. Recommend
+switching models only after the current work is committed, pushed, synchronized, and passing its
+required checks.
+
+Provide a ready-to-use handoff prompt that tells the next model to read the governing migration
+documents, inspect Git and the relevant code, confirm the expected phase state, preserve security
+and data boundaries, run the required tests, update documentation, commit and push successful
+work, and stop at every owner decision required by this protocol. A handoff prompt does not
+authorize the next phase or subpart.
+
 ## Current Architecture
 
 The current React application runs in the browser and uses the Supabase JavaScript client for four services:

@@ -281,3 +281,43 @@ Phase 3A passes because:
 - No secret, realm, identity, schema, dependency, or runtime behavior changed.
 
 Phase 3B remains on hold. The project owner explicitly requested that work stop after Phase 3A.
+
+## Next model recommendation
+
+Use **GPT-5.6** for Phase 3B. Complexity is high because it establishes the permanent identity
+keys, status constraints, cross-table relationships, migration ownership, and runtime grants that
+later authentication and authorization depend on. A schema mistake here could weaken account or
+tenant isolation.
+
+Switch only from the clean, synchronized branch after Phase 3A checks pass. Phase 3B still needs
+explicit authorization.
+
+## Phase 3B handoff prompt
+
+```text
+Continue the Workloop Clinic migration with Phase 3B only: the minimal identity database schema.
+
+First read AGENTS.md, DIGITALOCEAN_MIGRATION_PLAN.md, docs/migration/phase-2/README.md,
+docs/migration/phase-3/AUTHENTICATION_DESIGN.md, and
+docs/migration/phase-2/ALEMBIC_FOUNDATION.md. Inspect the current branch, status, recent commits,
+Alembic files, SQLAlchemy metadata, PostgreSQL roles, Docker Compose, and backend tests.
+
+Expected state:
+- Branch migration/fastapi-keycloak is clean and synchronized.
+- Phase 2 and Phase 3A are complete.
+- Phase 3B is on hold and must not start without explicit authorization.
+- No Workloop realm, OIDC client, application identity table, or migrated frontend exists.
+
+When Phase 3B is authorized, implement only the minimal Alembic and SQLAlchemy identity schema
+required by the approved design: application-owned UUIDs, issuer and opaque subject mapping,
+account lifecycle status, and the core companies, employees, app_users, and user_profiles
+relationships needed for later identity resolution. Preserve PostgreSQL-owned business roles.
+Do not add Keycloak realm configuration, tokens, login UI, synthetic users, business features, or
+Supabase coupling.
+
+Use the migration identity for schema changes and grant the runtime identity only required access.
+Never expose secrets or use real data. Test clean upgrade, constraints, uniqueness, foreign keys,
+role and status rejection, runtime permissions, repeated migration, and downgrade or correction
+boundaries. Update the Phase 3 tracker and evidence. Commit and push only after the Phase 3B gate
+passes, then stop before Phase 3C or any owner decision.
+```
