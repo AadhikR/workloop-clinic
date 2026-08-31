@@ -61,6 +61,8 @@ jobs:
         run: npm run test:unit
       - name: Build frontend
         run: npm run build
+      - name: Verify migration frontend isolation
+        run: npm run test:migration-build
 
   full-stack-smoke:
     name: Full stack smoke

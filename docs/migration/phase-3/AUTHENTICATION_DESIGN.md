@@ -248,7 +248,7 @@ in all `VITE_` variables.
 | 3C | Keycloak realm and public clients | Completed 2026-08-31; see [`KEYCLOAK_CONFIGURATION.md`](KEYCLOAK_CONFIGURATION.md) |
 | 3D | FastAPI token validation | Completed 2026-08-31; see [`FASTAPI_TOKEN_VALIDATION.md`](FASTAPI_TOKEN_VALIDATION.md) |
 | 3E | Application-user resolution | Completed 2026-08-31; see [`APPLICATION_USER_RESOLUTION.md`](APPLICATION_USER_RESOLUTION.md) |
-| 3F | Separate React migration build | On hold |
+| 3F | Separate React migration build | Completed locally 2026-08-31; GitHub Actions confirmation pending commit; see [`SEPARATE_REACT_MIGRATION_BUILD.md`](SEPARATE_REACT_MIGRATION_BUILD.md) |
 | 3G | Synthetic login and account lifecycle | On hold |
 | 3H | Security, restart, and completion gate | On hold |
 
@@ -294,9 +294,12 @@ Phase 3E completed on 2026-08-31. Its issuer-and-subject lookup, account-state c
 failure behavior, live tests, and independent security review are recorded in
 [`APPLICATION_USER_RESOLUTION.md`](APPLICATION_USER_RESOLUTION.md).
 
+Phase 3F completed locally on 2026-08-31. It adds the separate migration Vite root, fixed development
+port, Supabase and legacy-source import isolation, public-configuration allowlist, and automated output
+checks. Its GitHub Actions confirmation is pending the Phase 3F commit. See
+[`SEPARATE_REACT_MIGRATION_BUILD.md`](SEPARATE_REACT_MIGRATION_BUILD.md).
+
 ## Next model recommendation
 
-Use **GPT-5.6 Terra** for Phase 3F because its approved isolation design requires coordinated Vite,
-CI, and frontend module-graph changes. Phase 3F remains on hold and requires separate project-owner
-authorization. The ready handoff is in
-[`APPLICATION_USER_RESOLUTION.md`](APPLICATION_USER_RESOLUTION.md).
+Use **GPT-5.6** for Phase 3G because it introduces the browser authentication lifecycle and needs a
+security review. Phase 3G remains on hold and requires separate project-owner authorization.

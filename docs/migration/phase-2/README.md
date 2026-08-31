@@ -134,6 +134,8 @@ Run frontend checks from the repository root:
 ```powershell
 npm.cmd run test:unit
 npm.cmd run build
+npm.cmd run test:migration-build
+npm.cmd run build:migration
 ```
 
 The full frontend ESLint and Playwright commands retain the Phase 0 baseline failures. See
