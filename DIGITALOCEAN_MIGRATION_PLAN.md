@@ -49,6 +49,13 @@ Update the phase status, decision log, and test evidence as work progresses. Do 
 
 Every phase requires separate authorization. Completing one phase does not authorize the next phase.
 
+When the project owner authorizes a numbered phase and explicitly permits automatic subpart
+progression, the AI may continue from one completed subpart to the next only when the next subpart
+requires no owner decision, manual action, account or permission change, cost approval, security
+approval, destructive approval, or externally visible action. Commit and push each successful
+subpart before continuing. Stop at any such decision or action, and always stop before the next
+numbered phase.
+
 ### Before a Phase
 
 The AI must explain, in beginner-oriented steps:
@@ -207,7 +214,7 @@ Do not create abstractions merely to match this diagram. Start with the smallest
 | 0 | Baseline and inventory | Completed 2026-08-27 | 2–4 days |
 | 1 | DigitalOcean access and cost controls | Completed 2026-08-27 — spend alert deferred to Phase 6A gate | 1–2 days |
 | 2 | Local backend and infrastructure foundation | Completed 2026-08-31 | 4–7 days |
-| 3 | Keycloak authentication foundation | Not started | 1–2 weeks |
+| 3 | Keycloak authentication foundation | Phase 3A completed; Phase 3B on hold | 1–2 weeks |
 | 4 | Portable database baseline | Not started | 1–2 weeks |
 | 5 | Authorization and tenant isolation | Not started | 1–2 weeks |
 | 6 | Shared API and frontend client | Not started | 3–5 days |
@@ -404,6 +411,19 @@ restart preserved the Keycloak realm, administrator, and signing keys. See
 Replace Supabase Auth with a standards-based Keycloak login while keeping business roles in PostgreSQL.
 
 This phase applies to the separate migration build, not the legacy Supabase build. The legacy build continues using Supabase Auth so its unmigrated queries, RPCs, and storage policies still receive a valid Supabase identity. The migration build uses only Keycloak and FastAPI; it must not send a Keycloak token to Supabase or retain a hidden Supabase session.
+
+### Part Status
+
+| Part | Scope | Status |
+|---|---|---|
+| 3A | Authentication design | Completed 2026-08-31; see [`docs/migration/phase-3/AUTHENTICATION_DESIGN.md`](docs/migration/phase-3/AUTHENTICATION_DESIGN.md) |
+| 3B | Minimal identity database schema | On hold |
+| 3C | Keycloak realm and public clients | On hold |
+| 3D | FastAPI token validation | On hold |
+| 3E | Application-user resolution | On hold |
+| 3F | Separate React migration build | On hold |
+| 3G | Synthetic login and account lifecycle | On hold |
+| 3H | Security, restart, and completion gate | On hold |
 
 ### Identity Schema Prerequisite
 
@@ -1362,6 +1382,8 @@ Record new decisions here so future sessions do not reopen them without a reason
 | 2026-08-27 | Use self-hosted Keycloak | User selected control and portability over managed identity | Azure identity architecture review |
 | 2026-08-27 | Use default App Platform addresses | A custom development domain is not required | Public pilot or production planning |
 | 2026-08-27 | Use synthetic data only | No real clinics or records exist, and UAE residency is a production concern | Never for DigitalOcean under this plan |
+| 2026-08-31 | Allow automatic progression inside an authorized multipart phase when no owner action or decision is required | The project owner requested fewer pauses between self-contained technical subparts | Stop whenever the Phase Execution Protocol requires owner involvement |
+| 2026-08-31 | Approve the Phase 3A authentication design defaults | Fixes local identifiers, OIDC flow, token handling, role trust, frontend isolation, and time-bound SMTP and MFA deferrals before implementation | Before Phase 6A cloud exposure and during production security review |
 
 ## Progress Log Template
 
@@ -1521,12 +1543,25 @@ Decision needed: None for completed Phase 2. Phase 3 requires separate authoriza
 Next action: Commit and push Phase 2H, verify GitHub checks, then stop and await project-owner authorization for Phase 3.
 ```
 
+### 2026-08-31 - Phase 3A
+
+```text
+Date: 2026-08-31
+Phase: 3A - Authentication design
+Change completed: Fixed the local realm, client, audience, issuer, callback, logout, and service identifiers; selected oidc-client-ts 3.5.0; defined token lifetimes, browser storage and reload behavior, Keycloak client restrictions, FastAPI token checks, PostgreSQL role trust, lifecycle states, and physical frontend isolation.
+Tests run: Current frontend authentication and Supabase import-graph inspection; package metadata review; local port check; documentation links and whitespace check; existing backend and frontend regressions; GitHub foundation checks after push.
+Result: Phase 3A gate passes with project-owner approval. The design changes no runtime behavior and creates no realm, schema, identity, dependency, secret, port, or cloud resource.
+Known issues: SMTP and administrator MFA remain time-bound deferrals. The local Keycloak administrator must receive an approved MFA control before Phase 6A cloud exposure. Existing npm advisories remain separately documented.
+Decision needed: None for completed Phase 3A. The project owner requested a stop before Phase 3B.
+Next action: Commit and push Phase 3A, verify GitHub checks, then stop.
+```
+
 ## Immediate Next Actions
 
 Phase 2 is complete. Local services are healthy, Alembic uses a separate migration identity,
 Keycloak state persists, and both a clean local checkout and GitHub's Linux runner can recreate
 the foundation.
 
-Phase 3 is on hold. Do not create the Workloop realm, OIDC clients, identity schema revision,
-synthetic identities, React migration login, or FastAPI token validation until the project owner
-explicitly authorizes Phase 3.
+Phase 3A is complete. Phase 3B is on hold at the project owner's explicit request. Do not add the
+identity schema, Alembic revision, Workloop realm, OIDC client, frontend migration root, or token
+validation until the project owner separately asks to continue Phase 3.
