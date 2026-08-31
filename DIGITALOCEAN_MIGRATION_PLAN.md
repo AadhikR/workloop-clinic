@@ -206,7 +206,7 @@ Do not create abstractions merely to match this diagram. Start with the smallest
 |---|---|---|---:|
 | 0 | Baseline and inventory | Completed 2026-08-27 | 2–4 days |
 | 1 | DigitalOcean access and cost controls | Completed 2026-08-27 — spend alert deferred to Phase 6A gate | 1–2 days |
-| 2 | Local backend and infrastructure foundation | Phase 2A completed — Phase 2B on hold | 4–7 days |
+| 2 | Local backend and infrastructure foundation | Phases 2A–2B completed — Phase 2C on hold | 4–7 days |
 | 3 | Keycloak authentication foundation | Not started | 1–2 weeks |
 | 4 | Portable database baseline | Not started | 1–2 weeks |
 | 5 | Authorization and tenant isolation | Not started | 1–2 weeks |
@@ -324,8 +324,8 @@ Run React, FastAPI, PostgreSQL, and Keycloak locally using repeatable commands.
 | Part | Scope | Status |
 |---|---|---|
 | 2A | Computer readiness | Completed 2026-08-27; see [`docs/migration/phase-2/READINESS.md`](docs/migration/phase-2/READINESS.md) |
-| 2B | Backend scaffold | On hold — awaiting explicit authorization |
-| 2C | Local PostgreSQL | Not started |
+| 2B | Backend scaffold | Completed 2026-08-27; see [`docs/migration/phase-2/BACKEND_SCAFFOLD.md`](docs/migration/phase-2/BACKEND_SCAFFOLD.md) |
+| 2C | Local PostgreSQL | On hold — awaiting explicit authorization |
 | 2D | FastAPI service | Not started |
 | 2E | Alembic foundation | Not started |
 | 2F | Local Keycloak runtime | Not started |
@@ -1426,8 +1426,21 @@ Decision needed: None for completed Phase 2A. Phase 2B requires separate authori
 Next action: Stop and await project-owner authorization for Phase 2B.
 ```
 
+### 2026-08-27 — Phase 2B
+
+```text
+Date: 2026-08-27
+Phase: 2B — Backend scaffold
+Change completed: Added the minimal Python 3.12 package, isolated virtual environment, dependency metadata, runtime and development lock files, package test, Python tool configuration, ignore rules, and setup documentation.
+Tests run: Hash-locked dependency installation; package build/import; pytest; Ruff lint and format; Pyright; pip check; deterministic lock regeneration; JavaScript unit tests; Vite production build; git diff --check; credential scan.
+Result: Phase 2B gate passes. Backend checks pass, 14 existing JavaScript unit tests pass, and the frontend build succeeds with its existing chunk warning.
+Known issues: The plain python command remains Anaconda 3.9 by design. Linux lock installation will be checked when the Dockerfile is added. Existing frontend lint debt remains unchanged.
+Decision needed: None for completed Phase 2B. Phase 2C requires separate authorization.
+Next action: Stop and await project-owner authorization for Phase 2C.
+```
+
 ## Immediate Next Actions
 
-Phase 2B is on hold. Do not begin backend scaffolding, install project dependencies, create project containers, or provision DigitalOcean resources until the project owner explicitly asks to start Phase 2B.
+Phase 2C is on hold. Do not create PostgreSQL containers, passwords, databases, users, ports, networks, or volumes until the project owner explicitly asks to start Phase 2C.
 
-When Phase 2B is authorized, first explain the backend files, Python virtual environment, dependency downloads, disk impact, tests, and rollback boundary required by the Phase Execution Protocol.
+When Phase 2C is authorized, first explain local password generation and storage, PostgreSQL image and version, Docker network and volume behavior, port exposure, database separation, persistence tests, resource use, and rollback boundaries required by the Phase Execution Protocol.
