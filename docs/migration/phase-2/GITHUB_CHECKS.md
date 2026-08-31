@@ -58,6 +58,28 @@ errors and 9 warnings as baseline debt. New backend code must pass its independe
 Pyright checks. Playwright remains excluded because the repository has no Playwright
 specifications and the existing command exits with `No tests found`.
 
+## Candidate run evidence
+
+Candidate commit `f769ff8` started GitHub Actions run `33379326541`. GitHub accepted the workflow
+syntax and enforced read-only contents permission.
+
+| Job | Result |
+|---|---|
+| Backend quality | Passed |
+| Frontend regression | Failed during `npm ci` |
+| Full stack smoke | Skipped because it depends on both earlier jobs |
+
+Linux npm rejected an existing lock mismatch: `@emnapi/wasi-threads` 1.2.2 did not satisfy the
+locked requirement for 1.2.3. Regenerating only the package lock with npm 11.6.2 changed that
+single transitive package to 1.2.3. Local `npm ci --ignore-scripts`, all 14 unit tests, and the Vite
+build then passed. The corrected remote run is pending.
+
+The lock refresh also exposed six existing npm advisories: one low, one moderate, and four high.
+The production dependency audit contains only the moderate DOMPurify advisory. The high findings
+are in development tooling, including Vite and transitive packages. `npm audit fix --dry-run`
+offered no lock-only change. Resolving them requires a reviewed dependency update and remains
+deferred; no vulnerable development server is exposed by this workflow.
+
 ## Completion gate
 
 Phase 2G passes only after:
