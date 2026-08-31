@@ -247,7 +247,7 @@ in all `VITE_` variables.
 | 3B | Minimal identity database schema | Completed 2026-08-31; see [`IDENTITY_SCHEMA.md`](IDENTITY_SCHEMA.md) |
 | 3C | Keycloak realm and public clients | Completed 2026-08-31; see [`KEYCLOAK_CONFIGURATION.md`](KEYCLOAK_CONFIGURATION.md) |
 | 3D | FastAPI token validation | Completed 2026-08-31; see [`FASTAPI_TOKEN_VALIDATION.md`](FASTAPI_TOKEN_VALIDATION.md) |
-| 3E | Application-user resolution | Local gate passed 2026-08-31; GitHub checks pending; see [`APPLICATION_USER_RESOLUTION.md`](APPLICATION_USER_RESOLUTION.md) |
+| 3E | Application-user resolution | Completed 2026-08-31; see [`APPLICATION_USER_RESOLUTION.md`](APPLICATION_USER_RESOLUTION.md) |
 | 3F | Separate React migration build | On hold |
 | 3G | Synthetic login and account lifecycle | On hold |
 | 3H | Security, restart, and completion gate | On hold |
@@ -290,11 +290,13 @@ Phase 3D completed on 2026-08-31. Its bearer dependency, JWKS cache behavior, li
 failure tests, and security review are recorded in
 [`FASTAPI_TOKEN_VALIDATION.md`](FASTAPI_TOKEN_VALIDATION.md).
 
-Phase 3E passed its local gate on 2026-08-31. Its issuer-and-subject lookup, account-state checks,
+Phase 3E completed on 2026-08-31. Its issuer-and-subject lookup, account-state checks,
 failure behavior, live tests, and independent security review are recorded in
-[`APPLICATION_USER_RESOLUTION.md`](APPLICATION_USER_RESOLUTION.md). GitHub checks are pending.
+[`APPLICATION_USER_RESOLUTION.md`](APPLICATION_USER_RESOLUTION.md).
 
 ## Next model recommendation
 
-Wait for Phase 3E GitHub checks and the final synchronized commit before selecting the Phase 3F
-model. Phase 3F remains on hold and requires separate project-owner authorization.
+Use **GPT-5.6 Terra** for Phase 3F because its approved isolation design requires coordinated Vite,
+CI, and frontend module-graph changes. Phase 3F remains on hold and requires separate project-owner
+authorization. The ready handoff is in
+[`APPLICATION_USER_RESOLUTION.md`](APPLICATION_USER_RESOLUTION.md).

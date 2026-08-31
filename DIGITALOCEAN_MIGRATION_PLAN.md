@@ -236,7 +236,7 @@ Do not create abstractions merely to match this diagram. Start with the smallest
 | 0 | Baseline and inventory | Completed 2026-08-27 | 2–4 days |
 | 1 | DigitalOcean access and cost controls | Completed 2026-08-27 — spend alert deferred to Phase 6A gate | 1–2 days |
 | 2 | Local backend and infrastructure foundation | Completed 2026-08-31 | 4–7 days |
-| 3 | Keycloak authentication foundation | Phase 3A through Phase 3D completed; Phase 3E local gate passed, GitHub pending | 1–2 weeks |
+| 3 | Keycloak authentication foundation | Phase 3A through Phase 3E completed; Phase 3F on hold | 1–2 weeks |
 | 4 | Portable database baseline | Not started | 1–2 weeks |
 | 5 | Authorization and tenant isolation | Not started | 1–2 weeks |
 | 6 | Shared API and frontend client | Not started | 3–5 days |
@@ -442,7 +442,7 @@ This phase applies to the separate migration build, not the legacy Supabase buil
 | 3B | Minimal identity database schema | Completed 2026-08-31; see [`docs/migration/phase-3/IDENTITY_SCHEMA.md`](docs/migration/phase-3/IDENTITY_SCHEMA.md) |
 | 3C | Keycloak realm and public clients | Completed 2026-08-31; see [`docs/migration/phase-3/KEYCLOAK_CONFIGURATION.md`](docs/migration/phase-3/KEYCLOAK_CONFIGURATION.md) |
 | 3D | FastAPI token validation | Completed 2026-08-31; see [`docs/migration/phase-3/FASTAPI_TOKEN_VALIDATION.md`](docs/migration/phase-3/FASTAPI_TOKEN_VALIDATION.md) |
-| 3E | Application-user resolution | Local gate passed 2026-08-31; GitHub checks pending; see [`docs/migration/phase-3/APPLICATION_USER_RESOLUTION.md`](docs/migration/phase-3/APPLICATION_USER_RESOLUTION.md) |
+| 3E | Application-user resolution | Completed 2026-08-31; see [`docs/migration/phase-3/APPLICATION_USER_RESOLUTION.md`](docs/migration/phase-3/APPLICATION_USER_RESOLUTION.md) |
 | 3F | Separate React migration build | On hold |
 | 3G | Synthetic login and account lifecycle | On hold |
 | 3H | Security, restart, and completion gate | On hold |
@@ -1624,10 +1624,10 @@ Date: 2026-08-31
 Phase: 3E - Application-user resolution
 Change completed: Added exact issuer-and-subject lookup for one active app_users row, duplicate-state failure, current account-status enforcement, a bounded database deadline, safe account and database errors, and transient live account-state checks.
 Tests run: 76 backend tests; Ruff; strict Pyright; dependency checks; real Keycloak PKCE access-token checks for missing, pending, disabled, and active mappings; repeated mapper configuration; Keycloak container replacement; service-log leakage scan; service health; repeated Alembic current, heads, and metadata checks; frontend unit tests and build; Compose validation; two-pass independent security review.
-Result: The Phase 3E local gate passes. FastAPI resolves only verified issuer and subject, accepts exactly one active mapping, ignores browser and Keycloak authorization claims, fails closed on bad state or database failure, and retains no synthetic user or mapping. GitHub checks are pending.
-Known issues: A real locked-query or exhausted-pool integration test remains deferred. The protocol verifier reserves one fixed synthetic app-user UUID for cleanup reconciliation. Phase 3F and all role, tenant, provisioning, and business authorization work remain excluded.
-Decision needed: None for the Phase 3E GitHub verification step. Phase 3F requires separate project-owner authorization.
-Next action: Commit and push Phase 3E, verify every GitHub job, record the run, then stop before Phase 3F.
+Result: The Phase 3E gate passes locally and in GitHub Actions run 19. FastAPI resolves only verified issuer and subject, accepts exactly one active mapping, ignores browser and Keycloak authorization claims, fails closed on bad state or database failure, and retains no synthetic user or mapping.
+Known issues: Run 18 failed in its first live authentication flow without a public log body. A safe diagnostic correction followed, and run 19 passed both fresh and post-replacement flows. A real locked-query or exhausted-pool integration test remains deferred. The protocol verifier reserves one fixed synthetic app-user UUID for cleanup reconciliation. Phase 3F and all role, tenant, provisioning, and business authorization work remain excluded.
+Decision needed: None for completed Phase 3E. Phase 3F requires separate project-owner authorization.
+Next action: Push the Phase 3E completion evidence, verify its GitHub checks, then stop before Phase 3F.
 ```
 
 ## Immediate Next Actions
@@ -1636,8 +1636,7 @@ Phase 2 is complete. Local services are healthy, Alembic uses a separate migrati
 Keycloak state persists, and both a clean local checkout and GitHub's Linux runner can recreate
 the foundation.
 
-Phase 3A through Phase 3D are complete. Phase 3E passed its local gate and awaits GitHub checks. The
-local identity schema is at revision `f41c9a7b23d1`,
+Phase 3A through Phase 3E are complete. The local identity schema is at revision `f41c9a7b23d1`,
 the restricted `workloop-dev` realm persists in local PostgreSQL, and FastAPI validates its access
 tokens before resolving one active application user by issuer and subject. Do not start Phase 3F,
 provision users, or add role, tenant, manager-scope, or business authorization without separate

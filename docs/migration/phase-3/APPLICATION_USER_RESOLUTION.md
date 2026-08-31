@@ -2,7 +2,7 @@
 
 ## Status
 
-**Implementation and local gate passed on 2026-08-31. GitHub checks are pending.**
+**Completed on 2026-08-31.**
 
 Phase 3E maps a verified Keycloak access token to one active Workloop application user. It adds no
 role, company, employee, manager-scope, or business authorization. It creates no persistent user,
@@ -84,9 +84,18 @@ Local validation on 2026-08-31 passed:
 - Backend service-log scanning for authorization headers, bearer tokens, identity fields, database
   URLs, SQL text, and test claim markers.
 
-GitHub Actions runs 16 and 17 were also checked through the GitHub API before implementation. Every
-backend, frontend, full-stack authentication, realm-upgrade, and persistence job passed for the
-Phase 3D commits.
+GitHub Actions run 19 passed on commit `9ff4a29` on 2026-08-31. Backend quality, frontend
+regression, and full-stack smoke all passed. The full-stack job created a fresh database, applied
+and repeated Alembic, configured the access-token subject mapper twice, tested every application
+account state, replaced Keycloak, repeated the live flow against persisted state, and removed the
+temporary stack.
+
+Run 18 passed backend and frontend checks but failed during its first live authentication flow.
+GitHub's public API exposed the failed step but not its log body, so the exact assertion was not
+available. The failure path could have included issuer and subject command arguments if `psql`
+failed. Commit `9ff4a29` replaced that exception with a fixed message and added safe account-state
+labels. The same local flow passed before and after the correction, and run 19 passed both fresh and
+post-replacement flows.
 
 ## Security review
 
@@ -115,3 +124,29 @@ realm as part of rollback.
 
 Phase 3F remains on hold. It owns the separate React migration build and requires separate
 project-owner authorization. Phase 3E does not authorize it.
+
+Use **GPT-5.6 Terra** for Phase 3F. Its isolation design is approved, but implementing and testing a
+second Vite module graph touches build configuration, CI, and frontend boundaries.
+
+### Phase 3F handoff prompt
+
+```text
+Continue the Workloop Clinic migration with Phase 3F only: the separate React migration build.
+
+Read AGENTS.md, DIGITALOCEAN_MIGRATION_PLAN.md, the Phase 2 foundation records, and every Phase 3
+design and evidence document. Inspect the synchronized migration/fastapi-keycloak branch, both
+frontend dependency graphs, Vite configuration, FastAPI authentication boundary, Keycloak realm,
+Compose stack, tests, and GitHub checks.
+
+Expected state: Phase 3A through Phase 3E are complete; FastAPI validates the approved RS256 access
+token and resolves exactly one active app_users mapping by verified issuer and opaque subject; no
+role or tenant authorization, migration frontend, provisioning path, or persistent Workloop user
+exists.
+
+Do not begin without explicit Phase 3F authorization. When authorized, implement only the separate
+migration Vite root and its Supabase import isolation under the approved design. Do not add account
+provisioning, persistent users, role or business authorization, business features, DigitalOcean
+resources, SMTP, or Supabase coupling. Keep the legacy frontend unchanged, pass the completion
+gate, update evidence, obtain review where required, commit and push successful work, and stop
+before Phase 3G and every owner decision.
+```
