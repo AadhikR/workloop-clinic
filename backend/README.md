@@ -1,6 +1,6 @@
 # Workloop API
 
-This directory contains the portable Python backend that will replace direct browser access to Supabase. It now has a containerized FastAPI service and a database-backed `/health` endpoint. Business routes, migrations, authentication, and Keycloak integration are added in later parts.
+This directory contains the portable Python backend that will replace direct browser access to Supabase. It has a containerized FastAPI service, a database-backed `/health` endpoint, and an Alembic migration runner. Business routes and authentication are added in later phases.
 
 ## Requirements
 
@@ -8,6 +8,9 @@ This directory contains the portable Python backend that will replace direct bro
 - PowerShell 5.1 or later
 
 The project uses Python 3.12.10 and a local virtual environment at `backend/.venv`. That directory is ignored by Git and must not be copied between computers.
+
+The complete fresh-checkout, startup, test, shutdown, and restart instructions are in
+[`docs/migration/phase-2/README.md`](../docs/migration/phase-2/README.md).
 
 ## Create the Virtual Environment
 

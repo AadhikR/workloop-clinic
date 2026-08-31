@@ -206,7 +206,7 @@ Do not create abstractions merely to match this diagram. Start with the smallest
 |---|---|---|---:|
 | 0 | Baseline and inventory | Completed 2026-08-27 | 2–4 days |
 | 1 | DigitalOcean access and cost controls | Completed 2026-08-27 — spend alert deferred to Phase 6A gate | 1–2 days |
-| 2 | Local backend and infrastructure foundation | Phases 2A–2G completed; Phase 2H on hold | 4–7 days |
+| 2 | Local backend and infrastructure foundation | Completed 2026-08-31 | 4–7 days |
 | 3 | Keycloak authentication foundation | Not started | 1–2 weeks |
 | 4 | Portable database baseline | Not started | 1–2 weeks |
 | 5 | Authorization and tenant isolation | Not started | 1–2 weeks |
@@ -330,7 +330,7 @@ Run React, FastAPI, PostgreSQL, and Keycloak locally using repeatable commands.
 | 2E | Alembic foundation | Completed 2026-08-31; see [`docs/migration/phase-2/ALEMBIC_FOUNDATION.md`](docs/migration/phase-2/ALEMBIC_FOUNDATION.md) |
 | 2F | Local Keycloak runtime | Completed 2026-08-31; see [`docs/migration/phase-2/KEYCLOAK_RUNTIME.md`](docs/migration/phase-2/KEYCLOAK_RUNTIME.md) |
 | 2G | Tests and GitHub checks | Completed 2026-08-31; see [`docs/migration/phase-2/GITHUB_CHECKS.md`](docs/migration/phase-2/GITHUB_CHECKS.md) |
-| 2H | Documentation and restart gate | On hold; awaiting explicit authorization |
+| 2H | Documentation and restart gate | Completed 2026-08-31; see [`docs/migration/phase-2/README.md`](docs/migration/phase-2/README.md) |
 
 ### Work
 
@@ -391,7 +391,11 @@ Do not use `VITE_` for backend-only settings.
 
 ### Completion Gate
 
-A fresh checkout can start all local services using documented commands, FastAPI reaches PostgreSQL, Keycloak reports healthy, and automated foundation tests pass.
+Passed on 2026-08-31. A fresh checkout installed locked Python and npm dependencies, started
+PostgreSQL, FastAPI, and Keycloak with isolated synthetic credentials, ran Alembic, passed local
+and GitHub foundation checks, and reached every health endpoint. A non-destructive main-stack
+restart preserved the Keycloak realm, administrator, and signing keys. See
+[`docs/migration/phase-2/README.md`](docs/migration/phase-2/README.md).
 
 ## Phase 3: Keycloak Authentication Foundation
 
@@ -1504,8 +1508,25 @@ Decision needed: None for completed Phase 2G. Branch protection was not changed.
 Next action: Commit and push Phase 2G completion evidence, verify the final remote checks, then stop and await project-owner authorization for Phase 2H.
 ```
 
+### 2026-08-31 - Phase 2H
+
+```text
+Date: 2026-08-31
+Phase: 2H - Documentation and restart gate
+Change completed: Added the complete Phase 2 setup and operations runbook; exercised main-stack shutdown, rebuild, migration, and persistence; built and tested a separate clean checkout; removed only the separately approved temporary volume and worktree; restored the main stack.
+Tests run: Main volume retention; FastAPI, Keycloak, Alembic, administrator, realm, and signing-key restart checks; clean Python virtual environment and hash-locked install; backend Pytest, Ruff, format, Pyright, and pip check; clean npm install, 14 unit tests, and Vite build; isolated Compose build and health; clean administrator login; database boundary and log-redaction checks; temporary cleanup verification; final local and GitHub checks.
+Result: Phase 2 completion gate passes. A clean checkout can recreate the documented local foundation, and the main stack survives container and network replacement without losing Keycloak identity state.
+Known issues: Keycloak remains local start-dev; the PostgreSQL volume is not a backup; npm advisories and existing frontend lint and Playwright failures remain documented; clean and existing-worktree Vite bundle output differs and needs later measurement.
+Decision needed: None for completed Phase 2. Phase 3 requires separate authorization.
+Next action: Commit and push Phase 2H, verify GitHub checks, then stop and await project-owner authorization for Phase 3.
+```
+
 ## Immediate Next Actions
 
-Phases 2A through 2G are complete. Local services are healthy, Alembic uses a separate migration identity, Keycloak state persists, and the complete foundation passes on a fresh GitHub Linux runner.
+Phase 2 is complete. Local services are healthy, Alembic uses a separate migration identity,
+Keycloak state persists, and both a clean local checkout and GitHub's Linux runner can recreate
+the foundation.
 
-Phase 2H is on hold. Do not perform the final restart exercise, mark Phase 2 complete, or begin Phase 3 until the project owner explicitly authorizes Phase 2H.
+Phase 3 is on hold. Do not create the Workloop realm, OIDC clients, identity schema revision,
+synthetic identities, React migration login, or FastAPI token validation until the project owner
+explicitly authorizes Phase 3.
