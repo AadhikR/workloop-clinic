@@ -93,7 +93,13 @@ jobs:
       - name: Verify database boundaries
         run: |
           test "$(docker compose exec -T postgres psql --username postgres --dbname workloop --tuples-only --no-align --command "SELECT count(*) FROM pg_tables WHERE schemaname = 'public';")" = "5"
-          test "$(docker compose exec -T postgres psql --username postgres --dbname keycloak --tuples-only --no-align --command "SELECT count(*) FROM realm;")" = "1"
+          test "$(docker compose exec -T postgres psql --username postgres --dbname keycloak --tuples-only --no-align --command "SELECT count(*) FROM realm;")" = "2"
+      - name: Verify Keycloak realm security
+        run: python scripts/verify-phase-3c-keycloak.py
+      - name: Verify Keycloak realm persistence
+        run: |
+          docker compose up --detach --force-recreate --wait keycloak
+          python scripts/verify-phase-3c-keycloak.py
       - name: Show failure logs
         if: failure()
         run: docker compose logs --no-color

@@ -236,7 +236,7 @@ Do not create abstractions merely to match this diagram. Start with the smallest
 | 0 | Baseline and inventory | Completed 2026-08-27 | 2–4 days |
 | 1 | DigitalOcean access and cost controls | Completed 2026-08-27 — spend alert deferred to Phase 6A gate | 1–2 days |
 | 2 | Local backend and infrastructure foundation | Completed 2026-08-31 | 4–7 days |
-| 3 | Keycloak authentication foundation | Phase 3A and Phase 3B completed; Phase 3C on hold | 1–2 weeks |
+| 3 | Keycloak authentication foundation | Phase 3A, Phase 3B, and Phase 3C completed; Phase 3D on hold | 1–2 weeks |
 | 4 | Portable database baseline | Not started | 1–2 weeks |
 | 5 | Authorization and tenant isolation | Not started | 1–2 weeks |
 | 6 | Shared API and frontend client | Not started | 3–5 days |
@@ -440,7 +440,7 @@ This phase applies to the separate migration build, not the legacy Supabase buil
 |---|---|---|
 | 3A | Authentication design | Completed 2026-08-31; see [`docs/migration/phase-3/AUTHENTICATION_DESIGN.md`](docs/migration/phase-3/AUTHENTICATION_DESIGN.md) |
 | 3B | Minimal identity database schema | Completed 2026-08-31; see [`docs/migration/phase-3/IDENTITY_SCHEMA.md`](docs/migration/phase-3/IDENTITY_SCHEMA.md) |
-| 3C | Keycloak realm and public clients | On hold |
+| 3C | Keycloak realm and public clients | Completed 2026-08-31; see [`docs/migration/phase-3/KEYCLOAK_CONFIGURATION.md`](docs/migration/phase-3/KEYCLOAK_CONFIGURATION.md) |
 | 3D | FastAPI token validation | On hold |
 | 3E | Application-user resolution | On hold |
 | 3F | Separate React migration build | On hold |
@@ -1578,12 +1578,39 @@ Decision needed: None for completed Phase 3A. The project owner requested a stop
 Next action: Commit and push Phase 3A, verify GitHub checks, then stop.
 ```
 
+### 2026-08-31 - Phase 3B
+
+```text
+Date: 2026-08-31
+Phase: 3B - Minimal identity database schema
+Change completed: Added the application-owned identity keys, issuer and subject mapping, account states, core profile relationships, migration ownership, and read-only runtime grants.
+Tests run: Clean and repeated Alembic upgrade; empty-schema downgrade boundary; constraint, foreign-key, ownership, and runtime-permission checks; backend and frontend regressions; GitHub full-stack checks.
+Result: Phase 3B passes at Alembic revision f41c9a7b23d1. Four identity tables and two enums exist, the migration role owns them, and the runtime role can only read them.
+Known issues: The schema contains no identities or runtime write path. Populated-schema corrections require a new append-only revision.
+Decision needed: None for completed Phase 3B. Phase 3C required separate authorization.
+Next action: Phase 3C was separately authorized and completed.
+```
+
+### 2026-08-31 - Phase 3C
+
+```text
+Date: 2026-08-31
+Phase: 3C - Keycloak realm and public clients
+Change completed: Added the sanitized workloop-dev realm, restricted browser client, bearer-only API audience client, read-only startup import, protocol verification, and persistence checks.
+Tests run: Source sanitization; imported Admin API state; exact redirect, logout, and origin checks; PKCE S256 and wrong-verifier checks; disabled flow checks; real access-token and ID-token audience checks; refresh rotation and reuse rejection; offline-scope rejection; container replacement; service health; Alembic; backend and frontend regressions.
+Result: Phase 3C passes. The realm persists in local PostgreSQL, no Workloop user remains after tests, access tokens target workloop-api, ID tokens target workloop-migration-web, and unsafe browser flows fail.
+Known issues: Keycloak remains local start-dev. Startup import skips an existing realm, so later configuration corrections need a reviewed update procedure. Administrator MFA and SMTP remain deferred under the approved local-only policy.
+Decision needed: None for completed Phase 3C. Phase 3D requires separate authorization.
+Next action: Commit and push Phase 3C, verify GitHub checks, then stop before Phase 3D.
+```
+
 ## Immediate Next Actions
 
 Phase 2 is complete. Local services are healthy, Alembic uses a separate migration identity,
 Keycloak state persists, and both a clean local checkout and GitHub's Linux runner can recreate
 the foundation.
 
-Phase 3A is complete. Phase 3B is on hold at the project owner's explicit request. Do not add the
-identity schema, Alembic revision, Workloop realm, OIDC client, frontend migration root, or token
-validation until the project owner separately asks to continue Phase 3.
+Phase 3A, Phase 3B, and Phase 3C are complete. The local identity schema is at revision
+`f41c9a7b23d1`, and the restricted `workloop-dev` realm persists in local PostgreSQL. Phase 3D is
+on hold. Do not add FastAPI token validation, application-user resolution, a migration frontend,
+or synthetic application users until the project owner separately authorizes the relevant part.

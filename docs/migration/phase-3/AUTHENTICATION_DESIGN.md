@@ -28,7 +28,7 @@ application would not isolate authentication.
 The migration frontend must therefore have a separate Vite root and module graph. Supabase stays
 installed for the legacy build until final cutover.
 
-## Proposed identifiers
+## Approved identifiers
 
 | Purpose | Value |
 |---|---|
@@ -239,13 +239,13 @@ in all `VITE_` variables.
 - Automated account provisioning with a confidential client is added only when its lifecycle is
   implemented and tested.
 
-## Proposed Phase 3 parts
+## Phase 3 parts
 
 | Part | Scope | Status |
 |---|---|---|
 | 3A | Authentication design | Completed 2026-08-31 |
 | 3B | Minimal identity database schema | Completed 2026-08-31; see [`IDENTITY_SCHEMA.md`](IDENTITY_SCHEMA.md) |
-| 3C | Keycloak realm and public clients | On hold |
+| 3C | Keycloak realm and public clients | Completed 2026-08-31; see [`KEYCLOAK_CONFIGURATION.md`](KEYCLOAK_CONFIGURATION.md) |
 | 3D | FastAPI token validation | On hold |
 | 3E | Application-user resolution | On hold |
 | 3F | Separate React migration build | On hold |
@@ -283,43 +283,43 @@ Phase 3A passes because:
 Phase 3B completed on 2026-08-31. Its implementation and validation are recorded in
 [`IDENTITY_SCHEMA.md`](IDENTITY_SCHEMA.md).
 
+Phase 3C completed on 2026-08-31. Its implementation, protocol tests, and security review are
+recorded in [`KEYCLOAK_CONFIGURATION.md`](KEYCLOAK_CONFIGURATION.md).
+
 ## Next model recommendation
 
-Use **GPT-5.6 Terra** for Phase 3B. Complexity is high because it establishes the permanent
-identity keys, status constraints, cross-table relationships, migration ownership, and runtime
-grants that later authentication and authorization depend on. The approved Phase 3A design makes
-the implementation bounded enough for Terra, while migration, permission, and negative tests
-provide the required safety checks.
+Use **GPT-5.6** for Phase 3D. JWT signature, issuer, audience, algorithm, JWKS cache, key rotation,
+and outage behavior form an authentication boundary and need an independent security review.
 
-Switch only from the clean, synchronized branch after Phase 3A checks pass. Phase 3B still needs
+Switch only from the clean, synchronized branch after Phase 3C checks pass. Phase 3D still needs
 explicit authorization.
 
-## Phase 3B handoff prompt
+## Phase 3D handoff prompt
 
 ```text
-Continue the Workloop Clinic migration with Phase 3B only: the minimal identity database schema.
+Continue the Workloop Clinic migration with Phase 3D only: FastAPI token validation.
 
 First read AGENTS.md, DIGITALOCEAN_MIGRATION_PLAN.md, docs/migration/phase-2/README.md,
-docs/migration/phase-3/AUTHENTICATION_DESIGN.md, and
-docs/migration/phase-2/ALEMBIC_FOUNDATION.md. Inspect the current branch, status, recent commits,
-Alembic files, SQLAlchemy metadata, PostgreSQL roles, Docker Compose, and backend tests.
+docs/migration/phase-3/AUTHENTICATION_DESIGN.md,
+docs/migration/phase-3/IDENTITY_SCHEMA.md, and
+docs/migration/phase-3/KEYCLOAK_CONFIGURATION.md. Inspect the current branch, status, recent
+commits, Keycloak realm, FastAPI configuration, dependencies, Docker Compose, and backend tests.
 
 Expected state:
 - Branch migration/fastapi-keycloak is clean and synchronized.
-- Phase 2 and Phase 3A are complete.
-- Phase 3B is on hold and must not start without explicit authorization.
-- No Workloop realm, OIDC client, application identity table, or migrated frontend exists.
+- Phase 2, Phase 3A, Phase 3B, and Phase 3C are complete.
+- Phase 3D is on hold and must not start without explicit authorization.
+- The local workloop-dev realm and restricted clients exist and persist.
+- No FastAPI JWT validation, application-user resolution, or migration frontend exists.
 
-When Phase 3B is authorized, implement only the minimal Alembic and SQLAlchemy identity schema
-required by the approved design: application-owned UUIDs, issuer and opaque subject mapping,
-account lifecycle status, and the core companies, employees, app_users, and user_profiles
-relationships needed for later identity resolution. Preserve PostgreSQL-owned business roles.
-Do not add Keycloak realm configuration, tokens, login UI, synthetic users, business features, or
-Supabase coupling.
+When Phase 3D is authorized, implement only FastAPI bearer access-token validation against the
+approved Keycloak issuer and workloop-api audience. Pin RS256, cache JWKS with bounded timeouts,
+refresh once for an unknown key ID, distinguish access tokens from ID tokens, and fail closed.
+Do not add application-user resolution, role authorization, provisioning, login UI, migration
+frontend code, business features, DigitalOcean resources, or Supabase coupling.
 
-Use the migration identity for schema changes and grant the runtime identity only required access.
-Never expose secrets or use real data. Test clean upgrade, constraints, uniqueness, foreign keys,
-role and status rejection, runtime permissions, repeated migration, and downgrade or correction
-boundaries. Update the Phase 3 tracker and evidence. Commit and push only after the Phase 3B gate
-passes, then stop before Phase 3C or any owner decision.
+Never expose tokens or secrets in logs. Test valid, expired, future, wrong-issuer, wrong-audience,
+wrong-algorithm, unknown-key, malformed, and ID-token cases, plus signing-key rotation and a bounded
+JWKS outage. Update the Phase 3 tracker and evidence. Commit and push only after the Phase 3D gate
+passes, then stop before Phase 3E or any owner decision.
 ```

@@ -20,10 +20,12 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: ["start-dev"]
+    command: ["start-dev", "--import-realm"]
     ports:
       - "127.0.0.1:8080:8080"
       - "127.0.0.1:9000:9000"
+    volumes:
+      - ./keycloak/realm:/opt/keycloak/data/import:ro
     mem_limit: 1g
     cap_drop:
       - ALL
