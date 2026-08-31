@@ -1,0 +1,11 @@
+.env*
+.pytest_cache
+.ruff_cache
+.venv
+__pycache__
+build
+dist
+htmlcov
+tests
+*.egg-info
+*.py[cod]

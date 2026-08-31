@@ -206,7 +206,7 @@ Do not create abstractions merely to match this diagram. Start with the smallest
 |---|---|---|---:|
 | 0 | Baseline and inventory | Completed 2026-08-27 | 2–4 days |
 | 1 | DigitalOcean access and cost controls | Completed 2026-08-27 — spend alert deferred to Phase 6A gate | 1–2 days |
-| 2 | Local backend and infrastructure foundation | Phases 2A–2C completed; Phase 2D on hold | 4–7 days |
+| 2 | Local backend and infrastructure foundation | Phases 2A–2D completed; Phase 2E on hold | 4–7 days |
 | 3 | Keycloak authentication foundation | Not started | 1–2 weeks |
 | 4 | Portable database baseline | Not started | 1–2 weeks |
 | 5 | Authorization and tenant isolation | Not started | 1–2 weeks |
@@ -326,8 +326,8 @@ Run React, FastAPI, PostgreSQL, and Keycloak locally using repeatable commands.
 | 2A | Computer readiness | Completed 2026-08-27; see [`docs/migration/phase-2/READINESS.md`](docs/migration/phase-2/READINESS.md) |
 | 2B | Backend scaffold | Completed 2026-08-27; see [`docs/migration/phase-2/BACKEND_SCAFFOLD.md`](docs/migration/phase-2/BACKEND_SCAFFOLD.md) |
 | 2C | Local PostgreSQL | Completed 2026-08-31; see [`docs/migration/phase-2/LOCAL_POSTGRESQL.md`](docs/migration/phase-2/LOCAL_POSTGRESQL.md) |
-| 2D | FastAPI service | On hold; awaiting explicit authorization |
-| 2E | Alembic foundation | Not started |
+| 2D | FastAPI service | Completed 2026-08-31; see [`docs/migration/phase-2/FASTAPI_SERVICE.md`](docs/migration/phase-2/FASTAPI_SERVICE.md) |
+| 2E | Alembic foundation | On hold; awaiting explicit authorization |
 | 2F | Local Keycloak runtime | Not started |
 | 2G | Tests and GitHub checks | Not started |
 | 2H | Documentation and restart gate | Not started |
@@ -1452,8 +1452,21 @@ Decision needed: None for completed Phase 2C. Phase 2D requires separate authori
 Next action: Stop and await project-owner authorization for Phase 2D.
 ```
 
+### 2026-08-31 - Phase 2D
+
+```text
+Date: 2026-08-31
+Phase: 2D - FastAPI service
+Change completed: Added validated environment settings, JSON logging, SQLAlchemy and Psycopg engine management, a database-backed health endpoint, focused tests, a digest-pinned non-root FastAPI image, restricted Compose runtime, and local API documentation.
+Tests run: Backend pytest, Ruff lint and format, Pyright, and pip check; Linux hash-locked image build; container pip check; healthy and unavailable database responses; PostgreSQL restart recovery; database identity query; container user and security inspection; port inspection; JSON log parsing and secret checks; OpenAPI check; JavaScript unit tests; Vite production build; git diff check; credential scan.
+Result: Phase 2D gate passes. FastAPI is healthy on 127.0.0.1:8000, queries PostgreSQL as workloop_runtime, fails closed with HTTP 503 when PostgreSQL is unavailable, recovers after restart, and runs as a restricted non-root container.
+Known issues: The existing frontend chunk-size warning and lint baseline remain unchanged. The image build logs pip's standard root-build warning, but the final container process runs as the unprivileged workloop user. Authentication, CORS, and business routes are intentionally absent.
+Decision needed: None for completed Phase 2D. Phase 2E requires separate authorization.
+Next action: Commit and push Phase 2D, then stop and await project-owner authorization for Phase 2E.
+```
+
 ## Immediate Next Actions
 
-Phase 2C is complete. The local PostgreSQL 16.15 container is healthy, its host port is restricted to `127.0.0.1:5432`, and its named volume retains the separate Workloop and Keycloak databases.
+Phases 2A through 2D are complete. Local PostgreSQL 16.15 and FastAPI are healthy on loopback-only ports, and the API verifies its database connection through the restricted runtime account.
 
-Phase 2D is on hold. Do not add the FastAPI application, configuration model, database connection, routes, container, or tests until the project owner explicitly authorizes Phase 2D.
+Phase 2E is on hold. Do not initialize Alembic, create a migration, change database ownership, or add schema objects until the project owner explicitly authorizes Phase 2E.

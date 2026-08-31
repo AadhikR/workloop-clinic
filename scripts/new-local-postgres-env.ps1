@@ -1,12 +1,13 @@
 $parent = Join-Path (Split-Path -Parent $PSScriptRoot) "backend"
-$path = Join-Path $parent ".env.postgres"
+$postgresPath = Join-Path $parent ".env.postgres"
+$apiPath = Join-Path $parent ".env.api"
 
 if (-not (Test-Path -LiteralPath $parent)) {
     throw "Expected backend directory was not found."
 }
 
-if (Test-Path -LiteralPath $path) {
-    throw "$path already exists; refusing to overwrite it."
+if (Test-Path -LiteralPath $apiPath) {
+    throw "$apiPath already exists; refusing to overwrite it."
 }
 
 function New-LocalSecret {
@@ -22,17 +23,43 @@ function New-LocalSecret {
     [Convert]::ToBase64String($bytes).TrimEnd("=").Replace("+", "-").Replace("/", "_")
 }
 
-$lines = @(
-    "POSTGRES_PASSWORD=$(New-LocalSecret)"
-    "WORKLOOP_MIGRATION_PASSWORD=$(New-LocalSecret)"
-    "WORKLOOP_RUNTIME_PASSWORD=$(New-LocalSecret)"
-    "KEYCLOAK_DB_PASSWORD=$(New-LocalSecret)"
+if (Test-Path -LiteralPath $postgresPath) {
+    $runtimeLine = [System.IO.File]::ReadLines($postgresPath) | Where-Object {
+        $_.StartsWith("WORKLOOP_RUNTIME_PASSWORD=")
+    }
+    if (-not $runtimeLine) {
+        throw "$postgresPath does not contain WORKLOOP_RUNTIME_PASSWORD."
+    }
+    $runtimePassword = $runtimeLine.Substring($runtimeLine.IndexOf("=") + 1)
+}
+else {
+    $runtimePassword = New-LocalSecret
+    $postgresLines = @(
+        "POSTGRES_PASSWORD=$(New-LocalSecret)"
+        "WORKLOOP_MIGRATION_PASSWORD=$(New-LocalSecret)"
+        "WORKLOOP_RUNTIME_PASSWORD=$runtimePassword"
+        "KEYCLOAK_DB_PASSWORD=$(New-LocalSecret)"
+    )
+    [System.IO.File]::WriteAllLines(
+        $postgresPath,
+        $postgresLines,
+        (New-Object System.Text.UTF8Encoding($false))
+    )
+}
+
+$apiLines = @(
+    "APP_ENV=local"
+    "APP_BASE_URL=http://127.0.0.1:8000"
+    "FRONTEND_URL=http://127.0.0.1:5173"
+    "LOG_LEVEL=INFO"
+    "DATABASE_HEALTH_TIMEOUT_SECONDS=5"
+    "DATABASE_URL=postgresql+psycopg://workloop_runtime:${runtimePassword}@postgres:5432/workloop"
 )
 
 [System.IO.File]::WriteAllLines(
-    $path,
-    $lines,
+    $apiPath,
+    $apiLines,
     (New-Object System.Text.UTF8Encoding($false))
 )
 
-"Created backend/.env.postgres with four generated values; no values were displayed."
+"Local PostgreSQL and API environment files are ready; no secret values were displayed."
