@@ -4,7 +4,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.pool import NullPool
 
 from alembic import context
-from app.db.base import Base
+from app.models import Base
 
 target_metadata = Base.metadata
 

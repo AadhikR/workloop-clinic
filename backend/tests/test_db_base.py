@@ -1,8 +1,9 @@
 from app.db.base import NAMING_CONVENTION, Base
+from app.models.identity import AccountStatus, AppRole
 
 
-def test_foundation_metadata_has_no_business_tables() -> None:
-    assert list(Base.metadata.tables) == []
+def test_identity_metadata_contains_only_phase_3b_tables() -> None:
+    assert list(Base.metadata.tables) == ["companies", "employees", "app_users", "user_profiles"]
 
 
 def test_foundation_metadata_has_deterministic_constraint_names() -> None:
@@ -13,3 +14,12 @@ def test_foundation_metadata_has_deterministic_constraint_names() -> None:
         "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
         "pk": "pk_%(table_name)s",
     }
+
+
+def test_identity_enums_match_the_approved_design() -> None:
+    assert [status.value for status in AccountStatus] == [
+        "pending_identity",
+        "active",
+        "disabled",
+    ]
+    assert [role.value for role in AppRole] == ["admin", "manager", "employee"]

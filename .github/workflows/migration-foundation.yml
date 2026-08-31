@@ -80,6 +80,14 @@ jobs:
         run: docker compose up --build --detach --wait postgres backend keycloak
       - name: Run Alembic
         run: docker compose --profile tools run --rm migrate
+      - name: Verify identity schema
+        run: sh ./scripts/verify-phase-3b-schema.sh
+      - name: Verify repeatable migration
+        run: docker compose --profile tools run --rm migrate
+      - name: Verify empty-schema downgrade boundary
+        run: |
+          docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini downgrade base
+          docker compose --profile tools run --rm migrate
       - name: Verify service health
         run: |
           curl --fail --silent --show-error http://127.0.0.1:8000/health | jq --exit-status '.status == "ok" and .database == "ok"'
