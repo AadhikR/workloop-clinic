@@ -67,9 +67,11 @@ BEGIN
     RAISE EXCEPTION 'invalid role and employee link was accepted';
   EXCEPTION WHEN check_violation THEN NULL;
   END;
+  INSERT INTO app_users (id, identity_issuer, identity_subject)
+  VALUES ('00000000-0000-0000-0000-000000000025', 'https://issuer.test', 'cross-company-subject');
   BEGIN
     INSERT INTO user_profiles (app_user_id, company_id, employee_id, role)
-    VALUES ('00000000-0000-0000-0000-000000000021', '00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000011', 'employee');
+    VALUES ('00000000-0000-0000-0000-000000000025', '00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000011', 'employee');
     RAISE EXCEPTION 'cross-company employee link was accepted';
   EXCEPTION WHEN foreign_key_violation THEN NULL;
   END;
