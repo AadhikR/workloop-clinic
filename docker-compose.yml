@@ -1,6 +1,46 @@
 name: workloop-clinic
 
 services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.2@sha256:9d1f1b2b7261ff53c66cb1092dfcdc34a5fb77e81f9e6a6e75b8b6a795de8067
+    env_file:
+      - path: ./backend/.env.keycloak
+        required: true
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+      KC_HOSTNAME: http://127.0.0.1:8080
+      KC_LOG: console
+      KC_LOG_CONSOLE_OUTPUT: json
+      KC_LOG_LEVEL: info
+      KC_LOG_SERVICE_ENVIRONMENT: local
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["start-dev"]
+    ports:
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:9000:9000"
+    mem_limit: 1g
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          { printf 'HEAD /health/ready HTTP/1.0\r\n\r\n' >&0;
+          grep 'HTTP/1.0 200'; } 0<>/dev/tcp/127.0.0.1/9000
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    stop_grace_period: 30s
+
   migrate:
     build:
       context: ./backend

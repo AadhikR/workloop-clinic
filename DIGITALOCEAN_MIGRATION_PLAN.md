@@ -206,7 +206,7 @@ Do not create abstractions merely to match this diagram. Start with the smallest
 |---|---|---|---:|
 | 0 | Baseline and inventory | Completed 2026-08-27 | 2–4 days |
 | 1 | DigitalOcean access and cost controls | Completed 2026-08-27 — spend alert deferred to Phase 6A gate | 1–2 days |
-| 2 | Local backend and infrastructure foundation | Phases 2A–2E completed; Phase 2F on hold | 4–7 days |
+| 2 | Local backend and infrastructure foundation | Phases 2A–2F completed; Phase 2G on hold | 4–7 days |
 | 3 | Keycloak authentication foundation | Not started | 1–2 weeks |
 | 4 | Portable database baseline | Not started | 1–2 weeks |
 | 5 | Authorization and tenant isolation | Not started | 1–2 weeks |
@@ -328,8 +328,8 @@ Run React, FastAPI, PostgreSQL, and Keycloak locally using repeatable commands.
 | 2C | Local PostgreSQL | Completed 2026-08-31; see [`docs/migration/phase-2/LOCAL_POSTGRESQL.md`](docs/migration/phase-2/LOCAL_POSTGRESQL.md) |
 | 2D | FastAPI service | Completed 2026-08-31; see [`docs/migration/phase-2/FASTAPI_SERVICE.md`](docs/migration/phase-2/FASTAPI_SERVICE.md) |
 | 2E | Alembic foundation | Completed 2026-08-31; see [`docs/migration/phase-2/ALEMBIC_FOUNDATION.md`](docs/migration/phase-2/ALEMBIC_FOUNDATION.md) |
-| 2F | Local Keycloak runtime | On hold; awaiting explicit authorization |
-| 2G | Tests and GitHub checks | Not started |
+| 2F | Local Keycloak runtime | Completed 2026-08-31; see [`docs/migration/phase-2/KEYCLOAK_RUNTIME.md`](docs/migration/phase-2/KEYCLOAK_RUNTIME.md) |
+| 2G | Tests and GitHub checks | On hold; awaiting explicit authorization |
 | 2H | Documentation and restart gate | Not started |
 
 ### Work
@@ -1478,8 +1478,21 @@ Decision needed: None for completed Phase 2E. Phase 2F requires separate authori
 Next action: Commit and push Phase 2E, then stop and await project-owner authorization for Phase 2F.
 ```
 
+### 2026-08-31 - Phase 2F
+
+```text
+Date: 2026-08-31
+Phase: 2F - Local Keycloak runtime
+Change completed: Added digest-pinned Keycloak 26.7.2 in local development mode, separate ignored Keycloak credentials, PostgreSQL-backed identity persistence, readiness and liveness checks, loopback-only ports, JSON runtime logs, a 1 GiB memory limit, and restricted container privileges.
+Tests run: Image manifest and version checks; readiness, liveness, and database health; administrator UI, valid login, Admin API, and wrong-password response; database role, ownership, table, realm, and user checks; credential-scope inspection; host port inspection; JSON and launcher log scans; graceful shutdown; container removal and replacement; realm and signing-key persistence; backend and frontend regressions; git diff check; credential scan.
+Result: Phase 2F gate passes. Keycloak is healthy on local ports 8080 and 9000, uses only its PostgreSQL database, retains its master realm and signing keys across container replacement, and accepts the local administrator without exposing its password or token.
+Known issues: Local Keycloak uses start-dev and must never be deployed as production. Four safe launcher lines precede JSON runtime logs. Upstream reports two deprecated default features that Workloop does not use. Keycloak uses about 560 MiB while idle.
+Decision needed: None for completed Phase 2F. Phase 2G requires separate authorization.
+Next action: Commit and push Phase 2F, then stop and await project-owner authorization for Phase 2G.
+```
+
 ## Immediate Next Actions
 
-Phases 2A through 2E are complete. PostgreSQL and FastAPI are healthy, and Alembic runs through a separate migration-only identity without introducing application tables.
+Phases 2A through 2F are complete. PostgreSQL, FastAPI, and Keycloak are healthy; Alembic uses a separate migration identity, and Keycloak identity state persists in its own database.
 
-Phase 2F is on hold. Do not add the Keycloak image, container, administrator credential, health checks, or port until the project owner explicitly authorizes Phase 2F.
+Phase 2G is on hold. Do not add or change GitHub Actions, required checks, vulnerability scans, or repository settings until the project owner explicitly authorizes Phase 2G.

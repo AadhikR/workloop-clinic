@@ -2,6 +2,7 @@ $parent = Join-Path (Split-Path -Parent $PSScriptRoot) "backend"
 $postgresPath = Join-Path $parent ".env.postgres"
 $apiPath = Join-Path $parent ".env.api"
 $migrationPath = Join-Path $parent ".env.migration"
+$keycloakPath = Join-Path $parent ".env.keycloak"
 
 if (-not (Test-Path -LiteralPath $parent)) {
     throw "Expected backend directory was not found."
@@ -35,15 +36,25 @@ if (Test-Path -LiteralPath $postgresPath) {
         throw "$postgresPath does not contain WORKLOOP_MIGRATION_PASSWORD."
     }
     $migrationPassword = $migrationLine.Substring($migrationLine.IndexOf("=") + 1)
+    $keycloakDatabaseLine = [System.IO.File]::ReadLines($postgresPath) | Where-Object {
+        $_.StartsWith("KEYCLOAK_DB_PASSWORD=")
+    }
+    if (-not $keycloakDatabaseLine) {
+        throw "$postgresPath does not contain KEYCLOAK_DB_PASSWORD."
+    }
+    $keycloakDatabasePassword = $keycloakDatabaseLine.Substring(
+        $keycloakDatabaseLine.IndexOf("=") + 1
+    )
 }
 else {
     $runtimePassword = New-LocalSecret
     $migrationPassword = New-LocalSecret
+    $keycloakDatabasePassword = New-LocalSecret
     $postgresLines = @(
         "POSTGRES_PASSWORD=$(New-LocalSecret)"
         "WORKLOOP_MIGRATION_PASSWORD=$migrationPassword"
         "WORKLOOP_RUNTIME_PASSWORD=$runtimePassword"
-        "KEYCLOAK_DB_PASSWORD=$(New-LocalSecret)"
+        "KEYCLOAK_DB_PASSWORD=$keycloakDatabasePassword"
     )
     [System.IO.File]::WriteAllLines(
         $postgresPath,
@@ -80,4 +91,17 @@ if (-not (Test-Path -LiteralPath $migrationPath)) {
     )
 }
 
-"Local PostgreSQL, API, and migration environment files are ready; no secret values were displayed."
+if (-not (Test-Path -LiteralPath $keycloakPath)) {
+    $keycloakLines = @(
+        "KC_DB_PASSWORD=$keycloakDatabasePassword"
+        "KC_BOOTSTRAP_ADMIN_USERNAME=workloop-local-admin"
+        "KC_BOOTSTRAP_ADMIN_PASSWORD=$(New-LocalSecret)"
+    )
+    [System.IO.File]::WriteAllLines(
+        $keycloakPath,
+        $keycloakLines,
+        (New-Object System.Text.UTF8Encoding($false))
+    )
+}
+
+"Local PostgreSQL, API, migration, and Keycloak environment files are ready; no secret values were displayed."

@@ -62,6 +62,12 @@ Phase 2D configuration, container, health, logging, test, and rollback instructi
 Phase 2E migration credentials, commands, revision rules, evidence, and rollback instructions are
 in [`docs/migration/phase-2/ALEMBIC_FOUNDATION.md`](../docs/migration/phase-2/ALEMBIC_FOUNDATION.md).
 
+## Local Keycloak
+
+Phase 2F addresses, credential boundaries, runtime commands, persistence evidence, and rollback
+instructions are in
+[`docs/migration/phase-2/KEYCLOAK_RUNTIME.md`](../docs/migration/phase-2/KEYCLOAK_RUNTIME.md).
+
 ## Dependency Locking
 
 Regenerate the development lock from `backend`:

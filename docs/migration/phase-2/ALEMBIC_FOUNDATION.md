@@ -140,5 +140,5 @@ untouched and must not be deleted without separate approval.
 
 ## Remaining work
 
-Phase 2F owns the local Keycloak runtime. Phase 2E authorization does not authorize Keycloak,
-realm creation, an administrator account, or any identity data.
+Phase 2F now provides the local Keycloak runtime, its isolated database credential, and a local
+bootstrap administrator. The Workloop realm and application identities remain Phase 3 work.
