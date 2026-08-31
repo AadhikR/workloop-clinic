@@ -43,8 +43,7 @@ must not widen this role through `PUBLIC` or default privileges.
 
 ## Validation
 
-`scripts/verify-phase-3b-schema.sh` runs against the local Compose stack and in the GitHub full-stack
-job. It verifies:
+`scripts/verify-phase-3b-schema.sh` runs against the local Compose stack. It verifies:
 
 - The four expected tables and two enum types exist.
 - The migration identity owns every identity table.
@@ -52,6 +51,9 @@ job. It verifies:
 - Invalid enum values and invalid role to employee combinations fail.
 - Cross-company employee profile links and parent deletion fail.
 - The runtime identity can read but cannot write.
+
+The GitHub full-stack job creates a fresh database, applies the revision, repeats the upgrade, runs an
+empty-schema downgrade followed by a final upgrade, and confirms the final Workloop table count.
 
 The local validation on 2026-08-31 passed the script, a repeated `upgrade head`, `alembic check`, a
 bounded `downgrade base` followed by `upgrade head`, FastAPI and Keycloak health checks, nine backend

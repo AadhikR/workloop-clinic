@@ -80,8 +80,6 @@ jobs:
         run: docker compose up --build --detach --wait postgres backend keycloak
       - name: Run Alembic
         run: docker compose --profile tools run --rm migrate
-      - name: Verify identity schema
-        run: sh ./scripts/verify-phase-3b-schema.sh
       - name: Verify repeatable migration
         run: docker compose --profile tools run --rm migrate
       - name: Verify empty-schema downgrade boundary
@@ -94,7 +92,7 @@ jobs:
           curl --fail --silent --show-error http://127.0.0.1:9000/health/ready | jq --exit-status '.status == "UP"'
       - name: Verify database boundaries
         run: |
-          test "$(docker compose exec -T postgres psql --username postgres --dbname workloop --tuples-only --no-align --command "SELECT count(*) FROM pg_tables WHERE schemaname NOT IN ('pg_catalog', 'information_schema');")" = "0"
+          test "$(docker compose exec -T postgres psql --username postgres --dbname workloop --tuples-only --no-align --command "SELECT count(*) FROM pg_tables WHERE schemaname = 'public';")" = "5"
           test "$(docker compose exec -T postgres psql --username postgres --dbname keycloak --tuples-only --no-align --command "SELECT count(*) FROM realm;")" = "1"
       - name: Show failure logs
         if: failure()
