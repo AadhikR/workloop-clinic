@@ -1597,8 +1597,8 @@ Next action: Phase 3C was separately authorized and completed.
 Date: 2026-08-31
 Phase: 3C - Keycloak realm and public clients
 Change completed: Added the sanitized workloop-dev realm, restricted browser client, bearer-only API audience client, read-only startup import, protocol verification, and persistence checks.
-Tests run: Source sanitization; imported Admin API state; exact redirect, logout, and origin checks; PKCE S256 and wrong-verifier checks; disabled flow checks; real access-token and ID-token audience checks; refresh rotation and reuse rejection; offline-scope rejection; container replacement; service health; Alembic; backend and frontend regressions.
-Result: Phase 3C passes. The realm persists in local PostgreSQL, no Workloop user remains after tests, access tokens target workloop-api, ID tokens target workloop-migration-web, and unsafe browser flows fail.
+Tests run: Source sanitization; imported Admin API state; exact redirect, logout, and origin checks; PKCE S256 and wrong-verifier checks; disabled flow checks; real access-token and ID-token audience checks; refresh rotation and reuse rejection; offline-scope rejection; container replacement; service health; Alembic; backend and frontend regressions; GitHub Actions run 13.
+Result: Phase 3C passes. The realm persists in local PostgreSQL, no Workloop user remains after tests, access tokens target workloop-api, ID tokens target workloop-migration-web, unsafe browser flows fail, and all three GitHub jobs pass.
 Known issues: Keycloak remains local start-dev. Startup import skips an existing realm, so later configuration corrections need a reviewed update procedure. Administrator MFA and SMTP remain deferred under the approved local-only policy.
 Decision needed: None for completed Phase 3C. Phase 3D requires separate authorization.
 Next action: Commit and push Phase 3C, verify GitHub checks, then stop before Phase 3D.

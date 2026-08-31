@@ -115,6 +115,11 @@ Local validation on 2026-08-31 passed:
 The GitHub full-stack job now imports two realms, runs the Phase 3C security checks, replaces the
 Keycloak container, and repeats them against the persisted PostgreSQL state.
 
+GitHub Actions run 13 passed on commit `1efff76` on 2026-08-31. Backend quality, frontend
+regression, and full-stack smoke all passed. The full-stack job imported the realm into a fresh
+PostgreSQL volume, ran both Keycloak checks, replaced the Keycloak container, repeated the checks,
+and removed the temporary stack.
+
 ## Security review
 
 An independent GPT-5.6 review checked redirect and logout matching, PKCE enforcement, audience
