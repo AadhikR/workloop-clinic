@@ -1,41 +1,46 @@
 #!/bin/sh
 set -eu
 
-psql() {
-  docker compose exec -T postgres psql --username postgres --dbname workloop "$@"
-}
-
-psql --set ON_ERROR_STOP=1 --command "
-SELECT CASE WHEN count(*) = 4 THEN 1 ELSE 0 END
-FROM pg_tables
-WHERE schemaname = 'public'
-  AND tablename IN ('companies', 'employees', 'app_users', 'user_profiles');
-" | grep -q '1'
-
-psql --set ON_ERROR_STOP=1 --command "
-SELECT CASE WHEN count(*) = 2 THEN 1 ELSE 0 END
-FROM pg_type
-WHERE typname IN ('account_status', 'app_role');
-" | grep -q '1'
-
-psql --set ON_ERROR_STOP=1 --command "
-SELECT CASE WHEN bool_and(tableowner = 'workloop_migration') THEN 1 ELSE 0 END
-FROM pg_tables
-WHERE schemaname = 'public';
-" | grep -q '1'
-
-psql --set ON_ERROR_STOP=1 --command "
+docker compose exec -T postgres psql --username postgres --dbname workloop --set ON_ERROR_STOP=1 \
+  --command "
 BEGIN;
-INSERT INTO companies (id) VALUES ('00000000-0000-0000-0000-000000000001');
-INSERT INTO companies (id) VALUES ('00000000-0000-0000-0000-000000000002');
-INSERT INTO employees (id, company_id)
-VALUES ('00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000001');
-INSERT INTO app_users (id, identity_issuer, identity_subject, status)
-VALUES ('00000000-0000-0000-0000-000000000021', 'https://issuer.test', 'opaque-subject', 'active');
-INSERT INTO user_profiles (app_user_id, company_id, employee_id, role)
-VALUES ('00000000-0000-0000-0000-000000000021', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', 'employee');
 DO \$\$
+DECLARE
+  table_count integer;
+  type_count integer;
+  migration_owns_tables boolean;
 BEGIN
+  SELECT count(*) INTO table_count
+  FROM pg_tables
+  WHERE schemaname = 'public'
+    AND tablename IN ('companies', 'employees', 'app_users', 'user_profiles');
+  IF table_count <> 4 THEN
+    RAISE EXCEPTION 'expected four identity tables, found %', table_count;
+  END IF;
+
+  SELECT count(*) INTO type_count
+  FROM pg_type
+  WHERE typname IN ('account_status', 'app_role');
+  IF type_count <> 2 THEN
+    RAISE EXCEPTION 'expected two identity enums, found %', type_count;
+  END IF;
+
+  SELECT bool_and(tableowner = 'workloop_migration') INTO migration_owns_tables
+  FROM pg_tables
+  WHERE schemaname = 'public';
+  IF migration_owns_tables IS NOT TRUE THEN
+    RAISE EXCEPTION 'workloop_migration does not own every public table';
+  END IF;
+
+  INSERT INTO companies (id) VALUES ('00000000-0000-0000-0000-000000000001');
+  INSERT INTO companies (id) VALUES ('00000000-0000-0000-0000-000000000002');
+  INSERT INTO employees (id, company_id)
+  VALUES ('00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000001');
+  INSERT INTO app_users (id, identity_issuer, identity_subject, status)
+  VALUES ('00000000-0000-0000-0000-000000000021', 'https://issuer.test', 'opaque-subject', 'active');
+  INSERT INTO user_profiles (app_user_id, company_id, employee_id, role)
+  VALUES ('00000000-0000-0000-0000-000000000021', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', 'employee');
+
   BEGIN
     INSERT INTO app_users (id, identity_issuer, identity_subject)
     VALUES ('00000000-0000-0000-0000-000000000022', 'https://issuer.test', 'opaque-subject');
@@ -75,18 +80,16 @@ BEGIN
   END;
 END
 \$\$;
-ROLLBACK;
-"
-
-psql --set ON_ERROR_STOP=1 --command "
 SET ROLE workloop_runtime;
 SELECT count(*) FROM app_users;
-" >/dev/null
-
-if psql --set ON_ERROR_STOP=1 --command "
-SET ROLE workloop_runtime;
-INSERT INTO companies (id) VALUES ('00000000-0000-0000-0000-000000000031');
-" >/dev/null 2>&1; then
-  echo 'workloop_runtime unexpectedly has write access' >&2
-  exit 1
-fi
+DO \$\$
+BEGIN
+  BEGIN
+    INSERT INTO companies (id) VALUES ('00000000-0000-0000-0000-000000000031');
+    RAISE EXCEPTION 'workloop_runtime unexpectedly has write access';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+END
+\$\$;
+ROLLBACK;
+"
