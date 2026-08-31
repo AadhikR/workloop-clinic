@@ -206,7 +206,7 @@ Do not create abstractions merely to match this diagram. Start with the smallest
 |---|---|---|---:|
 | 0 | Baseline and inventory | Completed 2026-08-27 | 2–4 days |
 | 1 | DigitalOcean access and cost controls | Completed 2026-08-27 — spend alert deferred to Phase 6A gate | 1–2 days |
-| 2 | Local backend and infrastructure foundation | Phases 2A–2F completed; Phase 2G on hold | 4–7 days |
+| 2 | Local backend and infrastructure foundation | Phases 2A–2G completed; Phase 2H on hold | 4–7 days |
 | 3 | Keycloak authentication foundation | Not started | 1–2 weeks |
 | 4 | Portable database baseline | Not started | 1–2 weeks |
 | 5 | Authorization and tenant isolation | Not started | 1–2 weeks |
@@ -329,8 +329,8 @@ Run React, FastAPI, PostgreSQL, and Keycloak locally using repeatable commands.
 | 2D | FastAPI service | Completed 2026-08-31; see [`docs/migration/phase-2/FASTAPI_SERVICE.md`](docs/migration/phase-2/FASTAPI_SERVICE.md) |
 | 2E | Alembic foundation | Completed 2026-08-31; see [`docs/migration/phase-2/ALEMBIC_FOUNDATION.md`](docs/migration/phase-2/ALEMBIC_FOUNDATION.md) |
 | 2F | Local Keycloak runtime | Completed 2026-08-31; see [`docs/migration/phase-2/KEYCLOAK_RUNTIME.md`](docs/migration/phase-2/KEYCLOAK_RUNTIME.md) |
-| 2G | Tests and GitHub checks | On hold; awaiting explicit authorization |
-| 2H | Documentation and restart gate | Not started |
+| 2G | Tests and GitHub checks | Completed 2026-08-31; see [`docs/migration/phase-2/GITHUB_CHECKS.md`](docs/migration/phase-2/GITHUB_CHECKS.md) |
+| 2H | Documentation and restart gate | On hold; awaiting explicit authorization |
 
 ### Work
 
@@ -1491,8 +1491,21 @@ Decision needed: None for completed Phase 2F. Phase 2G requires separate authori
 Next action: Commit and push Phase 2F, then stop and await project-owner authorization for Phase 2G.
 ```
 
+### 2026-08-31 - Phase 2G
+
+```text
+Date: 2026-08-31
+Phase: 2G - Tests and GitHub checks
+Change completed: Added a read-only GitHub Actions workflow with pinned actions for backend quality, frontend regression, and a synthetic full-stack PostgreSQL, FastAPI, Alembic, and Keycloak smoke test.
+Tests run: Local backend Pytest, Ruff, formatting, Pyright, and dependency checks; npm clean install, 14 unit tests, and Vite build; Compose and live service health; two GitHub Actions runs; remote log credential scan; npm production and full dependency audits.
+Result: Phase 2G gate passes. Corrected GitHub run 33379719477 passed Backend quality, Frontend regression, and Full stack smoke on Ubuntu 24.04. Remote full-stack logs contain no secret assignment, connection URL, bearer token, or credential value.
+Known issues: The first remote run failed because package-lock.json contained an existing Linux-incompatible @emnapi/wasi-threads version; the one-package lock correction passed locally and remotely. npm reports one moderate production advisory and five development advisories, including four high findings. Resolution requires a separate reviewed dependency update. Existing frontend lint and Playwright baseline failures remain excluded and documented.
+Decision needed: None for completed Phase 2G. Branch protection was not changed. Phase 2H requires separate authorization.
+Next action: Commit and push Phase 2G completion evidence, verify the final remote checks, then stop and await project-owner authorization for Phase 2H.
+```
+
 ## Immediate Next Actions
 
-Phases 2A through 2F are complete. PostgreSQL, FastAPI, and Keycloak are healthy; Alembic uses a separate migration identity, and Keycloak identity state persists in its own database.
+Phases 2A through 2G are complete. Local services are healthy, Alembic uses a separate migration identity, Keycloak state persists, and the complete foundation passes on a fresh GitHub Linux runner.
 
-Phase 2G is on hold. Do not add or change GitHub Actions, required checks, vulnerability scans, or repository settings until the project owner explicitly authorizes Phase 2G.
+Phase 2H is on hold. Do not perform the final restart exercise, mark Phase 2 complete, or begin Phase 3 until the project owner explicitly authorizes Phase 2H.

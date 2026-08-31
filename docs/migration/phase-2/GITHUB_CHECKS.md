@@ -2,7 +2,7 @@
 
 ## Status
 
-**In progress. Remote GitHub Actions evidence is pending.**
+**Completed on 2026-08-31.**
 
 Phase 2G adds repeatable Linux checks for the migration foundation. The workflow runs when a
 commit is pushed to `migration/fastapi-keycloak` or a pull request targets that branch.
@@ -72,7 +72,7 @@ syntax and enforced read-only contents permission.
 Linux npm rejected an existing lock mismatch: `@emnapi/wasi-threads` 1.2.2 did not satisfy the
 locked requirement for 1.2.3. Regenerating only the package lock with npm 11.6.2 changed that
 single transitive package to 1.2.3. Local `npm ci --ignore-scripts`, all 14 unit tests, and the Vite
-build then passed. The corrected remote run is pending.
+build then passed.
 
 The lock refresh also exposed six existing npm advisories: one low, one moderate, and four high.
 The production dependency audit contains only the moderate DOMPurify advisory. The high findings
@@ -80,9 +80,40 @@ are in development tooling, including Vite and transitive packages. `npm audit f
 offered no lock-only change. Resolving them requires a reviewed dependency update and remains
 deferred; no vulnerable development server is exposed by this workflow.
 
+## Successful remote evidence
+
+Corrected commit `b377bf3` started GitHub Actions run `33379719477`:
+
+```text
+https://github.com/AadhikR/workloop-clinic/actions/runs/33379719477
+```
+
+| Job | Result | Runner duration |
+|---|---|---:|
+| Backend quality | Passed | 34 seconds |
+| Frontend regression | Passed | 22 seconds |
+| Full stack smoke | Passed | 67 seconds |
+
+The jobs used 123 seconds of runner execution in total, with backend and frontend running in
+parallel. GitHub allowance accounting may round each job separately. The full-stack log download
+contained no secret variable assignments, connection URLs, bearer tokens, or credential values.
+
+The remote smoke job proved that a fresh Ubuntu 24.04 runner can:
+
+- Generate ignored, ephemeral service credentials.
+- Validate the Compose model.
+- Build FastAPI from the Linux lock installation.
+- Start PostgreSQL, FastAPI, and Keycloak as healthy services.
+- Run Alembic through the migration-only service.
+- Reach the FastAPI and Keycloak readiness endpoints.
+- Keep Workloop free of application tables and Keycloak limited to its built-in master realm.
+- Stop the temporary stack without requesting volume deletion.
+
+No repository secret, DigitalOcean resource, or branch-protection setting was created.
+
 ## Completion gate
 
-Phase 2G passes only after:
+Phase 2G passed because:
 
 - Local backend and frontend checks pass.
 - The workflow syntax is accepted by GitHub.
@@ -90,6 +121,15 @@ Phase 2G passes only after:
 - No credential is committed or printed by the workflow.
 - PostgreSQL, FastAPI, and Keycloak remain healthy locally.
 - Test evidence and any failures are recorded here.
+
+## Files changed
+
+- `.github/workflows/migration-foundation.yml`
+- `package-lock.json`
+- `docs/migration/phase-2/GITHUB_CHECKS.md`
+- `backend/README.md`
+- `docs/migration/phase-2/KEYCLOAK_RUNTIME.md`
+- `DIGITALOCEAN_MIGRATION_PLAN.md`
 
 ## Rollback
 

@@ -197,5 +197,5 @@ and is not authorized.
 
 ## Remaining work
 
-Phase 2G owns broader automated and GitHub checks. Phase 3 later owns the Workloop realm and OIDC
-security design. Phase 2F authorization does not authorize either part.
+Phase 2G now runs the local stack on a temporary GitHub Linux runner. Phase 3 later owns the
+Workloop realm and OIDC security design.

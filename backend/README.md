@@ -68,6 +68,11 @@ Phase 2F addresses, credential boundaries, runtime commands, persistence evidenc
 instructions are in
 [`docs/migration/phase-2/KEYCLOAK_RUNTIME.md`](../docs/migration/phase-2/KEYCLOAK_RUNTIME.md).
 
+## GitHub Checks
+
+Phase 2G workflow triggers, permissions, jobs, remote evidence, known advisories, and rollback are
+in [`docs/migration/phase-2/GITHUB_CHECKS.md`](../docs/migration/phase-2/GITHUB_CHECKS.md).
+
 ## Dependency Locking
 
 Regenerate the development lock from `backend`:
