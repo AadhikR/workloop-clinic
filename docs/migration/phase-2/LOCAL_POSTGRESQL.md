@@ -33,18 +33,18 @@ DigitalOcean or Azure.
 Initialization scripts run only when the PostgreSQL volume is empty. Changing the password
 file later does not rotate credentials in an existing database.
 
-Create the ignored PostgreSQL and API environment files once from the repository root:
+Create the ignored PostgreSQL, API, and migration environment files once from the repository root:
 
 ```powershell
 & ".\scripts\new-local-postgres-env.ps1"
 ```
 
 The script never overwrites either file. On a new setup, it generates four unique 256-bit values,
-writes the database roles to `backend/.env.postgres`, and gives `backend/.env.api` only the
-Workloop runtime connection URL. If the PostgreSQL file already exists from Phase 2C, it creates
-only the missing API file with the existing runtime password. It does not display secret values.
-Store a protected copy outside Git if the local database must be recoverable after losing these
-files.
+writes the database roles to `backend/.env.postgres`, gives `backend/.env.api` only the Workloop
+runtime connection URL, and gives `backend/.env.migration` only the migration connection URL. If
+the PostgreSQL file already exists, it creates only missing service files with the matching
+existing passwords. It does not display secret values. Store a protected copy outside Git if the
+local database must be recoverable after losing these files.
 
 ## Commands
 

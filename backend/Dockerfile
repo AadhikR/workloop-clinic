@@ -14,6 +14,8 @@ COPY requirements.lock ./
 RUN python -m pip install --require-hashes --requirement requirements.lock
 
 COPY app ./app
+COPY alembic ./alembic
+COPY alembic.ini ./
 COPY logging.json ./
 
 USER workloop

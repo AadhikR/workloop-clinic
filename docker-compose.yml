@@ -1,6 +1,29 @@
 name: workloop-clinic
 
 services:
+  migrate:
+    build:
+      context: ./backend
+    image: workloop-api:local
+    profiles:
+      - tools
+    env_file:
+      - path: ./backend/.env.migration
+        required: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["alembic", "-c", "/app/alembic.ini", "upgrade", "head"]
+    read_only: true
+    volumes:
+      - ./backend/alembic:/app/alembic
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
   backend:
     build:
       context: ./backend

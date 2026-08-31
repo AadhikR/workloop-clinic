@@ -167,5 +167,5 @@ state. No rollback is needed, and no database volume deletion is authorized.
 
 ## Remaining work
 
-Phase 2E owns Alembic initialization and migration commands. Authentication, user identities,
-and Keycloak remain later work. Phase 2D authorization does not authorize Phase 2E.
+Phase 2E now provides Alembic initialization and migration commands without adding schema
+revisions. Authentication, user identities, and Keycloak remain later work.

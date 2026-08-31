@@ -206,7 +206,7 @@ Do not create abstractions merely to match this diagram. Start with the smallest
 |---|---|---|---:|
 | 0 | Baseline and inventory | Completed 2026-08-27 | 2–4 days |
 | 1 | DigitalOcean access and cost controls | Completed 2026-08-27 — spend alert deferred to Phase 6A gate | 1–2 days |
-| 2 | Local backend and infrastructure foundation | Phases 2A–2D completed; Phase 2E on hold | 4–7 days |
+| 2 | Local backend and infrastructure foundation | Phases 2A–2E completed; Phase 2F on hold | 4–7 days |
 | 3 | Keycloak authentication foundation | Not started | 1–2 weeks |
 | 4 | Portable database baseline | Not started | 1–2 weeks |
 | 5 | Authorization and tenant isolation | Not started | 1–2 weeks |
@@ -327,8 +327,8 @@ Run React, FastAPI, PostgreSQL, and Keycloak locally using repeatable commands.
 | 2B | Backend scaffold | Completed 2026-08-27; see [`docs/migration/phase-2/BACKEND_SCAFFOLD.md`](docs/migration/phase-2/BACKEND_SCAFFOLD.md) |
 | 2C | Local PostgreSQL | Completed 2026-08-31; see [`docs/migration/phase-2/LOCAL_POSTGRESQL.md`](docs/migration/phase-2/LOCAL_POSTGRESQL.md) |
 | 2D | FastAPI service | Completed 2026-08-31; see [`docs/migration/phase-2/FASTAPI_SERVICE.md`](docs/migration/phase-2/FASTAPI_SERVICE.md) |
-| 2E | Alembic foundation | On hold; awaiting explicit authorization |
-| 2F | Local Keycloak runtime | Not started |
+| 2E | Alembic foundation | Completed 2026-08-31; see [`docs/migration/phase-2/ALEMBIC_FOUNDATION.md`](docs/migration/phase-2/ALEMBIC_FOUNDATION.md) |
+| 2F | Local Keycloak runtime | On hold; awaiting explicit authorization |
 | 2G | Tests and GitHub checks | Not started |
 | 2H | Documentation and restart gate | Not started |
 
@@ -1465,8 +1465,21 @@ Decision needed: None for completed Phase 2D. Phase 2E requires separate authori
 Next action: Commit and push Phase 2D, then stop and await project-owner authorization for Phase 2E.
 ```
 
+### 2026-08-31 - Phase 2E
+
+```text
+Date: 2026-08-31
+Phase: 2E - Alembic foundation
+Change completed: Added shared SQLAlchemy metadata, deterministic constraint naming, Alembic online and offline configuration, an empty revision directory, a migration-only environment, a restricted one-shot Compose service, revision generation, and operating documentation.
+Tests run: Backend pytest, Ruff lint and format, strict Pyright including Alembic, migration image build, Alembic current, heads, check, repeated upgrade head, missing and invalid URL rejection, migration identity query, environment separation, one-shot container cleanup, local and container revision-template compilation, table inventory, FastAPI health, JavaScript unit tests, Vite build, git diff check, and credential scan.
+Result: Phase 2E gate passes. Alembic 1.19.1 connects as workloop_migration, repeated empty upgrades are safe, no revision or application table exists, metadata reports no drift, and FastAPI retains only its runtime credential.
+Known issues: The existing frontend chunk warning and lint baseline remain unchanged. Future generated revisions require manual review before application. The local database volume has no backup and contains synthetic development state only.
+Decision needed: None for completed Phase 2E. Phase 2F requires separate authorization.
+Next action: Commit and push Phase 2E, then stop and await project-owner authorization for Phase 2F.
+```
+
 ## Immediate Next Actions
 
-Phases 2A through 2D are complete. Local PostgreSQL 16.15 and FastAPI are healthy on loopback-only ports, and the API verifies its database connection through the restricted runtime account.
+Phases 2A through 2E are complete. PostgreSQL and FastAPI are healthy, and Alembic runs through a separate migration-only identity without introducing application tables.
 
-Phase 2E is on hold. Do not initialize Alembic, create a migration, change database ownership, or add schema objects until the project owner explicitly authorizes Phase 2E.
+Phase 2F is on hold. Do not add the Keycloak image, container, administrator credential, health checks, or port until the project owner explicitly authorizes Phase 2F.
