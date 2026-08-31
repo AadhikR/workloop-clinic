@@ -12,6 +12,7 @@ def set_required_environment(monkeypatch: MonkeyPatch) -> None:
         "FRONTEND_URL": "http://127.0.0.1:5173",
         "LOG_LEVEL": "INFO",
         "DATABASE_HEALTH_TIMEOUT_SECONDS": "5",
+        "APPLICATION_USER_LOOKUP_TIMEOUT_SECONDS": "5",
         "OIDC_ISSUER": "http://127.0.0.1:8080/realms/workloop-dev",
         "OIDC_AUDIENCE": "workloop-api",
         "OIDC_JWKS_URL": (
@@ -40,6 +41,14 @@ def test_settings_reject_non_postgresql_database(monkeypatch: MonkeyPatch) -> No
     monkeypatch.setenv("DATABASE_URL", "sqlite:///workloop.db")
 
     with pytest.raises(ValidationError, match=r"postgresql\+psycopg"):
+        Settings()  # pyright: ignore[reportCallIssue]
+
+
+def test_settings_reject_unbounded_application_user_lookup(monkeypatch: MonkeyPatch) -> None:
+    set_required_environment(monkeypatch)
+    monkeypatch.setenv("APPLICATION_USER_LOOKUP_TIMEOUT_SECONDS", "31")
+
+    with pytest.raises(ValidationError, match="APPLICATION_USER_LOOKUP_TIMEOUT_SECONDS"):
         Settings()  # pyright: ignore[reportCallIssue]
 
 

@@ -76,6 +76,12 @@ instructions are in
 Phase 3D configuration, validation rules, JWKS cache behavior, tests, and rollback notes are in
 [`docs/migration/phase-3/FASTAPI_TOKEN_VALIDATION.md`](../docs/migration/phase-3/FASTAPI_TOKEN_VALIDATION.md).
 
+## Application-user resolution
+
+Phase 3E issuer-and-subject lookup, active-account checks, safe failures, tests, and rollback notes
+are in
+[`docs/migration/phase-3/APPLICATION_USER_RESOLUTION.md`](../docs/migration/phase-3/APPLICATION_USER_RESOLUTION.md).
+
 ## GitHub Checks
 
 Phase 2G workflow triggers, permissions, jobs, remote evidence, known advisories, and rollback are

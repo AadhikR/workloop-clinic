@@ -13,8 +13,9 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 REALM_FILE = ROOT / "keycloak" / "realm" / "workloop-dev-realm.json"
@@ -25,6 +26,7 @@ REDIRECT_URI = "http://127.0.0.1:5174/auth/callback"
 LOGOUT_URI = "http://127.0.0.1:5174/"
 ORIGIN = "http://127.0.0.1:5174"
 KCADM_CONFIG = "/tmp/workloop-phase-3c-kcadm.config"
+PHASE_3_TEST_APP_USER_ID = "00000000-0000-0000-0000-00000000003e"
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -78,6 +80,23 @@ def run(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
         capture_output=True,
         text=True,
     )
+
+
+def psql(command: str, **variables: str) -> str:
+    arguments = [*DOCKER_COMPOSE, "exec", "-T", "postgres", "psql", "--username", "postgres"]
+    arguments.extend(["--dbname", "workloop", "--tuples-only", "--no-align"])
+    for name, value in variables.items():
+        arguments.extend(["--set", f"{name}={value}"])
+    arguments.extend(["--set", "ON_ERROR_STOP=1"])
+    result = subprocess.run(
+        arguments,
+        cwd=ROOT,
+        input=command,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.strip()
 
 
 def kcadm(*args: str) -> str:
@@ -245,7 +264,9 @@ def verify_clients(web: dict[str, Any], api: dict[str, Any]) -> None:
     ):
         assert attributes[setting] == "false"
 
-    mappers = [mapper for mapper in web["protocolMappers"] if mapper["name"] == "workloop-api-audience"]
+    mappers = [
+        mapper for mapper in web["protocolMappers"] if mapper["name"] == "workloop-api-audience"
+    ]
     assert len(mappers) == 1
     mapper = mappers[0]
     assert mapper["protocolMapper"] == "oidc-audience-mapper"
@@ -376,7 +397,9 @@ def authorize_with_login(
     password: str,
     verifier: str,
 ) -> tuple[str, urllib.request.OpenerDirector]:
-    challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
+    challenge = (
+        base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
+    )
     params = {
         "client_id": CLIENT_ID,
         "response_type": "code",
@@ -452,11 +475,55 @@ def verify_real_tokens(username: str, password: str) -> None:
     assert access_claims["typ"] == "Bearer"
     assert isinstance(access_claims.get("sub"), str) and access_claims["sub"]
     assert "offline_access" not in access_claims["scope"].split()
-    status, _, body = request(
-        "http://127.0.0.1:8000/api/v1/auth/token-check",
-        headers={"Authorization": f"Bearer {tokens['access_token']}"},
+
+    def assert_application_account_unavailable() -> None:
+        status, _, body = request(
+            "http://127.0.0.1:8000/api/v1/auth/token-check",
+            headers={"Authorization": f"Bearer {tokens['access_token']}"},
+        )
+        assert status == 403
+        assert json.loads(body) == {
+            "detail": {
+                "code": "application_account_unavailable",
+                "message": "Application account unavailable",
+            }
+        }
+
+    app_user_id = PHASE_3_TEST_APP_USER_ID
+    psql("DELETE FROM app_users WHERE id = :'app_user_id'", app_user_id=app_user_id)
+    assert_application_account_unavailable()
+    try:
+        psql(
+            "INSERT INTO app_users (id, identity_issuer, identity_subject, status) "
+            "VALUES (:'app_user_id', :'issuer', :'subject', 'pending_identity')",
+            app_user_id=app_user_id,
+            issuer=access_claims["iss"],
+            subject=access_claims["sub"],
+        )
+        assert_application_account_unavailable()
+        psql(
+            "UPDATE app_users SET status = 'disabled' WHERE id = :'app_user_id'",
+            app_user_id=app_user_id,
+        )
+        assert_application_account_unavailable()
+        psql(
+            "UPDATE app_users SET status = 'active' WHERE id = :'app_user_id'",
+            app_user_id=app_user_id,
+        )
+        status, _, body = request(
+            "http://127.0.0.1:8000/api/v1/auth/token-check",
+            headers={"Authorization": f"Bearer {tokens['access_token']}"},
+        )
+        assert status == 204 and body == b""
+    finally:
+        psql("DELETE FROM app_users WHERE id = :'app_user_id'", app_user_id=app_user_id)
+    assert (
+        psql(
+            "SELECT count(*) FROM app_users WHERE id = :'app_user_id'",
+            app_user_id=app_user_id,
+        )
+        == "0"
     )
-    assert status == 204 and body == b""
 
     id_claims = decode_claims(tokens["id_token"])
     assert id_claims["aud"] == CLIENT_ID
@@ -559,7 +626,7 @@ def verify_audience(web_client_id: str) -> None:
                 "keycloak",
                 "sh",
                 "-c",
-                f'IFS= read -r password; /opt/keycloak/bin/kcadm.sh set-password --config {KCADM_CONFIG} '
+                f"IFS= read -r password; /opt/keycloak/bin/kcadm.sh set-password --config {KCADM_CONFIG} "
                 f'-r workloop-dev --userid {user_id} --new-password "$password" --temporary=false',
             ],
             cwd=ROOT,

@@ -1,8 +1,11 @@
 import asyncio
 import logging
 import time
+import uuid
 from collections.abc import AsyncIterator, Iterator, Mapping
+from dataclasses import fields
 from typing import Any
+from unittest.mock import AsyncMock
 
 import httpx
 import jwt
@@ -13,6 +16,7 @@ from httpx import ASGITransport, AsyncClient
 from jwt.algorithms import RSAAlgorithm
 
 from app.auth.access_token import AccessTokenError, AccessTokenVerifier
+from app.auth.application_user import ApplicationUser, ApplicationUserResolver
 from app.auth.dependencies import VerifiedAccessToken
 
 ISSUER = "http://127.0.0.1:8080/realms/workloop-dev"
@@ -545,6 +549,9 @@ async def test_token_check_accepts_valid_token_without_returning_claims(
     verifier, jwks_client = make_verifier(endpoint, MutableClock())
     application = create_app()
     application.state.access_token_verifier = verifier
+    application_user_resolver = AsyncMock(spec=ApplicationUserResolver)
+    application_user_resolver.resolve.return_value = ApplicationUser(id=uuid.uuid4())
+    application.state.application_user_resolver = application_user_resolver
 
     try:
         async with AsyncClient(
@@ -560,6 +567,57 @@ async def test_token_check_accepts_valid_token_without_returning_claims(
     assert response.status_code == 204
     assert response.content == b""
     assert response.headers["cache-control"] == "no-store"
+    application_user_resolver.resolve.assert_awaited_once_with(
+        issuer=ISSUER,
+        subject="synthetic-subject",
+    )
+
+
+@pytest.mark.asyncio
+async def test_email_and_untrusted_authorization_claims_are_not_returned_by_verifier(
+    signing_keys: tuple[rsa.RSAPrivateKey, rsa.RSAPrivateKey, rsa.RSAPrivateKey],
+) -> None:
+    key = signing_keys[0]
+    endpoint = JwksEndpoint({"keys": [make_jwk(key, "current-key")]})
+    verifier, client = make_verifier(endpoint, MutableClock())
+
+    try:
+        first = await verifier.verify(
+            make_token(
+                key,
+                "current-key",
+                claims=make_claims(
+                    email="first@example.test",
+                    realm_access={"roles": ["admin"]},
+                    resource_access={"workloop-api": {"roles": ["admin"]}},
+                    company_id="browser-company",
+                    employee_id="browser-employee",
+                ),
+            )
+        )
+        second = await verifier.verify(
+            make_token(
+                key,
+                "current-key",
+                claims=make_claims(
+                    email="changed@example.test",
+                    realm_access={"roles": ["employee"]},
+                    company_id="other-browser-company",
+                ),
+            )
+        )
+    finally:
+        await client.aclose()
+
+    assert first == second
+    assert tuple(field.name for field in fields(first)) == (
+        "issuer",
+        "subject",
+        "audience",
+        "expires_at",
+        "issued_at",
+        "not_before",
+    )
 
 
 @pytest.mark.parametrize(
