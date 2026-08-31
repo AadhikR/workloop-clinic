@@ -69,6 +69,14 @@ $apiLines = @(
     "FRONTEND_URL=http://127.0.0.1:5173"
     "LOG_LEVEL=INFO"
     "DATABASE_HEALTH_TIMEOUT_SECONDS=5"
+    "OIDC_ISSUER=http://127.0.0.1:8080/realms/workloop-dev"
+    "OIDC_AUDIENCE=workloop-api"
+    "OIDC_JWKS_URL=http://127.0.0.1:8080/realms/workloop-dev/protocol/openid-connect/certs"
+    "OIDC_JWKS_CONNECT_TIMEOUT_SECONDS=2"
+    "OIDC_JWKS_READ_TIMEOUT_SECONDS=2"
+    "OIDC_JWKS_TOTAL_TIMEOUT_SECONDS=5"
+    "OIDC_JWKS_CACHE_TTL_SECONDS=300"
+    "OIDC_JWKS_REFRESH_COOLDOWN_SECONDS=1"
     "DATABASE_URL=postgresql+psycopg://workloop_runtime:${runtimePassword}@postgres:5432/workloop"
 )
 

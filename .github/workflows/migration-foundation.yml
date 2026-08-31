@@ -90,13 +90,17 @@ jobs:
         run: |
           curl --fail --silent --show-error http://127.0.0.1:8000/health | jq --exit-status '.status == "ok" and .database == "ok"'
           curl --fail --silent --show-error http://127.0.0.1:9000/health/ready | jq --exit-status '.status == "UP"'
+      - name: Configure access-token subject
+        run: |
+          python scripts/configure-phase-3d-keycloak.py
+          python scripts/configure-phase-3d-keycloak.py
       - name: Verify database boundaries
         run: |
           test "$(docker compose exec -T postgres psql --username postgres --dbname workloop --tuples-only --no-align --command "SELECT count(*) FROM pg_tables WHERE schemaname = 'public';")" = "5"
           test "$(docker compose exec -T postgres psql --username postgres --dbname keycloak --tuples-only --no-align --command "SELECT count(*) FROM realm;")" = "2"
-      - name: Verify Keycloak realm security
+      - name: Verify Keycloak and FastAPI authentication
         run: python scripts/verify-phase-3c-keycloak.py
-      - name: Verify Keycloak realm persistence
+      - name: Verify authentication persistence
         run: |
           docker compose up --detach --force-recreate --wait keycloak
           python scripts/verify-phase-3c-keycloak.py

@@ -21,6 +21,11 @@ def make_settings() -> Settings:
         database_url=SecretStr(
             "postgresql+psycopg://workloop_runtime:test-secret@postgres/workloop"
         ),
+        oidc_issuer=AnyHttpUrl("http://127.0.0.1:8080/realms/workloop-dev"),
+        oidc_audience="workloop-api",
+        oidc_jwks_url=AnyHttpUrl(
+            "http://127.0.0.1:8080/realms/workloop-dev/protocol/openid-connect/certs"
+        ),
     )
 
 

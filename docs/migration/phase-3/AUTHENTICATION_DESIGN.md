@@ -246,7 +246,7 @@ in all `VITE_` variables.
 | 3A | Authentication design | Completed 2026-08-31 |
 | 3B | Minimal identity database schema | Completed 2026-08-31; see [`IDENTITY_SCHEMA.md`](IDENTITY_SCHEMA.md) |
 | 3C | Keycloak realm and public clients | Completed 2026-08-31; see [`KEYCLOAK_CONFIGURATION.md`](KEYCLOAK_CONFIGURATION.md) |
-| 3D | FastAPI token validation | On hold |
+| 3D | FastAPI token validation | Completed 2026-08-31; see [`FASTAPI_TOKEN_VALIDATION.md`](FASTAPI_TOKEN_VALIDATION.md) |
 | 3E | Application-user resolution | On hold |
 | 3F | Separate React migration build | On hold |
 | 3G | Synthetic login and account lifecycle | On hold |
@@ -286,40 +286,12 @@ Phase 3B completed on 2026-08-31. Its implementation and validation are recorded
 Phase 3C completed on 2026-08-31. Its implementation, protocol tests, and security review are
 recorded in [`KEYCLOAK_CONFIGURATION.md`](KEYCLOAK_CONFIGURATION.md).
 
+Phase 3D completed on 2026-08-31. Its bearer dependency, JWKS cache behavior, live token checks,
+failure tests, and security review are recorded in
+[`FASTAPI_TOKEN_VALIDATION.md`](FASTAPI_TOKEN_VALIDATION.md).
+
 ## Next model recommendation
 
-Use **GPT-5.6** for Phase 3D. JWT signature, issuer, audience, algorithm, JWKS cache, key rotation,
-and outage behavior form an authentication boundary and need an independent security review.
-
-Switch only from the clean, synchronized branch after Phase 3C checks pass. Phase 3D still needs
-explicit authorization.
-
-## Phase 3D handoff prompt
-
-```text
-Continue the Workloop Clinic migration with Phase 3D only: FastAPI token validation.
-
-First read AGENTS.md, DIGITALOCEAN_MIGRATION_PLAN.md, docs/migration/phase-2/README.md,
-docs/migration/phase-3/AUTHENTICATION_DESIGN.md,
-docs/migration/phase-3/IDENTITY_SCHEMA.md, and
-docs/migration/phase-3/KEYCLOAK_CONFIGURATION.md. Inspect the current branch, status, recent
-commits, Keycloak realm, FastAPI configuration, dependencies, Docker Compose, and backend tests.
-
-Expected state:
-- Branch migration/fastapi-keycloak is clean and synchronized.
-- Phase 2, Phase 3A, Phase 3B, and Phase 3C are complete.
-- Phase 3D is on hold and must not start without explicit authorization.
-- The local workloop-dev realm and restricted clients exist and persist.
-- No FastAPI JWT validation, application-user resolution, or migration frontend exists.
-
-When Phase 3D is authorized, implement only FastAPI bearer access-token validation against the
-approved Keycloak issuer and workloop-api audience. Pin RS256, cache JWKS with bounded timeouts,
-refresh once for an unknown key ID, distinguish access tokens from ID tokens, and fail closed.
-Do not add application-user resolution, role authorization, provisioning, login UI, migration
-frontend code, business features, DigitalOcean resources, or Supabase coupling.
-
-Never expose tokens or secrets in logs. Test valid, expired, future, wrong-issuer, wrong-audience,
-wrong-algorithm, unknown-key, malformed, and ID-token cases, plus signing-key rotation and a bounded
-JWKS outage. Update the Phase 3 tracker and evidence. Commit and push only after the Phase 3D gate
-passes, then stop before Phase 3E or any owner decision.
-```
+Phase 3D completed on 2026-08-31. Use **GPT-5.6** for Phase 3E because application-user mapping and
+disabled-account enforcement form the next authorization boundary. The ready handoff is in
+[`FASTAPI_TOKEN_VALIDATION.md`](FASTAPI_TOKEN_VALIDATION.md).

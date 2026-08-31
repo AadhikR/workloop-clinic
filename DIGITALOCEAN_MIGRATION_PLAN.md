@@ -236,7 +236,7 @@ Do not create abstractions merely to match this diagram. Start with the smallest
 | 0 | Baseline and inventory | Completed 2026-08-27 | 2–4 days |
 | 1 | DigitalOcean access and cost controls | Completed 2026-08-27 — spend alert deferred to Phase 6A gate | 1–2 days |
 | 2 | Local backend and infrastructure foundation | Completed 2026-08-31 | 4–7 days |
-| 3 | Keycloak authentication foundation | Phase 3A, Phase 3B, and Phase 3C completed; Phase 3D on hold | 1–2 weeks |
+| 3 | Keycloak authentication foundation | Phase 3A through Phase 3D completed; Phase 3E on hold | 1–2 weeks |
 | 4 | Portable database baseline | Not started | 1–2 weeks |
 | 5 | Authorization and tenant isolation | Not started | 1–2 weeks |
 | 6 | Shared API and frontend client | Not started | 3–5 days |
@@ -441,7 +441,7 @@ This phase applies to the separate migration build, not the legacy Supabase buil
 | 3A | Authentication design | Completed 2026-08-31; see [`docs/migration/phase-3/AUTHENTICATION_DESIGN.md`](docs/migration/phase-3/AUTHENTICATION_DESIGN.md) |
 | 3B | Minimal identity database schema | Completed 2026-08-31; see [`docs/migration/phase-3/IDENTITY_SCHEMA.md`](docs/migration/phase-3/IDENTITY_SCHEMA.md) |
 | 3C | Keycloak realm and public clients | Completed 2026-08-31; see [`docs/migration/phase-3/KEYCLOAK_CONFIGURATION.md`](docs/migration/phase-3/KEYCLOAK_CONFIGURATION.md) |
-| 3D | FastAPI token validation | On hold |
+| 3D | FastAPI token validation | Completed 2026-08-31; see [`docs/migration/phase-3/FASTAPI_TOKEN_VALIDATION.md`](docs/migration/phase-3/FASTAPI_TOKEN_VALIDATION.md) |
 | 3E | Application-user resolution | On hold |
 | 3F | Separate React migration build | On hold |
 | 3G | Synthetic login and account lifecycle | On hold |
@@ -1604,13 +1604,26 @@ Decision needed: None for completed Phase 3C. Phase 3D requires separate authori
 Next action: Commit and push Phase 3C, verify GitHub checks, then stop before Phase 3D.
 ```
 
+### 2026-08-31 - Phase 3D
+
+```text
+Date: 2026-08-31
+Phase: 3D - FastAPI access-token validation
+Change completed: Added strict Authorization bearer parsing, RS256 signature verification, exact issuer and API audience checks, required typed claims, ID-token rejection, bounded JWKS retrieval and caching, unknown-key rotation refresh, safe outage behavior, and an empty token-check endpoint. Added an idempotent subject-mapper update for existing Phase 3C realms.
+Tests run: 55 backend tests; Ruff; strict Pyright; dependency checks; real Keycloak PKCE access-token acceptance and ID-token rejection; repeated mapper configuration; Keycloak container replacement; log leakage scan; service health; Alembic current, heads, and metadata checks; frontend unit tests and build; Compose validation; independent GPT-5.6 security review.
+Result: The local Phase 3D gate passes. FastAPI accepts only approved access tokens, cache and outage paths fail closed, the existing realm upgrade is repeatable, and no application-user or authorization lookup exists.
+Known issues: Local Keycloak still uses start-dev and HTTP. Rate limiting, cloud TLS behavior, administrator MFA, and application-user status remain later approved work. GitHub Actions must pass after push.
+Decision needed: None for completed Phase 3D. Phase 3E requires separate authorization.
+Next action: Commit and push Phase 3D, verify GitHub checks, then stop before Phase 3E.
+```
+
 ## Immediate Next Actions
 
 Phase 2 is complete. Local services are healthy, Alembic uses a separate migration identity,
 Keycloak state persists, and both a clean local checkout and GitHub's Linux runner can recreate
 the foundation.
 
-Phase 3A, Phase 3B, and Phase 3C are complete. The local identity schema is at revision
-`f41c9a7b23d1`, and the restricted `workloop-dev` realm persists in local PostgreSQL. Phase 3D is
-on hold. Do not add FastAPI token validation, application-user resolution, a migration frontend,
-or synthetic application users until the project owner separately authorizes the relevant part.
+Phase 3A through Phase 3D are complete. The local identity schema is at revision `f41c9a7b23d1`,
+the restricted `workloop-dev` realm persists in local PostgreSQL, and FastAPI validates its access
+tokens. Phase 3E is on hold. Do not add application-user resolution, a migration frontend, or
+synthetic application users until the project owner separately authorizes the relevant part.

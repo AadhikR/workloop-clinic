@@ -75,6 +75,12 @@ scopes are `profile` and `email`; `offline_access` is neither a default nor opti
 origin, or assigned client scope. The browser client's audience mapper adds `workloop-api` only to
 access tokens. ID tokens retain `workloop-migration-web` as their audience.
 
+Phase 3D adds the standard `oidc-sub-mapper` directly to the browser client because its restricted
+scope set does not put `sub` in access tokens. The idempotent
+`scripts/configure-phase-3d-keycloak.py` command handles existing realms because startup import
+skips them. The mapper adds only the opaque Keycloak subject to access tokens and introspection
+output. It adds no role, company, employee, email, or authorization claim.
+
 ## Automated checks
 
 `scripts/verify-phase-3c-keycloak.py` checks the source file, imported Admin API representation,
@@ -89,7 +95,9 @@ and OIDC endpoints. It verifies:
 - Implicit, password, client-credential, device, and CIBA requests fail.
 - A real Authorization Code exchange accepts the matching verifier and rejects a mismatched one.
 - A real access token contains `aud=workloop-api` and `azp=workloop-migration-web`.
+- A real access token contains a non-empty opaque subject and passes FastAPI validation.
 - The ID token audience remains `workloop-migration-web`.
+- FastAPI rejects the real ID token when it is sent as a bearer token.
 - Refresh rotation succeeds once and rejects reuse of the previous refresh token.
 - A request for `offline_access` fails with `invalid_scope`.
 - Exact logout redirection succeeds and altered logout destinations fail.
@@ -147,8 +155,5 @@ separate owner approval. Do not delete the shared PostgreSQL volume.
 
 ## Next part
 
-Phase 3D remains on hold. It owns FastAPI JWT validation and must not begin without separate
-project-owner authorization.
-
-Use **GPT-5.6** for Phase 3D. Token signature, issuer, audience, algorithm, key rotation, and outage
-handling are authentication-sensitive and need an independent security review.
+Phase 3D completed on 2026-08-31. Its implementation and evidence are in
+[`FASTAPI_TOKEN_VALIDATION.md`](FASTAPI_TOKEN_VALIDATION.md). Phase 3E remains on hold.

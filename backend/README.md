@@ -1,6 +1,6 @@
 # Workloop API
 
-This directory contains the portable Python backend that will replace direct browser access to Supabase. It has a containerized FastAPI service, a database-backed `/health` endpoint, and an Alembic migration runner. Business routes and authentication are added in later phases.
+This directory contains the portable Python backend that will replace direct browser access to Supabase. It has a containerized FastAPI service, a database-backed `/health` endpoint, an Alembic migration runner, and Keycloak access-token validation. Business routes and application-user resolution are added in later phases.
 
 ## Requirements
 
@@ -70,6 +70,11 @@ in [`docs/migration/phase-2/ALEMBIC_FOUNDATION.md`](../docs/migration/phase-2/AL
 Phase 2F addresses, credential boundaries, runtime commands, persistence evidence, and rollback
 instructions are in
 [`docs/migration/phase-2/KEYCLOAK_RUNTIME.md`](../docs/migration/phase-2/KEYCLOAK_RUNTIME.md).
+
+## Access-token validation
+
+Phase 3D configuration, validation rules, JWKS cache behavior, tests, and rollback notes are in
+[`docs/migration/phase-3/FASTAPI_TOKEN_VALIDATION.md`](../docs/migration/phase-3/FASTAPI_TOKEN_VALIDATION.md).
 
 ## GitHub Checks
 

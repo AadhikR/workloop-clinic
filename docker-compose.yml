@@ -73,6 +73,8 @@ services:
     env_file:
       - path: ./backend/.env.api
         required: true
+    environment:
+      OIDC_JWKS_URL: http://keycloak:8080/realms/workloop-dev/protocol/openid-connect/certs
     depends_on:
       postgres:
         condition: service_healthy

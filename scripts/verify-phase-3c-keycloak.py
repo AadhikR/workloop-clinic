@@ -109,9 +109,10 @@ def request(
     url: str,
     *,
     data: dict[str, str] | None = None,
+    headers: dict[str, str] | None = None,
 ) -> tuple[int, Any, bytes]:
     encoded = urllib.parse.urlencode(data).encode() if data is not None else None
-    req = urllib.request.Request(url, data=encoded)
+    req = urllib.request.Request(url, data=encoded, headers=headers or {})
     try:
         response = OPENER.open(req, timeout=10)
     except urllib.error.HTTPError as error:
@@ -251,6 +252,13 @@ def verify_clients(web: dict[str, Any], api: dict[str, Any]) -> None:
     assert mapper["config"]["included.client.audience"] == "workloop-api"
     assert mapper["config"]["access.token.claim"] == "true"
     assert mapper["config"]["id.token.claim"] == "false"
+    subject_mappers = [
+        mapper for mapper in web["protocolMappers"] if mapper["name"] == "access-token-subject"
+    ]
+    assert len(subject_mappers) == 1
+    subject_mapper = subject_mappers[0]
+    assert subject_mapper["protocolMapper"] == "oidc-sub-mapper"
+    assert subject_mapper["config"]["access.token.claim"] == "true"
 
     assert api["enabled"] is True
     assert api["bearerOnly"] is True
@@ -442,11 +450,23 @@ def verify_real_tokens(username: str, password: str) -> None:
     assert audience == "workloop-api" or "workloop-api" in audience
     assert access_claims["azp"] == CLIENT_ID
     assert access_claims["typ"] == "Bearer"
+    assert isinstance(access_claims.get("sub"), str) and access_claims["sub"]
     assert "offline_access" not in access_claims["scope"].split()
+    status, _, body = request(
+        "http://127.0.0.1:8000/api/v1/auth/token-check",
+        headers={"Authorization": f"Bearer {tokens['access_token']}"},
+    )
+    assert status == 204 and body == b""
 
     id_claims = decode_claims(tokens["id_token"])
     assert id_claims["aud"] == CLIENT_ID
     assert id_claims.get("aud") != "workloop-api"
+    status, _, body = request(
+        "http://127.0.0.1:8000/api/v1/auth/token-check",
+        headers={"Authorization": f"Bearer {tokens['id_token']}"},
+    )
+    assert status == 401
+    assert json.loads(body)["detail"]["code"] == "invalid_access_token"
 
     refresh_token = tokens["refresh_token"]
     status, _, body = request(
@@ -590,7 +610,7 @@ def main() -> None:
     finally:
         run("exec", "-T", "keycloak", "rm", "-f", KCADM_CONFIG, check=False)
 
-    print("Phase 3C Keycloak checks passed")
+    print("Keycloak and FastAPI authentication checks passed")
 
 
 if __name__ == "__main__":
@@ -598,5 +618,5 @@ if __name__ == "__main__":
         main()
     except (AssertionError, RuntimeError, subprocess.CalledProcessError) as error:
         detail = str(error) or error.__class__.__name__
-        print(f"Phase 3C Keycloak checks failed: {detail}", file=sys.stderr)
+        print(f"Keycloak and FastAPI authentication checks failed: {detail}", file=sys.stderr)
         raise SystemExit(1) from error
