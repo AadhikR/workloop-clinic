@@ -205,8 +205,8 @@ Do not create abstractions merely to match this diagram. Start with the smallest
 | Phase | Name | Status | Estimated effort |
 |---|---|---|---:|
 | 0 | Baseline and inventory | Completed 2026-08-27 | 2–4 days |
-| 1 | DigitalOcean access and cost controls | On hold — awaiting explicit authorization | 1–2 days |
-| 2 | Local backend and infrastructure foundation | Not started | 4–7 days |
+| 1 | DigitalOcean access and cost controls | Completed 2026-08-27 — spend alert deferred to Phase 6A gate | 1–2 days |
+| 2 | Local backend and infrastructure foundation | Phase 2A completed — Phase 2B on hold | 4–7 days |
 | 3 | Keycloak authentication foundation | Not started | 1–2 weeks |
 | 4 | Portable database baseline | Not started | 1–2 weeks |
 | 5 | Authorization and tenant isolation | Not started | 1–2 weeks |
@@ -307,21 +307,30 @@ Use a planning range of USD 50–150 per month for the shared development enviro
 
 ### Deliverables
 
-- DigitalOcean development project.
-- Confirmed GitHub integration.
-- Permission checklist.
-- Cost estimate and alert.
-- Secret inventory and ownership list.
+- [`docs/migration/phase-1/README.md`](docs/migration/phase-1/README.md) records the DigitalOcean project, GitHub integration, permission checklist, region, cost estimate, accepted alert deferral, secret inventory, ownership, and branch policy.
 
 ### Completion Gate
 
-The repository is visible to App Platform, required resources can be created, and no credentials have been committed.
+Passed on 2026-08-27 with a time-bound exception: the repository is visible to App Platform, required resource categories can be created, no credentials were committed, and the spend alert is deferred as a hard Phase 6A pre-provisioning checkpoint.
 
 ## Phase 2: Local Backend and Infrastructure Foundation
 
 ### Objective
 
 Run React, FastAPI, PostgreSQL, and Keycloak locally using repeatable commands.
+
+### Part Status
+
+| Part | Scope | Status |
+|---|---|---|
+| 2A | Computer readiness | Completed 2026-08-27; see [`docs/migration/phase-2/READINESS.md`](docs/migration/phase-2/READINESS.md) |
+| 2B | Backend scaffold | On hold — awaiting explicit authorization |
+| 2C | Local PostgreSQL | Not started |
+| 2D | FastAPI service | Not started |
+| 2E | Alembic foundation | Not started |
+| 2F | Local Keycloak runtime | Not started |
+| 2G | Tests and GitHub checks | Not started |
+| 2H | Documentation and restart gate | Not started |
 
 ### Work
 
@@ -1391,15 +1400,34 @@ Decision needed: None blocks the completed Phase 0 gate.
 Next action: Continue waiting for explicit project-owner authorization before Phase 1.
 ```
 
+### 2026-08-27 — Phase 1
+
+```text
+Date: 2026-08-27
+Phase: 1 — DigitalOcean access and cost controls
+Change completed: Confirmed required resource categories; connected GitHub; created the empty workloop-clinic-dev project; selected Frankfurt; created and pushed migration/fastapi-keycloak; recorded costs, ownership, branch policy, and future secrets.
+Tests run: Git branch and upstream verification; remote branch verification; repository credential scan; git diff --check.
+Result: Phase 1 gate passes with no billable resources created. The project owner accepted deferral of the spend alert.
+Known issues: Spend alert must be created or explicitly reconsidered before Phase 6A provisions billable resources. GitHub repository-only installation scope is user-confirmed intent and should be rechecked before deployment.
+Decision needed: None before local Phase 2. Phase 2 still requires explicit authorization.
+Next action: Stop and await project-owner authorization for Phase 2.
+```
+
+### 2026-08-27 — Phase 2A
+
+```text
+Date: 2026-08-27
+Phase: 2A — Computer readiness
+Change completed: Verified Windows and hardware capacity; installed WSL 2, Python 3.12, Docker Desktop, Docker Engine, and Docker Compose; confirmed local ports and disk space.
+Tests run: WSL status/version; Docker client/server/Compose version and Linux engine info; Python/pip/architecture checks; Node/npm/Git versions; memory/disk and listening-port checks.
+Result: Phase 2A gate passes. Docker uses WSL 2 and runs successfully. Python 3.12 is available alongside unchanged Anaconda Python 3.9. Required ports are free.
+Known issues: Docker and project services require memory monitoring; close unnecessary applications before running the stack. The plain python command still selects Anaconda, so Phase 2B must create its virtual environment with the explicit Python 3.12 path.
+Decision needed: None for completed Phase 2A. Phase 2B requires separate authorization.
+Next action: Stop and await project-owner authorization for Phase 2B.
+```
+
 ## Immediate Next Actions
 
-Phase 1 is on hold. Take no DigitalOcean or Git branching action until the project owner explicitly asks to start Phase 1.
+Phase 2B is on hold. Do not begin backend scaffolding, install project dependencies, create project containers, or provision DigitalOcean resources until the project owner explicitly asks to start Phase 2B.
 
-After authorization, Phase 1 will:
-
-1. Confirm DigitalOcean team permissions.
-2. Connect the private GitHub repository to the DigitalOcean team with access limited to this repository where possible.
-3. Create the DigitalOcean development project, cost estimate, and budget alert.
-4. Confirm one region that supports the required App Platform, Managed PostgreSQL, and Spaces resources.
-5. Record the secret inventory and owner without storing secret values in Git.
-6. Prepare the migration branch only after checking the current Git worktree and receiving separate approval for branch or commit actions.
+When Phase 2B is authorized, first explain the backend files, Python virtual environment, dependency downloads, disk impact, tests, and rollback boundary required by the Phase Execution Protocol.
