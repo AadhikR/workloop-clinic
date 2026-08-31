@@ -92,10 +92,12 @@ def psql(command: str, **variables: str) -> str:
         arguments,
         cwd=ROOT,
         input=command,
-        check=True,
+        check=False,
         capture_output=True,
         text=True,
     )
+    if result.returncode != 0:
+        raise RuntimeError("database fixture operation failed")
     return result.stdout.strip()
 
 
@@ -476,22 +478,22 @@ def verify_real_tokens(username: str, password: str) -> None:
     assert isinstance(access_claims.get("sub"), str) and access_claims["sub"]
     assert "offline_access" not in access_claims["scope"].split()
 
-    def assert_application_account_unavailable() -> None:
+    def assert_application_account_unavailable(state: str) -> None:
         status, _, body = request(
             "http://127.0.0.1:8000/api/v1/auth/token-check",
             headers={"Authorization": f"Bearer {tokens['access_token']}"},
         )
-        assert status == 403
+        assert status == 403, f"{state} mapping did not return the safe account rejection"
         assert json.loads(body) == {
             "detail": {
                 "code": "application_account_unavailable",
                 "message": "Application account unavailable",
             }
-        }
+        }, f"{state} mapping returned an unexpected account rejection"
 
     app_user_id = PHASE_3_TEST_APP_USER_ID
     psql("DELETE FROM app_users WHERE id = :'app_user_id'", app_user_id=app_user_id)
-    assert_application_account_unavailable()
+    assert_application_account_unavailable("missing")
     try:
         psql(
             "INSERT INTO app_users (id, identity_issuer, identity_subject, status) "
@@ -500,12 +502,12 @@ def verify_real_tokens(username: str, password: str) -> None:
             issuer=access_claims["iss"],
             subject=access_claims["sub"],
         )
-        assert_application_account_unavailable()
+        assert_application_account_unavailable("pending")
         psql(
             "UPDATE app_users SET status = 'disabled' WHERE id = :'app_user_id'",
             app_user_id=app_user_id,
         )
-        assert_application_account_unavailable()
+        assert_application_account_unavailable("disabled")
         psql(
             "UPDATE app_users SET status = 'active' WHERE id = :'app_user_id'",
             app_user_id=app_user_id,
@@ -514,7 +516,7 @@ def verify_real_tokens(username: str, password: str) -> None:
             "http://127.0.0.1:8000/api/v1/auth/token-check",
             headers={"Authorization": f"Bearer {tokens['access_token']}"},
         )
-        assert status == 204 and body == b""
+        assert status == 204 and body == b"", "active mapping was not accepted"
     finally:
         psql("DELETE FROM app_users WHERE id = :'app_user_id'", app_user_id=app_user_id)
     assert (
@@ -523,7 +525,7 @@ def verify_real_tokens(username: str, password: str) -> None:
             app_user_id=app_user_id,
         )
         == "0"
-    )
+    ), "temporary application mapping was not removed"
 
     id_claims = decode_claims(tokens["id_token"])
     assert id_claims["aud"] == CLIENT_ID
