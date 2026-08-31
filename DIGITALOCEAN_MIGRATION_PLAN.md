@@ -1611,10 +1611,10 @@ Date: 2026-08-31
 Phase: 3D - FastAPI access-token validation
 Change completed: Added strict Authorization bearer parsing, RS256 signature verification, exact issuer and API audience checks, required typed claims, ID-token rejection, bounded JWKS retrieval and caching, unknown-key rotation refresh, safe outage behavior, and an empty token-check endpoint. Added an idempotent subject-mapper update for existing Phase 3C realms.
 Tests run: 55 backend tests; Ruff; strict Pyright; dependency checks; real Keycloak PKCE access-token acceptance and ID-token rejection; repeated mapper configuration; Keycloak container replacement; log leakage scan; service health; Alembic current, heads, and metadata checks; frontend unit tests and build; Compose validation; independent GPT-5.6 security review.
-Result: The local Phase 3D gate passes. FastAPI accepts only approved access tokens, cache and outage paths fail closed, the existing realm upgrade is repeatable, and no application-user or authorization lookup exists.
-Known issues: Local Keycloak still uses start-dev and HTTP. Rate limiting, cloud TLS behavior, administrator MFA, and application-user status remain later approved work. GitHub Actions must pass after push.
+Result: The Phase 3D gate passes locally and in GitHub Actions run 16. FastAPI accepts only approved access tokens, cache and outage paths fail closed, the existing realm upgrade is repeatable, and no application-user or authorization lookup exists.
+Known issues: Local Keycloak still uses start-dev and HTTP. Rate limiting, cloud TLS behavior, administrator MFA, and application-user status remain later approved work.
 Decision needed: None for completed Phase 3D. Phase 3E requires separate authorization.
-Next action: Commit and push Phase 3D, verify GitHub checks, then stop before Phase 3E.
+Next action: Stop before Phase 3E and wait for separate project-owner authorization.
 ```
 
 ## Immediate Next Actions

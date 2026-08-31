@@ -123,9 +123,10 @@ Keycloak JWKS, streamed response limits, outage cooldown timing, total transfer 
 enforcement, and the missing access-token subject. The final live token flow passed after those
 fixes.
 
-GitHub Actions must pass after the Phase 3D commit is pushed. The workflow repeats backend quality,
-frontend regression, Alembic lifecycle, realm restrictions, real FastAPI token validation, ID-token
-rejection, and Keycloak persistence checks on a fresh stack.
+GitHub Actions run 16 passed on commit `b753ce8` on 2026-08-31. Backend quality, frontend regression,
+and full-stack smoke all passed. The fresh full-stack job imported the mapper-free Phase 3C realm,
+ran the Phase 3D mapper command twice, validated a real access token, rejected the ID token, replaced
+Keycloak, repeated the live checks, and removed the temporary stack.
 
 ## Rollback
 
