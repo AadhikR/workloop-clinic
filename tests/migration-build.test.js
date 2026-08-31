@@ -98,6 +98,7 @@ test('runs the migration server on its registered fixed port', async () => {
   const server = await createServer({
     configFile: migrationConfigFile,
     envFile: false,
+    optimizeDeps: { noDiscovery: true },
   })
   try {
     await server.listen()
@@ -115,6 +116,7 @@ test('fails instead of selecting another port when 5174 is occupied', async () =
   const server = await createServer({
     configFile: migrationConfigFile,
     envFile: false,
+    optimizeDeps: { noDiscovery: true },
   })
   try {
     await assert.rejects(server.listen(), /Port 5174 is already in use/)
