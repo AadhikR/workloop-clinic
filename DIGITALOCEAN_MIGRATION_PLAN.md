@@ -206,7 +206,7 @@ Do not create abstractions merely to match this diagram. Start with the smallest
 |---|---|---|---:|
 | 0 | Baseline and inventory | Completed 2026-08-27 | 2–4 days |
 | 1 | DigitalOcean access and cost controls | Completed 2026-08-27 — spend alert deferred to Phase 6A gate | 1–2 days |
-| 2 | Local backend and infrastructure foundation | Phases 2A–2B completed — Phase 2C on hold | 4–7 days |
+| 2 | Local backend and infrastructure foundation | Phases 2A–2C completed; Phase 2D on hold | 4–7 days |
 | 3 | Keycloak authentication foundation | Not started | 1–2 weeks |
 | 4 | Portable database baseline | Not started | 1–2 weeks |
 | 5 | Authorization and tenant isolation | Not started | 1–2 weeks |
@@ -325,8 +325,8 @@ Run React, FastAPI, PostgreSQL, and Keycloak locally using repeatable commands.
 |---|---|---|
 | 2A | Computer readiness | Completed 2026-08-27; see [`docs/migration/phase-2/READINESS.md`](docs/migration/phase-2/READINESS.md) |
 | 2B | Backend scaffold | Completed 2026-08-27; see [`docs/migration/phase-2/BACKEND_SCAFFOLD.md`](docs/migration/phase-2/BACKEND_SCAFFOLD.md) |
-| 2C | Local PostgreSQL | On hold — awaiting explicit authorization |
-| 2D | FastAPI service | Not started |
+| 2C | Local PostgreSQL | Completed 2026-08-31; see [`docs/migration/phase-2/LOCAL_POSTGRESQL.md`](docs/migration/phase-2/LOCAL_POSTGRESQL.md) |
+| 2D | FastAPI service | On hold; awaiting explicit authorization |
 | 2E | Alembic foundation | Not started |
 | 2F | Local Keycloak runtime | Not started |
 | 2G | Tests and GitHub checks | Not started |
@@ -1439,8 +1439,21 @@ Decision needed: None for completed Phase 2B. Phase 2C requires separate authori
 Next action: Stop and await project-owner authorization for Phase 2C.
 ```
 
+### 2026-08-31 - Phase 2C
+
+```text
+Date: 2026-08-31
+Phase: 2C - Local PostgreSQL
+Change completed: Added a digest-pinned PostgreSQL 16.15 Compose service, loopback-only host port, persistent volume, health check, separate Workloop and Keycloak databases, least-privilege roles, local password generation, and operating documentation.
+Tests run: Compose validation; image and shell syntax checks; PostgreSQL health and version checks; TCP password authentication for four accounts; ownership and role checks; cross-database denial tests; runtime database-creation denial; host port inspection; container replacement and persistence test; backend pytest, Ruff, format, Pyright, and pip check; JavaScript unit tests; Vite production build; git diff check; credential scan.
+Result: Phase 2C gate passes. PostgreSQL is healthy on 127.0.0.1:5432, role separation works, the named volume survived container replacement, backend checks pass, 14 JavaScript unit tests pass, and the frontend build succeeds with its existing chunk warning.
+Known issues: The automation shell requires Docker's binary directory to be added to PATH for credential-helper operations. The local volume has no backup and must contain synthetic development data only. The existing frontend lint baseline remains outside this part.
+Decision needed: None for completed Phase 2C. Phase 2D requires separate authorization.
+Next action: Stop and await project-owner authorization for Phase 2D.
+```
+
 ## Immediate Next Actions
 
-Phase 2C is on hold. Do not create PostgreSQL containers, passwords, databases, users, ports, networks, or volumes until the project owner explicitly asks to start Phase 2C.
+Phase 2C is complete. The local PostgreSQL 16.15 container is healthy, its host port is restricted to `127.0.0.1:5432`, and its named volume retains the separate Workloop and Keycloak databases.
 
-When Phase 2C is authorized, first explain local password generation and storage, PostgreSQL image and version, Docker network and volume behavior, port exposure, database separation, persistence tests, resource use, and rollback boundaries required by the Phase Execution Protocol.
+Phase 2D is on hold. Do not add the FastAPI application, configuration model, database connection, routes, container, or tests until the project owner explicitly authorizes Phase 2D.
