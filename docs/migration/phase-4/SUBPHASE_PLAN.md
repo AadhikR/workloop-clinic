@@ -2,14 +2,13 @@
 
 ## Status
 
-**Planning only. Not authorized.**
+**Part 4A completed on 2026-09-01. Part 4B is not authorized.**
 
 This document breaks Phase 4 into six parts, 4A through 4F, so the project owner can authorize
 one part at a time. It records objectives, dependencies, files, decisions, security boundaries,
-tests, rollback boundaries, completion gates, and a recommended model per part. It changes no
-runtime code, database schema, Alembic revision, grant, or fixture. Nothing in Phase 4 starts
-until the project owner authorizes it, and 4A's open decisions must be resolved and approved
-before 4B can start.
+tests, rollback boundaries, completion gates, and a recommended model per part. Part 4A produced
+documentation only. It changed no runtime code, database schema, Alembic revision, grant, or
+fixture. Parts 4B through 4F still require separate authorization.
 
 ## Current state
 
@@ -30,12 +29,14 @@ before 4B can start.
   privilege-escalation gap in `admin_set_employee_portal_role`.
 - `ApplicationUserResolver` (`backend/app/auth/application_user.py`) depends on the exact column
   shape of `app_users`. Any Phase 4 change to that table must keep its query working.
+- Part 4A's approved catalogue and decisions are in
+  [`SCHEMA_CATALOGUE_AND_DESIGN_DECISIONS.md`](SCHEMA_CATALOGUE_AND_DESIGN_DECISIONS.md).
 
 ## Part status
 
 | Part | Scope | Status |
 |---|---|---|
-| 4A | Schema inventory and design decisions | Not started |
+| 4A | Schema inventory and design decisions | Completed 2026-09-01; see [`SCHEMA_CATALOGUE_AND_DESIGN_DECISIONS.md`](SCHEMA_CATALOGUE_AND_DESIGN_DECISIONS.md) |
 | 4B | Core identity and organization schema | Not started |
 | 4C | Remaining business schema | Not started |
 | 4D | Functions, triggers, constraints, and grants | Not started |
@@ -82,6 +83,11 @@ function, trigger, and policy appears exactly once in the inventory before calli
 **Completion gate.** A reviewed document lists every target table, column, constraint, index,
 function, and trigger with a stated source and a stated decision, and every bullet under Scope
 has a written, project-owner-approved answer.
+
+Passed on 2026-09-01. The project owner approved every design decision and the final document.
+The catalogue reconciles all 52 legacy tables, 29 function names, 19 trigger names, and 119 policy
+identities exactly once, and defines the complete 54-table target. See
+[`SCHEMA_CATALOGUE_AND_DESIGN_DECISIONS.md`](SCHEMA_CATALOGUE_AND_DESIGN_DECISIONS.md).
 
 **Recommended model.** GPT-5.6. This sets the schema and identity-relationship design every later
 part depends on, and the migration plan reserves database-schema design for GPT-5.6.

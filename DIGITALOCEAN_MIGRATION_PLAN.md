@@ -559,7 +559,7 @@ before Part 4B can start.
 
 | Part | Scope | Status |
 |---|---|---|
-| 4A | Schema inventory and design decisions | Not started |
+| 4A | Schema inventory and design decisions | Completed 2026-09-01; see [`SCHEMA_CATALOGUE_AND_DESIGN_DECISIONS.md`](docs/migration/phase-4/SCHEMA_CATALOGUE_AND_DESIGN_DECISIONS.md) |
 | 4B | Core identity and organization schema | Not started |
 | 4C | Remaining business schema | Not started |
 | 4D | Functions, triggers, constraints, and grants | Not started |
