@@ -250,7 +250,7 @@ in all `VITE_` variables.
 | 3E | Application-user resolution | Completed 2026-08-31; see [`APPLICATION_USER_RESOLUTION.md`](APPLICATION_USER_RESOLUTION.md) |
 | 3F | Separate React migration build | Completed 2026-08-31; see [`SEPARATE_REACT_MIGRATION_BUILD.md`](SEPARATE_REACT_MIGRATION_BUILD.md) |
 | 3G | Synthetic login and account lifecycle | Completed 2026-09-01; see [`SYNTHETIC_LOGIN_AND_ACCOUNT_LIFECYCLE.md`](SYNTHETIC_LOGIN_AND_ACCOUNT_LIFECYCLE.md) |
-| 3H | Security, restart, and completion gate | On hold |
+| 3H | Security, restart, and completion gate | Local gate passed 2026-09-01; GitHub confirmation pending |
 
 ## Approved project-owner decisions
 
@@ -309,7 +309,9 @@ browser tests. GitHub Actions run 24 passed the implementation and persistence g
 
 Use **GPT-5.6** for Phase 3H because it is the final authentication security and restart gate. It
 must review the combined realm, browser, token, application-user, persistence, and cleanup behavior.
-Phase 3H remains on hold and requires separate project-owner authorization.
+Phase 3H was authorized on 2026-09-01. Its local security and restart gate passed; final GitHub
+confirmation remains pending. See
+[`SECURITY_RESTART_COMPLETION_GATE.md`](SECURITY_RESTART_COMPLETION_GATE.md).
 
 ### Phase 3H handoff prompt
 

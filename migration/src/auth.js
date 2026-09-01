@@ -91,7 +91,7 @@ function accountState(response) {
   return Object.freeze({ status: 'error' })
 }
 
-function createNonce(crypto) {
+export function createNonce(crypto) {
   const bytes = crypto.getRandomValues(new Uint8Array(32))
   let value = ''
   for (const byte of bytes) value += String.fromCharCode(byte)
@@ -110,6 +110,10 @@ export class AuthenticationSession {
     this.listeners = new Set()
     this.state = Object.freeze({ status: 'loading' })
     this.initialization = null
+    this.accountChecks = new WeakMap()
+    this.accountGeneration = 0
+    this.currentUser = null
+    this.sessionCleanup = null
 
     this.manager.events.addUserLoaded((user) => this.checkAccount(user))
     this.manager.events.addSilentRenewError(() => this.expireSession())
@@ -147,6 +151,7 @@ export class AuthenticationSession {
         const user = await this.manager.signinRedirectCallback(this.responseUrl)
         await this.checkAccount(user)
       } catch (error) {
+        this.invalidateAccountChecks()
         await this.manager.removeUser()
         if (error instanceof ErrorResponse && error.error === 'login_required') {
           this.setState(signedOutState)
@@ -192,6 +197,7 @@ export class AuthenticationSession {
   }
 
   async login() {
+    this.invalidateAccountChecks()
     this.setState(Object.freeze({ status: 'loading' }))
     await this.manager.signinRedirect({
       nonce: this.nonce(),
@@ -200,6 +206,7 @@ export class AuthenticationSession {
   }
 
   async logout() {
+    this.invalidateAccountChecks()
     this.setState(Object.freeze({ status: 'loading' }))
     try {
       await this.manager.signoutRedirect()
@@ -223,14 +230,64 @@ export class AuthenticationSession {
     }
   }
 
-  async expireSession() {
-    await this.manager.removeUser()
-    this.setState(Object.freeze({ status: 'session-expired' }))
+  async expireSession(
+    expectedGeneration = this.accountGeneration,
+    expectedUser = this.currentUser,
+  ) {
+    if (this.sessionCleanup) {
+      await this.sessionCleanup
+      return
+    }
+    if (
+      expectedGeneration !== this.accountGeneration
+      || expectedUser !== this.currentUser
+    ) return
+    this.invalidateAccountChecks()
+    const expirationGeneration = this.accountGeneration
+    const cleanup = this.manager.removeUser()
+    this.sessionCleanup = cleanup
+    try {
+      await cleanup
+    } finally {
+      if (this.sessionCleanup === cleanup) this.sessionCleanup = null
+    }
+    if (expirationGeneration === this.accountGeneration && this.currentUser === null) {
+      this.setState(Object.freeze({ status: 'session-expired' }))
+    }
+  }
+
+  invalidateAccountChecks() {
+    this.accountGeneration += 1
+    this.currentUser = null
   }
 
   async checkAccount(user) {
+    if (user && typeof user === 'object') {
+      const existingCheck = this.accountChecks.get(user)
+      if (existingCheck) return existingCheck
+      const accountCheck = this.prepareAccountCheck(user)
+      this.accountChecks.set(user, accountCheck)
+      return accountCheck
+    }
+    return this.runAccountCheck(user, this.accountGeneration)
+  }
+
+  async prepareAccountCheck(user) {
+    const cleanup = this.sessionCleanup
+    if (cleanup) {
+      await cleanup
+      await this.manager.storeUser(user)
+    }
+    if (this.currentUser !== user) {
+      this.accountGeneration += 1
+      this.currentUser = user
+    }
+    return this.runAccountCheck(user, this.accountGeneration)
+  }
+
+  async runAccountCheck(user, generation) {
     if (!user || user.expired || !user.access_token) {
-      await this.expireSession()
+      await this.expireSession(generation, user)
       return
     }
 
@@ -244,13 +301,18 @@ export class AuthenticationSession {
         redirect: 'error',
       })
     } catch {
-      this.setState(Object.freeze({ status: 'service-unavailable' }))
+      if (generation === this.accountGeneration && this.currentUser === user) {
+        this.setState(Object.freeze({ status: 'service-unavailable' }))
+      }
       return
     }
 
+    if (generation !== this.accountGeneration || this.currentUser !== user) return
+
     const nextState = accountState(response)
     if (nextState.status === 'session-expired') {
-      await this.manager.removeUser()
+      await this.expireSession(generation, user)
+      return
     }
     this.setState(nextState)
   }

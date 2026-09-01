@@ -3,7 +3,7 @@ import test from 'node:test'
 
 import { ErrorResponse } from 'oidc-client-ts'
 
-import { AuthenticationSession, createUserManager } from '../migration/src/auth.js'
+import { AuthenticationSession, createNonce, createUserManager } from '../migration/src/auth.js'
 
 const config = {
   apiBaseUrl: 'http://127.0.0.1:8000',
@@ -63,6 +63,7 @@ function fakeManager(overrides = {}) {
     async clearStaleState() { calls.push(['clearStaleState']) },
     async getUser() { calls.push(['getUser']); return null },
     async removeUser() { calls.push(['removeUser']) },
+    async storeUser(user) { calls.push(['storeUser', user]) },
     async signinRedirect(args) { calls.push(['signinRedirect', args]) },
     async signinRedirectCallback() { throw new Error('not implemented') },
     async signoutRedirect() { calls.push(['signoutRedirect']) },
@@ -135,12 +136,30 @@ test('uses one top-level prompt-none redirect when no in-memory user exists', as
   ])
 })
 
-test('checks the FastAPI account after a validated callback and clears its URL', async () => {
-  const manager = fakeManager({
-    async signinRedirectCallback() {
-      return { access_token: 'not-a-real-token', expired: false }
+test('creates a fresh 256-bit nonce for every authorization request', () => {
+  let fill = 0
+  const crypto = {
+    getRandomValues(bytes) {
+      bytes.fill(fill)
+      fill += 1
+      return bytes
     },
-  })
+  }
+
+  const first = createNonce(crypto)
+  const second = createNonce(crypto)
+  assert.notEqual(first, second)
+  assert.equal(Buffer.from(first, 'base64url').length, 32)
+  assert.equal(Buffer.from(second, 'base64url').length, 32)
+})
+
+test('checks the FastAPI account after a validated callback and clears its URL', async () => {
+  const manager = fakeManager()
+  const callbackUser = { access_token: 'not-a-real-token', expired: false }
+  manager.signinRedirectCallback = async () => {
+    void manager.callbacks.loaded(callbackUser)
+    return callbackUser
+  }
   const requests = []
   const { authentication, replacements } = session({
     manager,
@@ -257,6 +276,22 @@ test('does not claim logout success when the provider request or callback fails'
   assert.equal(callbackManager.calls.some(([name]) => name === 'signinRedirect'), false)
   assert.equal(callback.authentication.state.status, 'signed-in')
   assert.equal(callbackManager.calls.some(([name]) => name === 'removeUser'), false)
+
+  const knownCallbackManager = fakeManager({
+    async signoutRedirectCallback() { throw new Error('provider callback rejected') },
+  })
+  const knownCallback = session({
+    manager: knownCallbackManager,
+    location: {
+      href: 'http://127.0.0.1:5174/?state=known-logout-state',
+      origin: 'http://127.0.0.1:5174',
+      pathname: '/',
+      search: '?state=known-logout-state',
+    },
+  })
+  await knownCallback.authentication.initialize()
+  assert.equal(knownCallback.authentication.state.status, 'logout-incomplete')
+  assert.deepEqual(knownCallback.replacements, [[null, '', '/']])
 })
 
 test('renews only with an in-memory refresh token and fails closed on renewal errors', async () => {
@@ -273,4 +308,65 @@ test('renews only with an in-memory refresh token and fails closed on renewal er
   manager.signinSilent = async () => { throw new Error('refresh rejected') }
   await authentication.renew()
   assert.equal(authentication.state.status, 'session-expired')
+})
+
+test('ignores an account response after the session expires', async () => {
+  let resolveRequest
+  const request = new Promise((resolve) => { resolveRequest = resolve })
+  const { authentication } = session({ fetch: () => request })
+  const check = authentication.checkAccount({ access_token: 'old-token', expired: false })
+
+  await authentication.expireSession()
+  resolveRequest({ status: 204 })
+  await check
+
+  assert.equal(authentication.state.status, 'session-expired')
+})
+
+test('ignores an older account response after a new user is checked', async () => {
+  let resolveOldRequest
+  const oldRequest = new Promise((resolve) => { resolveOldRequest = resolve })
+  let requestCount = 0
+  const { authentication } = session({
+    fetch: () => {
+      requestCount += 1
+      return requestCount === 1 ? oldRequest : Promise.resolve({ status: 403 })
+    },
+  })
+  const oldCheck = authentication.checkAccount({ access_token: 'old-token', expired: false })
+
+  await authentication.checkAccount({ access_token: 'new-token', expired: false })
+  resolveOldRequest({ status: 204 })
+  await oldCheck
+
+  assert.equal(authentication.state.status, 'account-unavailable')
+})
+
+test('does not let old token removal overwrite a newer signed-in user', async () => {
+  let resolveRemoval
+  const removal = new Promise((resolve) => { resolveRemoval = resolve })
+  let storedUser = { access_token: 'old-token', expired: false }
+  const manager = fakeManager({
+    async getUser() { return storedUser },
+    async removeUser() { await removal; storedUser = null },
+    async storeUser(user) { storedUser = user },
+  })
+  let requestCount = 0
+  const { authentication } = session({
+    manager,
+    fetch: async () => {
+      requestCount += 1
+      return { status: requestCount === 1 ? 401 : 204 }
+    },
+  })
+  const oldCheck = authentication.checkAccount(storedUser)
+  await new Promise((resolve) => setImmediate(resolve))
+
+  const newUser = { access_token: 'new-token', expired: false }
+  const newCheck = authentication.checkAccount(newUser)
+  resolveRemoval()
+  await Promise.all([oldCheck, newCheck])
+
+  assert.equal(authentication.state.status, 'signed-in')
+  assert.equal(await manager.getUser(), newUser)
 })

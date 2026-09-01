@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-docker compose exec -T postgres psql --username postgres --dbname workloop --set ON_ERROR_STOP=1 \
+"${DOCKER:-docker}" compose exec -T postgres psql --username postgres --dbname workloop --set ON_ERROR_STOP=1 \
   --command "
 BEGIN;
 DO \$\$

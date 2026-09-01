@@ -66,7 +66,7 @@ else {
 $apiLines = @(
     "APP_ENV=local"
     "APP_BASE_URL=http://127.0.0.1:8000"
-    "FRONTEND_URL=http://127.0.0.1:5173"
+    "FRONTEND_URL=http://127.0.0.1:5174"
     "LOG_LEVEL=INFO"
     "DATABASE_HEALTH_TIMEOUT_SECONDS=5"
     "OIDC_ISSUER=http://127.0.0.1:8080/realms/workloop-dev"

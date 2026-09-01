@@ -68,7 +68,9 @@ test('rejects direct and transitive Supabase and legacy source imports', async (
 test('builds an isolated production graph without Supabase environment variables', async () => {
   await rm(migrationOutputDirectory, { force: true, recursive: true })
   const previousSupabaseUrl = process.env.VITE_SUPABASE_URL
+  const previousClientSecret = process.env.VITE_CLIENT_SECRET
   process.env.VITE_SUPABASE_URL = 'https://migration-test.supabase.co'
+  process.env.VITE_CLIENT_SECRET = 'phase-3h-secret-sentinel'
   let result
   try {
     result = await build({
@@ -83,6 +85,11 @@ test('builds an isolated production graph without Supabase environment variables
     } else {
       process.env.VITE_SUPABASE_URL = previousSupabaseUrl
     }
+    if (previousClientSecret === undefined) {
+      delete process.env.VITE_CLIENT_SECRET
+    } else {
+      process.env.VITE_CLIENT_SECRET = previousClientSecret
+    }
   }
   const outputs = Array.isArray(result) ? result.flatMap((item) => item.output) : result.output
   const moduleIds = outputs.flatMap((output) => output.type === 'chunk' ? Object.keys(output.modules) : [])
@@ -91,7 +98,11 @@ test('builds an isolated production graph without Supabase environment variables
   assert.ok(moduleIds.length > 0)
   assert.equal(moduleIds.some((id) => id.startsWith(`${migrationIsolationPaths.legacySourceDirectory}${path.sep}`)), false)
   assert.equal(moduleIds.some((id) => id.includes('node_modules/@supabase/')), false)
-  assert.equal(/supabase|auth-token|database_url|migration-test\.supabase\.co/i.test(outputText), false)
+  assert.equal(
+    /supabase|auth-token|database_url|migration-test\.supabase\.co|phase-3h-secret-sentinel/i
+      .test(outputText),
+    false,
+  )
 })
 
 test('runs the migration server on its registered fixed port', async () => {
@@ -104,6 +115,7 @@ test('runs the migration server on its registered fixed port', async () => {
     await server.listen()
     const response = await fetch('http://127.0.0.1:5174/')
     assert.equal(response.status, 200)
+    assert.equal(response.headers.get('referrer-policy'), 'no-referrer')
     assert.ok(await server.transformRequest('/src/main.jsx'))
   } finally {
     await server.close()

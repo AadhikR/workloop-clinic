@@ -9,7 +9,7 @@ def set_required_environment(monkeypatch: MonkeyPatch) -> None:
     values = {
         "APP_ENV": "test",
         "APP_BASE_URL": "http://127.0.0.1:8000",
-        "FRONTEND_URL": "http://127.0.0.1:5173",
+        "FRONTEND_URL": "http://127.0.0.1:5174",
         "LOG_LEVEL": "INFO",
         "DATABASE_HEALTH_TIMEOUT_SECONDS": "5",
         "APPLICATION_USER_LOOKUP_TIMEOUT_SECONDS": "5",

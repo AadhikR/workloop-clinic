@@ -262,12 +262,32 @@ async def test_invalid_signature_and_header_metadata_are_rejected(
             "current-key",
             claims=make_claims(padding="x" * 17_000),
         ),
+        jwt.encode(
+            make_claims(),
+            trusted_key,
+            algorithm="RS256",
+            headers={"kid": "current-key", "typ": "JWT", "crit": ["unsupported"]},
+        ),
     ]
 
     try:
         for token in invalid_tokens:
             with pytest.raises(AccessTokenError):
                 await verifier.verify(token)
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.filterwarnings("ignore:The RSA key is 1024 bits.*")
+async def test_weak_rsa_signing_key_is_rejected() -> None:
+    weak_key = rsa.generate_private_key(public_exponent=65537, key_size=1024)
+    endpoint = JwksEndpoint({"keys": [make_jwk(weak_key, "weak-key")]})
+    verifier, client = make_verifier(endpoint, MutableClock())
+
+    try:
+        with pytest.raises(AccessTokenError):
+            await verifier.verify(make_token(weak_key, "weak-key"))
     finally:
         await client.aclose()
 

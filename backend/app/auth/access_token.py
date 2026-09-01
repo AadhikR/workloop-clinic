@@ -103,6 +103,8 @@ class AccessTokenVerifier:
             raise AccessTokenError from error
         if header.get("alg") != _ALGORITHM:
             raise AccessTokenError
+        if "crit" in header or header.get("b64") is False:
+            raise AccessTokenError
         header_type = header.get("typ")
         if header_type is not None and header_type != "JWT":
             raise AccessTokenError
@@ -217,6 +219,8 @@ class AccessTokenVerifier:
             except (jwt.PyJWTError, ValueError, TypeError) as error:
                 raise AccessTokenError from error
             if not isinstance(public_key, RSAPublicKey):
+                raise AccessTokenError
+            if public_key.key_size < 2048:
                 raise AccessTokenError
             keys[key_id] = public_key
         if not keys:

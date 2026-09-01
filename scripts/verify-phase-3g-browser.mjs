@@ -158,6 +158,10 @@ function createFixtures() {
       '-s', 'enabled=true',
       '-i',
     ], { output: true })
+    if (!persona.identityId) {
+      const matches = findUsers(persona.userName)
+      createdIdentityIds.push(...matches.map(({ id }) => id))
+    }
     assert.ok(persona.identityId)
     createdIdentityIds.push(persona.identityId)
     setPassword(persona.identityId, persona.password)
@@ -198,30 +202,52 @@ function cleanupFixtures() {
   const cleanup = (operation) => {
     try {
       operation()
+    } catch {}
+  }
+  const verifyCleanup = (operation) => {
+    try {
+      operation()
     } catch {
       cleanupFailed = true
     }
   }
-  for (const appUserId of createdRows.profiles) {
-    cleanup(() => psql(
-      "DELETE FROM user_profiles WHERE app_user_id = :'app_user_id'",
-      { app_user_id: appUserId },
-    ))
-  }
-  for (const appUserId of createdRows.appUsers) {
-    cleanup(() => psql("DELETE FROM app_users WHERE id = :'app_user_id'", { app_user_id: appUserId }))
-  }
-  for (const employeeId of createdRows.employees) {
-    cleanup(() => psql("DELETE FROM employees WHERE id = :'employee_id'", { employee_id: employeeId }))
-  }
-  if (createdRows.company) {
-    cleanup(() => psql("DELETE FROM companies WHERE id = :'company_id'", { company_id: companyId }))
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    for (const appUserId of createdRows.profiles) {
+      cleanup(() => psql(
+        "DELETE FROM user_profiles WHERE app_user_id = :'app_user_id'",
+        { app_user_id: appUserId },
+      ))
+    }
+    for (const appUserId of createdRows.appUsers) {
+      cleanup(() => psql("DELETE FROM app_users WHERE id = :'app_user_id'", { app_user_id: appUserId }))
+    }
+    for (const employeeId of createdRows.employees) {
+      cleanup(() => psql("DELETE FROM employees WHERE id = :'employee_id'", { employee_id: employeeId }))
+    }
+    if (createdRows.company) {
+      cleanup(() => psql("DELETE FROM companies WHERE id = :'company_id'", { company_id: companyId }))
+    }
+
+    for (const persona of personas) {
+      cleanup(() => {
+        for (const { id } of findUsers(persona.userName)) createdIdentityIds.push(id)
+      })
+    }
+    for (const identityId of new Set(createdIdentityIds)) {
+      cleanup(() => kcadm(['delete', `users/${identityId}`, '-r', 'workloop-dev']))
+    }
   }
 
-  for (const identityId of createdIdentityIds) {
-    cleanup(() => kcadm(['delete', `users/${identityId}`, '-r', 'workloop-dev']))
-  }
-  cleanup(() => run(['exec', '-T', 'keycloak', 'rm', '-f', kcadmConfig]))
+  verifyCleanup(() => assert.deepEqual(
+    JSON.parse(kcadm(['get', 'users', '-r', 'workloop-dev'], { output: true })),
+    [],
+  ))
+  verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM app_users'), '0'))
+  verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM user_profiles'), '0'))
+  verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM employees'), '0'))
+  verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM companies'), '0'))
+  verifyCleanup(() => run(['exec', '-T', 'keycloak', 'rm', '-f', kcadmConfig]))
+  verifyCleanup(() => run(['exec', '-T', 'keycloak', 'test', '!', '-e', kcadmConfig]))
   if (cleanupFailed) throw new Error('local synthetic fixture cleanup failed')
 }
 
@@ -304,6 +330,7 @@ async function browserChecks(viteServer) {
       let callbackUrl
       let leakedCallbackReferrer = null
       let tokenRequestCount = 0
+      let accountRequestCount = 0
       page.on('request', (request) => {
         const requestUrl = new URL(request.url())
         if (
@@ -311,6 +338,12 @@ async function browserChecks(viteServer) {
           && requestUrl.pathname.endsWith('/protocol/openid-connect/token')
         ) {
           tokenRequestCount += 1
+        }
+        if (
+          requestUrl.origin === 'http://127.0.0.1:8000'
+          && requestUrl.pathname === '/api/v1/auth/token-check'
+        ) {
+          accountRequestCount += 1
         }
         if (
           requestUrl.origin === 'http://127.0.0.1:5174'
@@ -334,6 +367,9 @@ async function browserChecks(viteServer) {
       await waitForSettledStatus(page, 'signed-out', `${persona.role} initial session`)
       stage(`${persona.role} interactive login`)
       await interactiveLogin(page, persona)
+      assert.equal(accountRequestCount, 1)
+      assert.equal(new URL(page.url()).pathname, '/')
+      assert.equal(new URL(page.url()).search, '')
       stage(`${persona.role} callback captured ${Boolean(callbackUrl)}`)
       assert.ok(callbackUrl)
       stage(`${persona.role} callback referrer ${leakedCallbackReferrer ?? 'none'}`)
@@ -343,18 +379,22 @@ async function browserChecks(viteServer) {
       if (persona.role === 'admin') {
         stage('admin refresh-token renewal')
         const requestsBeforeRenewal = tokenRequestCount
+        const accountRequestsBeforeRenewal = accountRequestCount
         await page.evaluate(async () => {
           const { authenticationSession } = await import('/src/App.jsx')
           await authenticationSession().renew()
         })
         await waitForStatus(page, 'signed-in')
         assert.equal(tokenRequestCount, requestsBeforeRenewal + 1)
+        assert.equal(accountRequestCount, accountRequestsBeforeRenewal + 1)
         await assertNoPersistedTokens(page)
       }
 
       stage(`${persona.role} session restoration`)
+      const accountRequestsBeforeRestoration = accountRequestCount
       await page.reload()
       await waitForStatus(page, 'signed-in')
+      assert.equal(accountRequestCount, accountRequestsBeforeRestoration + 1)
       await assertNoPersistedTokens(page)
 
       if (persona.role === 'manager') {
@@ -387,11 +427,13 @@ async function browserChecks(viteServer) {
         stage('callback replay rejection')
         await page.goto(callbackUrl)
         await waitForStatus(page, 'error')
+        await assertNoPersistedTokens(page)
         stage('wrong state rejection')
         const wrongState = new URL(callbackUrl)
         wrongState.searchParams.set('state', 'invalid-state')
         await page.goto(wrongState.toString())
         await waitForStatus(page, 'error')
+        await assertNoPersistedTokens(page)
       }
       await context.close()
     }
@@ -430,6 +472,7 @@ async function browserChecks(viteServer) {
     const nonceStatus = await noncePage.locator('main').getAttribute('data-session-status')
     stage(`wrong nonce rejection ${nonceStatus}`)
     assert.equal(nonceStatus, 'error')
+    await assertNoPersistedTokens(noncePage)
     await nonceContext.close()
   } finally {
     await browser.close()
@@ -467,27 +510,6 @@ async function main() {
     if (fixturesCreated) cleanupFixtures()
   }
 
-  stage('cleanup verification')
-  authenticateAdministrator()
-  try {
-    for (const persona of personas) {
-      assert.deepEqual(findUsers(persona.userName), [])
-    }
-  } finally {
-    run(['exec', '-T', 'keycloak', 'rm', '-f', kcadmConfig])
-  }
-  assert.equal(
-    psql(
-      "SELECT count(*) FROM app_users WHERE id IN (:'app_1', :'app_2', :'app_3')",
-      {
-        app_1: personas[0].appUserId,
-        app_2: personas[1].appUserId,
-        app_3: personas[2].appUserId,
-      },
-    ),
-    '0',
-  )
-  assert.equal(psql("SELECT count(*) FROM companies WHERE id = :'company_id'", { company_id: companyId }), '0')
   console.log('Phase 3G browser checks passed')
 }
 

@@ -154,5 +154,5 @@ Phase 3G passes because temporary synthetic admin, manager, and employee identit
 isolated browser flow; invalid and replayed responses fail closed; renewal, restoration, logout,
 changed email, and disabled accounts behave as designed; token and secret storage checks pass; all
 temporary identity state is removed; the legacy build remains independent; and local and GitHub
-gates pass before and after Keycloak replacement. Phase 3H remains on hold and requires separate
-project-owner authorization.
+  gates pass before and after Keycloak replacement. Phase 3H was authorized on 2026-09-01; its local
+  gate passed and final GitHub confirmation remains pending.

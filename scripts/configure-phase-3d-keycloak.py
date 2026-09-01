@@ -129,7 +129,14 @@ def main() -> None:
         subprocess.run(
             [*DOCKER_COMPOSE, "exec", "-T", "keycloak", "rm", "-f", KCADM_CONFIG],
             cwd=ROOT,
-            check=False,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            [*DOCKER_COMPOSE, "exec", "-T", "keycloak", "test", "!", "-e", KCADM_CONFIG],
+            cwd=ROOT,
+            check=True,
             capture_output=True,
             text=True,
         )

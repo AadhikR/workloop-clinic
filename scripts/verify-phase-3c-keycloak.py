@@ -201,6 +201,7 @@ def verify_realm(realm: dict[str, Any]) -> None:
         "enabled": True,
         "sslRequired": "external",
         "registrationAllowed": False,
+        "registrationEmailAsUsername": False,
         "rememberMe": False,
         "verifyEmail": False,
         "resetPasswordAllowed": False,
@@ -240,6 +241,7 @@ def only_client(clients: Any, client_id: str) -> dict[str, Any]:
 
 
 def verify_clients(web: dict[str, Any], api: dict[str, Any]) -> None:
+    assert web["protocol"] == "openid-connect"
     assert web["enabled"] is True
     assert web["publicClient"] is True
     assert web["bearerOnly"] is False
@@ -249,6 +251,7 @@ def verify_clients(web: dict[str, Any], api: dict[str, Any]) -> None:
     assert web["serviceAccountsEnabled"] is False
     assert web.get("authorizationServicesEnabled", False) is False
     assert web["fullScopeAllowed"] is False
+    assert web["frontchannelLogout"] is False
     assert web["redirectUris"] == [REDIRECT_URI]
     assert web["webOrigins"] == [ORIGIN]
     assert web["defaultClientScopes"] == ["profile", "email"]
@@ -258,6 +261,7 @@ def verify_clients(web: dict[str, Any], api: dict[str, Any]) -> None:
     attributes = web["attributes"]
     assert attributes["pkce.code.challenge.method"] == "S256"
     assert attributes["post.logout.redirect.uris"] == LOGOUT_URI
+    assert attributes["use.refresh.tokens"] == "true"
     for setting in (
         "standard.token.exchange.enabled",
         "oauth2.device.authorization.grant.enabled",
@@ -272,17 +276,27 @@ def verify_clients(web: dict[str, Any], api: dict[str, Any]) -> None:
     assert len(mappers) == 1
     mapper = mappers[0]
     assert mapper["protocolMapper"] == "oidc-audience-mapper"
+    assert mapper["protocol"] == "openid-connect"
     assert mapper["config"]["included.client.audience"] == "workloop-api"
     assert mapper["config"]["access.token.claim"] == "true"
     assert mapper["config"]["id.token.claim"] == "false"
+    assert mapper["config"]["introspection.token.claim"] == "true"
     subject_mappers = [
         mapper for mapper in web["protocolMappers"] if mapper["name"] == "access-token-subject"
     ]
     assert len(subject_mappers) == 1
     subject_mapper = subject_mappers[0]
     assert subject_mapper["protocolMapper"] == "oidc-sub-mapper"
+    assert subject_mapper["protocol"] == "openid-connect"
     assert subject_mapper["config"]["access.token.claim"] == "true"
+    assert subject_mapper["config"].get("id.token.claim", "false") == "false"
+    assert subject_mapper["config"]["introspection.token.claim"] == "true"
+    assert {mapper["name"] for mapper in web["protocolMappers"]} == {
+        "access-token-subject",
+        "workloop-api-audience",
+    }
 
+    assert api["protocol"] == "openid-connect"
     assert api["enabled"] is True
     assert api["bearerOnly"] is True
     assert api["publicClient"] is False
@@ -394,6 +408,12 @@ def decode_claims(token: str) -> dict[str, Any]:
     return json.loads(base64.urlsafe_b64decode(payload))
 
 
+def decode_header(token: str) -> dict[str, Any]:
+    header = token.split(".")[0]
+    header += "=" * (-len(header) % 4)
+    return json.loads(base64.urlsafe_b64decode(header))
+
+
 def authorize_with_login(
     username: str,
     password: str,
@@ -471,6 +491,7 @@ def verify_real_tokens(username: str, password: str) -> None:
     assert status == 200
 
     access_claims = decode_claims(tokens["access_token"])
+    assert decode_header(tokens["access_token"])["alg"] == "RS256"
     audience = access_claims["aud"]
     assert audience == "workloop-api" or "workloop-api" in audience
     assert access_claims["azp"] == CLIENT_ID
@@ -590,7 +611,7 @@ def verify_audience(web_client_id: str) -> None:
     user_id: str | None = None
     assert kcadm_json("get", "users", "-r", "workloop-dev", "-q", f"username={username}") == []
     try:
-        kcadm(
+        user_id = kcadm(
             "create",
             "users",
             "-r",
@@ -605,10 +626,9 @@ def verify_audience(web_client_id: str) -> None:
             "email=phase-3c-transient@example.test",
             "-s",
             "enabled=true",
-        )
-        users = kcadm_json("get", "users", "-r", "workloop-dev", "-q", f"username={username}")
-        assert len(users) == 1
-        user_id = users[0]["id"]
+            "-i",
+        ).strip()
+        assert user_id
         token = kcadm_json(
             "get",
             f"clients/{web_client_id}/evaluate-scopes/generate-example-access-token?userId={user_id}",
@@ -639,8 +659,31 @@ def verify_audience(web_client_id: str) -> None:
         assert password_process.returncode == 0, "could not set transient test credential"
         verify_stage("real token flow", lambda: verify_real_tokens(username, password))
     finally:
-        if user_id is not None:
-            kcadm("delete", f"users/{user_id}", "-r", "workloop-dev")
+        cleanup_ids = {user_id} if user_id else set()
+        for _ in range(3):
+            try:
+                cleanup_ids.update(
+                    user["id"]
+                    for user in kcadm_json(
+                        "get", "users", "-r", "workloop-dev", "-q", f"username={username}"
+                    )
+                )
+            except (KeyError, subprocess.CalledProcessError):
+                pass
+            for cleanup_id in cleanup_ids:
+                run(
+                    "exec",
+                    "-T",
+                    "keycloak",
+                    "/opt/keycloak/bin/kcadm.sh",
+                    "delete",
+                    f"users/{cleanup_id}",
+                    "-r",
+                    "workloop-dev",
+                    "--config",
+                    KCADM_CONFIG,
+                    check=False,
+                )
     assert kcadm_json("get", "users", "-r", "workloop-dev", "-q", f"username={username}") == []
 
 
@@ -671,13 +714,27 @@ def main() -> None:
             kcadm_json("get", "clients", "-r", "workloop-dev", "-q", "clientId=workloop-api"),
             "workloop-api",
         )
+        expected_clients = {
+            "account",
+            "account-console",
+            "admin-cli",
+            "broker",
+            "realm-management",
+            "security-admin-console",
+            "workloop-api",
+            "workloop-migration-web",
+        }
+        assert {
+            client["clientId"] for client in kcadm_json("get", "clients", "-r", "workloop-dev")
+        } == expected_clients
         verify_stage("client settings", lambda: verify_clients(web, api))
         assert kcadm_json("get", "users", "-r", "workloop-dev") == []
         verify_stage("audience and token checks", lambda: verify_audience(web["id"]))
         assert kcadm_json("get", "users", "-r", "workloop-dev") == []
         verify_stage("protocol restrictions", verify_protocol_restrictions)
     finally:
-        run("exec", "-T", "keycloak", "rm", "-f", KCADM_CONFIG, check=False)
+        run("exec", "-T", "keycloak", "rm", "-f", KCADM_CONFIG)
+        run("exec", "-T", "keycloak", "test", "!", "-e", KCADM_CONFIG)
 
     print("Keycloak and FastAPI authentication checks passed")
 
