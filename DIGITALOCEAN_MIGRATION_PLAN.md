@@ -549,6 +549,23 @@ Synthetic admin, manager, and employee identities can sign in through the isolat
 
 Translate the Supabase-oriented schema into a versioned, portable PostgreSQL schema.
 
+### Part Status
+
+See [`docs/migration/phase-4/SUBPHASE_PLAN.md`](docs/migration/phase-4/SUBPHASE_PLAN.md) for the
+detailed breakdown of each part's objective, dependencies, files, decisions, security boundaries,
+tests, rollback boundary, completion gate, and recommended model. This plan requires separate
+project-owner authorization before any part starts, and Part 4A's open decisions must be approved
+before Part 4B can start.
+
+| Part | Scope | Status |
+|---|---|---|
+| 4A | Schema inventory and design decisions | Not started |
+| 4B | Core identity and organization schema | Not started |
+| 4C | Remaining business schema | Not started |
+| 4D | Functions, triggers, constraints, and grants | Not started |
+| 4E | Synthetic fixtures | Not started |
+| 4F | Clean-database, upgrade, security, and completion gate | Not started |
+
 ### Work
 
 - Choose and document the supported PostgreSQL version.
