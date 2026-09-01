@@ -6,6 +6,7 @@ from typing import Literal
 
 import httpx
 from fastapi import FastAPI, Request, Response, status
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -102,6 +103,13 @@ def create_app(
         title="Workloop API",
         version=__version__,
         lifespan=lifespan,
+    )
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://127.0.0.1:5174"],
+        allow_methods=["GET"],
+        allow_headers=["Authorization"],
+        allow_credentials=False,
     )
 
     application.add_api_route(

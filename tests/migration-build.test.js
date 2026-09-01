@@ -91,7 +91,7 @@ test('builds an isolated production graph without Supabase environment variables
   assert.ok(moduleIds.length > 0)
   assert.equal(moduleIds.some((id) => id.startsWith(`${migrationIsolationPaths.legacySourceDirectory}${path.sep}`)), false)
   assert.equal(moduleIds.some((id) => id.includes('node_modules/@supabase/')), false)
-  assert.equal(/supabase|auth-token|access_token|database_url/i.test(outputText), false)
+  assert.equal(/supabase|auth-token|database_url|migration-test\.supabase\.co/i.test(outputText), false)
 })
 
 test('runs the migration server on its registered fixed port', async () => {

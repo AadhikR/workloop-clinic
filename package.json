@@ -13,6 +13,7 @@
     "test": "playwright test",
     "test:unit": "node --test tests/*.test.js",
     "test:migration-build": "node --test tests/migration-build.test.js",
+    "test:migration-auth": "node scripts/verify-phase-3g-browser.mjs",
     "dev:migration": "vite --config migration/vite.migration.config.js",
     "test:ui": "playwright test --ui",
     "test:auth": "playwright test tests/auth.spec.js",
@@ -26,6 +27,7 @@
     "fflate": "^0.8.2",
     "jspdf": "^4.2.1",
     "lucide-react": "^1.14.0",
+    "oidc-client-ts": "3.5.0",
     "papaparse": "^5.5.3",
     "react": "^19.2.5",
     "react-dom": "^19.2.5"

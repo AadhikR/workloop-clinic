@@ -18,11 +18,13 @@ export default defineConfig({
   plugins: [migrationIsolationPlugin(), react()],
   envPrefix: migrationPublicEnvironmentNames,
   server: {
+    headers: { 'Referrer-Policy': 'no-referrer' },
     host: '127.0.0.1',
     port: 5174,
     strictPort: true,
   },
   preview: {
+    headers: { 'Referrer-Policy': 'no-referrer' },
     host: '127.0.0.1',
     port: 5174,
     strictPort: true,

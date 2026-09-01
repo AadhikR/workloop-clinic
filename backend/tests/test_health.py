@@ -69,3 +69,39 @@ async def test_health_fails_closed_without_error_details() -> None:
         "database": "unavailable",
     }
     assert "sensitive" not in response.text
+
+
+@pytest.mark.asyncio
+async def test_authentication_cors_allows_only_migration_origin() -> None:
+    async def successful_probe(_engine: AsyncEngine) -> None:
+        return None
+
+    async with client_for(successful_probe) as client:
+        allowed = await client.options(
+            "/api/v1/auth/token-check",
+            headers={
+                "Origin": "http://127.0.0.1:5174",
+                "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Headers": "Authorization",
+            },
+        )
+        rejected = await client.options(
+            "/api/v1/auth/token-check",
+            headers={
+                "Origin": "http://127.0.0.1:5173",
+                "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Headers": "Authorization",
+            },
+        )
+        protected = await client.get(
+            "/api/v1/auth/token-check",
+            headers={"Origin": "http://127.0.0.1:5174"},
+        )
+
+    assert allowed.status_code == 200
+    assert allowed.headers["access-control-allow-origin"] == "http://127.0.0.1:5174"
+    assert allowed.headers.get("access-control-allow-credentials") is None
+    assert rejected.status_code == 400
+    assert "access-control-allow-origin" not in rejected.headers
+    assert protected.status_code == 401
+    assert protected.headers["access-control-allow-origin"] == "http://127.0.0.1:5174"

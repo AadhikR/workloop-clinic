@@ -249,7 +249,7 @@ in all `VITE_` variables.
 | 3D | FastAPI token validation | Completed 2026-08-31; see [`FASTAPI_TOKEN_VALIDATION.md`](FASTAPI_TOKEN_VALIDATION.md) |
 | 3E | Application-user resolution | Completed 2026-08-31; see [`APPLICATION_USER_RESOLUTION.md`](APPLICATION_USER_RESOLUTION.md) |
 | 3F | Separate React migration build | Completed 2026-08-31; see [`SEPARATE_REACT_MIGRATION_BUILD.md`](SEPARATE_REACT_MIGRATION_BUILD.md) |
-| 3G | Synthetic login and account lifecycle | On hold |
+| 3G | Synthetic login and account lifecycle | Local gate passed 2026-09-01; GitHub evidence pending; see [`SYNTHETIC_LOGIN_AND_ACCOUNT_LIFECYCLE.md`](SYNTHETIC_LOGIN_AND_ACCOUNT_LIFECYCLE.md) |
 | 3H | Security, restart, and completion gate | On hold |
 
 ## Approved project-owner decisions
@@ -299,6 +299,11 @@ Supabase and legacy-source import isolation, public-configuration allowlist, and
 checks. GitHub Actions run 21 passed its frontend, backend, full-stack authentication, realm-upgrade,
 and persistence checks. See
 [`SEPARATE_REACT_MIGRATION_BUILD.md`](SEPARATE_REACT_MIGRATION_BUILD.md).
+
+Phase 3G passed its local completion gate on 2026-09-01. It adds the approved browser login,
+restoration, renewal, callback, logout, and account-state behavior plus temporary three-persona
+browser tests. GitHub Actions evidence is pending. See
+[`SYNTHETIC_LOGIN_AND_ACCOUNT_LIFECYCLE.md`](SYNTHETIC_LOGIN_AND_ACCOUNT_LIFECYCLE.md).
 
 ## Next model recommendation
 

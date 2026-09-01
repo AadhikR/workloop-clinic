@@ -73,6 +73,14 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: "24.11.1"
+          cache: npm
+      - name: Install locked frontend dependencies
+        run: npm ci --ignore-scripts
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
       - name: Generate ephemeral credentials
         shell: pwsh
         run: ./scripts/new-local-postgres-env.ps1
@@ -102,10 +110,13 @@ jobs:
           test "$(docker compose exec -T postgres psql --username postgres --dbname keycloak --tuples-only --no-align --command "SELECT count(*) FROM realm;")" = "2"
       - name: Verify Keycloak and FastAPI authentication
         run: python scripts/verify-phase-3c-keycloak.py
+      - name: Verify migration browser authentication
+        run: npm run test:migration-auth
       - name: Verify authentication persistence
         run: |
           docker compose up --detach --force-recreate --wait keycloak
           python scripts/verify-phase-3c-keycloak.py
+          npm run test:migration-auth
       - name: Show failure logs
         if: failure()
         run: docker compose logs --no-color
