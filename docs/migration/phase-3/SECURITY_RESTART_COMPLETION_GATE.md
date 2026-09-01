@@ -104,6 +104,12 @@ PostgreSQL URLs containing user information while the separate generated-passwor
 exact secret values. No JWT, token field, identity subject, account SQL, or generated password matched
 in the failed run.
 
+Run 27 passed backend quality and frontend regression but stopped at the same log gate. A local
+category check reproduced normal Keycloak messages containing the words `id_token` and
+`refresh_token` without token values. The corrected scanner rejects token-shaped values rather than
+field names. It retains the bare-JWT, bearer, database credential, application identity, and exact
+generated-secret checks.
+
 ## Unchanged boundaries
 
 - The legacy `src/` graph, Supabase client, authentication, and session are unchanged.
