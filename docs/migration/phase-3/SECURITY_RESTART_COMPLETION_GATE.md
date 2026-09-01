@@ -2,7 +2,7 @@
 
 ## Status
 
-**The local gate passed on 2026-09-01. Final GitHub confirmation is pending.**
+**Completed on 2026-09-01.**
 
 Phase 3H reviews and tests the complete Phase 3 authentication foundation. It adds no account
 lifecycle, authorization, business route, migrated feature, schema revision, persistent identity,
@@ -94,8 +94,11 @@ signing-key identifiers, recreates the complete stack without deleting its volum
 and authentication checks, compares signing keys, verifies zero retained identities, and scans the
 restarted logs. Shell verifiers run through `sh` so Git file mode does not control execution.
 
-The Phase 3H implementation must be pushed and its final GitHub run must pass before this record and
-the phase tracker can be marked complete.
+GitHub Actions run 28 passed on commit `b7b9f42` on 2026-09-01. Backend quality, frontend
+regression, and full-stack smoke all passed. The full-stack job exercised exact Alembic state,
+database grants, runtime identity, initial log safety, live protocol and browser authentication,
+complete stack recreation, signing-key persistence, repeated post-restart checks, zero retained
+identities, and restarted log safety.
 
 GitHub Actions run 26 passed backend quality and frontend regression but failed its first service-log
 scan. Keycloak logs its non-secret internal JDBC endpoint during initial startup, and the first regex
@@ -141,6 +144,5 @@ identity schema. A rollback must keep the earlier Phase 3G security fixes or res
 
 ## Completion gate
 
-The local Phase 3 completion gate passes. Final completion still requires the pushed GitHub checks,
-completion evidence with the run identifier, and a clean synchronized branch. Phase 4 remains
-unauthorized.
+The Phase 3 completion gate passes locally and in GitHub Actions run 28. The branch must remain clean
+and synchronized after this completion record. Phase 4 remains unauthorized.

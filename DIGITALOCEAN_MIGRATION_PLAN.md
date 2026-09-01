@@ -236,7 +236,7 @@ Do not create abstractions merely to match this diagram. Start with the smallest
 | 0 | Baseline and inventory | Completed 2026-08-27 | 2–4 days |
 | 1 | DigitalOcean access and cost controls | Completed 2026-08-27 — spend alert deferred to Phase 6A gate | 1–2 days |
 | 2 | Local backend and infrastructure foundation | Completed 2026-08-31 | 4–7 days |
-| 3 | Keycloak authentication foundation | Phase 3A through Phase 3G completed; Phase 3H local gate passed, GitHub confirmation pending | 1–2 weeks |
+| 3 | Keycloak authentication foundation | Completed 2026-09-01 | 1–2 weeks |
 | 4 | Portable database baseline | Not started | 1–2 weeks |
 | 5 | Authorization and tenant isolation | Not started | 1–2 weeks |
 | 6 | Shared API and frontend client | Not started | 3–5 days |
@@ -445,7 +445,7 @@ This phase applies to the separate migration build, not the legacy Supabase buil
 | 3E | Application-user resolution | Completed 2026-08-31; see [`docs/migration/phase-3/APPLICATION_USER_RESOLUTION.md`](docs/migration/phase-3/APPLICATION_USER_RESOLUTION.md) |
 | 3F | Separate React migration build | Completed 2026-08-31; see [`SEPARATE_REACT_MIGRATION_BUILD.md`](docs/migration/phase-3/SEPARATE_REACT_MIGRATION_BUILD.md) |
 | 3G | Synthetic login and account lifecycle | Completed 2026-09-01; see [`SYNTHETIC_LOGIN_AND_ACCOUNT_LIFECYCLE.md`](docs/migration/phase-3/SYNTHETIC_LOGIN_AND_ACCOUNT_LIFECYCLE.md) |
-| 3H | Security, restart, and completion gate | Local gate passed 2026-09-01; GitHub confirmation pending |
+| 3H | Security, restart, and completion gate | Completed 2026-09-01; see [`SECURITY_RESTART_COMPLETION_GATE.md`](docs/migration/phase-3/SECURITY_RESTART_COMPLETION_GATE.md) |
 
 ### Identity Schema Prerequisite
 
@@ -1630,17 +1630,17 @@ Decision needed: None for completed Phase 3E. Phase 3F requires separate project
 Next action: Push the Phase 3E completion evidence, verify its GitHub checks, then stop before Phase 3F.
 ```
 
-### 2026-09-01 - Phase 3H local gate
+### 2026-09-01 - Phase 3H
 
 ```text
 Date: 2026-09-01
 Phase: 3H - Security, restart, and completion gate
 Change completed: Hardened browser account-check concurrency and JWT key handling; expanded realm, cleanup, storage, build, database, log, restart, and persistence checks; recreated the complete local stack without deleting its PostgreSQL volume; completed an independent security review.
 Tests run: Locked backend and frontend installs; 78 backend tests; Ruff; formatting; Pyright; pip check; 32 Node tests; both production builds; Compose validation; Alembic upgrade, downgrade boundary, current, heads, and check; database ownership and runtime grants; Keycloak protocol and browser verifiers before and after restart; signing-key comparison; cleanup, output, and service-log scans.
-Result: The local Phase 3H gate passes. PostgreSQL, FastAPI, and Keycloak are healthy; revision f41c9a7b23d1 and signing keys persist; temporary users and Workloop rows are absent; and the independent review has no blocking findings.
-Known issues: Existing npm advisories and the local-only Keycloak start-dev, HTTP, and administrator MFA deferral remain unchanged. GitHub runs 26 and 27 stopped on overbroad matches for a non-secret JDBC endpoint and token field names without values; corrected value-aware scanning awaits final GitHub confirmation.
+Result: Phase 3H passes locally and in GitHub Actions run 28. PostgreSQL, FastAPI, and Keycloak are healthy; revision f41c9a7b23d1 and signing keys persist; temporary users and Workloop rows are absent; and the independent review has no blocking findings.
+Known issues: Existing npm advisories and the local-only Keycloak start-dev, HTTP, and administrator MFA deferral remain unchanged. GitHub runs 26 and 27 stopped on overbroad matches for a non-secret JDBC endpoint and token field names without values; corrected value-aware scanning passed in run 28.
 Decision needed: None for the authorized Phase 3H gate. Phase 4 remains unauthorized.
-Next action: Commit and push the Phase 3H implementation, verify GitHub checks, record the final run, and stop before Phase 4.
+Next action: Push the Phase 3H completion record, verify its final GitHub checks, and stop before Phase 4.
 ```
 
 ## Immediate Next Actions
@@ -1649,8 +1649,8 @@ Phase 2 is complete. Local services are healthy, Alembic uses a separate migrati
 Keycloak state persists, and both a clean local checkout and GitHub's Linux runner can recreate
 the foundation.
 
-Phase 3A through Phase 3G are complete. Phase 3H passed its local security, cleanup, restart, and
-persistence gate on 2026-09-01. Final GitHub confirmation is pending. The identity schema remains at
-`f41c9a7b23d1`; the restricted `workloop-dev` realm persists with no users; and temporary Workloop
-identity rows are absent. Do not start Phase 4, provision users, or add role, tenant, manager-scope,
-or business authorization without separate project-owner authorization.
+Phase 3 is complete. Phase 3H passed its local and GitHub security, cleanup, restart, and persistence
+gate on 2026-09-01. The identity schema remains at `f41c9a7b23d1`; the restricted `workloop-dev`
+realm persists with no users; and temporary Workloop identity rows are absent. Do not start Phase 4,
+provision users, or add role, tenant, manager-scope, or business authorization without separate
+project-owner authorization.

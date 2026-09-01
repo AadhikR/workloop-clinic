@@ -250,7 +250,7 @@ in all `VITE_` variables.
 | 3E | Application-user resolution | Completed 2026-08-31; see [`APPLICATION_USER_RESOLUTION.md`](APPLICATION_USER_RESOLUTION.md) |
 | 3F | Separate React migration build | Completed 2026-08-31; see [`SEPARATE_REACT_MIGRATION_BUILD.md`](SEPARATE_REACT_MIGRATION_BUILD.md) |
 | 3G | Synthetic login and account lifecycle | Completed 2026-09-01; see [`SYNTHETIC_LOGIN_AND_ACCOUNT_LIFECYCLE.md`](SYNTHETIC_LOGIN_AND_ACCOUNT_LIFECYCLE.md) |
-| 3H | Security, restart, and completion gate | Local gate passed 2026-09-01; GitHub confirmation pending |
+| 3H | Security, restart, and completion gate | Completed 2026-09-01; see [`SECURITY_RESTART_COMPLETION_GATE.md`](SECURITY_RESTART_COMPLETION_GATE.md) |
 
 ## Approved project-owner decisions
 
@@ -305,13 +305,14 @@ restoration, renewal, callback, logout, and account-state behavior plus temporar
 browser tests. GitHub Actions run 24 passed the implementation and persistence gates. See
 [`SYNTHETIC_LOGIN_AND_ACCOUNT_LIFECYCLE.md`](SYNTHETIC_LOGIN_AND_ACCOUNT_LIFECYCLE.md).
 
-## Next model recommendation
+## Phase 3H completion
 
-Use **GPT-5.6** for Phase 3H because it is the final authentication security and restart gate. It
-must review the combined realm, browser, token, application-user, persistence, and cleanup behavior.
-Phase 3H was authorized on 2026-09-01. Its local security and restart gate passed; final GitHub
-confirmation remains pending. See
+Phase 3H completed on 2026-09-01 after combined browser, realm, token, application-user, cleanup,
+restart, persistence, and independent security checks. GitHub Actions run 28 passed. See
 [`SECURITY_RESTART_COMPLETION_GATE.md`](SECURITY_RESTART_COMPLETION_GATE.md).
+
+Phase 4 remains unauthorized. Use **GPT-5.6** when it is authorized because the portable database
+baseline changes shared schema and identity relationships and requires a separate database review.
 
 ### Phase 3H handoff prompt
 
