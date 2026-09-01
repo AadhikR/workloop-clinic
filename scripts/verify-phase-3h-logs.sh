@@ -7,7 +7,7 @@ trap 'rm -f "$log_file"' EXIT
 
 "$docker_command" compose logs --no-color backend keycloak > "$log_file"
 
-if grep -E -i 'Bearer [A-Za-z0-9_-]+\.|eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+|access_token|id_token|refresh_token|postgresql(\+psycopg)?://|identity_subject|SELECT .*app_users' "$log_file" >/dev/null; then
+if grep -E -i 'Bearer [A-Za-z0-9_-]+\.|eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+|access_token|id_token|refresh_token|postgresql\+psycopg://|postgresql://[^[:space:]"]+@|identity_subject|SELECT .*app_users' "$log_file" >/dev/null; then
   exit 1
 fi
 

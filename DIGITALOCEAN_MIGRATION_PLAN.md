@@ -1638,7 +1638,7 @@ Phase: 3H - Security, restart, and completion gate
 Change completed: Hardened browser account-check concurrency and JWT key handling; expanded realm, cleanup, storage, build, database, log, restart, and persistence checks; recreated the complete local stack without deleting its PostgreSQL volume; completed an independent security review.
 Tests run: Locked backend and frontend installs; 78 backend tests; Ruff; formatting; Pyright; pip check; 32 Node tests; both production builds; Compose validation; Alembic upgrade, downgrade boundary, current, heads, and check; database ownership and runtime grants; Keycloak protocol and browser verifiers before and after restart; signing-key comparison; cleanup, output, and service-log scans.
 Result: The local Phase 3H gate passes. PostgreSQL, FastAPI, and Keycloak are healthy; revision f41c9a7b23d1 and signing keys persist; temporary users and Workloop rows are absent; and the independent review has no blocking findings.
-Known issues: Existing npm advisories and the local-only Keycloak start-dev, HTTP, and administrator MFA deferral remain unchanged. Final GitHub confirmation is pending.
+Known issues: Existing npm advisories and the local-only Keycloak start-dev, HTTP, and administrator MFA deferral remain unchanged. GitHub run 26 failed because the first log regex classified Keycloak's non-secret internal JDBC endpoint as a credential leak; the corrected final GitHub confirmation is pending.
 Decision needed: None for the authorized Phase 3H gate. Phase 4 remains unauthorized.
 Next action: Commit and push the Phase 3H implementation, verify GitHub checks, record the final run, and stop before Phase 4.
 ```

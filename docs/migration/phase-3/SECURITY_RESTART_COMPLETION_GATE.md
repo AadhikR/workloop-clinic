@@ -50,8 +50,8 @@ The locked local gate passed:
   restoration, changed email, disabled account, logout, replay, wrong state, and wrong nonce.
 - Zero Workloop realm users and zero `companies`, `employees`, `app_users`, and `user_profiles` rows
   after each verifier.
-- Migration output and service logs scanned without printing secret values, tokens, database URLs,
-  identity subjects, or account-query text.
+- Migration output and service logs scanned without printing secret values, tokens,
+  credential-bearing database URLs, identity subjects, or account-query text.
 
 The first Phase 3H browser run exposed duplicate FastAPI account requests. A later cleanup run failed
 because retry logic treated deletion of an already absent user as an error. An expanded output regex
@@ -96,6 +96,13 @@ restarted logs. Shell verifiers run through `sh` so Git file mode does not contr
 
 The Phase 3H implementation must be pushed and its final GitHub run must pass before this record and
 the phase tracker can be marked complete.
+
+GitHub Actions run 26 passed backend quality and frontend regression but failed its first service-log
+scan. Keycloak logs its non-secret internal JDBC endpoint during initial startup, and the first regex
+treated any PostgreSQL URL as a credential leak. The corrected scan rejects SQLAlchemy URLs and
+PostgreSQL URLs containing user information while the separate generated-password check still tests
+exact secret values. No JWT, token field, identity subject, account SQL, or generated password matched
+in the failed run.
 
 ## Unchanged boundaries
 
