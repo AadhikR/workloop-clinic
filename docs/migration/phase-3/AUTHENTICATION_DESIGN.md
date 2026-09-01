@@ -249,7 +249,7 @@ in all `VITE_` variables.
 | 3D | FastAPI token validation | Completed 2026-08-31; see [`FASTAPI_TOKEN_VALIDATION.md`](FASTAPI_TOKEN_VALIDATION.md) |
 | 3E | Application-user resolution | Completed 2026-08-31; see [`APPLICATION_USER_RESOLUTION.md`](APPLICATION_USER_RESOLUTION.md) |
 | 3F | Separate React migration build | Completed 2026-08-31; see [`SEPARATE_REACT_MIGRATION_BUILD.md`](SEPARATE_REACT_MIGRATION_BUILD.md) |
-| 3G | Synthetic login and account lifecycle | Local gate passed 2026-09-01; GitHub evidence pending; see [`SYNTHETIC_LOGIN_AND_ACCOUNT_LIFECYCLE.md`](SYNTHETIC_LOGIN_AND_ACCOUNT_LIFECYCLE.md) |
+| 3G | Synthetic login and account lifecycle | Completed 2026-09-01; see [`SYNTHETIC_LOGIN_AND_ACCOUNT_LIFECYCLE.md`](SYNTHETIC_LOGIN_AND_ACCOUNT_LIFECYCLE.md) |
 | 3H | Security, restart, and completion gate | On hold |
 
 ## Approved project-owner decisions
@@ -300,12 +300,37 @@ checks. GitHub Actions run 21 passed its frontend, backend, full-stack authentic
 and persistence checks. See
 [`SEPARATE_REACT_MIGRATION_BUILD.md`](SEPARATE_REACT_MIGRATION_BUILD.md).
 
-Phase 3G passed its local completion gate on 2026-09-01. It adds the approved browser login,
+Phase 3G completed on 2026-09-01. It adds the approved browser login,
 restoration, renewal, callback, logout, and account-state behavior plus temporary three-persona
-browser tests. GitHub Actions evidence is pending. See
+browser tests. GitHub Actions run 24 passed the implementation and persistence gates. See
 [`SYNTHETIC_LOGIN_AND_ACCOUNT_LIFECYCLE.md`](SYNTHETIC_LOGIN_AND_ACCOUNT_LIFECYCLE.md).
 
 ## Next model recommendation
 
-Use **GPT-5.6** for Phase 3G because it introduces the browser authentication lifecycle and needs a
-security review. Phase 3G remains on hold and requires separate project-owner authorization.
+Use **GPT-5.6** for Phase 3H because it is the final authentication security and restart gate. It
+must review the combined realm, browser, token, application-user, persistence, and cleanup behavior.
+Phase 3H remains on hold and requires separate project-owner authorization.
+
+### Phase 3H handoff prompt
+
+```text
+Continue the Workloop Clinic migration with Phase 3H only: the authentication security, restart,
+and completion gate.
+
+Read AGENTS.md, DIGITALOCEAN_MIGRATION_PLAN.md, the Phase 2 foundation records, and every Phase 3
+design and evidence document. Inspect the synchronized migration/fastapi-keycloak branch, both Vite
+graphs, browser login lifecycle, FastAPI token and application-user boundaries, Keycloak realm,
+Compose stack, Alembic state, tests, and GitHub checks.
+
+Expected state: Phase 3A through Phase 3G are complete; temporary synthetic admin, manager, and
+employee browser flows pass; no persistent Workloop user, provisioning API, role or tenant
+authorization, business route, migrated business feature, cloud resource, SMTP, or email delivery
+exists.
+
+Do not begin without explicit Phase 3H authorization. When authorized, perform only the approved
+combined security, restart, persistence, cleanup, and Phase 3 completion gate. Preserve the legacy
+Supabase build, migration isolation, identity revision f41c9a7b23d1, read-only runtime identity
+access, and all existing generic failures. Stop for every owner decision, obtain an independent
+security review, update evidence, commit and push only after the gate passes, and stop before Phase
+4.
+```

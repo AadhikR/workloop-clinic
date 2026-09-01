@@ -2,7 +2,7 @@
 
 ## Status
 
-**Local completion gate passed on 2026-09-01. GitHub Actions evidence is pending.**
+**Completed on 2026-09-01.**
 
 Phase 3G adds browser login and account-state handling to the isolated migration frontend. It uses
 the approved local Keycloak realm and the existing FastAPI token and application-user checks. The
@@ -96,6 +96,13 @@ The first concurrent frontend run failed because two commands used the same fixe
 fixture directory. Both commands passed when run in the required sequence. This was test-runner
 interference, not an application failure.
 
+GitHub Actions run 24 passed on implementation commit `56278d4` on 2026-09-01. Backend quality,
+legacy frontend regression, migration frontend isolation, and full-stack smoke all passed. The
+full-stack job created a fresh database, repeated the Alembic upgrade and empty-schema downgrade
+boundary, checked service health and database boundaries, ran the existing protocol verifier, ran
+the Phase 3G browser verifier, replaced Keycloak, repeated both authentication verifiers, and removed
+the temporary stack.
+
 ## Security review
 
 An independent GPT-5.6 review covered callback handling, state and nonce checks, browser storage,
@@ -143,5 +150,9 @@ does not delete the Keycloak realm, signing keys, shared PostgreSQL volume, or i
 
 ## Completion gate
 
-The local Phase 3G gate has passed. Final completion requires a successful GitHub Actions run for the
-implementation commit. Phase 3H remains on hold and requires separate project-owner authorization.
+Phase 3G passes because temporary synthetic admin, manager, and employee identities complete the
+isolated browser flow; invalid and replayed responses fail closed; renewal, restoration, logout,
+changed email, and disabled accounts behave as designed; token and secret storage checks pass; all
+temporary identity state is removed; the legacy build remains independent; and local and GitHub
+gates pass before and after Keycloak replacement. Phase 3H remains on hold and requires separate
+project-owner authorization.

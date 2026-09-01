@@ -236,7 +236,7 @@ Do not create abstractions merely to match this diagram. Start with the smallest
 | 0 | Baseline and inventory | Completed 2026-08-27 | 2–4 days |
 | 1 | DigitalOcean access and cost controls | Completed 2026-08-27 — spend alert deferred to Phase 6A gate | 1–2 days |
 | 2 | Local backend and infrastructure foundation | Completed 2026-08-31 | 4–7 days |
-| 3 | Keycloak authentication foundation | Phase 3A through Phase 3F completed; Phase 3G local gate passed, GitHub evidence pending | 1–2 weeks |
+| 3 | Keycloak authentication foundation | Phase 3A through Phase 3G completed; Phase 3H on hold | 1–2 weeks |
 | 4 | Portable database baseline | Not started | 1–2 weeks |
 | 5 | Authorization and tenant isolation | Not started | 1–2 weeks |
 | 6 | Shared API and frontend client | Not started | 3–5 days |
@@ -444,7 +444,7 @@ This phase applies to the separate migration build, not the legacy Supabase buil
 | 3D | FastAPI token validation | Completed 2026-08-31; see [`docs/migration/phase-3/FASTAPI_TOKEN_VALIDATION.md`](docs/migration/phase-3/FASTAPI_TOKEN_VALIDATION.md) |
 | 3E | Application-user resolution | Completed 2026-08-31; see [`docs/migration/phase-3/APPLICATION_USER_RESOLUTION.md`](docs/migration/phase-3/APPLICATION_USER_RESOLUTION.md) |
 | 3F | Separate React migration build | Completed 2026-08-31; see [`SEPARATE_REACT_MIGRATION_BUILD.md`](docs/migration/phase-3/SEPARATE_REACT_MIGRATION_BUILD.md) |
-| 3G | Synthetic login and account lifecycle | Local gate passed 2026-09-01; GitHub evidence pending |
+| 3G | Synthetic login and account lifecycle | Completed 2026-09-01; see [`SYNTHETIC_LOGIN_AND_ACCOUNT_LIFECYCLE.md`](docs/migration/phase-3/SYNTHETIC_LOGIN_AND_ACCOUNT_LIFECYCLE.md) |
 | 3H | Security, restart, and completion gate | On hold |
 
 ### Identity Schema Prerequisite
