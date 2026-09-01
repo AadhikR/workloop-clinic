@@ -100,10 +100,10 @@ jobs:
           docker compose --profile tools run --rm migrate
       - name: Verify Alembic and database boundaries
         run: |
-          test "$(docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini current | tail -n 1)" = "f41c9a7b23d1 (head)"
-          test "$(docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini heads | tail -n 1)" = "f41c9a7b23d1 (head)"
+          test "$(docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini current | tail -n 1)" = "a4b7e2c91d05 (head)"
+          test "$(docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini heads | tail -n 1)" = "a4b7e2c91d05 (head)"
           docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini check
-          sh scripts/verify-phase-3b-schema.sh
+          sh scripts/verify-phase-4b-schema.sh
           docker compose exec -T backend python -c "import os, psycopg; url=os.environ['DATABASE_URL'].replace('postgresql+psycopg://', 'postgresql://', 1); connection=psycopg.connect(url); cursor=connection.cursor(); cursor.execute('SELECT current_user'); assert cursor.fetchone() == ('workloop_runtime',); connection.close()"
       - name: Verify service health
         run: |
@@ -115,7 +115,7 @@ jobs:
           python scripts/configure-phase-3d-keycloak.py
       - name: Verify database boundaries
         run: |
-          test "$(docker compose exec -T postgres psql --username postgres --dbname workloop --tuples-only --no-align --command "SELECT count(*) FROM pg_tables WHERE schemaname = 'public';")" = "5"
+          test "$(docker compose exec -T postgres psql --username postgres --dbname workloop --tuples-only --no-align --command "SELECT count(*) FROM pg_tables WHERE schemaname = 'public';")" = "6"
           test "$(docker compose exec -T postgres psql --username postgres --dbname keycloak --tuples-only --no-align --command "SELECT count(*) FROM realm;")" = "2"
       - name: Verify Keycloak and FastAPI authentication
         run: python scripts/verify-phase-3c-keycloak.py
@@ -132,7 +132,7 @@ jobs:
           docker compose up --build --detach --wait postgres backend keycloak
           docker compose --profile tools run --rm migrate
           docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini check
-          sh scripts/verify-phase-3b-schema.sh
+          sh scripts/verify-phase-4b-schema.sh
           curl --fail --silent --show-error http://127.0.0.1:8080/realms/workloop-dev/protocol/openid-connect/certs | jq -r '.keys[].kid' | sort > /tmp/workloop-restarted-signing-key-ids
           diff /tmp/workloop-signing-key-ids /tmp/workloop-restarted-signing-key-ids
           python scripts/configure-phase-3d-keycloak.py
@@ -140,7 +140,7 @@ jobs:
           npm run test:migration-auth
       - name: Verify cleanup and backend log safety
         run: |
-          test "$(docker compose exec -T postgres psql --username postgres --dbname workloop --tuples-only --no-align --command 'SELECT count(*) FROM companies UNION ALL SELECT count(*) FROM employees UNION ALL SELECT count(*) FROM app_users UNION ALL SELECT count(*) FROM user_profiles;' | sort -u)" = "0"
+          test "$(docker compose exec -T postgres psql --username postgres --dbname workloop --tuples-only --no-align --command 'SELECT count(*) FROM companies UNION ALL SELECT count(*) FROM branches UNION ALL SELECT count(*) FROM employees UNION ALL SELECT count(*) FROM app_users UNION ALL SELECT count(*) FROM user_profiles;' | sort -u)" = "0"
           python scripts/verify-phase-3c-keycloak.py
           sh scripts/verify-phase-3h-logs.sh
       - name: Show failure state

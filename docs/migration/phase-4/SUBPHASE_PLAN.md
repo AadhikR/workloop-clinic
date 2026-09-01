@@ -2,13 +2,13 @@
 
 ## Status
 
-**Part 4A completed on 2026-09-01. Part 4B is not authorized.**
+**Parts 4A and 4B completed on 2026-09-01. Parts 4C through 4F are not authorized.**
 
 This document breaks Phase 4 into six parts, 4A through 4F, so the project owner can authorize
 one part at a time. It records objectives, dependencies, files, decisions, security boundaries,
 tests, rollback boundaries, completion gates, and a recommended model per part. Part 4A produced
 documentation only. It changed no runtime code, database schema, Alembic revision, grant, or
-fixture. Parts 4B through 4F still require separate authorization.
+fixture. Parts 4C through 4F still require separate authorization.
 
 ## Current state
 
@@ -37,7 +37,7 @@ fixture. Parts 4B through 4F still require separate authorization.
 | Part | Scope | Status |
 |---|---|---|
 | 4A | Schema inventory and design decisions | Completed 2026-09-01; see [`SCHEMA_CATALOGUE_AND_DESIGN_DECISIONS.md`](SCHEMA_CATALOGUE_AND_DESIGN_DECISIONS.md) |
-| 4B | Core identity and organization schema | Not started |
+| 4B | Core identity and organization schema | Completed 2026-09-01; revision `a4b7e2c91d05` |
 | 4C | Remaining business schema | Not started |
 | 4D | Functions, triggers, constraints, and grants | Not started |
 | 4E | Synthetic fixtures | Not started |
@@ -129,6 +129,14 @@ existing revision's documented boundary.
 **Completion gate.** The new revision applies cleanly on top of `f41c9a7b23d1`, downgrading from
 the new head returns to that exact prior state, and the Phase 3 identity-resolution tests still
 pass unmodified.
+
+**Completion evidence.** Passed on 2026-09-01. Revision `a4b7e2c91d05` adds the approved company,
+branch, employee, and profile uniqueness schema without changing `app_users` or the Phase 3
+revision. An empty local database upgraded from `f41c9a7b23d1`, downgraded back to that revision,
+and upgraded again. `alembic check` reported no metadata drift. The Phase 4B schema verifier passed
+the composite company and branch foreign key, normalized work-email uniqueness, profile employee
+uniqueness, and runtime grant boundaries. The Phase 3 application-user test suite and three-persona
+browser identity verifier also passed. Runtime grants remain unchanged.
 
 **Recommended model.** GPT-5.6 Terra, once 4A is approved. This is bounded schema-migration work
 against an already-approved design.

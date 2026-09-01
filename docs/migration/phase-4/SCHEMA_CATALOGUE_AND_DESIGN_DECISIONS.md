@@ -2,12 +2,11 @@
 
 ## Status
 
-**Approved Phase 4A design artifact awaiting final document review. This is not implementation.**
+**Phase 4A design artifact approved by the project owner on 2026-09-01.**
 
-The project owner approved the eight design directions in this document on 2026-09-01. The final
-document review is still pending. This file authorizes no Alembic revision, model, SQL, grant,
-policy, function, trigger, fixture, seed, reset, or data change. Phase 4B must not start until the
-completion gate at the end of this document passes.
+The project owner approved the design directions and final document review on 2026-09-01. This file
+records Phase 4A decisions. Phase 4B requires separate project-owner authorization and may implement
+only its approved core identity and organization schema.
 
 ## Reading and counting rules
 
@@ -1269,4 +1268,5 @@ classifications. The eight governing decisions and the additional decisions abov
 coverage, consistency, provenance, or PostgreSQL-validity defect, and the project owner approved the
 final document.
 
-Stop here. Do not begin Phase 4B.
+Phase 4B received separate project-owner authorization on 2026-09-01. Parts 4C through 4F remain
+unauthorized.

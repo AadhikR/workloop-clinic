@@ -237,7 +237,7 @@ Do not create abstractions merely to match this diagram. Start with the smallest
 | 1 | DigitalOcean access and cost controls | Completed 2026-08-27 — spend alert deferred to Phase 6A gate | 1–2 days |
 | 2 | Local backend and infrastructure foundation | Completed 2026-08-31 | 4–7 days |
 | 3 | Keycloak authentication foundation | Completed 2026-09-01 | 1–2 weeks |
-| 4 | Portable database baseline | Not started | 1–2 weeks |
+| 4 | Portable database baseline | In progress; 4A and 4B completed 2026-09-01 | 1–2 weeks |
 | 5 | Authorization and tenant isolation | Not started | 1–2 weeks |
 | 6 | Shared API and frontend client | Not started | 3–5 days |
 | 6A | Early DigitalOcean architecture proof | Not started | 3–5 days |

@@ -38,8 +38,10 @@ const personas = [
   },
 ]
 const companyId = '00000000-0000-0000-0000-000000000070'
+const branchId = '00000000-0000-0000-0000-000000000071'
 const createdRows = {
   appUsers: [],
+  branch: false,
   company: false,
   employees: [],
   profiles: [],
@@ -169,10 +171,22 @@ function createFixtures() {
 
   psql("INSERT INTO companies (id) VALUES (:'company_id')", { company_id: companyId })
   createdRows.company = true
+  psql(
+    "INSERT INTO branches (id, company_id) VALUES (:'branch_id', :'company_id')",
+    { branch_id: branchId, company_id: companyId },
+  )
+  createdRows.branch = true
   for (const persona of personas.filter(({ employeeId }) => employeeId)) {
     psql(
-      "INSERT INTO employees (id, company_id) VALUES (:'employee_id', :'company_id')",
-      { company_id: companyId, employee_id: persona.employeeId },
+      "INSERT INTO employees (id, company_id, branch_id, name, mol_id) "
+        + "VALUES (:'employee_id', :'company_id', :'branch_id', :'name', :'mol_id')",
+      {
+        branch_id: branchId,
+        company_id: companyId,
+        employee_id: persona.employeeId,
+        mol_id: `MOL-${persona.role}`,
+        name: `Phase ${persona.role}`,
+      },
     )
     createdRows.employees.push(persona.employeeId)
   }
@@ -225,6 +239,9 @@ function cleanupFixtures() {
       cleanup(() => psql("DELETE FROM employees WHERE id = :'employee_id'", { employee_id: employeeId }))
     }
     if (createdRows.company) {
+      if (createdRows.branch) {
+        cleanup(() => psql("DELETE FROM branches WHERE id = :'branch_id'", { branch_id: branchId }))
+      }
       cleanup(() => psql("DELETE FROM companies WHERE id = :'company_id'", { company_id: companyId }))
     }
 

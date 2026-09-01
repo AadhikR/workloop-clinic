@@ -2,8 +2,14 @@ from app.db.base import NAMING_CONVENTION, Base
 from app.models.identity import AccountStatus, AppRole
 
 
-def test_identity_metadata_contains_only_phase_3b_tables() -> None:
-    assert list(Base.metadata.tables) == ["companies", "employees", "app_users", "user_profiles"]
+def test_identity_metadata_contains_only_phase_4b_tables() -> None:
+    assert list(Base.metadata.tables) == [
+        "companies",
+        "branches",
+        "employees",
+        "app_users",
+        "user_profiles",
+    ]
 
 
 def test_foundation_metadata_has_deterministic_constraint_names() -> None:
