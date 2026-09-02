@@ -2,7 +2,8 @@
 
 ## Status
 
-**Parts 4A and 4B completed on 2026-09-01. Parts 4C through 4F are not authorized.**
+**Parts 4A and 4B completed on 2026-09-01. Part 4C completed on 2026-09-02. Parts 4D through 4F
+are not authorized.**
 
 This document breaks Phase 4 into six parts, 4A through 4F, so the project owner can authorize
 one part at a time. It records objectives, dependencies, files, decisions, security boundaries,
@@ -38,7 +39,7 @@ fixture. Parts 4C through 4F still require separate authorization.
 |---|---|---|
 | 4A | Schema inventory and design decisions | Completed 2026-09-01; see [`SCHEMA_CATALOGUE_AND_DESIGN_DECISIONS.md`](SCHEMA_CATALOGUE_AND_DESIGN_DECISIONS.md) |
 | 4B | Core identity and organization schema | Completed 2026-09-01; revision `a4b7e2c91d05` |
-| 4C | Remaining business schema | Not started |
+| 4C | Remaining business schema | Completed 2026-09-02; revisions `3f9a1c7b2e10`, `4a0b2d8c3f21`, `5b1c3e9d4a32`, `6c2d4f0e5b43`, `7d3e5a1f6c54` |
 | 4D | Functions, triggers, constraints, and grants | Not started |
 | 4E | Synthetic fixtures | Not started |
 | 4F | Clean-database, upgrade, security, and completion gate | Not started |
@@ -192,6 +193,35 @@ carrying a security-relevant legacy defect to GPT-5.6 review.
 
 **Estimated effort.** The largest part by volume. Expect several sessions given roughly 48
 remaining tables across many domains.
+
+**Completion evidence.** Passed on 2026-09-02, except the independent GPT-5.6 security review, which
+the project owner still has to run. Five domain revisions land the 48 remaining tables on top of 4B,
+one revision per domain group so review and rollback stay bounded: `3f9a1c7b2e10` people and
+organization, `4a0b2d8c3f21` payroll and finance and compliance, `5b1c3e9d4a32` leave,
+`6c2d4f0e5b43` attendance and roster, `7d3e5a1f6c54` documents and benefits and clinical records.
+The head is `7d3e5a1f6c54` and the database now has all 54 target tables. Every legacy `auth.users`
+owner became required `company_id` and `branch_id` scope, every trusted actor became an `app_users`
+or `user_profiles` reference with an `_app_user_id` column, and the deferred `employees.shift_id`
+foreign key was added once `shifts` existed. No revision adds an RLS policy, function, trigger, or
+runtime grant; those stay Phase 4D work. `app_users` and the Phase 3 identity contract are untouched.
+
+An empty local database upgraded from `f41c9a7b23d1` to `7d3e5a1f6c54`, downgraded to base, and
+upgraded again with no error. Each domain revision also downgrades to its own parent and back on its
+own. `alembic check` reports no metadata drift at the head. A cross-domain row graph covering all 54
+tables inserts and satisfies every foreign key, scope, and check constraint; a cross-tenant branch
+reference and a cross-branch employee reference are both rejected; and `workloop_runtime` still
+cannot read or write any migrated business table, so the read-only grant boundary holds. The backend
+suite passes 95 tests, including a metadata coverage check, a full-schema foreign-key resolution
+check, and negative scans confirming no model or migration mentions `auth.users`, `auth.uid`,
+`auth_user_id`, or a Supabase storage object. Ruff, ruff format, Pyright, and pip check are clean.
+The frontend unit suite and the migration-build isolation suite pass unchanged, so the legacy
+Supabase frontend keeps working. See
+[`PART_4C_COMPLETION.md`](PART_4C_COMPLETION.md) for the full evidence and command log.
+
+**Outstanding gate.** The GPT-5.6 security review of the migrated schema is the one completion-gate
+item this session could not run itself, since GPT-5.6 is not reachable from here. No 4C table
+conflicts with a 4A decision or carries a flagged legacy security defect that forced a stop, so the
+schema is ready for that review rather than blocked on a redesign.
 
 ## 4D: Functions, triggers, constraints, and grants
 

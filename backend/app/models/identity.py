@@ -137,6 +137,12 @@ class Employee(Base):
             name="fk_employees_reporting_manager_id_employees",
             ondelete="SET NULL (reporting_manager_id)",
         ),
+        ForeignKeyConstraint(
+            ["shift_id", "company_id", "branch_id"],
+            ["shifts.id", "shifts.company_id", "shifts.branch_id"],
+            name="fk_employees_shift_id_shifts",
+            ondelete="SET NULL (shift_id)",
+        ),
         CheckConstraint("basic_salary >= 0", name="basic_salary"),
         CheckConstraint("allowance >= 0", name="allowance"),
         CheckConstraint("housing_allowance >= 0", name="housing_allowance"),

@@ -100,10 +100,12 @@ jobs:
           docker compose --profile tools run --rm migrate
       - name: Verify Alembic and database boundaries
         run: |
-          test "$(docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini current | tail -n 1)" = "a4b7e2c91d05 (head)"
-          test "$(docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini heads | tail -n 1)" = "a4b7e2c91d05 (head)"
+          test "$(docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini current | tail -n 1)" = "7d3e5a1f6c54 (head)"
+          test "$(docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini heads | tail -n 1)" = "7d3e5a1f6c54 (head)"
           docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini check
           sh scripts/verify-phase-4b-schema.sh
+          sh scripts/verify-phase-4c-schema.sh
+          sh scripts/verify-phase-4c-migrations.sh
           docker compose exec -T backend python -c "import os, psycopg; url=os.environ['DATABASE_URL'].replace('postgresql+psycopg://', 'postgresql://', 1); connection=psycopg.connect(url); cursor=connection.cursor(); cursor.execute('SELECT current_user'); assert cursor.fetchone() == ('workloop_runtime',); connection.close()"
       - name: Verify service health
         run: |
@@ -115,7 +117,7 @@ jobs:
           python scripts/configure-phase-3d-keycloak.py
       - name: Verify database boundaries
         run: |
-          test "$(docker compose exec -T postgres psql --username postgres --dbname workloop --tuples-only --no-align --command "SELECT count(*) FROM pg_tables WHERE schemaname = 'public';")" = "6"
+          test "$(docker compose exec -T postgres psql --username postgres --dbname workloop --tuples-only --no-align --command "SELECT count(*) FROM pg_tables WHERE schemaname = 'public';")" = "55"
           test "$(docker compose exec -T postgres psql --username postgres --dbname keycloak --tuples-only --no-align --command "SELECT count(*) FROM realm;")" = "2"
       - name: Verify Keycloak and FastAPI authentication
         run: python scripts/verify-phase-3c-keycloak.py
@@ -133,6 +135,7 @@ jobs:
           docker compose --profile tools run --rm migrate
           docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini check
           sh scripts/verify-phase-4b-schema.sh
+          sh scripts/verify-phase-4c-schema.sh
           curl --fail --silent --show-error http://127.0.0.1:8080/realms/workloop-dev/protocol/openid-connect/certs | jq -r '.keys[].kid' | sort > /tmp/workloop-restarted-signing-key-ids
           diff /tmp/workloop-signing-key-ids /tmp/workloop-restarted-signing-key-ids
           python scripts/configure-phase-3d-keycloak.py
