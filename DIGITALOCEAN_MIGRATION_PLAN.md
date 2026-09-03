@@ -560,9 +560,9 @@ before Part 4B can start.
 | Part | Scope | Status |
 |---|---|---|
 | 4A | Schema inventory and design decisions | Completed 2026-09-01; see [`SCHEMA_CATALOGUE_AND_DESIGN_DECISIONS.md`](docs/migration/phase-4/SCHEMA_CATALOGUE_AND_DESIGN_DECISIONS.md) |
-| 4B | Core identity and organization schema | Not started |
-| 4C | Remaining business schema | Not started |
-| 4D | Functions, triggers, constraints, and grants | Not started |
+| 4B | Core identity and organization schema | Completed 2026-09-01; revision `a4b7e2c91d05` |
+| 4C | Remaining business schema | Completed 2026-09-02; revisions `3f9a1c7b2e10` through `7d3e5a1f6c54` |
+| 4D | Functions, triggers, constraints, and grants | Completed 2026-09-03; revisions `8e2b6a4c1f07`, `9f3c7b5d2a18`, `a0d4e6f8c92b`. GPT-5.6 security review of the 4C schema and the 4D grant matrix and functions is deferred and still owed. |
 | 4E | Synthetic fixtures | Not started |
 | 4F | Clean-database, upgrade, security, and completion gate | Not started |
 

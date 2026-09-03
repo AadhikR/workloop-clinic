@@ -3,9 +3,9 @@ set -eu
 
 # Phase 4C schema gate. Proves the 54-table target exists, that a connected row
 # graph spanning every business domain satisfies the foreign-key and scope
-# constraints end to end, that a cross-branch reference is rejected, and that
-# workloop_runtime still has no access to any migrated business table. Runtime
-# write grants are Phase 4D work, so the boundary must stay closed here.
+# constraints end to end, and that a cross-tenant branch and cross-branch
+# employee reference are both rejected. The runtime grant boundary moved to
+# Phase 4D and is proven by scripts/verify-phase-4d-grants.sh.
 
 "${DOCKER:-docker}" compose exec -T postgres psql --username postgres --dbname workloop --set ON_ERROR_STOP=1 \
   --command "
@@ -163,23 +163,5 @@ BEGIN
   END;
 END
 \$\$;
-
-SET ROLE workloop_runtime;
-DO \$\$
-BEGIN
-  BEGIN
-    PERFORM count(*) FROM leave_requests;
-    RAISE EXCEPTION 'workloop_runtime unexpectedly can read leave_requests';
-  EXCEPTION WHEN insufficient_privilege THEN NULL;
-  END;
-  BEGIN
-    INSERT INTO departments (company_id, branch_id, name)
-    VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', 'Runtime');
-    RAISE EXCEPTION 'workloop_runtime unexpectedly can write departments';
-  EXCEPTION WHEN insufficient_privilege THEN NULL;
-  END;
-END
-\$\$;
-RESET ROLE;
 ROLLBACK;
 "

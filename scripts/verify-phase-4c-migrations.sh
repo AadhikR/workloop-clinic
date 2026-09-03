@@ -28,9 +28,10 @@ assert_current() {
 CHAIN="a4b7e2c91d05 3f9a1c7b2e10 4a0b2d8c3f21 5b1c3e9d4a32 6c2d4f0e5b43 7d3e5a1f6c54"
 HEAD="7d3e5a1f6c54"
 
-# Full teardown and rebuild from empty.
+# Full teardown and rebuild from empty. Pinned to the 4C head so later Phase 4D
+# revisions on top of it do not perturb this per-domain 4C round-trip.
 alembic_cmd downgrade base >/dev/null
-alembic_cmd upgrade head >/dev/null
+alembic_cmd upgrade "$HEAD" >/dev/null
 assert_current "$HEAD"
 
 # Step every domain revision down to base one at a time, then back up, checking
@@ -46,6 +47,11 @@ for revision in $CHAIN; do
   alembic_cmd upgrade "$revision" >/dev/null
   assert_current "$revision"
 done
+
+# Restore the full head so downstream Phase 4D grant and function checks run
+# against a fully migrated database. alembic check also requires the database to
+# be at head before it will diff the metadata.
+alembic_cmd upgrade head >/dev/null
 
 if ! alembic_cmd check 2>&1 | grep -q "No new upgrade operations detected"; then
   echo "metadata drift detected after per-domain round-trip" >&2

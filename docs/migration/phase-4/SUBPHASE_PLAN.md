@@ -2,8 +2,9 @@
 
 ## Status
 
-**Parts 4A and 4B completed on 2026-09-01. Part 4C completed on 2026-09-02. Parts 4D through 4F
-are not authorized.**
+**Parts 4A and 4B completed on 2026-09-01. Part 4C completed on 2026-09-02. Part 4D completed on
+2026-09-03, with the GPT-5.6 security review deferred by the project owner. Parts 4E and 4F are not
+authorized.**
 
 This document breaks Phase 4 into six parts, 4A through 4F, so the project owner can authorize
 one part at a time. It records objectives, dependencies, files, decisions, security boundaries,
@@ -40,7 +41,7 @@ fixture. Parts 4C through 4F still require separate authorization.
 | 4A | Schema inventory and design decisions | Completed 2026-09-01; see [`SCHEMA_CATALOGUE_AND_DESIGN_DECISIONS.md`](SCHEMA_CATALOGUE_AND_DESIGN_DECISIONS.md) |
 | 4B | Core identity and organization schema | Completed 2026-09-01; revision `a4b7e2c91d05` |
 | 4C | Remaining business schema | Completed 2026-09-02; revisions `3f9a1c7b2e10`, `4a0b2d8c3f21`, `5b1c3e9d4a32`, `6c2d4f0e5b43`, `7d3e5a1f6c54` |
-| 4D | Functions, triggers, constraints, and grants | Not started |
+| 4D | Functions, triggers, constraints, and grants | Completed 2026-09-03; revisions `8e2b6a4c1f07`, `9f3c7b5d2a18`, `a0d4e6f8c92b`. GPT-5.6 review deferred. |
 | 4E | Synthetic fixtures | Not started |
 | 4F | Clean-database, upgrade, security, and completion gate | Not started |
 
@@ -270,6 +271,35 @@ here is the hardest kind to catch later.
 
 **Estimated effort.** One to two sessions for the grant matrix and canonical trigger; more if a
 large share of the 29 functions move into FastAPI.
+
+**Completion evidence.** Passed on 2026-09-03, except the GPT-5.6 security review, which the project
+owner chose to defer and still owes. Three bounded revisions land on top of `7d3e5a1f6c54`, one per
+concern: `8e2b6a4c1f07` adds the canonical `set_updated_at` helper and the 19 named triggers,
+`9f3c7b5d2a18` adds the three retained business functions, and `a0d4e6f8c92b` adds the per-table
+runtime grants. The head is `a0d4e6f8c92b`. No table or column changed, so `alembic check` still
+reports no drift, and the metadata still holds exactly 54 tables.
+
+Each function is SECURITY DEFINER with `SET search_path TO public` and has its PUBLIC execute
+privilege revoked; the helper `set_updated_at` also runs with a pinned search path and no PUBLIC
+execute. No retained function reads a Supabase-era session identity or role. The grant revision adds
+no `GRANT ... ON ALL TABLES`, no `PUBLIC` grant, no default privilege, and no browser or service
+role grant, and grants no `DELETE` or `TRUNCATE` anywhere. The four identity tables keep the Phase 3
+read-only `SELECT` grant.
+
+The three new verifier scripts pass against the local Compose stack:
+`verify-phase-4d-migrations.sh` (per-concern round-trip and no drift), `verify-phase-4d-grants.sh`
+(the exact least-privilege matrix by `has_table_privilege`, plus a live runtime session refused an
+ungranted write), and `verify-phase-4d-functions.sh` (trigger advance, `replace_payroll_entries`
+validation, `record_advance_repayment` idempotency, and `admin_execute_shift_swap` authorization and
+atomicity). The Phase 4C static Supabase-reference scan still passes over all migrations, including
+the three new ones. See [`PART_4D_COMPLETION.md`](PART_4D_COMPLETION.md) for the full evidence.
+
+**Outstanding gate.** The independent GPT-5.6 security review is the one completion-gate item this
+session did not run: the prerequisite review of the 4C schema, and the 4D review of the grant matrix
+and every retained security-definer-equivalent function. The project owner authorized 4D and deferred
+both reviews, so the code is committed and review-ready with this gate open. The grant matrix, table
+by table, still needs the project owner's own sign-off, since the plan flags it as a decision
+requiring project-owner approval.
 
 ## 4E: Synthetic fixtures
 

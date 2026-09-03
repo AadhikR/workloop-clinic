@@ -54,20 +54,19 @@ BEGIN
 END
 \$\$;
 SET ROLE workloop_runtime;
-SELECT count(*) FROM app_users;
 DO \$\$
 BEGIN
-  BEGIN
-    SELECT count(*) FROM branches;
-    RAISE EXCEPTION 'workloop_runtime unexpectedly has branch access';
-  EXCEPTION WHEN insufficient_privilege THEN NULL;
-  END;
+  -- The four identity tables keep the Phase 3 read-only grant after Phase 4D:
+  -- the runtime reads them but cannot write them. Branch and business write
+  -- grants added in Phase 4D are proven by scripts/verify-phase-4d-grants.sh.
+  PERFORM count(*) FROM app_users;
   BEGIN
     INSERT INTO companies (id) VALUES ('00000000-0000-0000-0000-000000000041');
-    RAISE EXCEPTION 'workloop_runtime unexpectedly has write access';
+    RAISE EXCEPTION 'workloop_runtime unexpectedly has identity write access';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
 END
 \$\$;
+RESET ROLE;
 ROLLBACK;
 "
