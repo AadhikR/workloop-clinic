@@ -42,7 +42,7 @@ fixture. Parts 4C through 4F still require separate authorization.
 | 4B | Core identity and organization schema | Completed 2026-09-01; revision `a4b7e2c91d05` |
 | 4C | Remaining business schema | Completed 2026-09-02; revisions `3f9a1c7b2e10`, `4a0b2d8c3f21`, `5b1c3e9d4a32`, `6c2d4f0e5b43`, `7d3e5a1f6c54` |
 | 4D | Functions, triggers, constraints, and grants | Completed 2026-09-03; revisions `8e2b6a4c1f07`, `9f3c7b5d2a18`, `a0d4e6f8c92b`. GPT-5.6 review deferred. |
-| 4E | Synthetic fixtures | Not started |
+| 4E | Synthetic fixtures | In progress; first increment (identity, organization, golden cases) landed 2026-09-03. Status-coverage rows pending. |
 | 4F | Clean-database, upgrade, security, and completion gate | Not started |
 
 ## 4A: Schema inventory and design decisions
@@ -345,6 +345,24 @@ manifest and schema, matching the plan's guidance for repetitive conversions onc
 fixed.
 
 **Estimated effort.** One session once 4A through 4D are done and the manifest is final.
+
+**Progress.** First increment landed on 2026-09-03. The seed lives in
+`backend/app/db/seed/` and is its own executable manifest: 79 rows across 14 tables covering the
+identity and organization spine (two tenants, four branches, 15 employees and their app-user
+identities and profiles, Horizon Dubai departments, staffing rules, and shifts) plus the load-bearing
+golden financial cases (the canonical payroll entry, the six advance states, the idempotent August
+repayment, the golden expense claim, and the roster overtime row). It is deterministic and idempotent,
+runs as the migration identity and refuses to run as `workloop_runtime`, touches only the two fixture
+tenants, and is not on the Alembic path. Seeded `app_users` use a synthetic issuer distinct from the
+live Keycloak issuer, so no row can resolve against a real token. `scripts/verify-phase-4e-seed.sh`
+runs apply, idempotent re-apply, revalidate, and clean in CI; `backend/tests/test_seed_fixtures.py`
+checks the manifest without a database. Two legacy-only Phase 0 fixtures (the null-company `H-LEG-001`
+employee and `storage.objects` rows) are retired because the target schema forbids them. See
+[`SYNTHETIC_FIXTURE_MANIFEST.md`](SYNTHETIC_FIXTURE_MANIFEST.md).
+
+The 4E completion gate, a one-to-one match with the Phase 0 scenario catalogue, is not yet met: the
+status-coverage rows for every leave, attendance, document, incident, appraisal, training, asset, and
+cross-tenant negative-control case are the next increment.
 
 ## 4F: Clean-database, upgrade, security, and completion gate
 

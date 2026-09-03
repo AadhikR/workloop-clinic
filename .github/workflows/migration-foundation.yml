@@ -109,6 +109,7 @@ jobs:
           sh scripts/verify-phase-4d-migrations.sh
           sh scripts/verify-phase-4d-grants.sh
           sh scripts/verify-phase-4d-functions.sh
+          sh scripts/verify-phase-4e-seed.sh
           docker compose exec -T backend python -c "import os, psycopg; url=os.environ['DATABASE_URL'].replace('postgresql+psycopg://', 'postgresql://', 1); connection=psycopg.connect(url); cursor=connection.cursor(); cursor.execute('SELECT current_user'); assert cursor.fetchone() == ('workloop_runtime',); connection.close()"
       - name: Verify service health
         run: |
