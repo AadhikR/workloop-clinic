@@ -403,6 +403,16 @@ mistake before Phase 5 treats this schema as the source of truth for authorizati
 the Supabase-reference grep check as a hard CI gate, not a manual step; the grant-boundary tests
 from 4D, re-run after a clean create.
 
+During review and fixes, run the checks that cover the files or behavior that changed. After all
+findings are resolved, run one complete local gate on a fresh PostgreSQL 17 database, then push
+once and let GitHub run the complete gate. A failure justifies a focused reproduction and another
+final gate. A completion-record-only edit does not justify repeating the full local suite. Report
+the final GitHub run in the task handoff instead of making a commit only to add its run ID.
+
+Keep the task handoff short. Record the branch, commit, Alembic head, preserved-volume warning,
+outstanding independent review, scope limits, and canonical documents. Do not copy test inventories
+that already live in the workflow or verification scripts.
+
 **Rollback boundary.** Not applicable to this part directly; it verifies the rollback boundaries
 documented by 4B through 4D actually hold.
 

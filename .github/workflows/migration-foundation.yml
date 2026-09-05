@@ -152,7 +152,7 @@ jobs:
       - name: Verify cleanup and backend log safety
         run: |
           test "$(docker compose exec -T postgres psql --username postgres --dbname workloop --tuples-only --no-align --command 'SELECT count(*) FROM companies UNION ALL SELECT count(*) FROM branches UNION ALL SELECT count(*) FROM employees UNION ALL SELECT count(*) FROM app_users UNION ALL SELECT count(*) FROM user_profiles;' | sort -u)" = "0"
-          python scripts/verify-phase-3c-keycloak.py
+          test "$(docker compose exec -T postgres psql --username postgres --dbname keycloak --tuples-only --no-align --command "SELECT count(*) FROM user_entity AS users JOIN realm ON realm.id = users.realm_id WHERE realm.name = 'workloop-dev';")" = "0"
           sh scripts/verify-phase-3h-logs.sh
       - name: Show failure state
         if: failure()

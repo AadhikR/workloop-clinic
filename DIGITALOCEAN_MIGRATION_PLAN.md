@@ -607,6 +607,10 @@ before Part 4B can start.
 
 Alembic can create an empty Workloop database from scratch and upgrade it to the latest schema without Supabase schemas, roles, or services.
 
+Use targeted checks while resolving findings. Run the complete local gate once after the changes
+settle, then use the GitHub workflow as the final full run. Report its URL in the handoff. Do not
+push another commit only to copy that run ID into a completion document.
+
 ## Phase 5: Authorization and Tenant Isolation
 
 ### Objective
