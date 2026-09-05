@@ -3,23 +3,25 @@
 ## Status
 
 **Parts 4A and 4B completed on 2026-09-01. Part 4C completed on 2026-09-02. Part 4D completed on
-2026-09-03, with the GPT-5.6 security review deferred by the project owner. Parts 4E and 4F are not
-authorized.**
+2026-09-03, with its corrective revisions completed on 2026-09-05. Part 4E completed on
+2026-09-05. The independent GPT-5.6 review of 4C and corrected 4D remains outstanding. Part 4F is
+not authorized.**
 
 This document breaks Phase 4 into six parts, 4A through 4F, so the project owner can authorize
 one part at a time. It records objectives, dependencies, files, decisions, security boundaries,
 tests, rollback boundaries, completion gates, and a recommended model per part. Part 4A produced
 documentation only. It changed no runtime code, database schema, Alembic revision, grant, or
-fixture. Parts 4C through 4F still require separate authorization.
+fixture. Part 4F still requires separate authorization.
 
 ## Current state
 
 - Branch `migration/fastapi-keycloak`. Phase 3 is complete through 3H.
-- Alembic has one revision, `f41c9a7b23d1`: enums `app_role` and `account_status`; tables
-  `companies` (id only), `employees` (id, company_id), `app_users`, `user_profiles`; and
-  read-only `SELECT` grants to `workloop_runtime` on those four tables.
-- SQLAlchemy models in `backend/app/models/identity.py` mirror that revision exactly, using the
-  shared `Base` and naming convention in `backend/app/db/base.py`.
+- Alembic head is `d307b9c1f25e`. The public schema has 54 target tables plus
+  `alembic_version`.
+- PostgreSQL 17.11 is the Compose and CI target. The preserved local volume still uses PostgreSQL
+  16, so Phase 4E validation used an isolated fresh PostgreSQL 17 Compose project.
+- The Phase 4E seed has 334 deterministic rows across 48 tables. It is separate from Alembic and
+  creates no schema object.
 - The legacy schema lives outside `supabase/migrations`, which does not exist in this repo. It is
   12 root SQL files plus `sql/001` through `sql/055` (five numbers skipped), covering roughly 52
   tables, 29 functions, 19 triggers, and over 100 RLS policies, per
@@ -42,7 +44,7 @@ fixture. Parts 4C through 4F still require separate authorization.
 | 4B | Core identity and organization schema | Completed 2026-09-01; revision `a4b7e2c91d05` |
 | 4C | Remaining business schema | Completed 2026-09-02; revisions `3f9a1c7b2e10`, `4a0b2d8c3f21`, `5b1c3e9d4a32`, `6c2d4f0e5b43`, `7d3e5a1f6c54` |
 | 4D | Functions, triggers, constraints, and grants | Completed 2026-09-03; security corrections completed 2026-09-05 through `d307b9c1f25e`. GPT-5.6 review deferred. |
-| 4E | Synthetic fixtures | In progress; first increment (identity, organization, golden cases) landed 2026-09-03. Status-coverage rows pending. |
+| 4E | Synthetic fixtures | Completed 2026-09-05; 334 deterministic rows across 48 tables. See [`PART_4E_COMPLETION.md`](PART_4E_COMPLETION.md). |
 | 4F | Clean-database, upgrade, security, and completion gate | Not started |
 
 ## 4A: Schema inventory and design decisions
@@ -311,7 +313,7 @@ executable, version-controlled seed script, kept separate from schema migrations
 
 **Scope.**
 - Compile the deterministic fixture manifest, fixed clock, UUIDv5 IDs, two tenants, four branches,
-  14 employees, and golden financial cases, into an exact, checked-in specification, then
+  the approved employee set, and golden financial cases into an exact checked-in specification, then
   implement a seed script against it.
 - The seed script must be idempotent, safe to run repeatedly against a development database, and
   contain no real personal data.
@@ -348,23 +350,26 @@ fixed.
 
 **Estimated effort.** One session once 4A through 4D are done and the manifest is final.
 
-**Progress.** First increment landed on 2026-09-03. The seed lives in
-`backend/app/db/seed/` and is its own executable manifest: 79 rows across 14 tables covering the
-identity and organization spine (two tenants, four branches, 15 employees and their app-user
-identities and profiles, Horizon Dubai departments, staffing rules, and shifts) plus the load-bearing
-golden financial cases (the canonical payroll entry, the six advance states, the idempotent August
-repayment, the golden expense claim, and the roster overtime row). It is deterministic and idempotent,
-runs as the migration identity and refuses to run as `workloop_runtime`, touches only the two fixture
-tenants, and is not on the Alembic path. Seeded `app_users` use a synthetic issuer distinct from the
-live Keycloak issuer, so no row can resolve against a real token. `scripts/verify-phase-4e-seed.sh`
-runs apply, idempotent re-apply, revalidate, and clean in CI; `backend/tests/test_seed_fixtures.py`
-checks the manifest without a database. Two legacy-only Phase 0 fixtures (the null-company `H-LEG-001`
-employee and `storage.objects` rows) are retired because the target schema forbids them. See
-[`SYNTHETIC_FIXTURE_MANIFEST.md`](SYNTHETIC_FIXTURE_MANIFEST.md).
+**Completion evidence.** Completed on 2026-09-05. The seed contains 334 deterministic rows across
+48 tables. It covers the Phase 0 identity, organization, payroll, advance, repayment, expense,
+roster, leave, attendance, document, certification, insurance, notification, training, CME,
+appraisal, asset, incident, contract, offboarding, and letter scenarios. The executable manifest
+also records 26 non-persisted payload or calculation cases, all 19 later authorization controls,
+and six approved replacements or omissions.
 
-The 4E completion gate, a one-to-one match with the Phase 0 scenario catalogue, is not yet met: the
-status-coverage rows for every leave, attendance, document, incident, appraisal, training, asset, and
-cross-tenant negative-control case are the next increment.
+The seed uses the fixed Phase 0 clock and UUID rules. All application users use issuer
+`https://seed.workloop.test`, so the identity resolver cannot confuse them with live Keycloak
+accounts. The runner accepts the migration identity or a dedicated seed identity and refuses
+`workloop_runtime`. A repeated application performs no update. The verifier compares every stored
+column through a full-row fingerprint, checks exact IDs, values, and per-table counts, exercises
+notification deduplication and cross-scope foreign-key rejection, and removes only the two fixture
+tenants. The completed fresh PostgreSQL 17.11 run used Alembic head `d307b9c1f25e` and left every
+affected table free of fixture rows. See
+[`SYNTHETIC_FIXTURE_MANIFEST.md`](SYNTHETIC_FIXTURE_MANIFEST.md) and
+[`PART_4E_COMPLETION.md`](PART_4E_COMPLETION.md).
+
+The independent GPT-5.6 review of the 4C schema and corrected 4D functions and grant matrix remains
+outstanding. Phase 4F has not started.
 
 ## 4F: Clean-database, upgrade, security, and completion gate
 

@@ -8,10 +8,12 @@ ones that document pins by hand.
 """
 
 import uuid
-from datetime import date
+from datetime import UTC, date, datetime
 
 # Fixed clock. Phase 0 forbids deriving any fixture date from the real date.
 CLOCK_DATE = date(2026, 8, 27)
+CLOCK_TIMESTAMP = datetime(2026, 8, 27, 8, 0, 0, tzinfo=UTC)
+UAE_TIMESTAMP = datetime.fromisoformat("2026-08-27T12:00:00+04:00")
 TODAY = date(2026, 8, 27)
 YESTERDAY = date(2026, 8, 26)
 PLUS_7D = date(2026, 9, 3)

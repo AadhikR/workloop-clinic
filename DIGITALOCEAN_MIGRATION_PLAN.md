@@ -563,7 +563,7 @@ before Part 4B can start.
 | 4B | Core identity and organization schema | Completed 2026-09-01; revision `a4b7e2c91d05` |
 | 4C | Remaining business schema | Completed 2026-09-02; revisions `3f9a1c7b2e10` through `7d3e5a1f6c54` |
 | 4D | Functions, triggers, constraints, and grants | Completed 2026-09-03; security corrections completed 2026-09-05 through `d307b9c1f25e`. GPT-5.6 security review of the 4C schema and corrected 4D grant matrix and functions is deferred and still owed. |
-| 4E | Synthetic fixtures | In progress; first increment (identity, organization, golden financial cases) landed 2026-09-03 in `backend/app/db/seed/`. Status-coverage rows pending. |
+| 4E | Synthetic fixtures | Completed 2026-09-05; 334 deterministic rows across 48 tables. See [`PART_4E_COMPLETION.md`](docs/migration/phase-4/PART_4E_COMPLETION.md). |
 | 4F | Clean-database, upgrade, security, and completion gate | Not started |
 
 ### Work
