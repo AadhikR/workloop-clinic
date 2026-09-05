@@ -101,7 +101,9 @@ and the complete Alembic and database boundary step, including the Phase 4E fixt
 then failed an existing Keycloak check that compared the example token's OAuth scopes as one
 ordered string. An isolated fresh-stack reproduction returned the same approved `email` and
 `profile` scopes in the other valid order. The verifier now requires those two exact scopes without
-depending on their order. A follow-up GitHub run is required before the completion gate closes.
+depending on their order. Corrected GitHub Actions run `33985573395` passed Backend quality,
+Frontend regression, and Full stack smoke, including authentication, restart persistence, fixture
+cleanup, and log-safety checks.
 
 ## Boundaries and next step
 
