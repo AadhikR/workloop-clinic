@@ -6,6 +6,7 @@ values, and holds no real personal data or credentials.
 """
 
 import importlib
+import re
 from collections import Counter
 from decimal import Decimal
 from pathlib import Path
@@ -450,19 +451,27 @@ def test_seed_and_migrations_have_no_supabase_database_dependency() -> None:
     paths = list((root / "app" / "db" / "seed").glob("*.py"))
     paths += list((root / "alembic" / "versions").glob("*.py"))
     forbidden = (
-        "auth.users",
-        "auth.uid",
-        "auth.email",
-        "auth.role",
-        "storage.objects",
-        "storage.foldername",
-        "service_role",
-        "authenticated role",
-        "anon role",
+        ("auth schema", re.compile(r"\bauth\s*\.")),
+        ("storage schema", re.compile(r"\bstorage\s*\.")),
+        (
+            "Supabase service role",
+            re.compile(
+                r"\b(?:service_role|supabase_admin|supabase_auth_admin|"
+                r"supabase_storage_admin|authenticator|dashboard_user)\b"
+            ),
+        ),
+        ("Supabase browser role", re.compile(r"['\"](?:anon|authenticated)['\"]")),
+        (
+            "Supabase browser role grant",
+            re.compile(
+                r"\b(?:grant|revoke|set\s+role|create\s+role|alter\s+role|drop\s+role)\b"
+                r"[^;\n]*(?:\banon\b|\bauthenticated\b)"
+            ),
+        ),
     )
     corpus = "\n".join(path.read_text(encoding="utf-8").lower() for path in paths)
-    for marker in forbidden:
-        assert marker not in corpus
+    hits = [label for label, pattern in forbidden if pattern.search(corpus)]
+    assert not hits, f"migrations or seed still reference {hits}"
 
 
 def test_non_persisted_and_replaced_phase0_cases_are_explicit() -> None:

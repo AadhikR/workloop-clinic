@@ -237,7 +237,7 @@ Do not create abstractions merely to match this diagram. Start with the smallest
 | 1 | DigitalOcean access and cost controls | Completed 2026-08-27 — spend alert deferred to Phase 6A gate | 1–2 days |
 | 2 | Local backend and infrastructure foundation | Completed 2026-08-31 | 4–7 days |
 | 3 | Keycloak authentication foundation | Completed 2026-09-01 | 1–2 weeks |
-| 4 | Portable database baseline | In progress; 4A and 4B completed 2026-09-01 | 1–2 weeks |
+| 4 | Portable database baseline | In progress; 4F local gate passed 2026-09-06, final GitHub gate and owner sign-off remain | 1–2 weeks |
 | 5 | Authorization and tenant isolation | Not started | 1–2 weeks |
 | 6 | Shared API and frontend client | Not started | 3–5 days |
 | 6A | Early DigitalOcean architecture proof | Not started | 3–5 days |
@@ -562,9 +562,9 @@ before Part 4B can start.
 | 4A | Schema inventory and design decisions | Completed 2026-09-01; see [`SCHEMA_CATALOGUE_AND_DESIGN_DECISIONS.md`](docs/migration/phase-4/SCHEMA_CATALOGUE_AND_DESIGN_DECISIONS.md) |
 | 4B | Core identity and organization schema | Completed 2026-09-01; revision `a4b7e2c91d05` |
 | 4C | Remaining business schema | Completed 2026-09-02; revisions `3f9a1c7b2e10` through `7d3e5a1f6c54` |
-| 4D | Functions, triggers, constraints, and grants | Completed 2026-09-03; security corrections completed 2026-09-05 through `d307b9c1f25e`. GPT-5.6 security review of the 4C schema and corrected 4D grant matrix and functions is deferred and still owed. |
+| 4D | Functions, triggers, constraints, and grants | Completed 2026-09-03; security corrections completed 2026-09-05 through `d307b9c1f25e`; independent GPT-5.6 review closed in 4F |
 | 4E | Synthetic fixtures | Completed 2026-09-05; 334 deterministic rows across 48 tables. See [`PART_4E_COMPLETION.md`](docs/migration/phase-4/PART_4E_COMPLETION.md). |
-| 4F | Clean-database, upgrade, security, and completion gate | Not started |
+| 4F | Clean-database, upgrade, security, and completion gate | Independent review and complete local gate passed 2026-09-06; final GitHub gate and owner sign-off remain |
 
 ### Work
 
@@ -610,6 +610,15 @@ Alembic can create an empty Workloop database from scratch and upgrade it to the
 Use targeted checks while resolving findings. Run the complete local gate once after the changes
 settle, then use the GitHub workflow as the final full run. Report its URL in the handoff. Do not
 push another commit only to copy that run ID into a completion document.
+
+The independent review and complete local gate passed on 2026-09-06. Four verification gaps were
+fixed without changing the approved schema, function behavior, or grant matrix. A fresh PostgreSQL
+17.11 project upgraded from empty to `d307b9c1f25e`, passed the documented downgrade boundaries,
+applied and removed all 334 fixtures, passed authentication before and after restart, and contained
+no Supabase database schema, role, or function dependency. See
+[`docs/migration/phase-4/PART_4F_COMPLETION.md`](docs/migration/phase-4/PART_4F_COMPLETION.md).
+The post-commit GitHub result belongs in the task handoff. Project-owner sign-off remains required
+before Phase 5.
 
 ## Phase 5: Authorization and Tenant Isolation
 
@@ -1664,14 +1673,24 @@ Decision needed: None for the authorized Phase 3H gate. Phase 4 remains unauthor
 Next action: Push the Phase 3H completion record, verify its final GitHub checks, and stop before Phase 4.
 ```
 
+### 2026-09-06 - Phase 4F
+
+```text
+Date: 2026-09-06
+Phase: 4F - Clean-database, upgrade, security, and completion gate
+Change completed: Completed the independent GPT-5.6 review, fixed four verification gaps, added the live database boundary gate, and recorded the complete local result. No schema object or approved database behavior changed.
+Tests run: 124 backend tests and all backend quality checks; 32 frontend unit tests; four migration-build isolation tests; both production builds; Compose validation; empty, repeated, downgrade, per-revision, and no-drift Alembic checks; schema, ACL, trigger, function, concurrency, fixture, cleanup, portability, authentication, restart, signing-key, and log-safety checks on isolated PostgreSQL 17.11.
+Result: The independent review found no implementation defect. The complete local Phase 4F gate passed at d307b9c1f25e. The 334 fixture rows applied twice without change and cleaned up. The migrated database contains no auth or storage schema, Supabase role, or retained-function dependency.
+Known issues: The final GitHub workflow result must be reported in the task handoff. Phase 4 still needs project-owner sign-off. Phase 5 authorization and tenant isolation remain excluded.
+Decision needed: The project owner must sign off before Phase 4 closes or Phase 5 starts.
+Next action: Commit and push once, verify the existing GitHub workflow, report its URL, and stop before Phase 5.
+```
+
 ## Immediate Next Actions
 
-Phase 2 is complete. Local services are healthy, Alembic uses a separate migration identity,
-Keycloak state persists, and both a clean local checkout and GitHub's Linux runner can recreate
-the foundation.
+Phase 4F passed its independent review and complete local gate on 2026-09-06 at Alembic head
+`d307b9c1f25e`. The post-commit GitHub workflow is the final automated gate. Phase 4 then requires
+project-owner sign-off.
 
-Phase 3 is complete. Phase 3H passed its local and GitHub security, cleanup, restart, and persistence
-gate on 2026-09-01. The identity schema remains at `f41c9a7b23d1`; the restricted `workloop-dev`
-realm persists with no users; and temporary Workloop identity rows are absent. Do not start Phase 4,
-provision users, or add role, tenant, manager-scope, or business authorization without separate
-project-owner authorization.
+Do not start Phase 5. It owns authorization, tenant isolation, and RLS policy work and requires
+separate project-owner authorization.

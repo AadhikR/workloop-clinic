@@ -4,8 +4,9 @@
 
 Part 4D completed on 2026-09-03. A corrective security review on 2026-09-05 found and fixed unsafe
 temporary-schema lookup, direct workflow-table grants, stale roster reads during concurrent shift
-swaps, and the PostgreSQL version mismatch. The independent GPT-5.6 review remains deferred. This
-part adds the four retained PostgreSQL functions, the 19 canonical `updated_at` triggers, and the
+swaps, and the PostgreSQL version mismatch. The independent GPT-5.6 review completed in Phase 4F on
+2026-09-06. This part adds the four retained PostgreSQL functions, the 19 canonical `updated_at`
+triggers, and the
 least-privilege runtime grants from the approved Phase 4A catalogue. It adds no table, column, or RLS
 policy, and it leaves the Phase 3 authentication contract, the `app_users` identity mapping, and the
 legacy Supabase frontend untouched.
@@ -164,8 +165,9 @@ keeps a `user_id` or `auth_user_id` ownership shape.
 - No wildcard, PUBLIC, default-privilege, browser, or service role grant, and no DELETE or TRUNCATE.
 - The Phase 3 identity contract, `app_users`, and the read-only identity grants are unchanged.
 
-## Outstanding gate
+## Independent review closure
 
-The independent GPT-5.6 review of the migrated 4C schema, corrected 4D grant matrix, and every
-retained security-definer-equivalent function remains outstanding. The corrective changes and their
-attack-focused tests are ready for that review.
+The Phase 4F independent GPT-5.6 review found no Phase 4D implementation defect. It confirmed the
+corrected search paths, ownership path, PUBLIC revokes, grant matrix, retained function behavior,
+and downgrade order. Four test gaps were fixed without changing an approved database object or
+behavior. See [`PART_4F_COMPLETION.md`](PART_4F_COMPLETION.md).

@@ -4,14 +4,14 @@
 
 **Parts 4A and 4B completed on 2026-09-01. Part 4C completed on 2026-09-02. Part 4D completed on
 2026-09-03, with its corrective revisions completed on 2026-09-05. Part 4E completed on
-2026-09-05. The independent GPT-5.6 review of 4C and corrected 4D remains outstanding. Part 4F is
-not authorized.**
+2026-09-05. The independent GPT-5.6 review and complete local Part 4F gate passed on 2026-09-06.
+The final GitHub gate and project-owner sign-off remain.**
 
 This document breaks Phase 4 into six parts, 4A through 4F, so the project owner can authorize
 one part at a time. It records objectives, dependencies, files, decisions, security boundaries,
 tests, rollback boundaries, completion gates, and a recommended model per part. Part 4A produced
 documentation only. It changed no runtime code, database schema, Alembic revision, grant, or
-fixture. Part 4F still requires separate authorization.
+fixture. Part 4F received separate authorization on 2026-09-06.
 
 ## Current state
 
@@ -42,10 +42,10 @@ fixture. Part 4F still requires separate authorization.
 |---|---|---|
 | 4A | Schema inventory and design decisions | Completed 2026-09-01; see [`SCHEMA_CATALOGUE_AND_DESIGN_DECISIONS.md`](SCHEMA_CATALOGUE_AND_DESIGN_DECISIONS.md) |
 | 4B | Core identity and organization schema | Completed 2026-09-01; revision `a4b7e2c91d05` |
-| 4C | Remaining business schema | Completed 2026-09-02; revisions `3f9a1c7b2e10`, `4a0b2d8c3f21`, `5b1c3e9d4a32`, `6c2d4f0e5b43`, `7d3e5a1f6c54` |
-| 4D | Functions, triggers, constraints, and grants | Completed 2026-09-03; security corrections completed 2026-09-05 through `d307b9c1f25e`. GPT-5.6 review deferred. |
+| 4C | Remaining business schema | Completed 2026-09-02; revisions `3f9a1c7b2e10`, `4a0b2d8c3f21`, `5b1c3e9d4a32`, `6c2d4f0e5b43`, `7d3e5a1f6c54`; independent review closed in 4F |
+| 4D | Functions, triggers, constraints, and grants | Completed 2026-09-03; security corrections completed 2026-09-05 through `d307b9c1f25e`; independent review closed in 4F |
 | 4E | Synthetic fixtures | Completed 2026-09-05; 334 deterministic rows across 48 tables. See [`PART_4E_COMPLETION.md`](PART_4E_COMPLETION.md). |
-| 4F | Clean-database, upgrade, security, and completion gate | Not started |
+| 4F | Clean-database, upgrade, security, and completion gate | Independent review and complete local gate passed 2026-09-06; final GitHub gate and owner sign-off remain |
 
 ## 4A: Schema inventory and design decisions
 
@@ -221,10 +221,10 @@ The frontend unit suite and the migration-build isolation suite pass unchanged, 
 Supabase frontend keeps working. See
 [`PART_4C_COMPLETION.md`](PART_4C_COMPLETION.md) for the full evidence and command log.
 
-**Outstanding gate.** The GPT-5.6 security review of the migrated schema is the one completion-gate
-item this session could not run itself, since GPT-5.6 is not reachable from here. No 4C table
-conflicts with a 4A decision or carries a flagged legacy security defect that forced a stop, so the
-schema is ready for that review rather than blocked on a redesign.
+**Review closure.** The independent GPT-5.6 review completed in Part 4F. It found no Phase 4C schema
+defect and confirmed the 54-table scope, composite tenant and branch references, delete actions,
+and timestamp policy. Its verification findings and dispositions are in
+[`PART_4F_COMPLETION.md`](PART_4F_COMPLETION.md).
 
 ## 4D: Functions, triggers, constraints, and grants
 
@@ -298,12 +298,10 @@ validation, `record_advance_repayment` idempotency, and `admin_execute_shift_swa
 atomicity). The Phase 4C static Supabase-reference scan still passes over all migrations, including
 the three new ones. See [`PART_4D_COMPLETION.md`](PART_4D_COMPLETION.md) for the full evidence.
 
-**Outstanding gate.** The independent GPT-5.6 security review is the one completion-gate item this
-session did not run: the prerequisite review of the 4C schema, and the 4D review of the grant matrix
-and every retained security-definer-equivalent function. The project owner authorized 4D and deferred
-both reviews, so the code is committed and review-ready with this gate open. The grant matrix, table
-by table, still needs the project owner's own sign-off, since the plan flags it as a decision
-requiring project-owner approval.
+**Review closure.** The independent GPT-5.6 review completed in Part 4F. It found no function,
+search-path, ownership, grant-matrix, or schema implementation defect. Four verification gaps were
+fixed without changing the approved behavior. The grant matrix still needs the project owner's
+completion sign-off.
 
 ## 4E: Synthetic fixtures
 
@@ -368,8 +366,8 @@ affected table free of fixture rows. See
 [`SYNTHETIC_FIXTURE_MANIFEST.md`](SYNTHETIC_FIXTURE_MANIFEST.md) and
 [`PART_4E_COMPLETION.md`](PART_4E_COMPLETION.md).
 
-The independent GPT-5.6 review of the 4C schema and corrected 4D functions and grant matrix remains
-outstanding. Phase 4F has not started.
+The independent GPT-5.6 review of the 4C schema and corrected 4D functions and grant matrix
+completed in Phase 4F.
 
 ## 4F: Clean-database, upgrade, security, and completion gate
 
@@ -420,6 +418,16 @@ documented by 4B through 4D actually hold.
 from scratch and upgrade it to the latest schema without Supabase schemas, roles, or services,
 verified in CI, with an independent security review on record.
 
+**Completion evidence.** The independent review and complete local gate passed on 2026-09-06. The
+review found no implementation defect and four verification gaps. The corrected checks cover broad
+Supabase references, exact ACL recipients, function owner and definer state, successful runtime
+execution, and the previously untested repayment and shift-swap branches. Isolated PostgreSQL 17.11
+project `workloop-phase4f-20260906` upgraded from empty to `d307b9c1f25e`, completed every documented
+downgrade boundary, applied and removed all 334 fixture rows, passed authentication before and after
+restart, and left no Supabase database dependency. See
+[`PART_4F_COMPLETION.md`](PART_4F_COMPLETION.md). The post-commit GitHub result belongs in the task
+handoff. Project-owner sign-off remains required before Phase 4 closes.
+
 **Recommended model.** GPT-5.6, for the same reason as 4A and 4D: this is the security review and
 final gate for schema and database work, not routine implementation.
 
@@ -446,6 +454,6 @@ Six parts, 4A through 4F, each individually authorizable, moving from decision a
 in 4A through schema in 4B and 4C, privilege and function work in 4D, fixtures in 4E, to
 verification and sign-off in 4F. GPT-5.6 for 4A, 4D, and 4F, since those carry the schema and
 security decisions and review. GPT-5.6 Terra for 4B and 4C, bounded implementation against an
-approved design. Sonnet 5 for 4E, routine seed generation once the manifest is fixed. No part
-starts until the project owner authorizes it, and 4A's decisions must be approved before 4B can
-start.
+approved design. Sonnet 5 for 4E, routine seed generation once the manifest is fixed. Parts 4A
+through 4F are implemented. Phase 4 remains open for the final GitHub result and project-owner
+completion sign-off. Phase 5 is not authorized.

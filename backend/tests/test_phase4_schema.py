@@ -6,6 +6,7 @@ Supabase ownership shape, and neither the models nor the migrations mention
 ``auth.users`` or any other Supabase-era identity or storage object.
 """
 
+import re
 from pathlib import Path
 
 import pytest
@@ -16,23 +17,38 @@ from tests.test_db_base import PHASE_4_TARGET_TABLES
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 MODEL_DIR = BACKEND_ROOT / "app" / "models"
 MIGRATION_DIR = BACKEND_ROOT / "alembic" / "versions"
+SEED_DIR = BACKEND_ROOT / "app" / "db" / "seed"
 
 # Substrings that would mean a migrated column or expression still points at a
 # Supabase-era identity, role, or storage object instead of the app-user model.
-FORBIDDEN_REFERENCES = (
-    "auth.users",
-    "auth.uid",
-    "auth.email",
-    "auth.role",
-    "auth_user_id",
-    "storage.objects",
-    "storage.foldername",
-    "service_role",
+FORBIDDEN_PATTERNS = (
+    ("auth schema", re.compile(r"\bauth\s*\.")),
+    ("storage schema", re.compile(r"\bstorage\s*\.")),
+    ("legacy auth-user column", re.compile(r"\bauth_user_id\b")),
+    (
+        "Supabase service role",
+        re.compile(
+            r"\b(?:service_role|supabase_admin|supabase_auth_admin|"
+            r"supabase_storage_admin|authenticator|dashboard_user)\b"
+        ),
+    ),
+    ("Supabase browser role", re.compile(r"['\"](?:anon|authenticated)['\"]")),
+    (
+        "Supabase browser role grant",
+        re.compile(
+            r"\b(?:grant|revoke|set\s+role|create\s+role|alter\s+role|drop\s+role)\b"
+            r"[^;\n]*(?:\banon\b|\bauthenticated\b)"
+        ),
+    ),
 )
 
 SCANNED_FILES = sorted(
     path
-    for path in (*MODEL_DIR.glob("*.py"), *MIGRATION_DIR.glob("*.py"))
+    for path in (
+        *MODEL_DIR.glob("*.py"),
+        *MIGRATION_DIR.glob("*.py"),
+        *SEED_DIR.glob("*.py"),
+    )
     if path.name != "__init__.py"
 )
 
@@ -47,7 +63,7 @@ def test_scan_corpus_is_non_empty() -> None:
 @pytest.mark.parametrize("path", SCANNED_FILES, ids=lambda path: path.name)
 def test_no_supabase_identity_or_storage_references(path: Path) -> None:
     text = path.read_text(encoding="utf-8").lower()
-    hits = [reference for reference in FORBIDDEN_REFERENCES if reference in text]
+    hits = [label for label, pattern in FORBIDDEN_PATTERNS if pattern.search(text)]
     assert not hits, f"{path.name} still references {hits}"
 
 

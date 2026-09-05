@@ -48,9 +48,15 @@ remaining="$(
 )"
 test "$remaining" = "0"
 
-if grep -E -i -n "auth\.(users|uid|email|role)|storage\.(objects|foldername)|service_role|(grant|revoke).*(anon|authenticated)" \
-  backend/app/db/seed/*.py backend/alembic/versions/*.py; then
+scan_paths="backend/app/db/seed/*.py backend/app/models/*.py backend/alembic/versions/*.py"
+if grep -E -i -n "auth[[:space:]]*\.|storage[[:space:]]*\.|auth_user_id|service_role|supabase_admin|supabase_auth_admin|supabase_storage_admin|authenticator|dashboard_user" \
+  $scan_paths; then
   echo "seed or migration contains a Supabase database dependency" >&2
+  exit 1
+fi
+if grep -E -i -n "['\"](anon|authenticated)['\"]|(grant|revoke|set[[:space:]]+role|create[[:space:]]+role|alter[[:space:]]+role|drop[[:space:]]+role)[^;]*(anon|authenticated)" \
+  $scan_paths; then
+  echo "seed or migration contains a Supabase browser-role dependency" >&2
   exit 1
 fi
 

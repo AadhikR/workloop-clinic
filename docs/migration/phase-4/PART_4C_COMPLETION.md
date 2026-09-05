@@ -2,8 +2,8 @@
 
 ## Status
 
-Part 4C completed on 2026-09-02, except the independent GPT-5.6 security review, which the project
-owner still has to run. This part migrated the remaining business schema from the approved Phase 4A
+Part 4C completed on 2026-09-02. The independent GPT-5.6 review completed in Phase 4F on
+2026-09-06. This part migrated the remaining business schema from the approved Phase 4A
 catalogue into Alembic revisions and SQLAlchemy models. It added no RLS policy, function, trigger, or
 runtime grant, and it left the Phase 3 authentication contract, the `app_users` identity mapping, the
 runtime grant boundary, and the legacy Supabase frontend untouched.
@@ -112,9 +112,9 @@ docker compose --profile tools config --quiet  # valid
 - `app_users` columns, the composite employee and profile keys, and the role-to-employee-link check
   are exactly as Phase 4B left them.
 
-## Outstanding gate
+## Independent review closure
 
-The independent GPT-5.6 security review of the migrated schema is the one completion-gate item this
-session could not run, because GPT-5.6 is not reachable from here. No 4C table conflicts with a 4A
-decision or carries a flagged legacy security defect that forced a stop, so the schema is ready for
-that review. Part 4D remains unauthorized and does not start until the project owner authorizes it.
+The Phase 4F independent GPT-5.6 review found no Phase 4C implementation defect. It confirmed the
+54-table scope, 189 foreign keys, composite tenant and branch references, delete actions, and
+timestamp policy. See [`PART_4F_COMPLETION.md`](PART_4F_COMPLETION.md) for the review findings and
+final gate evidence.

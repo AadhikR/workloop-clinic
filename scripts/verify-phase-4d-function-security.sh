@@ -13,7 +13,32 @@ DO \$\$
 DECLARE
   function_name text;
   function_config text[];
+  mismatch_count integer;
 BEGIN
+  WITH expected(signature, security_definer) AS (
+    VALUES
+      ('set_updated_at()', false),
+      ('replace_payroll_entries(uuid, jsonb)', true),
+      ('record_advance_repayment(uuid, uuid, uuid, numeric, date)', true),
+      ('admin_execute_shift_swap(uuid, uuid)', true)
+  ), actual AS (
+    SELECT p.proname || '(' || pg_catalog.oidvectortypes(p.proargtypes) || ')' AS signature,
+           p.prosecdef AS security_definer
+    FROM pg_catalog.pg_proc p
+    JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+  )
+  SELECT count(*) INTO mismatch_count
+  FROM (
+    (SELECT * FROM expected EXCEPT SELECT * FROM actual)
+    UNION ALL
+    (SELECT * FROM actual EXCEPT SELECT * FROM expected)
+  ) differences;
+
+  IF mismatch_count <> 0 THEN
+    RAISE EXCEPTION 'retained public function set or SECURITY DEFINER state differs';
+  END IF;
+
   FOREACH function_name IN ARRAY ARRAY[
     'set_updated_at',
     'replace_payroll_entries',
@@ -21,7 +46,7 @@ BEGIN
     'admin_execute_shift_swap'
   ] LOOP
     SELECT proconfig INTO function_config
-    FROM pg_proc
+    FROM pg_catalog.pg_proc
     WHERE oid = CASE function_name
       WHEN 'set_updated_at' THEN 'set_updated_at()'::regprocedure
       WHEN 'replace_payroll_entries' THEN
@@ -32,6 +57,19 @@ BEGIN
     END;
     IF function_config <> ARRAY['search_path=pg_catalog, public, pg_temp'] THEN
       RAISE EXCEPTION '% has unsafe configuration: %', function_name, function_config;
+    END IF;
+    IF pg_catalog.pg_get_userbyid((
+      SELECT proowner FROM pg_catalog.pg_proc
+      WHERE oid = CASE function_name
+        WHEN 'set_updated_at' THEN 'set_updated_at()'::regprocedure
+        WHEN 'replace_payroll_entries' THEN
+          'replace_payroll_entries(uuid,jsonb)'::regprocedure
+        WHEN 'record_advance_repayment' THEN
+          'record_advance_repayment(uuid,uuid,uuid,numeric,date)'::regprocedure
+        ELSE 'admin_execute_shift_swap(uuid,uuid)'::regprocedure
+      END
+    )) <> 'workloop_migration' THEN
+      RAISE EXCEPTION '% has the wrong owner', function_name;
     END IF;
   END LOOP;
 END

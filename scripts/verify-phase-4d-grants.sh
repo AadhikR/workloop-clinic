@@ -16,6 +16,7 @@ BEGIN;
 DO \$\$
 DECLARE
   r text;
+  unexpected_acl_count integer;
   identity_tables text[] := ARRAY['companies','employees','app_users','user_profiles'];
   select_only text[] := ARRAY['advance_repayments','payroll_runs','payroll_entries',
     'salary_advances','roster_assignments','shift_swap_requests'];
@@ -37,6 +38,44 @@ BEGIN
   all_business := select_only || append_only || operational;
   IF array_length(all_business, 1) <> 50 THEN
     RAISE EXCEPTION 'expected 50 business tables in matrix, got %', array_length(all_business, 1);
+  END IF;
+
+  SELECT count(*) INTO unexpected_acl_count
+  FROM pg_catalog.pg_class c
+  JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+  CROSS JOIN LATERAL pg_catalog.aclexplode(
+    coalesce(c.relacl, pg_catalog.acldefault('r', c.relowner))) acl
+  WHERE n.nspname = 'public'
+    AND c.relkind IN ('r', 'p')
+    AND (
+      acl.grantee = 0
+      OR pg_catalog.pg_get_userbyid(acl.grantee) NOT IN (
+        'workloop_migration', 'workloop_runtime')
+      OR (pg_catalog.pg_get_userbyid(acl.grantee) = 'workloop_runtime' AND acl.is_grantable)
+    );
+  IF unexpected_acl_count <> 0 THEN
+    RAISE EXCEPTION 'public tables have PUBLIC, unexpected-recipient, or grant-option ACLs';
+  END IF;
+
+  SELECT count(*) INTO unexpected_acl_count
+  FROM pg_catalog.pg_proc p
+  JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+  CROSS JOIN LATERAL pg_catalog.aclexplode(
+    coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))) acl
+  WHERE n.nspname = 'public'
+    AND (
+      acl.grantee = 0
+      OR pg_catalog.pg_get_userbyid(acl.grantee) NOT IN (
+        'workloop_migration', 'workloop_runtime')
+      OR (pg_catalog.pg_get_userbyid(acl.grantee) = 'workloop_runtime'
+          AND (acl.privilege_type <> 'EXECUTE' OR acl.is_grantable))
+    );
+  IF unexpected_acl_count <> 0 THEN
+    RAISE EXCEPTION 'public functions have PUBLIC, unexpected-recipient, or grant-option ACLs';
+  END IF;
+
+  IF has_schema_privilege('workloop_runtime', 'public', 'CREATE') THEN
+    RAISE EXCEPTION 'workloop_runtime can create objects in public';
   END IF;
 
   -- Identity tables: SELECT only, no writes.

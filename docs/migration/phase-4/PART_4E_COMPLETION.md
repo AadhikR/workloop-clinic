@@ -5,8 +5,8 @@
 Part 4E completed on 2026-09-05. The seed now matches the Phase 0 scenario catalogue. It remains
 separate from Alembic and stops before Phase 4F.
 
-The independent GPT-5.6 review of the 4C schema and corrected 4D functions and grant matrix is still
-outstanding. Phase 4E neither performs nor closes that review.
+The later Phase 4F gate completed the independent GPT-5.6 review of the 4C schema and corrected 4D
+functions and grant matrix on 2026-09-06.
 
 ## What changed
 
@@ -111,5 +111,5 @@ The migration identity remains the normal seed identity. A future dedicated seed
 the same runner. `workloop_runtime` remains blocked.
 
 The corrected Phase 4D search paths, grants, and function behavior are unchanged. The main local
-PostgreSQL 16 volume remains intact. Phase 4 stays in progress because 4F has not started, and this
-completion record does not authorize it.
+PostgreSQL 16 volume remains intact. See [`PART_4F_COMPLETION.md`](PART_4F_COMPLETION.md) for the
+later independent review and complete local gate.
