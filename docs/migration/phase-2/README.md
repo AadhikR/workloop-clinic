@@ -6,7 +6,7 @@
 
 Phase 2 provides a repeatable local foundation for the migration:
 
-- PostgreSQL 16.15 with separate Workloop and Keycloak databases and credentials.
+- PostgreSQL 17.11 with separate Workloop and Keycloak databases and credentials.
 - FastAPI with validated configuration, JSON logs, and a database-backed health endpoint.
 - Alembic through a separate migration-only database identity.
 - Keycloak 26.7.2 with PostgreSQL persistence and a local bootstrap administrator.

@@ -41,7 +41,7 @@ fixture. Parts 4C through 4F still require separate authorization.
 | 4A | Schema inventory and design decisions | Completed 2026-09-01; see [`SCHEMA_CATALOGUE_AND_DESIGN_DECISIONS.md`](SCHEMA_CATALOGUE_AND_DESIGN_DECISIONS.md) |
 | 4B | Core identity and organization schema | Completed 2026-09-01; revision `a4b7e2c91d05` |
 | 4C | Remaining business schema | Completed 2026-09-02; revisions `3f9a1c7b2e10`, `4a0b2d8c3f21`, `5b1c3e9d4a32`, `6c2d4f0e5b43`, `7d3e5a1f6c54` |
-| 4D | Functions, triggers, constraints, and grants | Completed 2026-09-03; revisions `8e2b6a4c1f07`, `9f3c7b5d2a18`, `a0d4e6f8c92b`. GPT-5.6 review deferred. |
+| 4D | Functions, triggers, constraints, and grants | Completed 2026-09-03; security corrections completed 2026-09-05 through `d307b9c1f25e`. GPT-5.6 review deferred. |
 | 4E | Synthetic fixtures | In progress; first increment (identity, organization, golden cases) landed 2026-09-03. Status-coverage rows pending. |
 | 4F | Clean-database, upgrade, security, and completion gate | Not started |
 
@@ -276,12 +276,14 @@ large share of the 29 functions move into FastAPI.
 owner chose to defer and still owes. Three bounded revisions land on top of `7d3e5a1f6c54`, one per
 concern: `8e2b6a4c1f07` adds the canonical `set_updated_at` helper and the 19 named triggers,
 `9f3c7b5d2a18` adds the three retained business functions, and `a0d4e6f8c92b` adds the per-table
-runtime grants. The head is `a0d4e6f8c92b`. No table or column changed, so `alembic check` still
+runtime grants. Three corrective revisions harden function lookup, restrict direct workflow-table
+writes, and revalidate locked shift-swap rows. The head is `d307b9c1f25e`. No table or column changed,
+so `alembic check` still
 reports no drift, and the metadata still holds exactly 54 tables.
 
-Each function is SECURITY DEFINER with `SET search_path TO public` and has its PUBLIC execute
-privilege revoked; the helper `set_updated_at` also runs with a pinned search path and no PUBLIC
-execute. No retained function reads a Supabase-era session identity or role. The grant revision adds
+Each function is SECURITY DEFINER with `SET search_path TO pg_catalog, public, pg_temp` and has its
+PUBLIC execute privilege revoked; the helper `set_updated_at` also runs with that search path and no
+PUBLIC execute. No retained function reads a Supabase-era session identity or role. The grant revision adds
 no `GRANT ... ON ALL TABLES`, no `PUBLIC` grant, no default privilege, and no browser or service
 role grant, and grants no `DELETE` or `TRUNCATE` anywhere. The four identity tables keep the Phase 3
 read-only `SELECT` grant.

@@ -562,7 +562,7 @@ before Part 4B can start.
 | 4A | Schema inventory and design decisions | Completed 2026-09-01; see [`SCHEMA_CATALOGUE_AND_DESIGN_DECISIONS.md`](docs/migration/phase-4/SCHEMA_CATALOGUE_AND_DESIGN_DECISIONS.md) |
 | 4B | Core identity and organization schema | Completed 2026-09-01; revision `a4b7e2c91d05` |
 | 4C | Remaining business schema | Completed 2026-09-02; revisions `3f9a1c7b2e10` through `7d3e5a1f6c54` |
-| 4D | Functions, triggers, constraints, and grants | Completed 2026-09-03; revisions `8e2b6a4c1f07`, `9f3c7b5d2a18`, `a0d4e6f8c92b`. GPT-5.6 security review of the 4C schema and the 4D grant matrix and functions is deferred and still owed. |
+| 4D | Functions, triggers, constraints, and grants | Completed 2026-09-03; security corrections completed 2026-09-05 through `d307b9c1f25e`. GPT-5.6 security review of the 4C schema and corrected 4D grant matrix and functions is deferred and still owed. |
 | 4E | Synthetic fixtures | In progress; first increment (identity, organization, golden financial cases) landed 2026-09-03 in `backend/app/db/seed/`. Status-coverage rows pending. |
 | 4F | Clean-database, upgrade, security, and completion gate | Not started |
 
@@ -1509,7 +1509,7 @@ Next action: Stop and await project-owner authorization for Phase 2C.
 ```text
 Date: 2026-08-31
 Phase: 2C - Local PostgreSQL
-Change completed: Added a digest-pinned PostgreSQL 16.15 Compose service, loopback-only host port, persistent volume, health check, separate Workloop and Keycloak databases, least-privilege roles, local password generation, and operating documentation.
+Change completed: Added a digest-pinned PostgreSQL Compose service, loopback-only host port, persistent volume, health check, separate Workloop and Keycloak databases, least-privilege roles, local password generation, and operating documentation. Phase 4A later selected PostgreSQL 17, and the Phase 4D corrective review updated the pinned image to PostgreSQL 17.11.
 Tests run: Compose validation; image and shell syntax checks; PostgreSQL health and version checks; TCP password authentication for four accounts; ownership and role checks; cross-database denial tests; runtime database-creation denial; host port inspection; container replacement and persistence test; backend pytest, Ruff, format, Pyright, and pip check; JavaScript unit tests; Vite production build; git diff check; credential scan.
 Result: Phase 2C gate passes. PostgreSQL is healthy on 127.0.0.1:5432, role separation works, the named volume survived container replacement, backend checks pass, 14 JavaScript unit tests pass, and the frontend build succeeds with its existing chunk warning.
 Known issues: The automation shell requires Docker's binary directory to be added to PATH for credential-helper operations. The local volume has no backup and must contain synthetic development data only. The existing frontend lint baseline remains outside this part.

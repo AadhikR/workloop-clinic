@@ -5,12 +5,14 @@ real columns, keeps managers ahead of their reports, carries the golden financia
 values, and holds no real personal data or credentials.
 """
 
+import importlib
 from collections import Counter
 
-import app.models  # noqa: F401  # register every table on Base.metadata
 from app.db.base import Base
 from app.db.seed import constants as c
 from app.db.seed.fixtures import build_rows
+
+importlib.import_module("app.models")
 
 EXPECTED_COUNTS = {
     "companies": 2,

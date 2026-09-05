@@ -52,8 +52,8 @@ compares them against the migrated database.
 
 ## Verification
 
-All commands ran against the local Compose stack on PostgreSQL 16.15, the same image the CI
-`full-stack-smoke` job builds.
+The original completion commands ran against PostgreSQL 16.15. The Phase 4D corrective review on
+2026-09-05 reran the 4B and 4C schema and migration gates on the target PostgreSQL 17.11 image.
 
 Alembic round-trip on an empty database.
 

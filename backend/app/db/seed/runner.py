@@ -7,6 +7,7 @@ outside the two fixture tenants. It is not part of the Alembic upgrade path.
 """
 
 import argparse
+import importlib
 import os
 from collections import Counter
 from collections.abc import Sequence
@@ -19,8 +20,8 @@ from app.db.base import Base
 from app.db.seed import constants as c
 from app.db.seed.fixtures import TENANT_COMPANY_IDS, Row, build_rows
 
-# Import the model modules so every table is registered on Base.metadata.
-from app.models import Base as _ModelsBase  # noqa: F401
+# Register every model table on Base.metadata.
+importlib.import_module("app.models")
 
 
 def _sync_url(url: str) -> str:

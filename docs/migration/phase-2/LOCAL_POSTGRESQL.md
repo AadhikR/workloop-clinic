@@ -4,7 +4,7 @@
 
 **Completed on 2026-08-31.**
 
-Phase 2C configures PostgreSQL 16 for local development. It creates separate empty
+Phase 2C configures PostgreSQL for local development. It creates separate empty
 databases and credentials for Workloop and Keycloak. It does not create application tables,
 start FastAPI or Keycloak, or use DigitalOcean.
 
@@ -19,8 +19,14 @@ Docker Compose runs one PostgreSQL container with:
 - A named volume that persists after the container is stopped or replaced.
 - A host port bound to `127.0.0.1:5432`, not to the local network.
 
-The project uses the official PostgreSQL `16.15-bookworm` image pinned to OCI index digest
-`sha256:bb3e1a57e5407e0a5280b4211980a5e537f4abd234a87014ac979849a78dd825`.
+The project uses the official PostgreSQL `17.11-bookworm` image pinned to OCI index digest
+`sha256:051f7b7b3abdd564d5d1bd1e8c4b9c1b6e77087d1dd22020ede611c096a272e0`.
+Phase 4A selected PostgreSQL 17 as the portable target, and the Phase 4D corrective review aligned
+Compose and CI with that decision on 2026-09-05.
+
+PostgreSQL 17 cannot open a PostgreSQL 16 data directory directly. Existing local PostgreSQL 16
+volumes require `pg_upgrade` or, when they contain no needed data, explicit approval to recreate the
+volume before the updated Compose service is started.
 
 ## Password file
 
@@ -111,8 +117,8 @@ The Phase 2C gate passed on 2026-08-31.
 | Check | Result |
 |---|---|
 | Compose validation | Passed with `docker compose config --quiet` |
-| Image | Official PostgreSQL `16.15-bookworm`, pinned by OCI digest |
-| Server version | `16.15 (Debian 16.15-1.pgdg12+2)` |
+| Image | Official PostgreSQL `17.11-bookworm`, pinned by OCI digest |
+| Server version | `17.11 (Debian 17.11-1.pgdg12+2)` |
 | Health | Container reported healthy after initial creation and replacement |
 | Host port | `127.0.0.1:5432`; no all-interface host binding |
 | Workloop database | Owned by `workloop_migration` |

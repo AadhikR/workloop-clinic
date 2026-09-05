@@ -140,6 +140,10 @@ _BRANCH_ROUTING = {
 _EMP = uuid.UUID
 
 
+def _empty_values() -> dict[str, Any]:
+    return {}
+
+
 @dataclass(frozen=True)
 class EmpSpec:
     emp_no: str
@@ -155,7 +159,7 @@ class EmpSpec:
     contract_type: str
     email: str
     app_user: uuid.UUID | None = None
-    extra: dict[str, Any] = field(default_factory=dict)
+    extra: dict[str, Any] = field(default_factory=_empty_values)
 
 
 _EMPLOYEES: list[EmpSpec] = [
@@ -648,7 +652,7 @@ def _shifts() -> list[Row]:
         ("F", "Flexible", "flexible", "flexible", None, None, 0, Decimal("8"), False, Decimal("8")),
         ("S", "Split", "split", "split", time(8), time(12), 0, Decimal("8"), False, None),
     ]
-    rows = []
+    rows: list[Row] = []
     for code, name, stype, cat, start, end, brk, hours, overnight, flex in specs:
         values: dict[str, Any] = {
             "id": shift_id(code),
@@ -837,7 +841,7 @@ def _advances() -> list[Row]:
             "Withdrawn by employee",
         ),
     ]
-    rows = []
+    rows: list[Row] = []
     for aid, emp, status, amount, outstanding, months, monthly, start, reason in specs:
         rows.append(
             Row(
