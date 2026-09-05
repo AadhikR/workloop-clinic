@@ -96,7 +96,11 @@ The pre-push gate passed locally:
   verifiers, fixture verifier, cleanup, and the migrated database dependency scan.
 - `git diff --check` and repository secret-pattern checks.
 
-The GitHub Actions run for the pushed completion commit will be recorded here after it finishes.
+GitHub Actions run `33983867569` passed Backend quality, Frontend regression, and the complete
+Alembic and database boundary step, including the Phase 4E fixture verifier. The existing
+Keycloak and FastAPI authentication verifier then exited with status 1 without a public diagnostic
+message. The same verifier passed locally immediately afterward. A follow-up GitHub run is required
+before the completion gate closes.
 
 ## Boundaries and next step
 
