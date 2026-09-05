@@ -639,7 +639,9 @@ def verify_audience(web_client_id: str) -> None:
         assert audience == "workloop-api" or "workloop-api" in audience
         assert token["azp"] == CLIENT_ID
         assert token["typ"] == "Bearer"
-        assert token["scope"] == "profile email"
+        assert sorted(token["scope"].split()) == ["email", "profile"], (
+            f"unexpected example token scope: {token['scope']!r}"
+        )
         password_process = subprocess.run(
             [
                 *DOCKER_COMPOSE,

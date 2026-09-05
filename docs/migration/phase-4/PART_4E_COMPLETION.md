@@ -96,11 +96,12 @@ The pre-push gate passed locally:
   verifiers, fixture verifier, cleanup, and the migrated database dependency scan.
 - `git diff --check` and repository secret-pattern checks.
 
-GitHub Actions run `33983867569` passed Backend quality, Frontend regression, and the complete
-Alembic and database boundary step, including the Phase 4E fixture verifier. The existing
-Keycloak and FastAPI authentication verifier then exited with status 1 without a public diagnostic
-message. The same verifier passed locally immediately afterward. A follow-up GitHub run is required
-before the completion gate closes.
+GitHub Actions runs `33983867569` and `33984505721` passed Backend quality, Frontend regression,
+and the complete Alembic and database boundary step, including the Phase 4E fixture verifier. Both
+then failed an existing Keycloak check that compared the example token's OAuth scopes as one
+ordered string. An isolated fresh-stack reproduction returned the same approved `email` and
+`profile` scopes in the other valid order. The verifier now requires those two exact scopes without
+depending on their order. A follow-up GitHub run is required before the completion gate closes.
 
 ## Boundaries and next step
 
