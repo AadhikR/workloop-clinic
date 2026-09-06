@@ -1,0 +1,53 @@
+{
+  "schema_table_count": 55,
+  "new_table": "audit_events",
+  "revisions": [
+    "e96f7a1b4c53",
+    "f07a8b2c5d64",
+    "0a18c3d6e75f",
+    "1b29d4e7f860"
+  ],
+  "tables": {
+    "employee_documents": {"families": ["B1", "E1", "W1", "J1"], "runtime": ["SELECT", "INSERT", "UPDATE", "DELETE"], "expiry": ["SELECT"]},
+    "insurance_policies": {"families": ["B1", "I1", "J1"], "runtime": ["SELECT", "INSERT", "UPDATE", "DELETE"], "expiry": ["SELECT"]},
+    "employee_insurance": {"families": ["B1", "E1", "J1"], "runtime": ["SELECT", "INSERT", "UPDATE"], "expiry": ["SELECT"]},
+    "insurance_dependants": {"families": ["B1"], "runtime": ["SELECT", "INSERT", "UPDATE", "DELETE"], "expiry": []},
+    "notifications": {"families": ["N1", "W1", "J1"], "runtime": ["SELECT", "UPDATE(read_at)", "EXECUTE(create_workflow_notification)"], "expiry": ["SELECT", "INSERT(columns)"]},
+    "employee_contracts": {"families": ["B1", "H1"], "runtime": ["SELECT", "INSERT"], "expiry": []},
+    "offboarding_checklists": {"families": ["B1", "W1"], "runtime": ["SELECT", "INSERT", "UPDATE"], "expiry": []},
+    "offboarding_tasks": {"families": ["B1", "W1"], "runtime": ["SELECT", "INSERT", "UPDATE", "DELETE"], "expiry": []},
+    "offboarding_task_templates": {"families": ["B1"], "runtime": ["SELECT"], "expiry": []},
+    "assets": {"families": ["B1", "E1", "W1"], "runtime": ["SELECT", "INSERT", "UPDATE", "DELETE"], "expiry": []},
+    "asset_assignments": {"families": ["B1", "E1", "H1", "W1"], "runtime": ["SELECT", "INSERT", "UPDATE"], "expiry": []},
+    "training_records": {"families": ["B1", "E1", "M1", "W1"], "runtime": ["SELECT", "INSERT", "UPDATE", "DELETE"], "expiry": []},
+    "certifications": {"families": ["B1", "E1", "M1", "W1", "J1"], "runtime": ["SELECT", "INSERT", "UPDATE", "DELETE"], "expiry": ["SELECT"]},
+    "appraisal_cycles": {"families": ["B1", "A1", "W1"], "runtime": ["SELECT", "INSERT", "UPDATE", "DELETE"], "expiry": []},
+    "appraisals": {"families": ["B1", "E1", "M1", "W1"], "runtime": ["SELECT", "INSERT", "UPDATE"], "expiry": []},
+    "appraisal_sections": {"families": ["B1", "E1", "M1", "W1"], "runtime": ["SELECT", "INSERT", "UPDATE"], "expiry": []},
+    "cme_requirements": {"families": ["B1"], "runtime": ["SELECT", "INSERT", "UPDATE", "DELETE"], "expiry": []},
+    "incident_reports": {"families": ["B1", "H1", "W1"], "runtime": ["SELECT", "INSERT", "UPDATE"], "expiry": []},
+    "letter_requests": {"families": ["B1", "E1", "W1"], "runtime": ["SELECT", "INSERT", "UPDATE"], "expiry": []},
+    "audit_events": {"families": ["T1(null-only)", "B1(non-null)", "H1", "W1", "J1"], "runtime": ["SELECT", "EXECUTE(append_audit_event)"], "expiry": ["INSERT(columns)"]}
+  },
+  "functions": {
+    "create_workflow_notification(text,text)": {"owner": "workloop_migration", "security_definer": true, "execute": ["workloop_runtime"]},
+    "append_audit_event(text,text,uuid,text[],text,jsonb)": {"owner": "workloop_migration", "security_definer": true, "execute": ["workloop_runtime"]}
+  },
+  "legacy_policies_must_be_absent": [
+    "employee_documents_admin", "employee_documents_self_read", "employee_documents_self_update_pending",
+    "insurance_policies_admin", "employee_insurance_admin", "employee_insurance_self",
+    "insurance_dependants_admin", "notifications_select", "notifications_insert",
+    "notifications_update", "notifications_delete", "employee_contracts_admin",
+    "offboarding_checklists_admin", "offboarding_tasks_admin", "offboarding_task_templates_admin",
+    "assets_admin", "assets_employee_read", "asset_assignments_admin", "asset_assignments_employee_read",
+    "training_records_admin", "training_records_employee_read", "training_records_manager_all",
+    "training_records_employee_insert", "training_records_employee_update", "certifications_admin",
+    "certifications_employee_read", "certifications_manager_all", "certifications_employee_insert",
+    "certifications_employee_update", "letter_requests_admin", "letter_requests_employee_read",
+    "appraisal_cycles_admin", "appraisal_cycles_manager_read", "appraisals_admin",
+    "appraisals_employee_read", "appraisals_manager_read", "appraisals_manager_update",
+    "appraisal_sections_admin", "appraisal_sections_employee_read", "appraisal_sections_manager_read",
+    "appraisal_sections_manager_update", "cme_requirements_admin_all", "incident_reports_admin_all",
+    "employee_documents_employee_upload", "employee_documents_employee_read_own"
+  ]
+}

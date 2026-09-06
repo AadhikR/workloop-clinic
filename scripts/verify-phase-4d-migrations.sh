@@ -29,7 +29,7 @@ C_HEAD="7d3e5a1f6c54"
 # Phase 4D chain on top of the 4C head, oldest first.
 CHAIN="8e2b6a4c1f07 9f3c7b5d2a18 a0d4e6f8c92b b1e5f7a9d03c c2f6a8b0e14d d307b9c1f25e"
 PHASE_4D_HEAD="d307b9c1f25e"
-PROJECT_HEAD="d85a6f0c3b42"
+PROJECT_HEAD="1b29d4e7f860"
 
 alembic_cmd upgrade head >/dev/null
 assert_current "$PROJECT_HEAD"

@@ -191,6 +191,9 @@ jobs:
           sh scripts/verify-phase-5f-revision.sh c74f5e9b2a31
           docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini upgrade d85a6f0c3b42
           sh scripts/verify-phase-5f-revision.sh d85a6f0c3b42
+      - name: Verify Phase 5G revision chain
+        if: needs.changes.outputs.database_deep == 'true'
+        run: sh scripts/verify-phase-5g-chain.sh
       - name: Verify current Alembic state
         run: |
           docker compose --profile tools run --rm --entrypoint sh migrate -ec '
@@ -214,6 +217,7 @@ jobs:
           sh scripts/verify-phase-5d-context.sh
           sh scripts/verify-phase-5e-rls.sh
           sh scripts/verify-phase-5f-rls.sh
+          sh scripts/verify-phase-5g-rls.sh
           sh scripts/verify-phase-4f-boundaries.sh
       - name: Verify service health
         run: |

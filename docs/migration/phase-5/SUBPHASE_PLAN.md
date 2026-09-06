@@ -2,7 +2,7 @@
 
 ## Status
 
-Phase 5 is in progress. Phase 5A through Phase 5F completed on 2026-09-06 after separate
+Phase 5 is in progress. Phase 5A through Phase 5G completed on 2026-09-06 after separate
 project-owner approvals. No later part is authorized.
 
 Phase 5 is split into eight parts, 5A through 5H. The original phase combined policy design,
@@ -19,8 +19,11 @@ action.
 
 - Phase 5B started from synchronized commit `dcf3931e8601a2bf58b67f4bad2200f06750d467` on branch
   `migration/fastapi-keycloak`.
-- Alembic head is `e418c0d7a6b3`.
-- The schema has 54 target tables. Phase 4 added no RLS policy or application authorization.
+- At that starting point, Alembic head was `e418c0d7a6b3`.
+- Phase 5G started from synchronized commit `92045f82370b342eac5c3c0fec61ea44a668073b` and
+  advanced Alembic head to `1b29d4e7f860`.
+- The Phase 4 schema had 54 target tables. Phase 5G adds `audit_events`, bringing the current total
+  to 55 tables with an approved RLS disposition.
 - Phase 3 validates Keycloak access tokens and resolves an active `app_users` row by trusted issuer
   and subject. It ignores Keycloak roles and browser-supplied business identity.
 - Phase 4E provides 334 deterministic fixture rows across 48 tables and 19 authorization controls.
@@ -43,7 +46,7 @@ action.
 | 5D | Transaction-local PostgreSQL context and pool isolation | Completed 2026-09-06; see [`PART_5D_COMPLETION.md`](PART_5D_COMPLETION.md) |
 | 5E | Identity, organization, and workforce RLS | Completed 2026-09-06; see [`PART_5E_COMPLETION.md`](PART_5E_COMPLETION.md) |
 | 5F | Payroll, leave, attendance, and roster RLS | Completed 2026-09-06; see [`PART_5F_COMPLETION.md`](PART_5F_COMPLETION.md) |
-| 5G | Remaining domain RLS and audit foundation | Not started; depends on 5E and 5F |
+| 5G | Remaining domain RLS and audit foundation | Completed 2026-09-06; see [`PART_5G_COMPLETION.md`](PART_5G_COMPLETION.md) |
 | 5H | Independent security review and completion gate | Not started; depends on 5A through 5G |
 
 ## Rules shared by every part
@@ -512,6 +515,10 @@ dropped by a policy-only downgrade.
 
 All 54 target tables have an explicit approved RLS disposition, all required policies and grants
 match the matrix, every legacy Supabase policy is absent, and the audit foundation is append-only.
+
+The gate passed on 2026-09-06. Four chained revisions add 70 policies across the remaining 19
+business tables and the new append-only `audit_events` table. The full schema now has 55 tables with
+an approved RLS disposition. See [`PART_5G_COMPLETION.md`](PART_5G_COMPLETION.md).
 
 ### Recommended model and effort
 

@@ -62,6 +62,16 @@ COMMANDS = {
 GRANTS = {table: set(commands) for table, commands in COMMANDS.items()}
 
 
+def clean_phase5g_audit(connection: Any) -> None:
+    if connection.execute(
+        text("SELECT to_regclass('public.audit_events') IS NOT NULL")
+    ).scalar_one():
+        connection.execute(
+            text("DELETE FROM audit_events WHERE actor_app_user_id = :actor"),
+            {"actor": SECOND_ADMIN_ID},
+        )
+
+
 def expected_policies() -> set[tuple[str, str, str, str]]:
     return {
         (
@@ -138,7 +148,7 @@ def verify_catalog(engine: Any) -> None:
         revision = connection.execute(
             text("SELECT version_num FROM alembic_version")
         ).scalar_one()
-        assert revision == "d85a6f0c3b42"
+        assert revision in {"d85a6f0c3b42", "1b29d4e7f860"}
 
         policies = {
             (row.tablename, row.policyname, row.cmd, row.roles[0])
@@ -977,8 +987,25 @@ FROM shift_swap_requests WHERE id = :id
                 {"id": swap_id},
             ).one()
             assert result == ("approved", SECOND_ADMIN_ID)
+            if connection.execute(
+                text("SELECT to_regclass('public.audit_events') IS NOT NULL")
+            ).scalar_one():
+                assert (
+                    connection.execute(
+                        text(
+                            """
+SELECT count(*) FROM audit_events
+WHERE action = 'shift_swap_approved' AND entity_id = :swap
+  AND actor_app_user_id = :actor
+"""
+                        ),
+                        {"swap": swap_id, "actor": SECOND_ADMIN_ID},
+                    ).scalar_one()
+                    == 1
+                )
     finally:
         with engine.begin() as connection:
+            clean_phase5g_audit(connection)
             connection.execute(
                 text("DELETE FROM shift_swap_requests WHERE id = :id"), {"id": swap_id}
             )
@@ -998,6 +1025,7 @@ def main() -> None:
         with engine.begin() as connection:
             apply_rows(connection, rows)
             validate(connection, rows)
+            clean_phase5g_audit(connection)
             connection.execute(
                 text("DELETE FROM user_profiles WHERE app_user_id = :id"),
                 {"id": SECOND_ADMIN_ID},
@@ -1041,6 +1069,7 @@ VALUES (:id, :company, NULL, 'admin')
         runtime.close()
         expiry.close()
         with engine.begin() as connection:
+            clean_phase5g_audit(connection)
             connection.execute(
                 text("DELETE FROM user_profiles WHERE app_user_id = :id"),
                 {"id": SECOND_ADMIN_ID},

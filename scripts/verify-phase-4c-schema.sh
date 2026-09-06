@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-# Phase 4C schema gate. Proves the 54-table target exists, that a connected row
+# Phase 4C schema gate. Proves the 54 Phase 4 business tables exist, that a connected row
 # graph spanning every business domain satisfies the foreign-key and scope
 # constraints end to end, and that a cross-tenant branch and cross-branch
 # employee reference are both rejected. The runtime grant boundary moved to
@@ -16,7 +16,8 @@ DECLARE
 BEGIN
   SELECT count(*) INTO table_count
   FROM pg_tables
-  WHERE schemaname = 'public' AND tablename <> 'alembic_version';
+  WHERE schemaname = 'public'
+    AND tablename NOT IN ('alembic_version', 'audit_events');
   IF table_count <> 54 THEN
     RAISE EXCEPTION 'expected 54 target tables, found %', table_count;
   END IF;

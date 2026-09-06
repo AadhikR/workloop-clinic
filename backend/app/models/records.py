@@ -3,6 +3,7 @@ from datetime import date, datetime, time
 from decimal import Decimal
 
 from sqlalchemy import (
+    ARRAY,
     Boolean,
     CheckConstraint,
     Date,
@@ -16,7 +17,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -969,4 +970,74 @@ class LetterRequest(Base):
     actioned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     actioned_by_app_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), nullable=True
+    )
+
+
+class AuditEvent(Base):
+    __tablename__ = "audit_events"
+    __table_args__ = (
+        ForeignKeyConstraint(["company_id"], ["companies.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(
+            ["branch_id", "company_id"],
+            ["branches.id", "branches.company_id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["actor_app_user_id", "company_id"],
+            ["user_profiles.app_user_id", "user_profiles.company_id"],
+            name="fk_audit_events_actor_profile",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["initiated_by_app_user_id", "company_id"],
+            ["user_profiles.app_user_id", "user_profiles.company_id"],
+            name="fk_audit_events_initiator_profile",
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint(
+            "actor_kind IN ('human','scheduled_job','migration','seed','system_rule')",
+            name="actor_kind",
+        ),
+        CheckConstraint(
+            "(actor_kind = 'human' AND actor_app_user_id IS NOT NULL "
+            "AND system_actor_key IS NULL) OR (actor_kind <> 'human' "
+            "AND actor_app_user_id IS NULL AND btrim(system_actor_key) <> '')",
+            name="primary_actor",
+        ),
+        CheckConstraint("btrim(action) <> ''", name="action_nonblank"),
+        CheckConstraint("btrim(entity_type) <> ''", name="entity_type_nonblank"),
+        CheckConstraint("btrim(reason) <> ''", name="reason_nonblank"),
+        CheckConstraint("array_position(changed_fields, NULL) IS NULL", name="changed_fields"),
+        CheckConstraint("jsonb_typeof(metadata) = 'object'", name="metadata_object"),
+        Index("ix_audit_events_company_id_occurred_at", "company_id", text("occurred_at DESC")),
+        Index(
+            "ix_audit_events_company_id_branch_id_occurred_at",
+            "company_id",
+            "branch_id",
+            text("occurred_at DESC"),
+        ),
+        Index("ix_audit_events_entity", "entity_type", "entity_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    branch_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    actor_kind: Mapped[str] = mapped_column(Text(), nullable=False)
+    actor_app_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    system_actor_key: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    initiated_by_app_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
+    action: Mapped[str] = mapped_column(Text(), nullable=False)
+    entity_type: Mapped[str] = mapped_column(Text(), nullable=False)
+    entity_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    changed_fields: Mapped[list[str]] = mapped_column(ARRAY(Text()), nullable=False)
+    reason: Mapped[str] = mapped_column(Text(), nullable=False)
+    event_metadata: Mapped[dict[str, object]] = mapped_column(
+        "metadata", JSONB(), nullable=False, server_default=text("'{}'::jsonb")
     )

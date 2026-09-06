@@ -447,8 +447,10 @@ SELECT table_name, column_name
 FROM information_schema.column_privileges
 WHERE table_schema = 'public' AND grantee = 'workloop_expiry_processing'
   AND privilege_type = 'SELECT'
+  AND table_name = ANY(:tables)
 """
-            )
+            ),
+            {"tables": list(EXPIRY_COLUMNS)},
         ).all()
         grouped_expiry: dict[str, set[str]] = {}
         for table, column in expiry_grants:
