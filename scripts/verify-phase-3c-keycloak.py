@@ -27,6 +27,7 @@ LOGOUT_URI = "http://127.0.0.1:5174/"
 ORIGIN = "http://127.0.0.1:5174"
 KCADM_CONFIG = "/tmp/workloop-phase-3c-kcadm.config"
 PHASE_3_TEST_APP_USER_ID = "00000000-0000-0000-0000-00000000003e"
+PHASE_5B_TEST_COMPANY_ID = "00000000-0000-0000-0000-00000000005b"
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -513,7 +514,13 @@ def verify_real_tokens(username: str, password: str) -> None:
         }, f"{state} mapping returned an unexpected account rejection"
 
     app_user_id = PHASE_3_TEST_APP_USER_ID
-    psql("DELETE FROM app_users WHERE id = :'app_user_id'", app_user_id=app_user_id)
+    company_id = PHASE_5B_TEST_COMPANY_ID
+    cleanup_sql = (
+        "DELETE FROM user_profiles WHERE app_user_id = :'app_user_id'; "
+        "DELETE FROM app_users WHERE id = :'app_user_id'; "
+        "DELETE FROM companies WHERE id = :'company_id';"
+    )
+    psql(cleanup_sql, app_user_id=app_user_id, company_id=company_id)
     assert_application_account_unavailable("missing")
     try:
         psql(
@@ -533,13 +540,20 @@ def verify_real_tokens(username: str, password: str) -> None:
             "UPDATE app_users SET status = 'active' WHERE id = :'app_user_id'",
             app_user_id=app_user_id,
         )
+        psql("INSERT INTO companies (id) VALUES (:'company_id')", company_id=company_id)
+        psql(
+            "INSERT INTO user_profiles (app_user_id, company_id, role) "
+            "VALUES (:'app_user_id', :'company_id', 'admin')",
+            app_user_id=app_user_id,
+            company_id=company_id,
+        )
         status, _, body = request(
             "http://127.0.0.1:8000/api/v1/auth/token-check",
             headers={"Authorization": f"Bearer {tokens['access_token']}"},
         )
         assert status == 204 and body == b"", "active mapping was not accepted"
     finally:
-        psql("DELETE FROM app_users WHERE id = :'app_user_id'", app_user_id=app_user_id)
+        psql(cleanup_sql, app_user_id=app_user_id, company_id=company_id)
     assert (
         psql(
             "SELECT count(*) FROM app_users WHERE id = :'app_user_id'",
@@ -547,6 +561,13 @@ def verify_real_tokens(username: str, password: str) -> None:
         )
         == "0"
     ), "temporary application mapping was not removed"
+    assert (
+        psql(
+            "SELECT count(*) FROM companies WHERE id = :'company_id'",
+            company_id=company_id,
+        )
+        == "0"
+    ), "temporary application company was not removed"
 
     id_claims = decode_claims(tokens["id_token"])
     assert id_claims["aud"] == CLIENT_ID

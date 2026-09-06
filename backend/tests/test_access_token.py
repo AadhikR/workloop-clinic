@@ -16,8 +16,9 @@ from httpx import ASGITransport, AsyncClient
 from jwt.algorithms import RSAAlgorithm
 
 from app.auth.access_token import AccessTokenError, AccessTokenVerifier
-from app.auth.application_user import ApplicationUser, ApplicationUserResolver
+from app.auth.application_user import ApplicationUserResolver, AuthorizationPrincipal
 from app.auth.dependencies import VerifiedAccessToken
+from app.models.identity import AccountStatus, AppRole
 
 ISSUER = "http://127.0.0.1:8080/realms/workloop-dev"
 AUDIENCE = "workloop-api"
@@ -570,7 +571,14 @@ async def test_token_check_accepts_valid_token_without_returning_claims(
     application = create_app()
     application.state.access_token_verifier = verifier
     application_user_resolver = AsyncMock(spec=ApplicationUserResolver)
-    application_user_resolver.resolve.return_value = ApplicationUser(id=uuid.uuid4())
+    application_user_resolver.resolve.return_value = AuthorizationPrincipal(
+        app_user_id=uuid.uuid4(),
+        account_status=AccountStatus.ACTIVE,
+        role=AppRole.ADMIN,
+        company_id=uuid.uuid4(),
+        employee_id=None,
+        branch_id=None,
+    )
     application.state.application_user_resolver = application_user_resolver
 
     try:

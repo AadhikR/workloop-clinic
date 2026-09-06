@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from app import __version__
 from app.auth.access_token import AccessTokenVerifier
 from app.auth.application_user import ApplicationUserResolver
-from app.auth.dependencies import VerifiedApplicationUser
+from app.auth.dependencies import AuthenticatedAuthorizationPrincipal
 from app.core.config import Settings
 from app.core.logging import configure_logging
 from app.db.engine import create_database_engine, probe_database
@@ -29,7 +29,7 @@ class HealthResponse(BaseModel):
     database: Literal["ok"]
 
 
-async def check_access_token(_app_user: VerifiedApplicationUser) -> Response:
+async def check_access_token(_principal: AuthenticatedAuthorizationPrincipal) -> Response:
     return Response(
         status_code=status.HTTP_204_NO_CONTENT,
         headers={"Cache-Control": "no-store"},
@@ -108,7 +108,7 @@ def create_app(
         CORSMiddleware,
         allow_origins=["http://127.0.0.1:5174"],
         allow_methods=["GET"],
-        allow_headers=["Authorization"],
+        allow_headers=["Authorization", "X-Workloop-Branch-ID"],
         allow_credentials=False,
     )
 

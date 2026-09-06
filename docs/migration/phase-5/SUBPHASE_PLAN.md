@@ -2,8 +2,8 @@
 
 ## Status
 
-Phase 5 is in progress. Phase 5A completed on 2026-09-06 after project-owner approval and an
-independent GPT-5.6 review. No later part is authorized.
+Phase 5 is in progress. Phase 5A and Phase 5B completed on 2026-09-06 after separate
+project-owner approvals. No later part is authorized.
 
 Phase 5 is split into eight parts, 5A through 5H. The original phase combined policy design,
 FastAPI authorization, scoped data access, PostgreSQL RLS across 54 tables, audit controls, and a
@@ -17,7 +17,8 @@ action.
 
 ## Starting point
 
-- Branch `migration/fastapi-keycloak` is at Phase 4F commit `4449cb9`.
+- Phase 5B started from synchronized commit `dcf3931e8601a2bf58b67f4bad2200f06750d467` on branch
+  `migration/fastapi-keycloak`.
 - Alembic head is `d307b9c1f25e`.
 - The schema has 54 target tables. Phase 4 added no RLS policy or application authorization.
 - Phase 3 validates Keycloak access tokens and resolves an active `app_users` row by trusted issuer
@@ -37,7 +38,7 @@ action.
 | Part | Scope | Status |
 |---|---|---|
 | 5A | Permission matrix, RLS contract, and audit decisions | Completed 2026-09-06; see [`PERMISSION_MATRIX_AND_RLS_DESIGN.md`](PERMISSION_MATRIX_AND_RLS_DESIGN.md) and [`PART_5A_COMPLETION.md`](PART_5A_COMPLETION.md) |
-| 5B | Trusted authorization principal and FastAPI dependencies | Not started; requires separate authorization and uses approved 5A |
+| 5B | Trusted authorization principal and FastAPI dependencies | Completed 2026-09-06; see [`PART_5B_COMPLETION.md`](PART_5B_COMPLETION.md) |
 | 5C | Scoped repository rules and protected mutation guards | Not started; depends on 5A and 5B |
 | 5D | Transaction-local PostgreSQL context and pool isolation | Not started; depends on 5A and 5B |
 | 5E | Identity, organization, and workforce RLS | Not started; depends on 5C and 5D |

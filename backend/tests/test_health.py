@@ -82,7 +82,7 @@ async def test_authentication_cors_allows_only_migration_origin() -> None:
             headers={
                 "Origin": "http://127.0.0.1:5174",
                 "Access-Control-Request-Method": "GET",
-                "Access-Control-Request-Headers": "Authorization",
+                "Access-Control-Request-Headers": ("Authorization,X-Workloop-Branch-ID"),
             },
         )
         rejected = await client.options(
@@ -100,6 +100,7 @@ async def test_authentication_cors_allows_only_migration_origin() -> None:
 
     assert allowed.status_code == 200
     assert allowed.headers["access-control-allow-origin"] == "http://127.0.0.1:5174"
+    assert "x-workloop-branch-id" in allowed.headers["access-control-allow-headers"].lower()
     assert allowed.headers.get("access-control-allow-credentials") is None
     assert rejected.status_code == 400
     assert "access-control-allow-origin" not in rejected.headers

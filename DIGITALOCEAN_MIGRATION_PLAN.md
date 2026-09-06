@@ -238,7 +238,7 @@ Do not create abstractions merely to match this diagram. Start with the smallest
 | 2 | Local backend and infrastructure foundation | Completed 2026-08-31 | 4–7 days |
 | 3 | Keycloak authentication foundation | Completed 2026-09-01 | 1–2 weeks |
 | 4 | Portable database baseline | Completed 2026-09-06 with owner sign-off | 1–2 weeks |
-| 5 | Authorization and tenant isolation | In progress; 5A completed 2026-09-06, 5B not authorized | 3 to 5 weeks |
+| 5 | Authorization and tenant isolation | In progress; 5A and 5B completed 2026-09-06 | 3 to 5 weeks |
 | 6 | Shared API and frontend client | Not started | 3–5 days |
 | 6A | Early DigitalOcean architecture proof | Not started | 3–5 days |
 | 7 | Organization and employee module | Not started | 1–2 weeks |
@@ -633,7 +633,7 @@ gated parts in
 | Part | Scope | Status |
 |---|---|---|
 | 5A | Permission matrix, RLS contract, and audit decisions | Completed 2026-09-06; see [`PERMISSION_MATRIX_AND_RLS_DESIGN.md`](docs/migration/phase-5/PERMISSION_MATRIX_AND_RLS_DESIGN.md) |
-| 5B | Trusted authorization principal and FastAPI dependencies | Not started; requires separate authorization |
+| 5B | Trusted authorization principal and FastAPI dependencies | Completed 2026-09-06; see [`PART_5B_COMPLETION.md`](docs/migration/phase-5/PART_5B_COMPLETION.md) |
 | 5C | Scoped repository rules and protected mutation guards | Not started |
 | 5D | Transaction-local PostgreSQL context and pool isolation | Not started |
 | 5E | Identity, organization, and workforce RLS | Not started |
@@ -641,8 +641,8 @@ gated parts in
 | 5G | Remaining domain RLS and audit foundation | Not started |
 | 5H | Independent security review and completion gate | Not started |
 
-The project owner may approve one part at a time under the phase execution protocol. Completing 5A
-does not authorize 5B. Phase 5 does not authorize business API routes, frontend migration, storage,
+The project owner may approve one part at a time under the phase execution protocol. Completing one
+part does not authorize the next. Phase 5 does not authorize business API routes, frontend migration, storage,
 Keycloak provisioning, cloud resources, SMTP, or real data outside an approved part.
 
 ### Authorization model
@@ -1737,11 +1737,25 @@ Decision needed: None for completed Phase 5A. Phase 5B requires separate authori
 Next action: Commit and push Phase 5A once, report the existing GitHub workflow, and stop before Phase 5B.
 ```
 
+### 2026-09-06 - Phase 5B
+
+```text
+Date: 2026-09-06
+Phase: 5B - Trusted authorization principal and FastAPI dependencies
+Change completed: Extended the Phase 3 application-user lookup into one frozen database-derived principal. Added approved role, tenant, employee-self, manager, and request-time admin branch dependencies without adding a business route or database change.
+Tests run: Focused authentication and dependency tests; 157-test backend Pytest gate; Ruff lint and formatting; strict Pyright; dependency check; final diff and scope review.
+Result: The local Phase 5B gate passed. Valid synthetic admin, manager, and employee fixtures resolve exactly. Invalid account, profile, employee, role, and branch states fail closed with the approved safe responses. Composed dependencies share one principal lookup.
+Known issues: The local virtual-environment launchers refer to a removed Python installation, so the gate used bundled Python 3.12.14 with the installed locked packages. GitHub remains the clean installation check.
+Decision needed: None for completed Phase 5B. Phase 5C requires separate project-owner authorization.
+Next action: Commit and push Phase 5B once, report the existing GitHub workflow, and stop before Phase 5C.
+```
+
 ## Immediate Next Actions
 
-Phase 4 is complete with project-owner sign-off. Phase 5A completed its documentation-only gate on
-2026-09-06. Its approved design and independent review are recorded in
-[`docs/migration/phase-5/PERMISSION_MATRIX_AND_RLS_DESIGN.md`](docs/migration/phase-5/PERMISSION_MATRIX_AND_RLS_DESIGN.md)
-and [`docs/migration/phase-5/PART_5A_COMPLETION.md`](docs/migration/phase-5/PART_5A_COMPLETION.md).
+Phase 4 is complete with project-owner sign-off. Phase 5A and Phase 5B completed on 2026-09-06.
+The approved authorization design is recorded in
+[`docs/migration/phase-5/PERMISSION_MATRIX_AND_RLS_DESIGN.md`](docs/migration/phase-5/PERMISSION_MATRIX_AND_RLS_DESIGN.md).
+The implementation evidence is recorded in
+[`docs/migration/phase-5/PART_5B_COMPLETION.md`](docs/migration/phase-5/PART_5B_COMPLETION.md).
 
-Stop before Phase 5B. It requires separate project-owner authorization.
+Stop before Phase 5C. It requires separate project-owner authorization.
