@@ -103,16 +103,21 @@ jobs:
           docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini downgrade d307b9c1f25e
           sh scripts/verify-phase-5d-downgrade.sh
           docker compose --profile tools run --rm migrate
+      - name: Verify Phase 5E exact downgrade
+        run: |
+          docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini downgrade e418c0d7a6b3
+          sh scripts/verify-phase-5e-downgrade.sh
+          sh scripts/verify-phase-4d-grants.sh
+          docker compose --profile tools run --rm migrate
       - name: Verify Alembic and database boundaries
         run: |
-          test "$(docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini current | tail -n 1)" = "e418c0d7a6b3 (head)"
-          test "$(docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini heads | tail -n 1)" = "e418c0d7a6b3 (head)"
+          test "$(docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini current | tail -n 1)" = "f52e0a1b9c34 (head)"
+          test "$(docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini heads | tail -n 1)" = "f52e0a1b9c34 (head)"
           docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini check
           sh scripts/verify-phase-4b-schema.sh
           sh scripts/verify-phase-4c-schema.sh
           sh scripts/verify-phase-4c-migrations.sh
           sh scripts/verify-phase-4d-migrations.sh
-          sh scripts/verify-phase-4d-grants.sh
           sh scripts/verify-phase-4d-triggers.sh
           sh scripts/verify-phase-4d-functions.sh
           sh scripts/verify-phase-4d-function-security.sh
@@ -120,6 +125,7 @@ jobs:
           sh scripts/verify-phase-4e-seed.sh
           docker compose --profile tools run --rm --volume ./scripts:/verification:ro --entrypoint python migrate -c "import runpy; runpy.run_path('/verification/verify-phase-5c-repositories.py', run_name='__main__')"
           sh scripts/verify-phase-5d-context.sh
+          sh scripts/verify-phase-5e-rls.sh
           sh scripts/verify-phase-4f-boundaries.sh
           docker compose exec -T backend python -c "import os, psycopg; url=os.environ['DATABASE_URL'].replace('postgresql+psycopg://', 'postgresql://', 1); connection=psycopg.connect(url); cursor=connection.cursor(); cursor.execute('SELECT current_user'); assert cursor.fetchone() == ('workloop_runtime',); connection.close()"
       - name: Verify service health
@@ -151,7 +157,7 @@ jobs:
           docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini check
           sh scripts/verify-phase-4b-schema.sh
           sh scripts/verify-phase-4c-schema.sh
-          sh scripts/verify-phase-4d-grants.sh
+          sh scripts/verify-phase-5e-rls.sh
           sh scripts/verify-phase-4f-boundaries.sh
           curl --fail --silent --show-error http://127.0.0.1:8080/realms/workloop-dev/protocol/openid-connect/certs | jq -r '.keys[].kid' | sort > /tmp/workloop-restarted-signing-key-ids
           diff /tmp/workloop-signing-key-ids /tmp/workloop-restarted-signing-key-ids

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Any, TypeGuard
 from typing import cast as type_cast
 
-from sqlalchemy import Text, cast, select
+from sqlalchemy import select, text
 from sqlalchemy.engine import Result
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlalchemy.sql.base import Executable
@@ -13,11 +13,7 @@ from app.db.authorization_context import set_identity_bootstrap_context
 from app.models.identity import (
     AccountStatus,
     AppRole,
-    AppUser,
     Branch,
-    Company,
-    Employee,
-    UserProfile,
 )
 
 _ELIGIBLE_EMPLOYMENT_STATUSES = frozenset({"Active", "Probation", "On Leave"})
@@ -76,41 +72,25 @@ class ApplicationUserResolver:
         ):
             raise ApplicationUserUnavailableError
 
-        app_users = AppUser.__table__.c
-        profiles = UserProfile.__table__.c
-        companies = Company.__table__.c
-        employees = Employee.__table__.c
-        branches = Branch.__table__.c
-        statement = (
-            select(
-                app_users.id,
-                cast(app_users.status, Text),
-                profiles.app_user_id,
-                profiles.company_id,
-                cast(profiles.role, Text),
-                profiles.employee_id,
-                companies.id,
-                employees.id,
-                employees.company_id,
-                employees.branch_id,
-                employees.active,
-                employees.employment_status,
-                branches.id,
-                branches.company_id,
-            )
-            .select_from(
-                AppUser.__table__.outerjoin(
-                    UserProfile.__table__, profiles.app_user_id == app_users.id
-                )
-                .outerjoin(Company.__table__, companies.id == profiles.company_id)
-                .outerjoin(Employee.__table__, employees.id == profiles.employee_id)
-                .outerjoin(Branch.__table__, branches.id == employees.branch_id)
-            )
-            .where(
-                app_users.identity_issuer == issuer,
-                app_users.identity_subject == subject,
-            )
-            .limit(2)
+        statement = text(
+            """
+SELECT
+  app_user_id,
+  account_status,
+  profile_app_user_id,
+  profile_company_id,
+  role,
+  profile_employee_id,
+  company_id,
+  employee_id,
+  employee_company_id,
+  employee_branch_id,
+  employee_active,
+  employment_status,
+  branch_id,
+  branch_company_id
+FROM public.resolve_workloop_principal()
+"""
         )
         rows = await self._execute(
             statement,

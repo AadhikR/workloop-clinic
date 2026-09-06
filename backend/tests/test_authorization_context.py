@@ -37,7 +37,7 @@ class StubAuthorizationConnection:
         self, statement: Any, parameters: dict[str, str] | None = None
     ) -> ScalarResult:
         self.statements.append((statement, parameters))
-        is_validation = "FROM public.app_users" in str(statement)
+        is_validation = "FROM public.resolve_workloop_principal()" in str(statement)
         return ScalarResult(self.valid if is_validation else True)
 
     @asynccontextmanager

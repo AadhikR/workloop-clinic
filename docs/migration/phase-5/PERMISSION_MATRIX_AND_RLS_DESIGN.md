@@ -592,6 +592,31 @@ direct notification insert grant and no extra `app_users` row policy.
 A failure in any identity, scope, state, amount, or actor check aborts without mutation. Direct
 table grants remain revoked for the protected operations.
 
+## Phase 5E bootstrap amendment
+
+Phase 5E exposed a circular dependency in the approved bootstrap design. RLS needed a verified
+company, employee, and branch context before it could expose those rows, but FastAPI needed those
+same rows to construct the context. Opening business-table policies to issuer and subject alone
+would have weakened the bootstrap boundary.
+
+The project owner approved one additional fixed-purpose function on 2026-09-06:
+
+- `resolve_workloop_principal() returns table` reads issuer and subject from the fixed Phase 5D
+  readers and returns at most one candidate account plus the profile, company, employee, and branch
+  link fields that FastAPI already validated before Phase 5E. FastAPI still checks active account
+  status, profile cardinality, role shape, company membership, employee eligibility, and branch
+  membership. Human RLS policies compare the same fields with the full transaction context.
+- The function requires `session_user = 'workloop_runtime'`, runs as `SECURITY DEFINER`, is owned by
+  `workloop_migration`, and uses `search_path=pg_catalog, public, pg_temp`. Every referenced object
+  is schema-qualified. `PUBLIC` and the expiry-processing login have no execute grant.
+- The function accepts no argument, performs no mutation, and returns no name, email, salary, bank,
+  government identifier, or other business field. The issuer and subject remain inside the
+  transaction and are not returned.
+
+This amendment adds no database role, table, context key, business permission, or route. The
+original `app_users.B0` policy still proves that issuer and subject alone expose only the matching
+active account row and grant no business-table access.
+
 ## Audit design
 
 The recommended design uses both existing domain history and one new shared append-only table.

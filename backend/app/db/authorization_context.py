@@ -71,30 +71,24 @@ SELECT
 _REVALIDATE_HUMAN_CONTEXT = text(
     """
 SELECT pg_catalog.count(*) = 1
-FROM public.app_users AS app_user
-JOIN public.user_profiles AS profile
-  ON profile.app_user_id = app_user.id
-LEFT JOIN public.employees AS employee
-  ON employee.id = profile.employee_id
- AND employee.company_id = profile.company_id
-LEFT JOIN public.branches AS employee_branch
-  ON employee_branch.id = employee.branch_id
- AND employee_branch.company_id = employee.company_id
+FROM public.resolve_workloop_principal() AS principal
 WHERE current_user = 'workloop_runtime'
   AND session_user = 'workloop_runtime'
   AND public.workloop_actor_kind() = 'human'
   AND public.workloop_actor_key() IS NULL
   AND public.workloop_business_date() IS NOT NULL
-  AND app_user.id = public.workloop_app_user_id()
-  AND app_user.identity_issuer = public.workloop_identity_issuer()
-  AND app_user.identity_subject = public.workloop_identity_subject()
-  AND app_user.status::text = 'active'
-  AND profile.company_id = public.workloop_company_id()
-  AND profile.role::text = public.workloop_role()
+  AND principal.app_user_id = public.workloop_app_user_id()
+  AND principal.account_status = 'active'
+  AND principal.profile_app_user_id = principal.app_user_id
+  AND principal.profile_company_id = public.workloop_company_id()
+  AND principal.company_id = principal.profile_company_id
+  AND principal.role = public.workloop_role()
   AND (
     (
       public.workloop_role() = 'admin'
-      AND profile.employee_id IS NULL
+      AND principal.profile_employee_id IS NULL
+      AND principal.employee_id IS NULL
+      AND principal.branch_id IS NULL
       AND public.workloop_employee_id() IS NULL
       AND (
         public.workloop_branch_id() IS NULL
@@ -109,13 +103,14 @@ WHERE current_user = 'workloop_runtime'
     OR
     (
       public.workloop_role() IN ('manager', 'employee')
-      AND profile.employee_id = public.workloop_employee_id()
-      AND employee.id = public.workloop_employee_id()
-      AND employee.company_id = public.workloop_company_id()
-      AND employee.branch_id = public.workloop_branch_id()
-      AND employee.active
-      AND employee.employment_status IN ('Active', 'Probation', 'On Leave')
-      AND employee_branch.id = public.workloop_branch_id()
+      AND principal.profile_employee_id = public.workloop_employee_id()
+      AND principal.employee_id = principal.profile_employee_id
+      AND principal.employee_company_id = principal.profile_company_id
+      AND principal.employee_branch_id = public.workloop_branch_id()
+      AND principal.employee_active
+      AND principal.employment_status IN ('Active', 'Probation', 'On Leave')
+      AND principal.branch_id = principal.employee_branch_id
+      AND principal.branch_company_id = principal.profile_company_id
     )
   )
 """

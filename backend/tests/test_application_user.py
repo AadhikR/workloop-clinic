@@ -194,15 +194,9 @@ async def test_valid_synthetic_fixture_resolves_to_exact_principal(subject: str)
     assert "workloop.identity_issuer" in str(context_statement)
     assert "workloop.identity_subject" in str(context_statement)
     assert subject not in str(context_statement)
-    assert statement.compile().params == {
-        "identity_issuer_1": ISSUER,
-        "identity_subject_1": subject,
-        "param_1": 2,
-    }
     sql = str(statement).lower()
-    assert "left outer join user_profiles" in sql
-    assert "left outer join employees" in sql
-    assert "left outer join branches" in sql
+    assert "from public.resolve_workloop_principal()" in sql
+    assert statement.compile().params == {}
     assert "email" not in sql
 
 

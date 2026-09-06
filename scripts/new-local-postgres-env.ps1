@@ -36,6 +36,23 @@ if (Test-Path -LiteralPath $postgresPath) {
         throw "$postgresPath does not contain WORKLOOP_MIGRATION_PASSWORD."
     }
     $migrationPassword = $migrationLine.Substring($migrationLine.IndexOf("=") + 1)
+    $expiryLine = [System.IO.File]::ReadLines($postgresPath) | Where-Object {
+        $_.StartsWith("WORKLOOP_EXPIRY_PROCESSING_PASSWORD=")
+    }
+    if ($expiryLine) {
+        $expiryProcessingPassword = $expiryLine.Substring($expiryLine.IndexOf("=") + 1)
+    }
+    else {
+        $expiryProcessingPassword = New-LocalSecret
+        $postgresLines = @([System.IO.File]::ReadAllLines($postgresPath)) + @(
+            "WORKLOOP_EXPIRY_PROCESSING_PASSWORD=$expiryProcessingPassword"
+        )
+        [System.IO.File]::WriteAllLines(
+            $postgresPath,
+            $postgresLines,
+            (New-Object System.Text.UTF8Encoding($false))
+        )
+    }
     $keycloakDatabaseLine = [System.IO.File]::ReadLines($postgresPath) | Where-Object {
         $_.StartsWith("KEYCLOAK_DB_PASSWORD=")
     }
@@ -49,11 +66,13 @@ if (Test-Path -LiteralPath $postgresPath) {
 else {
     $runtimePassword = New-LocalSecret
     $migrationPassword = New-LocalSecret
+    $expiryProcessingPassword = New-LocalSecret
     $keycloakDatabasePassword = New-LocalSecret
     $postgresLines = @(
         "POSTGRES_PASSWORD=$(New-LocalSecret)"
         "WORKLOOP_MIGRATION_PASSWORD=$migrationPassword"
         "WORKLOOP_RUNTIME_PASSWORD=$runtimePassword"
+        "WORKLOOP_EXPIRY_PROCESSING_PASSWORD=$expiryProcessingPassword"
         "KEYCLOAK_DB_PASSWORD=$keycloakDatabasePassword"
     )
     [System.IO.File]::WriteAllLines(
