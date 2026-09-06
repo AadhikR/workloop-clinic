@@ -634,7 +634,7 @@ gated parts in
 |---|---|---|
 | 5A | Permission matrix, RLS contract, and audit decisions | Completed 2026-09-06; see [`PERMISSION_MATRIX_AND_RLS_DESIGN.md`](docs/migration/phase-5/PERMISSION_MATRIX_AND_RLS_DESIGN.md) |
 | 5B | Trusted authorization principal and FastAPI dependencies | Completed 2026-09-06; see [`PART_5B_COMPLETION.md`](docs/migration/phase-5/PART_5B_COMPLETION.md) |
-| 5C | Scoped repository rules and protected mutation guards | Not started |
+| 5C | Scoped repository rules and protected mutation guards | Completed 2026-09-06; see [`PART_5C_COMPLETION.md`](docs/migration/phase-5/PART_5C_COMPLETION.md) |
 | 5D | Transaction-local PostgreSQL context and pool isolation | Not started |
 | 5E | Identity, organization, and workforce RLS | Not started |
 | 5F | Payroll, leave, attendance, and roster RLS | Not started |
@@ -1750,12 +1750,27 @@ Decision needed: None for completed Phase 5B. Phase 5C requires separate project
 Next action: Commit and push Phase 5B once, report the existing GitHub workflow, and stop before Phase 5C.
 ```
 
+### 2026-09-06 - Phase 5C
+
+```text
+Date: 2026-09-06
+Phase: 5C - Scoped repository rules and protected mutation guards
+Change completed: Added canonical tenant, branch, self, direct-report, active leave-delegate, and expiry-processing predicates. Added scoped lookups and atomic single-row and batch mutation helpers plus strict allowlisted field guards. No route or schema change was made.
+Tests run: 68 focused authorization tests; 225-test backend Pytest gate; Ruff lint and formatting; strict Pyright; dependency check; git diff check; isolated PostgreSQL 17.11 verifier with the 334 Phase 4E fixtures; 32 frontend unit tests; frontend production build.
+Result: The local Phase 5C gate passed. Scoped statements deny cross-tenant, cross-branch, peer, guessed-UUID, stale-manager, expired-delegate, future-delegate, disabled-actor, and mixed-batch cases. Denied mutations leave rows unchanged, and the verifier removed every fixture row.
+Known issues: The verifier's first container invocation failed before seeding because the mounted script changed Python's import root; the corrected `runpy` invocation passed repeatedly. The local virtual-environment launchers still refer to a removed Python installation, so the gate used bundled Python 3.12.14 with the installed locked packages. The frontend build retains its existing large-chunk warning. GitHub remains the clean installation check.
+Decision needed: None for completed Phase 5C. Phase 5D requires separate project-owner authorization.
+Next action: Commit and push Phase 5C once, report the GitHub workflow, and stop before Phase 5D.
+```
+
 ## Immediate Next Actions
 
-Phase 4 is complete with project-owner sign-off. Phase 5A and Phase 5B completed on 2026-09-06.
+Phase 4 is complete with project-owner sign-off. Phase 5A, Phase 5B, and Phase 5C completed on
+2026-09-06.
 The approved authorization design is recorded in
 [`docs/migration/phase-5/PERMISSION_MATRIX_AND_RLS_DESIGN.md`](docs/migration/phase-5/PERMISSION_MATRIX_AND_RLS_DESIGN.md).
 The implementation evidence is recorded in
-[`docs/migration/phase-5/PART_5B_COMPLETION.md`](docs/migration/phase-5/PART_5B_COMPLETION.md).
+[`docs/migration/phase-5/PART_5B_COMPLETION.md`](docs/migration/phase-5/PART_5B_COMPLETION.md) and
+[`docs/migration/phase-5/PART_5C_COMPLETION.md`](docs/migration/phase-5/PART_5C_COMPLETION.md).
 
-Stop before Phase 5C. It requires separate project-owner authorization.
+Stop before Phase 5D. It requires separate project-owner authorization.

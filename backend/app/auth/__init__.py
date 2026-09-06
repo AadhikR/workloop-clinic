@@ -4,11 +4,25 @@ from app.auth.application_user import (
     ApplicationUserResolver,
     AuthorizationPrincipal,
 )
+from app.auth.scopes import (
+    ActiveLeaveDelegateAuthorizationScope,
+    BranchAuthorizationScope,
+    DirectReportAuthorizationScope,
+    EmployeeSelfAuthorizationScope,
+    ExpiryProcessingAuthorizationScope,
+    TenantAuthorizationScope,
+)
 
 __all__ = [
     "AccessTokenClaims",
     "AccessTokenVerifier",
+    "ActiveLeaveDelegateAuthorizationScope",
     "ApplicationUser",
     "ApplicationUserResolver",
     "AuthorizationPrincipal",
+    "BranchAuthorizationScope",
+    "DirectReportAuthorizationScope",
+    "EmployeeSelfAuthorizationScope",
+    "ExpiryProcessingAuthorizationScope",
+    "TenantAuthorizationScope",
 ]

@@ -2,7 +2,7 @@
 
 ## Status
 
-Phase 5 is in progress. Phase 5A and Phase 5B completed on 2026-09-06 after separate
+Phase 5 is in progress. Phase 5A, Phase 5B, and Phase 5C completed on 2026-09-06 after separate
 project-owner approvals. No later part is authorized.
 
 Phase 5 is split into eight parts, 5A through 5H. The original phase combined policy design,
@@ -39,7 +39,7 @@ action.
 |---|---|---|
 | 5A | Permission matrix, RLS contract, and audit decisions | Completed 2026-09-06; see [`PERMISSION_MATRIX_AND_RLS_DESIGN.md`](PERMISSION_MATRIX_AND_RLS_DESIGN.md) and [`PART_5A_COMPLETION.md`](PART_5A_COMPLETION.md) |
 | 5B | Trusted authorization principal and FastAPI dependencies | Completed 2026-09-06; see [`PART_5B_COMPLETION.md`](PART_5B_COMPLETION.md) |
-| 5C | Scoped repository rules and protected mutation guards | Not started; depends on 5A and 5B |
+| 5C | Scoped repository rules and protected mutation guards | Completed 2026-09-06; see [`PART_5C_COMPLETION.md`](PART_5C_COMPLETION.md) |
 | 5D | Transaction-local PostgreSQL context and pool isolation | Not started; depends on 5A and 5B |
 | 5E | Identity, organization, and workforce RLS | Not started; depends on 5C and 5D |
 | 5F | Payroll, leave, attendance, and roster RLS | Not started; depends on 5E |
