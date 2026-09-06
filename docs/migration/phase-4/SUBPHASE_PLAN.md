@@ -4,8 +4,8 @@
 
 **Parts 4A and 4B completed on 2026-09-01. Part 4C completed on 2026-09-02. Part 4D completed on
 2026-09-03, with its corrective revisions completed on 2026-09-05. Part 4E completed on
-2026-09-05. The independent GPT-5.6 review and complete local Part 4F gate passed on 2026-09-06.
-The final GitHub gate and project-owner sign-off remain.**
+2026-09-05. The independent GPT-5.6 review, complete local Part 4F gate, and GitHub gate passed on
+2026-09-06. The project owner signed off Phase 4 on 2026-09-06.**
 
 This document breaks Phase 4 into six parts, 4A through 4F, so the project owner can authorize
 one part at a time. It records objectives, dependencies, files, decisions, security boundaries,
@@ -45,7 +45,7 @@ fixture. Part 4F received separate authorization on 2026-09-06.
 | 4C | Remaining business schema | Completed 2026-09-02; revisions `3f9a1c7b2e10`, `4a0b2d8c3f21`, `5b1c3e9d4a32`, `6c2d4f0e5b43`, `7d3e5a1f6c54`; independent review closed in 4F |
 | 4D | Functions, triggers, constraints, and grants | Completed 2026-09-03; security corrections completed 2026-09-05 through `d307b9c1f25e`; independent review closed in 4F |
 | 4E | Synthetic fixtures | Completed 2026-09-05; 334 deterministic rows across 48 tables. See [`PART_4E_COMPLETION.md`](PART_4E_COMPLETION.md). |
-| 4F | Clean-database, upgrade, security, and completion gate | Independent review and complete local gate passed 2026-09-06; final GitHub gate and owner sign-off remain |
+| 4F | Clean-database, upgrade, security, and completion gate | Completed 2026-09-06; independent review, local gate, GitHub Actions run 33990737606, and owner sign-off passed |
 
 ## 4A: Schema inventory and design decisions
 
@@ -425,8 +425,8 @@ execution, and the previously untested repayment and shift-swap branches. Isolat
 project `workloop-phase4f-20260906` upgraded from empty to `d307b9c1f25e`, completed every documented
 downgrade boundary, applied and removed all 334 fixture rows, passed authentication before and after
 restart, and left no Supabase database dependency. See
-[`PART_4F_COMPLETION.md`](PART_4F_COMPLETION.md). The post-commit GitHub result belongs in the task
-handoff. Project-owner sign-off remains required before Phase 4 closes.
+[`PART_4F_COMPLETION.md`](PART_4F_COMPLETION.md). GitHub Actions run 33990737606 passed all three
+jobs. The project owner signed off Phase 4 on 2026-09-06.
 
 **Recommended model.** GPT-5.6, for the same reason as 4A and 4D: this is the security review and
 final gate for schema and database work, not routine implementation.
@@ -455,5 +455,6 @@ in 4A through schema in 4B and 4C, privilege and function work in 4D, fixtures i
 verification and sign-off in 4F. GPT-5.6 for 4A, 4D, and 4F, since those carry the schema and
 security decisions and review. GPT-5.6 Terra for 4B and 4C, bounded implementation against an
 approved design. Sonnet 5 for 4E, routine seed generation once the manifest is fixed. Parts 4A
-through 4F are implemented. Phase 4 remains open for the final GitHub result and project-owner
-completion sign-off. Phase 5 is not authorized.
+through 4F are implemented, and the project owner signed off Phase 4. Phase 5 is split into Parts 5A
+through 5H in [`../phase-5/SUBPHASE_PLAN.md`](../phase-5/SUBPHASE_PLAN.md). Phase 5A completed on
+2026-09-06; no later part is authorized.

@@ -237,8 +237,8 @@ Do not create abstractions merely to match this diagram. Start with the smallest
 | 1 | DigitalOcean access and cost controls | Completed 2026-08-27 — spend alert deferred to Phase 6A gate | 1–2 days |
 | 2 | Local backend and infrastructure foundation | Completed 2026-08-31 | 4–7 days |
 | 3 | Keycloak authentication foundation | Completed 2026-09-01 | 1–2 weeks |
-| 4 | Portable database baseline | In progress; 4F local gate passed 2026-09-06, final GitHub gate and owner sign-off remain | 1–2 weeks |
-| 5 | Authorization and tenant isolation | Not started | 1–2 weeks |
+| 4 | Portable database baseline | Completed 2026-09-06 with owner sign-off | 1–2 weeks |
+| 5 | Authorization and tenant isolation | In progress; 5A completed 2026-09-06, 5B not authorized | 3 to 5 weeks |
 | 6 | Shared API and frontend client | Not started | 3–5 days |
 | 6A | Early DigitalOcean architecture proof | Not started | 3–5 days |
 | 7 | Organization and employee module | Not started | 1–2 weeks |
@@ -564,7 +564,7 @@ before Part 4B can start.
 | 4C | Remaining business schema | Completed 2026-09-02; revisions `3f9a1c7b2e10` through `7d3e5a1f6c54` |
 | 4D | Functions, triggers, constraints, and grants | Completed 2026-09-03; security corrections completed 2026-09-05 through `d307b9c1f25e`; independent GPT-5.6 review closed in 4F |
 | 4E | Synthetic fixtures | Completed 2026-09-05; 334 deterministic rows across 48 tables. See [`PART_4E_COMPLETION.md`](docs/migration/phase-4/PART_4E_COMPLETION.md). |
-| 4F | Clean-database, upgrade, security, and completion gate | Independent review and complete local gate passed 2026-09-06; final GitHub gate and owner sign-off remain |
+| 4F | Clean-database, upgrade, security, and completion gate | Completed 2026-09-06; independent review, local gate, GitHub Actions run 33990737606, and owner sign-off passed |
 
 ### Work
 
@@ -617,16 +617,35 @@ fixed without changing the approved schema, function behavior, or grant matrix. 
 applied and removed all 334 fixtures, passed authentication before and after restart, and contained
 no Supabase database schema, role, or function dependency. See
 [`docs/migration/phase-4/PART_4F_COMPLETION.md`](docs/migration/phase-4/PART_4F_COMPLETION.md).
-The post-commit GitHub result belongs in the task handoff. Project-owner sign-off remains required
-before Phase 5.
+GitHub Actions run 33990737606 passed all three jobs. The project owner signed off Phase 4 on
+2026-09-06 and separately authorized Phase 5A.
 
-## Phase 5: Authorization and Tenant Isolation
+## Phase 5: Authorization and tenant isolation
 
 ### Objective
 
 Rebuild the security boundary currently provided by Supabase Row Level Security and protected functions.
 
-### Authorization Model
+Phase 5 is too large for one implementation and review cycle. It is split into eight separately
+gated parts in
+[`docs/migration/phase-5/SUBPHASE_PLAN.md`](docs/migration/phase-5/SUBPHASE_PLAN.md).
+
+| Part | Scope | Status |
+|---|---|---|
+| 5A | Permission matrix, RLS contract, and audit decisions | Completed 2026-09-06; see [`PERMISSION_MATRIX_AND_RLS_DESIGN.md`](docs/migration/phase-5/PERMISSION_MATRIX_AND_RLS_DESIGN.md) |
+| 5B | Trusted authorization principal and FastAPI dependencies | Not started; requires separate authorization |
+| 5C | Scoped repository rules and protected mutation guards | Not started |
+| 5D | Transaction-local PostgreSQL context and pool isolation | Not started |
+| 5E | Identity, organization, and workforce RLS | Not started |
+| 5F | Payroll, leave, attendance, and roster RLS | Not started |
+| 5G | Remaining domain RLS and audit foundation | Not started |
+| 5H | Independent security review and completion gate | Not started |
+
+The project owner may approve one part at a time under the phase execution protocol. Completing 5A
+does not authorize 5B. Phase 5 does not authorize business API routes, frontend migration, storage,
+Keycloak provisioning, cloud resources, SMTP, or real data outside an approved part.
+
+### Authorization model
 
 FastAPI must derive trusted context from the authenticated application user:
 
@@ -646,17 +665,18 @@ The browser may request a resource ID, but the server must prove that the resour
 
 ### Work
 
-- Define reusable FastAPI dependencies for authenticated user, admin, manager, employee, and active company scope.
-- Put company and employee scoping inside repository queries, not only route handlers.
-- Implement manager scope through authoritative reporting relationships.
-- Prevent mass-assignment of restricted columns such as role, salary, company owner, and approval status.
-- Add database constraints that protect invariants even if API validation fails.
-- Decide whether to retain PostgreSQL RLS as defense in depth.
-- If retaining RLS, use transaction-local request context and test connection-pool isolation carefully.
-- Create audit events for role changes, approvals, payroll state changes, and sensitive document actions.
-- Return generic authorization errors without revealing whether another company's record exists.
+- Approve a version-controlled permission matrix before implementation.
+- Derive one trusted application principal from the Phase 3 token and application-user boundary.
+- Put company, branch, employee, manager, and delegate scope inside repository statements.
+- Prevent mass assignment of protected identity, ownership, salary, approval, and state fields.
+- Retain PostgreSQL RLS as the Phase 4A-approved defense in depth, using transaction-local request
+  context with pool-isolation tests.
+- Roll out RLS in bounded domain revisions rather than one policy migration.
+- Add the approved append-only audit foundation for role changes, approvals, payroll state, and
+  sensitive document actions.
+- Return the approved generic response without revealing whether another company's row exists.
 
-### Required Permission Matrix
+### Required permission matrix
 
 Create a version-controlled matrix covering every feature and operation. At minimum it must distinguish:
 
@@ -665,7 +685,7 @@ Create a version-controlled matrix covering every feature and operation. At mini
 - Employee access to personal records and self-service actions.
 - System-only actions such as migration, scheduled jobs, and expiry processing.
 
-### Required Negative Tests
+### Required negative tests
 
 - Company A admin cannot access Company B records by changing an ID.
 - Employee A cannot access Employee B records or files.
@@ -676,9 +696,14 @@ Create a version-controlled matrix covering every feature and operation. At mini
 - Guessed UUIDs and modified query strings do not bypass scope.
 - Bulk endpoints enforce scope on every row.
 
-### Completion Gate
+### Completion gate
 
-The permission matrix is approved, reusable authorization code exists, and automated cross-company and cross-role tests fail closed.
+Parts 5A through 5H pass their individual gates. The approved permission matrix, FastAPI
+authorization code, scoped repositories, transaction context, RLS policies, grant changes, and
+audit controls pass an independent GPT-5.6 review. Automated cross-tenant, cross-branch,
+cross-employee, cross-manager, mass-assignment, bulk, disabled-account, and pool-isolation tests
+fail closed on an isolated fresh PostgreSQL 17.11 database. The complete local and GitHub gates pass,
+and the project owner signs off. Stop before Phase 6.
 
 ## Phase 6: Shared API and Frontend Client
 
@@ -1680,17 +1705,43 @@ Date: 2026-09-06
 Phase: 4F - Clean-database, upgrade, security, and completion gate
 Change completed: Completed the independent GPT-5.6 review, fixed four verification gaps, added the live database boundary gate, and recorded the complete local result. No schema object or approved database behavior changed.
 Tests run: 124 backend tests and all backend quality checks; 32 frontend unit tests; four migration-build isolation tests; both production builds; Compose validation; empty, repeated, downgrade, per-revision, and no-drift Alembic checks; schema, ACL, trigger, function, concurrency, fixture, cleanup, portability, authentication, restart, signing-key, and log-safety checks on isolated PostgreSQL 17.11.
-Result: The independent review found no implementation defect. The complete local Phase 4F gate passed at d307b9c1f25e. The 334 fixture rows applied twice without change and cleaned up. The migrated database contains no auth or storage schema, Supabase role, or retained-function dependency.
-Known issues: The final GitHub workflow result must be reported in the task handoff. Phase 4 still needs project-owner sign-off. Phase 5 authorization and tenant isolation remain excluded.
-Decision needed: The project owner must sign off before Phase 4 closes or Phase 5 starts.
-Next action: Commit and push once, verify the existing GitHub workflow, report its URL, and stop before Phase 5.
+Result: The independent review found no implementation defect. The complete local Phase 4F gate passed at d307b9c1f25e. The 334 fixture rows applied twice without change and cleaned up. The migrated database contains no auth or storage schema, Supabase role, or retained-function dependency. GitHub Actions run 33990737606 passed all three jobs.
+Known issues: Phase 4 has no RLS policy or application authorization. Phase 5 owns those controls.
+Decision needed: None. The project owner signed off Phase 4 on 2026-09-06.
+Next action: Phase 5A was separately authorized and completed.
+```
+
+### 2026-09-06 - Phase 5 planning split
+
+```text
+Date: 2026-09-06
+Phase: Phase 5 planning only
+Change completed: Split Phase 5 into Parts 5A through 5H, covering permission decisions, trusted request context, scoped queries, PostgreSQL transaction context, bounded RLS rollouts, audit controls, independent review, and the final gate.
+Tests run: Documentation structure, link, scope, and consistency checks only. No Phase 5 code or database change was authorized or made.
+Result: Phase 5 now has separately authorizable parts with dependencies, decisions, negative tests, rollback boundaries, completion gates, and model recommendations.
+Known issues: At the time of this planning split, Phase 4 still needed project-owner sign-off and no Phase 5 part was authorized. Both gates were later resolved for Phase 5A.
+Decision needed: The owner later signed off Phase 4 and separately authorized Phase 5A.
+Next action: Phase 5A was separately authorized and completed.
+```
+
+### 2026-09-06 - Phase 5A
+
+```text
+Date: 2026-09-06
+Phase: 5A - Permission matrix, RLS contract, and audit decisions
+Change completed: Approved the 54-table operation catalogue, 119-policy reconciliation, 19 fixture-control mappings, transaction context, policy families, grant contract, audit model, system actors, storage outbox, and decisions 5A-D1 through 5A-D20. No runtime or schema change was made.
+Tests run: Exact catalogue, reconciliation, and fixture-control comparisons; contradiction review; Markdown structure, local-link, placeholder, typography, and whitespace checks; git diff check; independent GPT-5.6 review.
+Result: Phase 5A passed its documentation-only gate. The independent review closed all 51 findings with no remaining omission, contradiction, unsafe grant, unsupported scope, or owner decision.
+Known issues: Production audit retention still needs legal and security approval before real data. Manual storage requeue needs its own approved operator procedure. Those limits are recorded in the approved design and do not block later local Phase 5 work.
+Decision needed: None for completed Phase 5A. Phase 5B requires separate authorization.
+Next action: Commit and push Phase 5A once, report the existing GitHub workflow, and stop before Phase 5B.
 ```
 
 ## Immediate Next Actions
 
-Phase 4F passed its independent review and complete local gate on 2026-09-06 at Alembic head
-`d307b9c1f25e`. The post-commit GitHub workflow is the final automated gate. Phase 4 then requires
-project-owner sign-off.
+Phase 4 is complete with project-owner sign-off. Phase 5A completed its documentation-only gate on
+2026-09-06. Its approved design and independent review are recorded in
+[`docs/migration/phase-5/PERMISSION_MATRIX_AND_RLS_DESIGN.md`](docs/migration/phase-5/PERMISSION_MATRIX_AND_RLS_DESIGN.md)
+and [`docs/migration/phase-5/PART_5A_COMPLETION.md`](docs/migration/phase-5/PART_5A_COMPLETION.md).
 
-Do not start Phase 5. It owns authorization, tenant isolation, and RLS policy work and requires
-separate project-owner authorization.
+Stop before Phase 5B. It requires separate project-owner authorization.

@@ -6,9 +6,8 @@ The independent review and complete local Phase 4F gate passed on 2026-09-06. Th
 defect in the approved Phase 4C schema or corrected Phase 4D behavior. It found four verification
 gaps. All four are fixed and passed focused checks.
 
-The commit containing this record must still pass the existing GitHub workflow. The task handoff
-records that post-commit result, so this file does not require a second documentation-only commit.
-Phase 4 remains in progress until the project owner signs off. Phase 5 has not started.
+The commit containing this record passed GitHub Actions run 33990737606. The project owner signed
+off Phase 4 on 2026-09-06 and separately authorized Phase 5A.
 
 ## Independent review
 
@@ -89,9 +88,9 @@ never attached to that volume.
 
 ## Remaining limits
 
-- Phase 4 still needs project-owner sign-off after the final GitHub workflow passes.
-- Phase 4 has no RLS policy or application authorization. Phase 5 owns those controls and remains
-  unauthorized.
+- Phase 4 is complete with project-owner sign-off.
+- Phase 4 has no RLS policy or application authorization. Phase 5 owns those controls and is split
+  into Parts 5A through 5H. Phase 5A completed its design-only gate on 2026-09-06.
 - No API route, Keycloak provisioning, cloud resource, SMTP setting, object-storage adapter, real
   data, or legacy data converter was added.
 - Local Keycloak still uses its approved development-only HTTP and `start-dev` setup. Existing npm
