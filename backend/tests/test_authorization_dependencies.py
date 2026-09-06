@@ -1,7 +1,8 @@
 import logging
 import uuid
-from collections.abc import Sequence
-from typing import Annotated, cast
+from collections.abc import AsyncGenerator, Sequence
+from contextlib import asynccontextmanager
+from typing import Annotated, Any, cast
 
 import pytest
 from fastapi import Depends, FastAPI, Request, Response, status
@@ -11,8 +12,10 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from app.auth.access_token import AccessTokenClaims
 from app.auth.application_user import ApplicationUserResolver, AuthorizationPrincipal
 from app.auth.dependencies import (
+    AdminBranchAuthorizedConnection,
     AdminSelectedBranch,
     AuthenticatedAuthorizationPrincipal,
+    AuthorizedConnection,
     EmployeeSelfIdentity,
     ManagerIdentity,
     TenantScope,
@@ -21,6 +24,7 @@ from app.auth.dependencies import (
     require_authorization_principal,
     require_roles,
 )
+from app.db.authorization_context import AuthorizationContextError
 from app.models.identity import AccountStatus, AppRole
 from tests.test_application_user import (
     StubConnection,
@@ -94,6 +98,31 @@ def dependency_app(
     return application, engine
 
 
+class StubAuthorizationTransactionFactory:
+    def __init__(self, *, rejected: bool = False) -> None:
+        self.rejected = rejected
+        self.calls: list[tuple[AccessTokenClaims, AuthorizationPrincipal, uuid.UUID | None]] = []
+        self.active = False
+        self.connection = cast(Any, object())
+
+    @asynccontextmanager
+    async def transaction(
+        self,
+        *,
+        claims: AccessTokenClaims,
+        principal: AuthorizationPrincipal,
+        verified_admin_branch_id: uuid.UUID | None = None,
+    ) -> AsyncGenerator[Any]:
+        self.calls.append((claims, principal, verified_admin_branch_id))
+        if self.rejected:
+            raise AuthorizationContextError
+        self.active = True
+        try:
+            yield self.connection
+        finally:
+            self.active = False
+
+
 @pytest.mark.asyncio
 async def test_role_tenant_self_and_manager_dependencies_use_only_principal() -> None:
     manager = principal(AppRole.MANAGER)
@@ -157,7 +186,7 @@ async def test_composed_dependencies_share_one_principal_lookup() -> None:
 
     assert response.status_code == 204
     assert engine.connect_count == 1
-    assert len(engine.connection.statements) == 1
+    assert len(engine.connection.statements) == 2
 
 
 @pytest.mark.asyncio
@@ -363,3 +392,124 @@ async def test_branch_lookup_failure_returns_safe_503_without_detail_leak(
     assert response.json()["detail"]["code"] == "application_account_lookup_unavailable"
     assert sensitive_detail not in response.text + caplog.text
     assert str(selected_branch) not in response.text + caplog.text
+
+
+@pytest.mark.asyncio
+async def test_authorized_connection_wraps_route_in_principal_transaction() -> None:
+    active_principal = principal(AppRole.MANAGER)
+    active_claims = AccessTokenClaims(
+        issuer="https://seed.workloop.test",
+        subject="aisha.manager@horizon.test",
+        audience=("workloop-api",),
+        expires_at=1,
+        issued_at=1,
+        not_before=None,
+    )
+    transaction_factory = StubAuthorizationTransactionFactory()
+    application = FastAPI()
+    application.state.authorization_transaction_factory = transaction_factory
+
+    async def verified_claims() -> AccessTokenClaims:
+        return active_claims
+
+    async def resolved_principal() -> AuthorizationPrincipal:
+        return active_principal
+
+    async def route(connection: AuthorizedConnection) -> Response:
+        assert transaction_factory.active
+        assert connection is transaction_factory.connection
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    application.dependency_overrides[require_access_token] = verified_claims
+    application.dependency_overrides[require_authorization_principal] = resolved_principal
+    application.add_api_route("/transaction", route, methods=["GET"])
+
+    async with AsyncClient(
+        transport=ASGITransport(app=application), base_url="http://testserver"
+    ) as client:
+        response = await client.get("/transaction")
+
+    assert response.status_code == 204
+    assert transaction_factory.active is False
+    assert transaction_factory.calls == [(active_claims, active_principal, None)]
+
+
+@pytest.mark.asyncio
+async def test_admin_branch_connection_uses_verified_branch() -> None:
+    active_principal = principal(AppRole.ADMIN)
+    selected_branch = uuid.uuid4()
+    active_claims = AccessTokenClaims(
+        issuer="https://seed.workloop.test",
+        subject="hr.admin@horizon.test",
+        audience=("workloop-api",),
+        expires_at=1,
+        issued_at=1,
+        not_before=None,
+    )
+    application, _ = dependency_app(active_principal, branch_rows=[(selected_branch,)])
+    transaction_factory = StubAuthorizationTransactionFactory()
+    application.state.authorization_transaction_factory = transaction_factory
+
+    async def verified_claims() -> AccessTokenClaims:
+        return active_claims
+
+    async def route(_connection: AdminBranchAuthorizedConnection) -> Response:
+        assert transaction_factory.active
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    application.dependency_overrides[require_access_token] = verified_claims
+    application.add_api_route("/branch-transaction", route, methods=["GET"])
+
+    async with AsyncClient(
+        transport=ASGITransport(app=application), base_url="http://testserver"
+    ) as client:
+        response = await client.get(
+            "/branch-transaction",
+            headers={"X-Workloop-Branch-ID": str(selected_branch)},
+        )
+
+    assert response.status_code == 204
+    assert transaction_factory.calls == [(active_claims, active_principal, selected_branch)]
+
+
+@pytest.mark.asyncio
+async def test_rejected_database_context_returns_safe_account_error() -> None:
+    active_principal = principal(AppRole.EMPLOYEE)
+    active_claims = AccessTokenClaims(
+        issuer="https://seed.workloop.test",
+        subject="ravi.employee@horizon.test",
+        audience=("workloop-api",),
+        expires_at=1,
+        issued_at=1,
+        not_before=None,
+    )
+    application = FastAPI()
+    application.state.authorization_transaction_factory = StubAuthorizationTransactionFactory(
+        rejected=True
+    )
+
+    async def verified_claims() -> AccessTokenClaims:
+        return active_claims
+
+    async def resolved_principal() -> AuthorizationPrincipal:
+        return active_principal
+
+    async def route(_connection: AuthorizedConnection) -> Response:
+        pytest.fail("rejected context reached route")
+
+    application.dependency_overrides[require_access_token] = verified_claims
+    application.dependency_overrides[require_authorization_principal] = resolved_principal
+    application.add_api_route("/rejected-transaction", route, methods=["GET"])
+
+    async with AsyncClient(
+        transport=ASGITransport(app=application), base_url="http://testserver"
+    ) as client:
+        response = await client.get("/rejected-transaction")
+
+    assert response.status_code == 403
+    assert response.json() == {
+        "detail": {
+            "code": "application_account_unavailable",
+            "message": "Application account unavailable",
+        }
+    }

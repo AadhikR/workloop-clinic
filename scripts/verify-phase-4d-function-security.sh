@@ -27,6 +27,12 @@ BEGIN
     FROM pg_catalog.pg_proc p
     JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'public'
+      AND p.proname IN (
+        'set_updated_at',
+        'replace_payroll_entries',
+        'record_advance_repayment',
+        'admin_execute_shift_swap'
+      )
   )
   SELECT count(*) INTO mismatch_count
   FROM (

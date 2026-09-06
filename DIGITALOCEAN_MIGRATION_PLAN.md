@@ -238,7 +238,7 @@ Do not create abstractions merely to match this diagram. Start with the smallest
 | 2 | Local backend and infrastructure foundation | Completed 2026-08-31 | 4–7 days |
 | 3 | Keycloak authentication foundation | Completed 2026-09-01 | 1–2 weeks |
 | 4 | Portable database baseline | Completed 2026-09-06 with owner sign-off | 1–2 weeks |
-| 5 | Authorization and tenant isolation | In progress; 5A and 5B completed 2026-09-06 | 3 to 5 weeks |
+| 5 | Authorization and tenant isolation | In progress; 5A through 5D completed 2026-09-06 | 3 to 5 weeks |
 | 6 | Shared API and frontend client | Not started | 3–5 days |
 | 6A | Early DigitalOcean architecture proof | Not started | 3–5 days |
 | 7 | Organization and employee module | Not started | 1–2 weeks |
@@ -635,7 +635,7 @@ gated parts in
 | 5A | Permission matrix, RLS contract, and audit decisions | Completed 2026-09-06; see [`PERMISSION_MATRIX_AND_RLS_DESIGN.md`](docs/migration/phase-5/PERMISSION_MATRIX_AND_RLS_DESIGN.md) |
 | 5B | Trusted authorization principal and FastAPI dependencies | Completed 2026-09-06; see [`PART_5B_COMPLETION.md`](docs/migration/phase-5/PART_5B_COMPLETION.md) |
 | 5C | Scoped repository rules and protected mutation guards | Completed 2026-09-06; see [`PART_5C_COMPLETION.md`](docs/migration/phase-5/PART_5C_COMPLETION.md) |
-| 5D | Transaction-local PostgreSQL context and pool isolation | Not started |
+| 5D | Transaction-local PostgreSQL context and pool isolation | Completed 2026-09-06; see [`PART_5D_COMPLETION.md`](docs/migration/phase-5/PART_5D_COMPLETION.md) |
 | 5E | Identity, organization, and workforce RLS | Not started |
 | 5F | Payroll, leave, attendance, and roster RLS | Not started |
 | 5G | Remaining domain RLS and audit foundation | Not started |
@@ -1763,14 +1763,27 @@ Decision needed: None for completed Phase 5C. Phase 5D requires separate project
 Next action: Commit and push Phase 5C once, report the GitHub workflow, and stop before Phase 5D.
 ```
 
+### 2026-09-06 - Phase 5D
+
+```text
+Date: 2026-09-06
+Phase: 5D - Transaction-local PostgreSQL context and pool isolation
+Change completed: Added the ten approved fixed context readers, token-bootstrap settings, a human transaction factory with database revalidation, FastAPI transaction dependencies, isolated verification, and exact downgrade checks. No business-table RLS policy or new database role was added.
+Tests run: 64 focused authorization tests; 238-test backend Pytest gate; Ruff lint and formatting; strict Pyright; dependency check; git diff check; isolated PostgreSQL 17.11 upgrade, exact downgrade, re-upgrade, pool, concurrency, malformed-context, stale-principal, login, actor, denial, privilege, helper-ACL, Phase 4 regression, Phase 5C repository, and repeated-seed checks; 32 frontend unit tests; four migration frontend isolation tests; both production builds.
+Result: The local Phase 5D gate passed. Transaction context clears after every tested exit and pooled connections do not carry identity or scope between transactions. The disposable RLS probe denied incomplete, malformed, stale, mismatched, and cross-context access without changing rows.
+Known issues: The local virtual-environment launchers still point to a removed Python installation, so the backend gate used bundled Python 3.12.14 with the installed locked packages. The legacy frontend build keeps its existing large-chunk warning. GitHub remains the clean installation and Linux shell check.
+Decision needed: None for completed Phase 5D. Phase 5E requires separate project-owner authorization.
+Next action: Commit and push Phase 5D once, report the GitHub workflow, and stop before Phase 5E.
+```
+
 ## Immediate Next Actions
 
-Phase 4 is complete with project-owner sign-off. Phase 5A, Phase 5B, and Phase 5C completed on
-2026-09-06.
+Phase 4 is complete with project-owner sign-off. Phase 5A through Phase 5D completed on 2026-09-06.
 The approved authorization design is recorded in
 [`docs/migration/phase-5/PERMISSION_MATRIX_AND_RLS_DESIGN.md`](docs/migration/phase-5/PERMISSION_MATRIX_AND_RLS_DESIGN.md).
 The implementation evidence is recorded in
-[`docs/migration/phase-5/PART_5B_COMPLETION.md`](docs/migration/phase-5/PART_5B_COMPLETION.md) and
-[`docs/migration/phase-5/PART_5C_COMPLETION.md`](docs/migration/phase-5/PART_5C_COMPLETION.md).
+[`docs/migration/phase-5/PART_5B_COMPLETION.md`](docs/migration/phase-5/PART_5B_COMPLETION.md),
+[`docs/migration/phase-5/PART_5C_COMPLETION.md`](docs/migration/phase-5/PART_5C_COMPLETION.md), and
+[`docs/migration/phase-5/PART_5D_COMPLETION.md`](docs/migration/phase-5/PART_5D_COMPLETION.md).
 
-Stop before Phase 5D. It requires separate project-owner authorization.
+Stop before Phase 5E. It requires separate project-owner authorization.

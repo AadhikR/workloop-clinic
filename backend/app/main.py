@@ -17,6 +17,7 @@ from app.auth.application_user import ApplicationUserResolver
 from app.auth.dependencies import AuthenticatedAuthorizationPrincipal
 from app.core.config import Settings
 from app.core.logging import configure_logging
+from app.db.authorization_context import AuthorizationTransactionFactory
 from app.db.engine import create_database_engine, probe_database
 
 DatabaseProbe = Callable[[AsyncEngine], Awaitable[None]]
@@ -81,6 +82,9 @@ def create_app(
             engine=engine,
             issuer=str(resolved_settings.oidc_issuer),
             timeout_seconds=resolved_settings.application_user_lookup_timeout_seconds,
+        )
+        application.state.authorization_transaction_factory = AuthorizationTransactionFactory(
+            engine=engine
         )
         application.state.access_token_verifier = AccessTokenVerifier(
             issuer=str(resolved_settings.oidc_issuer),

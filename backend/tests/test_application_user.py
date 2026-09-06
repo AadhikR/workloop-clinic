@@ -49,12 +49,27 @@ class StubConnection:
         self.rows = rows
         self.failure = failure
         self.statements: list[Any] = []
+        self.parameters: list[dict[str, str] | None] = []
 
-    async def execute(self, statement: Any) -> StubResult:
+    async def execute(
+        self, statement: Any, _parameters: dict[str, str] | None = None
+    ) -> StubResult:
         self.statements.append(statement)
+        self.parameters.append(_parameters)
         if self.failure is not None:
             raise self.failure
         return StubResult(self.rows)
+
+    def begin(self) -> "StubTransactionContext":
+        return StubTransactionContext()
+
+
+class StubTransactionContext:
+    async def __aenter__(self) -> None:
+        return None
+
+    async def __aexit__(self, *args: object) -> None:
+        return None
 
 
 class StubConnectionContext:
@@ -170,7 +185,15 @@ async def test_valid_synthetic_fixture_resolves_to_exact_principal(subject: str)
     assert principal == expected
     assert principal.id == principal.app_user_id
     assert engine.connect_count == 1
-    statement = engine.connection.statements[0]
+    assert len(engine.connection.statements) == 2
+    context_statement, statement = engine.connection.statements
+    assert engine.connection.parameters[0] == {
+        "identity_issuer": ISSUER,
+        "identity_subject": subject,
+    }
+    assert "workloop.identity_issuer" in str(context_statement)
+    assert "workloop.identity_subject" in str(context_statement)
+    assert subject not in str(context_statement)
     assert statement.compile().params == {
         "identity_issuer_1": ISSUER,
         "identity_subject_1": subject,
@@ -385,9 +408,11 @@ async def test_database_failure_is_wrapped_without_sensitive_details() -> None:
 @pytest.mark.asyncio
 async def test_stalled_database_lookup_obeys_deadline() -> None:
     class StalledConnection(StubConnection):
-        async def execute(self, statement: Any) -> StubResult:
+        async def execute(
+            self, statement: Any, parameters: dict[str, str] | None = None
+        ) -> StubResult:
             await asyncio.sleep(1)
-            return await super().execute(statement)
+            return await super().execute(statement, parameters)
 
     engine = StubEngine(StalledConnection())
     resolver = ApplicationUserResolver(

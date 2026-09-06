@@ -2,7 +2,7 @@
 
 ## Status
 
-Phase 5 is in progress. Phase 5A, Phase 5B, and Phase 5C completed on 2026-09-06 after separate
+Phase 5 is in progress. Phase 5A, Phase 5B, Phase 5C, and Phase 5D completed on 2026-09-06 after separate
 project-owner approvals. No later part is authorized.
 
 Phase 5 is split into eight parts, 5A through 5H. The original phase combined policy design,
@@ -19,7 +19,7 @@ action.
 
 - Phase 5B started from synchronized commit `dcf3931e8601a2bf58b67f4bad2200f06750d467` on branch
   `migration/fastapi-keycloak`.
-- Alembic head is `d307b9c1f25e`.
+- Alembic head is `e418c0d7a6b3`.
 - The schema has 54 target tables. Phase 4 added no RLS policy or application authorization.
 - Phase 3 validates Keycloak access tokens and resolves an active `app_users` row by trusted issuer
   and subject. It ignores Keycloak roles and browser-supplied business identity.
@@ -40,7 +40,7 @@ action.
 | 5A | Permission matrix, RLS contract, and audit decisions | Completed 2026-09-06; see [`PERMISSION_MATRIX_AND_RLS_DESIGN.md`](PERMISSION_MATRIX_AND_RLS_DESIGN.md) and [`PART_5A_COMPLETION.md`](PART_5A_COMPLETION.md) |
 | 5B | Trusted authorization principal and FastAPI dependencies | Completed 2026-09-06; see [`PART_5B_COMPLETION.md`](PART_5B_COMPLETION.md) |
 | 5C | Scoped repository rules and protected mutation guards | Completed 2026-09-06; see [`PART_5C_COMPLETION.md`](PART_5C_COMPLETION.md) |
-| 5D | Transaction-local PostgreSQL context and pool isolation | Not started; depends on 5A and 5B |
+| 5D | Transaction-local PostgreSQL context and pool isolation | Completed 2026-09-06; see [`PART_5D_COMPLETION.md`](PART_5D_COMPLETION.md) |
 | 5E | Identity, organization, and workforce RLS | Not started; depends on 5C and 5D |
 | 5F | Payroll, leave, attendance, and roster RLS | Not started; depends on 5E |
 | 5G | Remaining domain RLS and audit foundation | Not started; depends on 5E and 5F |

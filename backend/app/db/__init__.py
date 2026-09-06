@@ -1,1 +1,1 @@
-"""Database engine and health behavior."""
+"""Database transaction and engine support."""

@@ -1,9 +1,10 @@
 import logging
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request, status
+from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.auth.access_token import AccessTokenClaims, AccessTokenError, AccessTokenVerifier
 from app.auth.application_user import (
@@ -12,6 +13,10 @@ from app.auth.application_user import (
     ApplicationUserUnavailableError,
     AuthorizationPrincipal,
     BranchUnavailableError,
+)
+from app.db.authorization_context import (
+    AuthorizationContextError,
+    AuthorizationTransactionFactory,
 )
 from app.models.identity import AppRole
 
@@ -209,3 +214,47 @@ TenantScope = Annotated[uuid.UUID, Depends(require_tenant_scope)]
 EmployeeSelfIdentity = Annotated[uuid.UUID, Depends(require_employee_self_identity)]
 ManagerIdentity = Annotated[uuid.UUID, Depends(require_manager_identity)]
 AdminSelectedBranch = Annotated[uuid.UUID, Depends(require_admin_selected_branch)]
+
+
+async def require_authorized_connection(
+    request: Request,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedAuthorizationPrincipal,
+) -> AsyncGenerator[AsyncConnection]:
+    transaction_factory: AuthorizationTransactionFactory = (
+        request.app.state.authorization_transaction_factory
+    )
+    try:
+        async with transaction_factory.transaction(
+            claims=claims,
+            principal=principal,
+        ) as connection:
+            yield connection
+    except AuthorizationContextError:
+        raise application_account_error() from None
+
+
+async def require_admin_branch_authorized_connection(
+    request: Request,
+    claims: VerifiedAccessToken,
+    principal: AdminAuthorizationPrincipal,
+    branch_id: AdminSelectedBranch,
+) -> AsyncGenerator[AsyncConnection]:
+    transaction_factory: AuthorizationTransactionFactory = (
+        request.app.state.authorization_transaction_factory
+    )
+    try:
+        async with transaction_factory.transaction(
+            claims=claims,
+            principal=principal,
+            verified_admin_branch_id=branch_id,
+        ) as connection:
+            yield connection
+    except AuthorizationContextError:
+        raise application_account_error() from None
+
+
+AuthorizedConnection = Annotated[AsyncConnection, Depends(require_authorized_connection)]
+AdminBranchAuthorizedConnection = Annotated[
+    AsyncConnection, Depends(require_admin_branch_authorized_connection)
+]

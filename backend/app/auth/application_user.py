@@ -9,6 +9,7 @@ from sqlalchemy.engine import Result
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlalchemy.sql.base import Executable
 
+from app.db.authorization_context import set_identity_bootstrap_context
 from app.models.identity import (
     AccountStatus,
     AppRole,
@@ -111,7 +112,13 @@ class ApplicationUserResolver:
             )
             .limit(2)
         )
-        rows = await self._execute(statement)
+        rows = await self._execute(
+            statement,
+            identity_context={
+                "identity_issuer": issuer,
+                "identity_subject": subject,
+            },
+        )
         if len(rows) != 1:
             raise ApplicationUserUnavailableError
 
@@ -192,12 +199,24 @@ class ApplicationUserResolver:
             raise BranchUnavailableError
         return branch_id
 
-    async def _execute(self, statement: Executable) -> list[tuple[object, ...]]:
+    async def _execute(
+        self,
+        statement: Executable,
+        *,
+        identity_context: dict[str, str] | None = None,
+    ) -> list[tuple[object, ...]]:
         try:
             async with asyncio.timeout(self._timeout_seconds):
                 async with self._engine.connect() as connection:
-                    result: Result[Any] = await connection.execute(statement)
-                    return type_cast(list[tuple[object, ...]], list(result.tuples().all()))
+                    async with connection.begin():
+                        if identity_context is not None:
+                            await set_identity_bootstrap_context(
+                                connection,
+                                issuer=identity_context["identity_issuer"],
+                                subject=identity_context["identity_subject"],
+                            )
+                        result: Result[Any] = await connection.execute(statement)
+                        return type_cast(list[tuple[object, ...]], list(result.tuples().all()))
         except ApplicationUserError:
             raise
         except Exception as error:

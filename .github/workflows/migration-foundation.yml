@@ -98,10 +98,15 @@ jobs:
         run: |
           docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini downgrade base
           docker compose --profile tools run --rm migrate
+      - name: Verify Phase 5D exact downgrade
+        run: |
+          docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini downgrade d307b9c1f25e
+          sh scripts/verify-phase-5d-downgrade.sh
+          docker compose --profile tools run --rm migrate
       - name: Verify Alembic and database boundaries
         run: |
-          test "$(docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini current | tail -n 1)" = "d307b9c1f25e (head)"
-          test "$(docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini heads | tail -n 1)" = "d307b9c1f25e (head)"
+          test "$(docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini current | tail -n 1)" = "e418c0d7a6b3 (head)"
+          test "$(docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini heads | tail -n 1)" = "e418c0d7a6b3 (head)"
           docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini check
           sh scripts/verify-phase-4b-schema.sh
           sh scripts/verify-phase-4c-schema.sh
@@ -114,6 +119,7 @@ jobs:
           sh scripts/verify-phase-4d-shift-swap-concurrency.sh
           sh scripts/verify-phase-4e-seed.sh
           docker compose --profile tools run --rm --volume ./scripts:/verification:ro --entrypoint python migrate -c "import runpy; runpy.run_path('/verification/verify-phase-5c-repositories.py', run_name='__main__')"
+          sh scripts/verify-phase-5d-context.sh
           sh scripts/verify-phase-4f-boundaries.sh
           docker compose exec -T backend python -c "import os, psycopg; url=os.environ['DATABASE_URL'].replace('postgresql+psycopg://', 'postgresql://', 1); connection=psycopg.connect(url); cursor=connection.cursor(); cursor.execute('SELECT current_user'); assert cursor.fetchone() == ('workloop_runtime',); connection.close()"
       - name: Verify service health
