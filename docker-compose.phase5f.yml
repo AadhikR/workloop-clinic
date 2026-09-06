@@ -1,0 +1,10 @@
+services:
+  migrate:
+    env_file:
+      - path: ./backend/.env.migration
+        required: true
+      - path: ./backend/.env.postgres
+        required: true
+
+  postgres:
+    ports: !reset []

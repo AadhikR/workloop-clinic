@@ -7,10 +7,6 @@ from datetime import date
 from typing import Any, cast
 
 import psycopg
-from sqlalchemy import create_engine
-from sqlalchemy.engine import URL
-from sqlalchemy.ext.asyncio import create_async_engine
-
 from app.auth.application_user import (
     ApplicationUserResolver,
     ApplicationUserUnavailableError,
@@ -27,6 +23,9 @@ from app.db.seed import constants as c
 from app.db.seed.fixtures import build_rows
 from app.db.seed.runner import apply_rows, clean, validate
 from app.models.identity import AccountStatus, AppRole
+from sqlalchemy import create_engine
+from sqlalchemy.engine import URL
+from sqlalchemy.ext.asyncio import create_async_engine
 
 RLS_TABLES = (
     "companies",
@@ -350,7 +349,7 @@ def verify_catalog(engine: Any) -> None:
                     """
 SELECT tablename, policyname, cmd, roles
 FROM pg_catalog.pg_policies
-WHERE schemaname = 'public'
+WHERE schemaname = 'public' AND policyname LIKE 'phase5e_%'
 """
                 )
             )
@@ -362,7 +361,7 @@ WHERE schemaname = 'public'
                 """
 SELECT tablename, policyname, cmd, qual, with_check
 FROM pg_catalog.pg_policies
-WHERE schemaname = 'public'
+WHERE schemaname = 'public' AND policyname LIKE 'phase5e_%'
 """
             )
         ).mappings()
@@ -404,7 +403,13 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')
             )
         ).all()
         enabled = {name for name, rls, force in flags if rls and not force}
-        assert enabled == set(RLS_TABLES)
+        current_revision = connection.execute(
+            text("SELECT version_num FROM public.alembic_version")
+        ).scalar_one()
+        if current_revision == "f52e0a1b9c34":
+            assert enabled == set(RLS_TABLES)
+        else:
+            assert enabled & set(RLS_TABLES) == set(RLS_TABLES)
         assert not any(force for _, _, force in flags)
 
         runtime_grants = connection.execute(
@@ -494,11 +499,14 @@ WHERE n.nspname = 'public'
             ),
             "resolve_workloop_principal": (
                 "",
-                "TABLE(app_user_id uuid, account_status text, profile_app_user_id uuid, "
-                "profile_company_id uuid, role text, profile_employee_id uuid, "
-                "company_id uuid, employee_id uuid, employee_company_id uuid, "
-                "employee_branch_id uuid, employee_active boolean, employment_status text, "
-                "branch_id uuid, branch_company_id uuid)",
+                (
+                    "TABLE(app_user_id uuid, account_status text, "
+                    "profile_app_user_id uuid, profile_company_id uuid, role text, "
+                    "profile_employee_id uuid, company_id uuid, employee_id uuid, "
+                    "employee_company_id uuid, employee_branch_id uuid, "
+                    "employee_active boolean, employment_status text, branch_id uuid, "
+                    "branch_company_id uuid)"
+                ),
                 True,
                 1.0,
             ),
@@ -811,7 +819,7 @@ def verify_human_scope(runtime: psycopg.Connection[Any], engine: Any) -> None:
             )
 
     with human_context(runtime, "aisha.manager@horizon.test") as cursor:
-        visible = set(row[0] for row in cursor.execute("SELECT id FROM employees").fetchall())
+        visible = {row[0] for row in cursor.execute("SELECT id FROM employees").fetchall()}
         assert manager.employee_id in visible
         assert employee.employee_id in visible
         assert other_branch_employee.employee_id not in visible

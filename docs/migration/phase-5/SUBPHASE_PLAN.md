@@ -2,7 +2,7 @@
 
 ## Status
 
-Phase 5 is in progress. Phase 5A through Phase 5E completed on 2026-09-06 after separate
+Phase 5 is in progress. Phase 5A through Phase 5F completed on 2026-09-06 after separate
 project-owner approvals. No later part is authorized.
 
 Phase 5 is split into eight parts, 5A through 5H. The original phase combined policy design,
@@ -42,7 +42,7 @@ action.
 | 5C | Scoped repository rules and protected mutation guards | Completed 2026-09-06; see [`PART_5C_COMPLETION.md`](PART_5C_COMPLETION.md) |
 | 5D | Transaction-local PostgreSQL context and pool isolation | Completed 2026-09-06; see [`PART_5D_COMPLETION.md`](PART_5D_COMPLETION.md) |
 | 5E | Identity, organization, and workforce RLS | Completed 2026-09-06; see [`PART_5E_COMPLETION.md`](PART_5E_COMPLETION.md) |
-| 5F | Payroll, leave, attendance, and roster RLS | Not started; depends on 5E |
+| 5F | Payroll, leave, attendance, and roster RLS | Completed 2026-09-06; see [`PART_5F_COMPLETION.md`](PART_5F_COMPLETION.md) |
 | 5G | Remaining domain RLS and audit foundation | Not started; depends on 5E and 5F |
 | 5H | Independent security review and completion gate | Not started; depends on 5A through 5G |
 
@@ -444,6 +444,10 @@ retained Phase 4 functions and their original grant boundaries must remain intac
 
 Every payroll, leave, attendance, and roster table has the exact approved RLS and grant state.
 Application predicates, RLS policies, and retained functions return the same allow or deny result.
+
+The gate passed on 2026-09-06. Three chained revisions add 77 policies across the approved 27
+tables, preserve the Phase 5E boundary, and harden the three retained protected functions. See
+[`PART_5F_COMPLETION.md`](PART_5F_COMPLETION.md).
 
 ### Recommended model and effort
 

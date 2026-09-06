@@ -4,7 +4,7 @@ set -eu
 # Phase 4F live-database boundary gate. Run after an empty database reaches
 # Alembic head. It checks the target server, migration ownership, runtime role,
 # absence of Supabase database objects, and no row security outside the
-# currently approved Phase 5E tables.
+# tables approved through Phase 5F.
 
 "${DOCKER:-docker}" compose exec -T postgres psql --username postgres --dbname workloop \
   --set ON_ERROR_STOP=1 --command "
@@ -90,10 +90,18 @@ BEGIN
     AND tables.relrowsecurity
     AND tables.relname NOT IN (
       'companies', 'branches', 'app_users', 'user_profiles', 'employees',
-      'employee_job_history', 'departments', 'department_staffing_rules'
+      'employee_job_history', 'departments', 'department_staffing_rules',
+      'payroll_runs', 'payroll_entries', 'payslips', 'payroll_approval_log',
+      'nafis_reports', 'salary_advances', 'advance_repayments', 'expense_claims',
+      'compliance_overrides', 'leave_settings', 'leave_types', 'public_holidays',
+      'leave_requests', 'leave_audit_log', 'leave_balances',
+      'leave_approval_delegates', 'attendance_settings', 'shifts',
+      'shift_assignments', 'clock_events', 'attendance_records',
+      'attendance_periods', 'regularisation_requests', 'attendance_audit_log',
+      'roster_assignments', 'shift_swap_requests', 'biometric_mappings'
     );
   IF mismatch_count <> 0 THEN
-    RAISE EXCEPTION 'row-level security is enabled outside the approved Phase 5E tables';
+    RAISE EXCEPTION 'row-level security is enabled outside the approved Phase 5E and 5F tables';
   END IF;
 
   SELECT count(*) INTO mismatch_count
