@@ -99,7 +99,7 @@ Use this default order unless the phase plan requires something else:
 3. Implement one bounded unit, such as one migration or service boundary.
 4. Run focused checks for that unit.
 5. Repeat for the remaining units.
-6. After the code settles, run one complete local gate in a fresh isolated environment.
+6. After phase code settles, run one complete local gate in a fresh isolated environment.
 7. If the final gate fails, reproduce and fix the failure with focused checks, then rerun the final
    gate once.
 8. Update the completion record after the implementation and evidence are stable.
@@ -107,8 +107,9 @@ Use this default order unless the phase plan requires something else:
 10. Wait for the workflow result and report the final URL.
 
 Run unaffected full suites locally only when the change can reach them or the phase plan explicitly
-requires them. The GitHub workflow may retain the complete regression suite. A documentation-only
-edit after a passing gate does not require another full local run.
+requires them. Follow `docs/migration/VERIFICATION_WORKFLOW.md` for path-based GitHub routing. A
+documentation-only edit after a passing phase gate does not require another local or GitHub full-stack
+run.
 
 ### Resource and data boundaries
 
@@ -134,6 +135,8 @@ Use these rules to control token and execution cost:
 - Prefer one exact catalogue over prose lists repeated in design, implementation, and verification.
 - Keep routine successful command output quiet. Preserve full failure output.
 - Run focused checks while editing and one complete local gate after the code settles.
+- Treat that complete gate as the phase-code completion gate. Do not repeat it for later
+  documentation-only commits.
 - Do not rerun frontend, browser, cloud, or full-stack checks locally when the changed files cannot
   affect them, unless the phase plan requires the run.
 - Use synthetic identifiers from a reserved namespace and check them for collisions before database
@@ -152,6 +155,9 @@ time matters more than token cost.
 Prefer one local commit per independently reviewable migration or domain and one push after the
 final local gate. This gives reviewers useful history without triggering several GitHub runs.
 Follow an explicit owner request for a single commit or another history shape.
+
+The path-routed GitHub workflow must use the lightweight validation path for documentation-only
+follow-ups. Code changes must use the checks assigned by `docs/migration/VERIFICATION_WORKFLOW.md`.
 
 Do not make a second commit only to add a successful workflow URL. Put that URL in the task handoff
 unless the phase plan says otherwise.

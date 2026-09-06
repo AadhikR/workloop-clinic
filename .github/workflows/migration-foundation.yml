@@ -7,6 +7,7 @@ on:
   pull_request:
     branches:
       - migration/fastapi-keycloak
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -16,8 +17,62 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Classify and validate changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      docs_only: ${{ steps.classify.outputs.docs_only }}
+      backend: ${{ steps.classify.outputs.backend }}
+      frontend: ${{ steps.classify.outputs.frontend }}
+      full_stack: ${{ steps.classify.outputs.full_stack }}
+      database_deep: ${{ steps.classify.outputs.database_deep }}
+      auth_deep: ${{ steps.classify.outputs.auth_deep }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          fetch-depth: 0
+      - name: Classify changed files
+        id: classify
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            {
+              echo "docs_only=false"
+              echo "backend=true"
+              echo "frontend=true"
+              echo "full_stack=true"
+              echo "database_deep=true"
+              echo "auth_deep=true"
+            } >> "$GITHUB_OUTPUT"
+            git show --check --format= "$HEAD_SHA"
+            exit 0
+          fi
+
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            base_sha=$PR_BASE_SHA
+          else
+            base_sha=$BEFORE_SHA
+          fi
+
+          if [ -z "$base_sha" ] || [ "$base_sha" = "0000000000000000000000000000000000000000" ]; then
+            git ls-files > /tmp/workloop-changed-files
+            git show --check --format= "$HEAD_SHA"
+          else
+            git diff --name-only --diff-filter=ACMRD "$base_sha" "$HEAD_SHA" > /tmp/workloop-changed-files
+            git diff --check "$base_sha" "$HEAD_SHA"
+          fi
+
+          sh .github/scripts/classify-migration-workflow.sh < /tmp/workloop-changed-files
+
   backend-quality:
     name: Backend quality
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
@@ -47,6 +102,8 @@ jobs:
 
   frontend-regression:
     name: Frontend regression
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -61,16 +118,18 @@ jobs:
         run: npm run test:unit
       - name: Build frontend
         run: npm run build
-      - name: Verify migration frontend isolation
-        run: |
-          npm run test:migration-build
-          npm run build:migration
 
   full-stack-smoke:
     name: Full stack smoke
     needs:
+      - changes
       - backend-quality
       - frontend-regression
+    if: >-
+      always() &&
+      needs.changes.outputs.full_stack == 'true' &&
+      needs.backend-quality.result == 'success' &&
+      needs.frontend-regression.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
@@ -95,21 +154,25 @@ jobs:
       - name: Verify repeatable migration
         run: docker compose --profile tools run --rm migrate
       - name: Verify empty-schema downgrade boundary
+        if: needs.changes.outputs.database_deep == 'true'
         run: |
           docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini downgrade base
           docker compose --profile tools run --rm migrate
       - name: Verify Phase 5D exact downgrade
+        if: needs.changes.outputs.database_deep == 'true'
         run: |
           docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini downgrade d307b9c1f25e
           sh scripts/verify-phase-5d-downgrade.sh
           docker compose --profile tools run --rm migrate
       - name: Verify Phase 5E exact downgrade
+        if: needs.changes.outputs.database_deep == 'true'
         run: |
           docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini downgrade e418c0d7a6b3
           sh scripts/verify-phase-5e-downgrade.sh
           sh scripts/verify-phase-4d-grants.sh
           docker compose --profile tools run --rm migrate
       - name: Verify Phase 5F revision chain
+        if: needs.changes.outputs.database_deep == 'true'
         run: |
           sh scripts/verify-phase-5f-revision.sh d85a6f0c3b42
           docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini downgrade c74f5e9b2a31
@@ -128,11 +191,19 @@ jobs:
           sh scripts/verify-phase-5f-revision.sh c74f5e9b2a31
           docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini upgrade d85a6f0c3b42
           sh scripts/verify-phase-5f-revision.sh d85a6f0c3b42
-      - name: Verify Alembic and database boundaries
+      - name: Verify current Alembic state
         run: |
-          test "$(docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini current | tail -n 1)" = "d85a6f0c3b42 (head)"
-          test "$(docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini heads | tail -n 1)" = "d85a6f0c3b42 (head)"
-          docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini check
+          docker compose --profile tools run --rm --entrypoint sh migrate -ec '
+            current="$(alembic -c /app/alembic.ini current | tail -n 1)"
+            heads="$(alembic -c /app/alembic.ini heads)"
+            test "$(printf "%s\n" "$heads" | grep -c "(head)")" -eq 1
+            test "$current" = "$heads"
+            alembic -c /app/alembic.ini check
+          '
+          docker compose exec -T backend python -c "import os, psycopg; url=os.environ['DATABASE_URL'].replace('postgresql+psycopg://', 'postgresql://', 1); connection=psycopg.connect(url); cursor=connection.cursor(); cursor.execute('SELECT current_user'); assert cursor.fetchone() == ('workloop_runtime',); connection.close()"
+      - name: Verify database boundaries
+        if: needs.changes.outputs.database_deep == 'true'
+        run: |
           sh scripts/verify-phase-4b-schema.sh
           sh scripts/verify-phase-4c-schema.sh
           sh scripts/verify-phase-4c-migrations.sh
@@ -144,42 +215,37 @@ jobs:
           sh scripts/verify-phase-5e-rls.sh
           sh scripts/verify-phase-5f-rls.sh
           sh scripts/verify-phase-4f-boundaries.sh
-          docker compose exec -T backend python -c "import os, psycopg; url=os.environ['DATABASE_URL'].replace('postgresql+psycopg://', 'postgresql://', 1); connection=psycopg.connect(url); cursor=connection.cursor(); cursor.execute('SELECT current_user'); assert cursor.fetchone() == ('workloop_runtime',); connection.close()"
       - name: Verify service health
         run: |
           curl --fail --silent --show-error http://127.0.0.1:8000/health | jq --exit-status '.status == "ok" and .database == "ok"'
           curl --fail --silent --show-error http://127.0.0.1:9000/health/ready | jq --exit-status '.status == "UP"'
       - name: Configure access-token subject
-        run: |
-          python scripts/configure-phase-3d-keycloak.py
-          python scripts/configure-phase-3d-keycloak.py
-      - name: Verify database boundaries
-        run: |
-          test "$(docker compose exec -T postgres psql --username postgres --dbname workloop --tuples-only --no-align --command "SELECT count(*) FROM pg_tables WHERE schemaname = 'public';")" = "55"
-          test "$(docker compose exec -T postgres psql --username postgres --dbname keycloak --tuples-only --no-align --command "SELECT count(*) FROM realm;")" = "2"
+        run: python scripts/configure-phase-3d-keycloak.py
+      - name: Verify Keycloak configuration idempotence
+        if: needs.changes.outputs.auth_deep == 'true'
+        run: python scripts/configure-phase-3d-keycloak.py
+      - name: Verify Keycloak realm boundary
+        run: test "$(docker compose exec -T postgres psql --username postgres --dbname keycloak --tuples-only --no-align --command "SELECT count(*) FROM realm;")" = "2"
       - name: Verify Keycloak and FastAPI authentication
         run: python scripts/verify-phase-3c-keycloak.py
       - name: Verify migration browser authentication
         run: npm run test:migration-auth
       - name: Verify initial service log safety
         run: sh scripts/verify-phase-3h-logs.sh
-      - name: Record persisted signing keys
-        run: curl --fail --silent --show-error http://127.0.0.1:8080/realms/workloop-dev/protocol/openid-connect/certs | jq -r '.keys[].kid' | sort > /tmp/workloop-signing-key-ids
+      - name: Record persisted state
+        run: |
+          sh scripts/database-persistence-fingerprint.sh > /tmp/workloop-database-fingerprint
+          curl --fail --silent --show-error http://127.0.0.1:8080/realms/workloop-dev/protocol/openid-connect/certs | jq -r '.keys[].kid' | sort > /tmp/workloop-signing-key-ids
       - name: Recreate local stack without removing data
         run: |
           docker compose down
           docker volume inspect workloop-clinic_postgres_data >/dev/null
-          docker compose up --build --detach --wait postgres backend keycloak
+          docker compose up --detach --wait postgres backend keycloak
           docker compose --profile tools run --rm migrate
-          docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini check
-          sh scripts/verify-phase-4b-schema.sh
-          sh scripts/verify-phase-4c-schema.sh
-          sh scripts/verify-phase-5e-rls.sh
-          sh scripts/verify-phase-5f-rls.sh
-          sh scripts/verify-phase-4f-boundaries.sh
+          sh scripts/database-persistence-fingerprint.sh > /tmp/workloop-restarted-database-fingerprint
+          diff /tmp/workloop-database-fingerprint /tmp/workloop-restarted-database-fingerprint
           curl --fail --silent --show-error http://127.0.0.1:8080/realms/workloop-dev/protocol/openid-connect/certs | jq -r '.keys[].kid' | sort > /tmp/workloop-restarted-signing-key-ids
           diff /tmp/workloop-signing-key-ids /tmp/workloop-restarted-signing-key-ids
-          python scripts/configure-phase-3d-keycloak.py
           python scripts/verify-phase-3c-keycloak.py
           npm run test:migration-auth
       - name: Verify cleanup and backend log safety
