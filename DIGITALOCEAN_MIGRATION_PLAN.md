@@ -239,7 +239,7 @@ Do not create abstractions merely to match this diagram. Start with the smallest
 | 3 | Keycloak authentication foundation | Completed 2026-09-01 | 1–2 weeks |
 | 4 | Portable database baseline | Completed 2026-09-06 with owner sign-off | 1–2 weeks |
 | 5 | Authorization and tenant isolation | Completed 2026-09-07 with owner signoff | 3 to 5 weeks |
-| 6 | Shared API, frontend client, compatibility, and architecture proof | Planning complete; Parts 6A through 6G require separate authorization | 2–3 weeks |
+| 6 | Shared API, frontend client, compatibility, and architecture proof | Parts 6A through 6D complete; 6E local gate passed and awaits GitHub; 6F and 6G require separate authorization | 2 to 3 weeks |
 | 6G | Early DigitalOcean architecture proof | Not started; billable work requires separate authorization | 3–5 days |
 | 7 | Organization and employee module | Not started | 1–2 weeks |
 | 8 | Leave vertical slice | Not started | 1–2 weeks |
@@ -719,10 +719,10 @@ independent review, and billable cloud deployment. The detailed gates and rollba
 | Part | Scope | Status |
 |---|---|---|
 | 6A | API contract and error decisions | Complete; owner approved 2026-09-07 |
-| 6B | Backend HTTP boundary and middleware | Not started; requires separate authorization |
-| 6C | Frontend HTTP client | Not started; requires separate authorization |
-| 6D | Dual-build compatibility and cutover controls | Not started; requires separate authorization |
-| 6E | Public and protected sample API slice | Not started; requires separate authorization |
+| 6B | Backend HTTP boundary and middleware | Complete |
+| 6C | Frontend HTTP client | Complete |
+| 6D | Dual-build compatibility and cutover controls | Complete |
+| 6E | Public and protected sample API slice | Implementation and local gate complete; GitHub result pending |
 | 6F | Independent review and local completion gate | Not started; requires separate authorization |
 | 6G | Early DigitalOcean architecture proof | Not started; requires separate authorization and billable-resource approval |
 

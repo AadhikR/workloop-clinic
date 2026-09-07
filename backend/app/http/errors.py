@@ -297,6 +297,10 @@ def error_response_documentation(*codes: str) -> dict[int | str, dict[str, Any]]
         "description": "Server-generated lowercase UUIDv4 for this request.",
         "schema": {"type": "string", "format": "uuid"},
     }
+    cache_header = {
+        "description": "Prevents storage of error responses.",
+        "schema": {"type": "string", "const": "no-store"},
+    }
     for code in codes:
         spec = ERROR_REGISTRY[code]
         entry = documented.setdefault(
@@ -304,7 +308,10 @@ def error_response_documentation(*codes: str) -> dict[int | str, dict[str, Any]]
             {
                 "model": ErrorResponse,
                 "description": spec.message,
-                "headers": {"X-Correlation-ID": correlation_header},
+                "headers": {
+                    "X-Correlation-ID": correlation_header,
+                    "Cache-Control": cache_header,
+                },
                 "content": {"application/json": {"examples": {}}},
             },
         )
@@ -326,15 +333,26 @@ def error_response_documentation(*codes: str) -> dict[int | str, dict[str, Any]]
     return documented
 
 
-def success_response_documentation(status_code: int, description: str) -> dict[str, Any]:
+def success_response_documentation(
+    status_code: int,
+    description: str,
+    *,
+    cache_control: str | None = None,
+) -> dict[str, Any]:
+    headers: dict[str, Any] = {
+        "X-Correlation-ID": {
+            "description": "Server-generated lowercase UUIDv4 for this request.",
+            "schema": {"type": "string", "format": "uuid"},
+        }
+    }
+    if cache_control is not None:
+        headers["Cache-Control"] = {
+            "description": "Response cache policy.",
+            "schema": {"type": "string", "const": cache_control},
+        }
     return {
         str(status_code): {
             "description": description,
-            "headers": {
-                "X-Correlation-ID": {
-                    "description": "Server-generated lowercase UUIDv4 for this request.",
-                    "schema": {"type": "string", "format": "uuid"},
-                }
-            },
+            "headers": headers,
         }
     }

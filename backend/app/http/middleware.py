@@ -324,7 +324,7 @@ class HttpBoundaryMiddleware:
     @staticmethod
     def _rate_limit_class(scope: Scope) -> RateLimitClass:
         path = str(scope.get("path", ""))
-        if path == "/health":
+        if path in {"/health", "/api/v1/public/status"}:
             return RateLimitClass.PUBLIC
         if path == "/api/v1/auth/token-check":
             return RateLimitClass.AUTHENTICATION_CHECK

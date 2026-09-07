@@ -315,7 +315,7 @@ async function interactiveLogin(page, persona) {
 
 async function assertNoPersistedTokens(page) {
   const storage = await page.evaluate(async () => {
-    const { authenticationSession } = await import('/src/App.jsx')
+    const { authenticationSession } = await import('/src/authSession.js')
     const user = await authenticationSession().manager.getUser()
     const tokens = [user?.access_token, user?.id_token, user?.refresh_token].filter(Boolean)
     const persisted = JSON.stringify({
@@ -343,6 +343,27 @@ async function assertNoPersistedTokens(page) {
   assert.equal(storage.tokenPersisted, false)
 }
 
+async function assertSampleApi(page, persona) {
+  await page.waitForFunction(
+    () => document.querySelector('[data-public-api-status]')?.dataset.publicApiStatus === 'ready'
+      && document.querySelector('[data-account-api-status]')?.dataset.accountApiStatus === 'ready',
+    undefined,
+    { timeout: 20_000 },
+  )
+  assert.equal(await page.locator('[data-public-api-status]').textContent(), 'ok')
+  assert.equal(await page.locator('[data-account-api-status]').textContent(), persona.role)
+  const sampleText = await page.locator('.sample-status').textContent()
+  assert.ok(sampleText.includes(persona.appUserId))
+  assert.ok(sampleText.includes(companyId))
+  if (persona.employeeId) {
+    assert.ok(sampleText.includes(persona.employeeId))
+    assert.ok(sampleText.includes(branchId))
+  } else {
+    assert.ok(sampleText.includes('Not linked'))
+    assert.ok(sampleText.includes('Not selected'))
+  }
+}
+
 async function browserChecks(viteServer) {
   const browser = await chromium.launch({ headless: true })
   try {
@@ -357,6 +378,10 @@ async function browserChecks(viteServer) {
       let accountRequestsUsedBearer = true
       let healthRequestCount = 0
       let healthRequestUsedAuthorization = false
+      let publicStatusRequestCount = 0
+      let publicStatusUsedAuthorization = false
+      let currentAccountRequestCount = 0
+      let currentAccountRequestsUsedBearer = true
       let bearerLeftApiOrigin = false
       page.on('request', (request) => {
         const requestUrl = new URL(request.url())
@@ -385,6 +410,20 @@ async function browserChecks(viteServer) {
           healthRequestUsedAuthorization ||= Boolean(authorization)
         }
         if (
+          requestUrl.origin === apiOrigin
+          && requestUrl.pathname === '/api/v1/public/status'
+        ) {
+          publicStatusRequestCount += 1
+          publicStatusUsedAuthorization ||= Boolean(authorization)
+        }
+        if (
+          requestUrl.origin === apiOrigin
+          && requestUrl.pathname === '/api/v1/account/me'
+        ) {
+          currentAccountRequestCount += 1
+          currentAccountRequestsUsedBearer &&= authorization?.startsWith('Bearer ') === true
+        }
+        if (
           requestUrl.origin === 'http://127.0.0.1:5174'
           && requestUrl.pathname === '/auth/callback'
           && requestUrl.searchParams.has('code')
@@ -406,7 +445,10 @@ async function browserChecks(viteServer) {
       await waitForSettledStatus(page, 'signed-out', `${persona.role} initial session`)
       stage(`${persona.role} interactive login`)
       await interactiveLogin(page, persona)
+      await assertSampleApi(page, persona)
       assert.equal(accountRequestCount, 1)
+      assert.ok(publicStatusRequestCount >= 1)
+      assert.ok(currentAccountRequestCount >= 1)
       assert.equal(new URL(page.url()).pathname, '/')
       assert.equal(new URL(page.url()).search, '')
       stage(`${persona.role} callback captured ${Boolean(callbackUrl)}`)
@@ -417,13 +459,15 @@ async function browserChecks(viteServer) {
 
       stage(`${persona.role} public health client`)
       const health = await page.evaluate(async () => {
-        const { authenticationSession } = await import('/src/App.jsx')
+        const { authenticationSession } = await import('/src/authSession.js')
         return authenticationSession().request('/health', { access: 'public' })
       })
       assert.deepEqual(health.data, { status: 'ok', database: 'ok' })
       assert.equal(healthRequestCount, 1)
       assert.equal(healthRequestUsedAuthorization, false)
+      assert.equal(publicStatusUsedAuthorization, false)
       assert.equal(accountRequestsUsedBearer, true)
+      assert.equal(currentAccountRequestsUsedBearer, true)
       assert.equal(bearerLeftApiOrigin, false)
 
       if (persona.role === 'admin') {
@@ -431,7 +475,7 @@ async function browserChecks(viteServer) {
         const requestsBeforeRenewal = tokenRequestCount
         const accountRequestsBeforeRenewal = accountRequestCount
         await page.evaluate(async () => {
-          const { authenticationSession } = await import('/src/App.jsx')
+          const { authenticationSession } = await import('/src/authSession.js')
           await authenticationSession().renew()
         })
         await waitForStatus(page, 'signed-in')
@@ -442,9 +486,12 @@ async function browserChecks(viteServer) {
 
       stage(`${persona.role} session restoration`)
       const accountRequestsBeforeRestoration = accountRequestCount
+      const currentAccountRequestsBeforeRestoration = currentAccountRequestCount
       await page.reload()
       await waitForStatus(page, 'signed-in')
+      await assertSampleApi(page, persona)
       assert.equal(accountRequestCount, accountRequestsBeforeRestoration + 1)
+      assert.ok(currentAccountRequestCount > currentAccountRequestsBeforeRestoration)
       await assertNoPersistedTokens(page)
 
       if (persona.role === 'manager') {
@@ -487,6 +534,8 @@ async function browserChecks(viteServer) {
       }
       assert.equal(accountRequestsUsedBearer, true)
       assert.equal(healthRequestUsedAuthorization, false)
+      assert.equal(publicStatusUsedAuthorization, false)
+      assert.equal(currentAccountRequestsUsedBearer, true)
       assert.equal(bearerLeftApiOrigin, false)
       await context.close()
     }

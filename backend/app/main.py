@@ -25,6 +25,9 @@ from app.http.errors import (
 )
 from app.http.middleware import ALLOWED_ORIGIN, HttpBoundaryMiddleware
 from app.http.rate_limit import InactiveRateLimiter, RateLimiter
+from app.http.sample_schemas import CurrentAccountResponse, PublicStatusResponse
+from app.http.schemas import DataResponse
+from app.sample_api import get_current_account, get_public_status
 from app.services.execution import AuthorizedServiceExecutor
 
 DatabaseProbe = Callable[[AsyncEngine], Awaitable[None]]
@@ -175,6 +178,64 @@ def create_app(
             ),
         },
         tags=["authentication"],
+    )
+    application.add_api_route(
+        "/api/v1/public/status",
+        get_public_status,
+        methods=["GET"],
+        response_model=DataResponse[PublicStatusResponse],
+        operation_id="get_public_status",
+        responses={
+            **success_response_documentation(
+                200,
+                "Public API status",
+                cache_control="no-store",
+            ),
+            **error_response_documentation(
+                "invalid_request",
+                "origin_not_allowed",
+                "method_not_allowed",
+                "not_acceptable",
+                "request_too_large",
+                "unsupported_media_type",
+                "rate_limit_exceeded",
+                "request_timeout",
+                "internal_error",
+            ),
+        },
+        tags=["system"],
+    )
+    application.add_api_route(
+        "/api/v1/account/me",
+        get_current_account,
+        methods=["GET"],
+        response_model=DataResponse[CurrentAccountResponse],
+        operation_id="get_current_account",
+        responses={
+            **success_response_documentation(
+                200,
+                "Current application account",
+                cache_control="no-store",
+            ),
+            **error_response_documentation(
+                "invalid_request",
+                "invalid_access_token",
+                "application_account_unavailable",
+                "operation_not_permitted",
+                "origin_not_allowed",
+                "resource_not_found",
+                "method_not_allowed",
+                "not_acceptable",
+                "request_too_large",
+                "unsupported_media_type",
+                "validation_failed",
+                "rate_limit_exceeded",
+                "application_account_lookup_unavailable",
+                "request_timeout",
+                "internal_error",
+            ),
+        },
+        tags=["account"],
     )
 
     return application

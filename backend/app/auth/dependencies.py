@@ -3,7 +3,8 @@ import uuid
 from collections.abc import Awaitable, Callable
 from typing import Annotated, NoReturn
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, HTTPException, Request, Security, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.auth.access_token import AccessTokenClaims, AccessTokenError, AccessTokenVerifier
 from app.auth.application_user import (
@@ -17,6 +18,7 @@ from app.http.rate_limit import RateLimitClass, RateLimiter
 from app.models.identity import AppRole
 
 logger = logging.getLogger(__name__)
+bearer_security = HTTPBearer(auto_error=False)
 
 
 async def _check_rate_limit(
@@ -162,6 +164,29 @@ AuthenticatedAuthorizationPrincipal = Annotated[
     AuthorizationPrincipal, Depends(require_authorization_principal)
 ]
 VerifiedApplicationUser = AuthenticatedAuthorizationPrincipal
+
+
+async def require_authenticated_read_principal(
+    request: Request,
+    principal: AuthenticatedAuthorizationPrincipal,
+    _security: Annotated[HTTPAuthorizationCredentials | None, Security(bearer_security)],
+) -> AuthorizationPrincipal:
+    await _check_rate_limit(
+        request,
+        RateLimitClass.AUTHENTICATED_READ,
+        f"app_user:{principal.app_user_id}",
+    )
+    await _check_rate_limit(
+        request,
+        RateLimitClass.AUTHENTICATED_READ,
+        f"company:{principal.company_id}",
+    )
+    return principal
+
+
+AuthenticatedReadPrincipal = Annotated[
+    AuthorizationPrincipal, Depends(require_authenticated_read_principal)
+]
 
 
 def require_roles(
