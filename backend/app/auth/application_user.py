@@ -4,17 +4,13 @@ from dataclasses import dataclass
 from typing import Any, TypeGuard
 from typing import cast as type_cast
 
-from sqlalchemy import select, text
+from sqlalchemy import text
 from sqlalchemy.engine import Result
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlalchemy.sql.base import Executable
 
 from app.db.authorization_context import set_identity_bootstrap_context
-from app.models.identity import (
-    AccountStatus,
-    AppRole,
-    Branch,
-)
+from app.models.identity import AccountStatus, AppRole
 
 _ELIGIBLE_EMPLOYMENT_STATUSES = frozenset({"Active", "Probation", "On Leave"})
 
@@ -28,10 +24,6 @@ class ApplicationUserUnavailableError(ApplicationUserError):
 
 
 class ApplicationUserLookupError(ApplicationUserError):
-    pass
-
-
-class BranchUnavailableError(ApplicationUserError):
     pass
 
 
@@ -164,20 +156,6 @@ FROM public.resolve_workloop_principal()
             employee_id=profile_employee_id,
             branch_id=employee_branch_id,
         )
-
-    async def resolve_admin_branch(
-        self, *, company_id: uuid.UUID, branch_id: uuid.UUID
-    ) -> uuid.UUID:
-        branches = Branch.__table__.c
-        statement = (
-            select(branches.id)
-            .where(branches.id == branch_id, branches.company_id == company_id)
-            .limit(2)
-        )
-        rows = await self._execute(statement)
-        if len(rows) != 1 or rows[0][0] != branch_id:
-            raise BranchUnavailableError
-        return branch_id
 
     async def _execute(
         self,

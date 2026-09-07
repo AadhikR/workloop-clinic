@@ -123,6 +123,16 @@ test('rejects an API token destination outside the approved local origin', () =>
   )
 })
 
+test('accepts the dedicated local verification API origin', () => {
+  assert.doesNotThrow(() => createUserManager(
+    { ...config, apiBaseUrl: 'http://127.0.0.1:18000' },
+    {
+      location: { origin: 'http://127.0.0.1:5174' },
+      sessionStorage: new MemoryStorage(),
+    },
+  ))
+})
+
 test('uses one top-level prompt-none redirect when no in-memory user exists', async () => {
   const { authentication, manager } = session()
 

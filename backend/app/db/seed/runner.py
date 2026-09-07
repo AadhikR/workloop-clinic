@@ -1,8 +1,7 @@
 """Apply, validate, and clean the synthetic fixture seed.
 
 The seed is idempotent: every row upserts on its primary key, so a repeat run
-produces the same ids and counts. It runs as the migration or a dedicated seed
-identity and refuses to run as ``workloop_runtime``. It never touches a row
+produces the same ids and counts. It runs only as ``workloop_migration``. It never touches a row
 outside the two fixture tenants. It is not part of the Alembic upgrade path.
 """
 
@@ -65,9 +64,9 @@ def _coerce(table_name: str, values: Mapping[str, object]) -> dict[str, object]:
 
 
 def _guard_identity(connection: Connection) -> None:
-    current = connection.execute(text("SELECT current_user")).scalar_one()
-    if current == "workloop_runtime":
-        raise RuntimeError("the seed must not run as the runtime role workloop_runtime")
+    current, session = connection.execute(text("SELECT current_user, session_user")).one()
+    if current != "workloop_migration" or session != "workloop_migration":
+        raise RuntimeError("the seed must run as the workloop_migration login")
 
 
 def apply_rows(connection: Connection, rows: Sequence[Row]) -> None:
@@ -248,7 +247,7 @@ def clean(connection: Connection, rows: Sequence[Row]) -> None:
 
 
 def _database_url(explicit: str | None) -> str:
-    url = explicit or os.environ.get("MIGRATION_DATABASE_URL") or os.environ.get("DATABASE_URL")
+    url = explicit or os.environ.get("MIGRATION_DATABASE_URL")
     if not url:
         raise SystemExit("set MIGRATION_DATABASE_URL or pass --database-url")
     return _sync_url(url)

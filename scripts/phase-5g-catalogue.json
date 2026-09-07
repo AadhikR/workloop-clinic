@@ -5,7 +5,8 @@
     "e96f7a1b4c53",
     "f07a8b2c5d64",
     "0a18c3d6e75f",
-    "1b29d4e7f860"
+    "1b29d4e7f860",
+    "2c4d6e8f0a1b"
   ],
   "tables": {
     "employee_documents": {"families": ["B1", "E1", "W1", "J1"], "runtime": ["SELECT", "INSERT", "UPDATE", "DELETE"], "expiry": ["SELECT"]},
@@ -15,7 +16,7 @@
     "notifications": {"families": ["N1", "W1", "J1"], "runtime": ["SELECT", "UPDATE(read_at)", "EXECUTE(create_workflow_notification)"], "expiry": ["SELECT", "INSERT(columns)"]},
     "employee_contracts": {"families": ["B1", "H1"], "runtime": ["SELECT", "INSERT"], "expiry": []},
     "offboarding_checklists": {"families": ["B1", "W1"], "runtime": ["SELECT", "INSERT", "UPDATE"], "expiry": []},
-    "offboarding_tasks": {"families": ["B1", "W1"], "runtime": ["SELECT", "INSERT", "UPDATE", "DELETE"], "expiry": []},
+    "offboarding_tasks": {"families": ["B1", "W1"], "runtime": ["SELECT", "INSERT", "UPDATE"], "expiry": []},
     "offboarding_task_templates": {"families": ["B1"], "runtime": ["SELECT"], "expiry": []},
     "assets": {"families": ["B1", "E1", "W1"], "runtime": ["SELECT", "INSERT", "UPDATE", "DELETE"], "expiry": []},
     "asset_assignments": {"families": ["B1", "E1", "H1", "W1"], "runtime": ["SELECT", "INSERT", "UPDATE"], "expiry": []},
@@ -31,7 +32,8 @@
   },
   "functions": {
     "create_workflow_notification(text,text)": {"owner": "workloop_migration", "security_definer": true, "execute": ["workloop_runtime"]},
-    "append_audit_event(text,text,uuid,text[],text,jsonb)": {"owner": "workloop_migration", "security_definer": true, "execute": ["workloop_runtime"]}
+    "append_audit_event(text,text,uuid,text[],text,jsonb)": {"owner": "workloop_migration", "security_definer": true, "execute": ["workloop_runtime"]},
+    "lock_authorized_employee_relationships(uuid[])": {"owner": "workloop_migration", "security_definer": true, "execute": ["workloop_runtime"]}
   },
   "legacy_policies_must_be_absent": [
     "employee_documents_admin", "employee_documents_self_read", "employee_documents_self_update_pending",

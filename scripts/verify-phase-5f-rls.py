@@ -23,6 +23,7 @@ job_context = BASE["job_context"]
 principal_for = BASE["principal_for"]
 row_values = BASE["row_values"]
 scalar = BASE["scalar"]
+owner_scalar = BASE["owner_scalar"]
 set_value = BASE["set_value"]
 
 SECOND_ADMIN_ID = uuid.UUID("f5f00000-0000-4000-8000-000000000001")
@@ -148,7 +149,7 @@ def verify_catalog(engine: Any) -> None:
         revision = connection.execute(
             text("SELECT version_num FROM alembic_version")
         ).scalar_one()
-        assert revision in {"d85a6f0c3b42", "1b29d4e7f860"}
+        assert revision in {"d85a6f0c3b42", "1b29d4e7f860", "2c4d6e8f0a1b"}
 
         policies = {
             (row.tablename, row.policyname, row.cmd, row.roles[0])
@@ -837,6 +838,11 @@ WHERE id = %s
     pending_expense = row_values(
         "expense_claims", employee_id=maria.employee_id, status="pending"
     )
+    expense_before = owner_scalar(
+        engine,
+        "SELECT md5(to_jsonb(expense_claims)::text) FROM expense_claims WHERE id=:id",
+        {"id": pending_expense["id"]},
+    )
     with human_context(runtime, "maria.employee@horizon.test") as cursor:
         cursor.execute(
             """
@@ -849,9 +855,21 @@ WHERE id = %s
             (maria.app_user_id, pending_expense["id"]),
         )
         assert cursor.rowcount == 0
+    expense_after = owner_scalar(
+        engine,
+        "SELECT md5(to_jsonb(expense_claims)::text) FROM expense_claims WHERE id=:id",
+        {"id": pending_expense["id"]},
+    )
+    assert expense_after == expense_before
 
     pending_regularisation = row_values(
         "regularisation_requests", employee_id=ravi.employee_id, status="Pending"
+    )
+    regularisation_before = owner_scalar(
+        engine,
+        "SELECT md5(to_jsonb(regularisation_requests)::text) "
+        "FROM regularisation_requests WHERE id=:id",
+        {"id": pending_regularisation["id"]},
     )
     with human_context(runtime, "ravi.employee@horizon.test") as cursor:
         cursor.execute(
@@ -863,6 +881,13 @@ WHERE id = %s
             (ravi.app_user_id, pending_regularisation["id"]),
         )
         assert cursor.rowcount == 0
+    regularisation_after = owner_scalar(
+        engine,
+        "SELECT md5(to_jsonb(regularisation_requests)::text) "
+        "FROM regularisation_requests WHERE id=:id",
+        {"id": pending_regularisation["id"]},
+    )
+    assert regularisation_after == regularisation_before
 
 
 def verify_protected_shift_swap(runtime: psycopg.Connection[Any], engine: Any) -> None:

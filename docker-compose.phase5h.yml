@@ -1,0 +1,27 @@
+name: workloop-phase5h-verify
+
+services:
+  keycloak:
+    environment:
+      KC_HOSTNAME: http://127.0.0.1:18080
+    ports: !override
+      - "127.0.0.1:18080:8080"
+      - "127.0.0.1:19000:9000"
+
+  migrate:
+    env_file:
+      - path: ./backend/.env.migration
+        required: true
+      - path: ./backend/.env.postgres
+        required: true
+
+  backend:
+    environment:
+      APP_BASE_URL: http://127.0.0.1:18000
+      OIDC_ISSUER: http://127.0.0.1:18080/realms/workloop-dev
+    ports: !override
+      - "127.0.0.1:18000:8000"
+
+  postgres:
+    ports: !override
+      - "127.0.0.1:15432:5432"

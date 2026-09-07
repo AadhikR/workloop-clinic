@@ -174,6 +174,7 @@ def test_leave_delegate_scope_rechecks_dates_approver_and_current_report() -> No
     assert "scope_leave_delegate_user.status" in sql
     assert "scope_leave_delegate_profile.role" in sql
     assert "scope_leave_delegate.active IS true" in sql
+    assert "leave_requests.employee_id !=" in sql
     assert fixture_ids.TODAY in parameters.values()
     assert HORIZON_DELEGATE_ID in parameters.values()
 

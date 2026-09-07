@@ -447,11 +447,17 @@ def test_cross_scope_controls_have_distinct_tenant_and_branch_rows() -> None:
 
 
 def test_seed_and_migrations_have_no_supabase_database_dependency() -> None:
-    root = Path(__file__).resolve().parents[2]
+    root = Path(__file__).resolve().parents[1]
     paths = list((root / "app" / "db" / "seed").glob("*.py"))
+    paths += list((root / "app" / "auth").glob("*.py"))
+    paths += list((root / "app" / "repositories").glob("*.py"))
+    paths += list((root / "app" / "schemas").glob("*.py"))
+    paths += [root / "app" / "db" / "audit.py", root / "app" / "db" / "authorization_context.py"]
     paths += list((root / "alembic" / "versions").glob("*.py"))
+    assert len(paths) >= 20
+    assert all(path.is_file() for path in paths)
     forbidden = (
-        ("auth schema", re.compile(r"\bauth\s*\.")),
+        ("auth schema", re.compile(r"(?<!app\.)\bauth\s*\.")),
         ("storage schema", re.compile(r"\bstorage\s*\.")),
         (
             "Supabase service role",
@@ -471,7 +477,7 @@ def test_seed_and_migrations_have_no_supabase_database_dependency() -> None:
     )
     corpus = "\n".join(path.read_text(encoding="utf-8").lower() for path in paths)
     hits = [label for label, pattern in forbidden if pattern.search(corpus)]
-    assert not hits, f"migrations or seed still reference {hits}"
+    assert not hits, f"protected backend code still references {hits}"
 
 
 def test_non_persisted_and_replaced_phase0_cases_are_explicit() -> None:

@@ -1,4 +1,4 @@
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterator, Mapping, Set
 from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any
@@ -42,10 +42,38 @@ WORKFLOW_STATE_FIELDS = frozenset(
         "rejection_reason",
         "reviewed_at",
         "reviewed_by_app_user_id",
+        "run_by_app_user_id",
+        "submitted_for_approval_at",
+        "submitted_by_app_user_id",
+        "rejected_at",
+        "rejected_by_app_user_id",
+        "wps_submitted_at",
+        "wps_confirmed_at",
+        "wps_reference_no",
+        "wps_payment_status",
+        "wps_rejection_reason",
         "completed_at",
+        "completed_by_app_user_id",
         "paid_at",
         "payroll_run_id",
         "wps_status",
+        "published",
+        "admin_approved_at",
+        "admin_approved_by_app_user_id",
+        "actioned_at",
+        "actioned_by_app_user_id",
+        "closed_at",
+        "closed_date",
+        "closed_by_app_user_id",
+        "reviewer_comments",
+        "development_plan",
+        "overall_rating",
+        "self_rating",
+        "rating",
+        "score",
+        "passed",
+        "completion_date",
+        "is_cme",
         "outstanding_balance",
         "monthly_deduction",
         "settled_at",
@@ -58,10 +86,126 @@ AUDIT_FIELDS = frozenset(
         "audit_event_id",
         "created_at",
         "updated_at",
+        "performed_by_app_user_id",
+        "renewed_by_app_user_id",
     }
 )
+DOCUMENT_EVIDENCE_FIELDS = frozenset(
+    {
+        "submitted_by",
+        "document_url",
+        "certificate_url",
+        "evidence_url",
+        "storage_path",
+        "file_name",
+        "review_notes",
+        "verified_at",
+    }
+)
+_PROTECTED_FIELDS_BY_TABLE: dict[str, Set[str]] = {
+    "employees": IDENTITY_SCOPE_FIELDS | COMPENSATION_FIELDS | {"active", "employment_status"},
+    "payroll_runs": {
+        "status",
+        "approval_status",
+        "run_by_app_user_id",
+        "submitted_for_approval_at",
+        "submitted_by_app_user_id",
+        "approved_at",
+        "approved_by_app_user_id",
+        "rejected_at",
+        "rejected_by_app_user_id",
+        "rejection_reason",
+        "wps_status",
+        "wps_submitted_at",
+        "wps_confirmed_at",
+        "wps_reference_no",
+    },
+    "payroll_entries": {
+        "payroll_run_id",
+        "employee_id",
+        "increment",
+        "bonus",
+        "other_pay",
+        "leave_deduction",
+        "variable_allowance",
+        "additional_allowances",
+        "deductions",
+        "excluded",
+        "wps_payment_status",
+        "wps_rejection_reason",
+    }
+    | COMPENSATION_FIELDS,
+    "regularisation_requests": {
+        "status",
+        "approved_at",
+        "approved_by_app_user_id",
+        "rejection_reason",
+    },
+    "salary_advances": {
+        "status",
+        "outstanding_balance",
+        "monthly_deduction",
+        "settled_at",
+        "rejection_reason",
+    },
+    "expense_claims": {
+        "status",
+        "manager_approved_at",
+        "manager_approved_by_app_user_id",
+        "manager_rejection_reason",
+        "approved_at",
+        "approved_by_app_user_id",
+        "rejection_reason",
+        "paid_at",
+        "payroll_run_id",
+    },
+    "roster_assignments": {"employee_id", "published"},
+    "shift_swap_requests": {
+        "status",
+        "admin_approved_at",
+        "admin_approved_by_app_user_id",
+        "rejection_reason",
+    },
+    "employee_documents": DOCUMENT_EVIDENCE_FIELDS
+    | {"status", "reviewed_at", "reviewed_by_app_user_id", "rejection_reason"},
+    "training_records": DOCUMENT_EVIDENCE_FIELDS
+    | {"status", "score", "passed", "completion_date", "is_cme"},
+    "certifications": DOCUMENT_EVIDENCE_FIELDS
+    | {"status", "reviewed_at", "reviewed_by_app_user_id"},
+    "appraisals": {
+        "status",
+        "overall_rating",
+        "self_rating",
+        "reviewer_comments",
+        "development_plan",
+        "reviewed_at",
+        "reviewed_by_app_user_id",
+    },
+    "appraisal_sections": {"rating", "self_rating", "comments"},
+    "incident_reports": {"status", "closed_at", "closed_date", "closed_by_app_user_id"},
+    "offboarding_checklists": {
+        "status",
+        "completed_at",
+        "completed_by_app_user_id",
+    },
+    "letter_requests": {
+        "status",
+        "completed_at",
+        "actioned_at",
+        "actioned_by_app_user_id",
+        "rejection_reason",
+    },
+}
+PROTECTED_FIELDS_BY_TABLE: Mapping[str, frozenset[str]] = MappingProxyType(
+    {name: frozenset(fields) for name, fields in _PROTECTED_FIELDS_BY_TABLE.items()}
+)
 PROTECTED_MUTATION_FIELDS = (
-    IDENTITY_SCOPE_FIELDS | COMPENSATION_FIELDS | WORKFLOW_STATE_FIELDS | AUDIT_FIELDS
+    IDENTITY_SCOPE_FIELDS
+    | COMPENSATION_FIELDS
+    | WORKFLOW_STATE_FIELDS
+    | AUDIT_FIELDS
+    | DOCUMENT_EVIDENCE_FIELDS
+    | frozenset[str]().union(*PROTECTED_FIELDS_BY_TABLE.values())
 )
 
 

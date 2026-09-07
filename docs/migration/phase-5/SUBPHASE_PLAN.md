@@ -3,7 +3,10 @@
 ## Status
 
 Phase 5 is in progress. Phase 5A through Phase 5G completed on 2026-09-06 after separate
-project-owner approvals. No later part is authorized.
+project-owner approvals. Phase 5H started on 2026-09-07. The owner approved the fail-closed
+correction course in `5A-D21` and the no-grant-expansion expiry audit design in `5A-D22`.
+Implementation and verification are in progress. Phase 6 is not
+authorized.
 
 Phase 5 is split into eight parts, 5A through 5H. The original phase combined policy design,
 FastAPI authorization, scoped data access, PostgreSQL RLS across 54 tables, audit controls, and a
@@ -47,7 +50,7 @@ action.
 | 5E | Identity, organization, and workforce RLS | Completed 2026-09-06; see [`PART_5E_COMPLETION.md`](PART_5E_COMPLETION.md) |
 | 5F | Payroll, leave, attendance, and roster RLS | Completed 2026-09-06; see [`PART_5F_COMPLETION.md`](PART_5F_COMPLETION.md) |
 | 5G | Remaining domain RLS and audit foundation | Completed 2026-09-06; see [`PART_5G_COMPLETION.md`](PART_5G_COMPLETION.md) |
-| 5H | Independent security review and completion gate | Not started; depends on 5A through 5G |
+| 5H | Independent security review and completion gate | In progress; owner decision recorded and corrections under verification in [`PART_5H_SECURITY_REVIEW.md`](PART_5H_SECURITY_REVIEW.md) |
 
 ## Rules shared by every part
 
@@ -102,8 +105,9 @@ decision record.
 
 ### Approved decisions
 
-On 2026-09-06, the owner approved the complete permission matrix and decisions `5A-D1` through
-`5A-D20`. These cover branch selection, manager and delegate scope, self-approval, inaccessible
+The owner approved the complete permission matrix and decisions `5A-D1` through `5A-D20` on
+2026-09-06, then `5A-D21` and `5A-D22` during Phase 5H on 2026-09-07. These cover branch selection,
+manager and delegate scope, self-approval, inaccessible
 objects, system actors, audit storage, storage retries, and attempt reservation. The owner also
 approved the full 54-table catalogue and 119-policy reconciliation. A later change to a role,
 tenant concept, cross-branch manager rule, table, constraint, context key, helper, or approved
@@ -602,6 +606,10 @@ database rollback.
 
 The independent review has no unresolved finding, the local and GitHub gates pass, the branch is
 clean and synchronized, and the project owner signs off. Stop before Phase 6.
+
+The independent review's 27 findings are closed and the complete local gate passed on 2026-09-07.
+The required GitHub result and explicit project-owner signoff remain. See
+[`PART_5H_COMPLETION.md`](PART_5H_COMPLETION.md).
 
 ### Recommended model and effort
 

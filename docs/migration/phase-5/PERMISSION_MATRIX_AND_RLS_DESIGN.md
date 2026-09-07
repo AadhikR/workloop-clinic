@@ -3,7 +3,7 @@
 ## Status
 
 Phase 5A completed on 2026-09-06 after the project owner signed off Phase 4 and authorized this
-part. The owner approved `5A-D1` through `5A-D20`, the full 54-table catalogue, and the 119-policy
+part. The owner approved `5A-D1` through `5A-D22`, the full 54-table catalogue, and the corrected policy
 reconciliation without amendment. The independent GPT-5.6 review closed all 51 findings. Final
 documentation validation passed. No authorization code, repository, policy, grant, database
 helper, schema revision, route, frontend change, secret, external resource, or real data was
@@ -92,7 +92,8 @@ Managers and employees use the branch on their linked employee row. They cannot 
 branch. The Phase 4 composite foreign key requires a reporting manager and report to share company
 and branch, so cross-branch manager access is unsupported. Phase 4 child foreign keys also make a
 branch change unsafe once the employee has retained branch-owned records. Only a pre-activity
-branch correction is allowed after proving that no dependent row exists. Transfer of an employee
+branch correction remains blocked until a dedicated workflow can prove both source and destination
+scope after confirming that no dependent row exists. Transfer of an employee
 with retained history is deferred under approved decision `5A-D10`.
 
 ### Self, direct report, and delegation
@@ -318,7 +319,7 @@ permission for every caller or field.
 |---|---|
 | Role | A caller cannot change their own role. A tenant admin may assign `employee` or `manager` to an eligible employee in the same company through the portal-role workflow. Creating an admin profile or changing a profile's company remains provisioning-only. |
 | Company | FastAPI derives `company_id`. Ordinary updates cannot change it. Moving data between companies is unsupported. |
-| Branch | FastAPI derives `branch_id`. Ordinary updates cannot change it. Only a pre-activity correction with no dependent row is currently executable. Transfer with retained history awaits `5A-D10`; it must not rewrite historical child branches. |
+| Branch | FastAPI derives `branch_id`. Phase 5 does not permit updates to it. Pre-activity correction and transfer with retained history await the dedicated workflow described by `5A-D10`; neither may rewrite historical child branches. |
 | Employee ownership | Self-service creates use the principal employee. Team creates use a currently scoped direct report. Admin creates use the verified branch. An ordinary patch cannot change the owner employee. |
 | Salary and bank | Only an admin may write employee salary, allowance, bank, WPS, and government payroll fields. Payroll snapshots come from the payroll workflow. Managers and employees cannot write them. |
 | Approval status | Leave, expense, salary advance, regularisation, payroll, shift swap, document, certification, appraisal, overtime, incident closure, offboarding completion, and letter status fields change only through named workflows. Generic patch bodies reject them. |
@@ -443,7 +444,7 @@ FastAPI checks.
 | 1 | `companies` | `T1,R1,J1` | `R,U`; `C,D x` | Safe employer `R`; `C,U,D x` | Safe employer `R`; `C,U,D x` | WF company settings. Migration only creates or removes a tenant. Expiry job verifies tenant context. | `S,U`; job `S` |
 | 2 | `branches` | `T1,B1,R1,J1` | `R,C,U,D`, delete only with no active employee or retained reference | Own branch safe `R`; `C,U,D x` | Own branch safe `R`; `C,U,D x` | WF branch selection, logo, and guarded branch delete. Expiry job verifies branch context. | `S,I,U,D`; job `S` |
 | 3 | `app_users` | `B0,J1` | `R,C,U,D x` through business API | `R,C,U,D x` | `R,C,U,D x` | Bootstrap `R` only. Provision, activate, disable, and delete are separate identity-lifecycle work. Expiry job reads active recipient identity only. | `S`; job `S` |
-| 4 | `employees` | `B1,E1,M1,J1` | Branch `R,C,U`; `D x` | Self `R,U` contact only; direct-report projected `R`; team `C,U,D x` | Self `R,U` contact only; `C,D x` | WF archive, probation, job/salary change, pre-activity branch correction, and portal eligibility. Retained-history transfer awaits `5A-D10`. Hard delete unsupported. Expiry job reads expiry and recipient fields. | `S,I,U`; job `S` |
+| 4 | `employees` | `B1,E1,M1,J1` | Branch `R,C,U`; `D x` | Self `R,U` contact only; direct-report projected `R`; team `C,U,D x` | Self `R,U` contact only; `C,D x` | WF archive, probation, job/salary change, and portal eligibility. Branch correction and retained-history transfer await `5A-D10` and `5A-D21`. Hard delete unsupported. Expiry job reads expiry and recipient fields. | `S,I,U`; job `S` |
 | 5 | `user_profiles` | `P0,T1,J1` | Same-tenant minimal `R`; role-only `U`; `C,D x` | Own minimal `R`; `C,U,D x` | Own minimal `R`; `C,U,D x` | WF portal role assignment. Provisioning creates links. Caller cannot change own role or company. Expiry job reads recipient links. | `S,UPDATE(role),X(is_scoped_active_app_user)`; job `S` |
 | 6 | `employee_job_history` | `B1,H1` | Branch `R`; workflow `C`; `U,D x` | `R,C,U,D x` | `R,C,U,D x` | WF appends job, salary, department, and status changes. Staff read is unsupported because the rows include salary history. | `S,I` |
 | 7 | `departments` | `B1` | `R,C,U,D` | `R,C,U,D x` | `R,C,U,D x` | Delete requires no child department, head, staffing, or employee use. Staff receive department labels only inside an authorized employee projection, not direct table access. | `S,I,U,D` |
@@ -482,7 +483,7 @@ FastAPI checks.
 | 40 | `notifications` | `N1,W1,J1` | Recipient `R,U`; workflow `C`; `D x` | Recipient `R,U`; workflow `C`; `D x` | Recipient `R,U`; workflow `C`; `D x` | WF creates or deduplicates a human notification only through proposed `create_workflow_notification`, which derives the recipient. Expiry job reads dedup keys and inserts. | `S,U,X(create_workflow_notification)`; job `S,I` |
 | 41 | `employee_contracts` | `B1,H1` | `R`; workflow `C`; `U,D x` | `R,C,U,D x` | `R,C,U,D x` | WF append new, renewed, converted, or not-renewed history. Staff contract-history read is unsupported. Expiry processing uses the current field on `employees`, not append-only contract history. | `S,I` |
 | 42 | `offboarding_checklists` | `B1,W1` | `R,C,U`; `D x` | `R,C,U,D x` | `R,C,U,D x` | WF initialize, visa state change, and completion after every required task. | `S,I,U` |
-| 43 | `offboarding_tasks` | `B1,W1` | `R,C,U,D` for custom uncompleted task; retained completed task `D x` | `R,C,U,D x` | `R,C,U,D x` | WF toggle completion with trusted actor and update checklist eligibility. | `S,I,U,D` |
+| 43 | `offboarding_tasks` | `B1,W1` | `R,C,U`; `D x` | `R,C,U,D x` | `R,C,U,D x` | WF toggle completion with trusted actor and update checklist eligibility. Custom-task deletion is deferred until durable provenance exists. | `S,I,U` |
 | 44 | `offboarding_task_templates` | `B1` | `R`; `C,U,D x` | `R,C,U,D x` | `R,C,U,D x` | Business mutation unsupported. Migration or seed supplies templates. | `S` |
 | 45 | `assets` | `B1,E1,W1` | `R,C,U,D`, delete only when never assigned and not retained | Self-assigned `R`; `C,U,D x` | Self-assigned `R`; `C,U,D x` | WF assign, return, state transition, and guarded delete. | `S,I,U,D` |
 | 46 | `asset_assignments` | `B1,E1,H1,W1` | `R`; workflow `C,U`; `D x` | Self `R`; `C,U,D x` | Self `R`; `C,U,D x` | WF append assignment and close it on return. Assignment history is retained. | `S,I,U` |
@@ -539,6 +540,10 @@ notification bodies already stored. It can read only the application `user_profi
 needed to select tenant admins. The job sets `created_by_app_user_id` to null. Database defaults
 create the notification ID and timestamps; the job cannot supply or update read state.
 
+Expiry audit rows identify the source record, not the unreadable notification UUID. Their metadata
+contains the recipient app-user ID, source date, and threshold. The insert policy accepts an audit
+row only when an expiry notification with the same recipient and source tuple is visible to the job.
+
 ### Retained function boundary
 
 All three retained functions are `SECURITY DEFINER`, so their `current_user` is the function owner
@@ -564,7 +569,8 @@ Ordinary RLS policies and the dedicated expiry login still use `current_user`, b
   later revision removes `p_actor_app_user_id`, the function requires that argument to equal
   `workloop.app_user_id`; it then derives the audit actor from context.
 
-Decision `5A-D17` proposes four additional fixed-purpose `SECURITY DEFINER` helpers. All require
+Decision `5A-D17` defines four fixed-purpose `SECURITY DEFINER` helpers; `5A-D21` adds the
+relationship-lock helper found necessary during independent review. All require
 `session_user = 'workloop_runtime'`, a pinned search path, valid context, and revoked `PUBLIC`
 execution. Their business-role gates differ as stated below; they do not inherit the retained
 functions' admin-only gate.
@@ -573,6 +579,9 @@ functions' admin-only gate.
   account is active and its single valid profile belongs to context company. It returns false for
   missing or inaccessible IDs. The admin portal-role workflow may execute it; no endpoint returns
   identity issuer, subject, or raw account status.
+- `lock_authorized_employee_relationships(p_employee_ids uuid[]) returns void` accepts only a
+  verified administrator or manager, locks eligible employee relationship rows in UUID order, and
+  rechecks branch and current direct-report scope before a report mutation proceeds.
 - `create_workflow_notification(p_type text, p_related_entity_id text) returns uuid` accepts only
   the allowlisted producer pairs. It loads the source object under context, proves admin, direct
   manager, active delegate, or other named workflow authority, derives employee and active app-user
@@ -628,7 +637,7 @@ return, publication, or finalization transition. None of these retained rows can
 the runtime role.
 
 The proposed `audit_events` table records sensitive operations that have no complete domain audit:
-role and employment-access changes, pre-activity branch corrections, advance decisions, expense
+supported role and employment workflows, advance decisions, expense
 decisions and payment, regularisation decisions, payroll lifecycle and WPS changes, roster
 publication, shift-swap decisions, document and certification review or deletion, appraisal review
 and calibration, incident closure, offboarding completion, letter completion or rejection,
@@ -935,9 +944,9 @@ covers the full 54-table catalogue and all 119 legacy-policy reconciliation entr
 | `5A-D5` | Missing versus inaccessible objects | Return the same `404 resource_not_found` for both. Use `403 operation_not_permitted` only after the caller can access the row but cannot perform the action. | UUID guessing reveals no tenant ownership. Repository lookups must include scope in the first statement. |
 | `5A-D6` | System actor handling | Keep migration and seed separate. Add a dedicated `workloop_expiry_processing` login, not a shared job login. Authenticate the job by `current_user`; use context only for its scoped company, branch, business date, and audit label. Approve only the exact column reads and notification insert listed above. | This adds one PostgreSQL login later. Generic scheduled work remains denied. The credential never enters the web container. A future job needs its own review and login. |
 | `5A-D7` | Audit storage | Keep domain histories and add the proposed append-only `audit_events` table, admin-only reads, scoped actor FKs, and atomic database writes. Defer production retention duration to legal and security review, with no purge before that approval. | Phase 5G adds one table, its checks and restrictive FKs, and audit writers. The target becomes 55 tables. Referenced branches and profiles cannot be hard-deleted. Storage durability is decided separately in `5A-D15`. |
-| `5A-D8` | Hard deletes | Keep only the guarded deletes listed in the catalogue. Delegations delete only before their start date; rosters only while unpublished and unused; training only while planned; documents and certifications only while pending or rejected; holidays only while future and unused. Retain employees, issued payroll, audit/history, verified evidence, completed training, appraisals, incidents, completed assignments, finalized workflows, and referenced branches or profiles. | Some legacy delete buttons become archive, deactivate, or conflict behavior. A never-used branch remains deletable because its lifecycle audit event is tenant-scoped. |
-| `5A-D9` | New roles, tables, constraints, and context | Add no business enum role and implement no schema change in 5A. Approve for later phases the dedicated expiry login; `audit_events` with its fields and constraints; the ten context keys; fixed-name context readers; and the four helpers in `5A-D17`. If `5A-D15` is approved, also approve its dedicated reconciler login, `storage_operations` fields, checks, and scoped FKs. Propose no other role, table, constraint, context key, or helper. | These are designs only. Later parts need separate authorization and Alembic revisions. Any implementation discovery that needs another object returns to the owner. |
-| `5A-D10` | Employee branch transfer | Treat branch as immutable after any retained dependent row exists. Permit only a pre-activity correction with zero dependent rows. Defer a real transfer until a separate employment-assignment/history schema is designed and approved. | Existing records keep truthful historical branch ownership and Phase 4 FKs remain valid. Established employees cannot transfer branches during Phase 5 without another owner decision and schema revision. |
+| `5A-D8` | Hard deletes | Keep only the guarded deletes listed in the catalogue. Delegations delete only before their start date; rosters only while unpublished and unused; training only while planned; documents and certifications only while pending or rejected; holidays only while future and unused. Offboarding tasks are not deletable because the schema has no durable custom-task provenance. Retain employees, issued payroll, audit/history, verified evidence, completed training, appraisals, incidents, completed assignments, finalized workflows, and referenced branches or profiles. | Some legacy delete buttons become archive, deactivate, or conflict behavior. A never-used branch remains deletable because its lifecycle audit event is tenant-scoped. |
+| `5A-D9` | New roles, tables, constraints, and context | Add no business enum role and implement no schema change in 5A. Approve for later phases the dedicated expiry login; `audit_events` with its fields and constraints; the ten context keys; fixed-name context readers; and the four helpers in `5A-D17`. If `5A-D15` is approved, also approve its dedicated reconciler login, `storage_operations` fields, checks, and scoped FKs. Decision `5A-D21` later approves one relationship-lock helper. Propose no other role, table, constraint, context key, or helper. | These are designs only. Later parts need separate authorization and Alembic revisions. Any implementation discovery that needs another object returns to the owner. |
+| `5A-D10` | Employee branch transfer | Treat branch as immutable after any retained dependent row exists. Defer both pre-activity correction and real transfer until a dedicated workflow can prove source and destination scope; retained-history transfer still requires a separate employment-assignment/history schema. | Existing records keep truthful historical branch ownership and Phase 4 FKs remain valid. Phase 5 does not weaken RLS to make a cross-branch update possible. |
 | `5A-D11` | Principal employment eligibility | Require active account status, exactly one valid role and employee link, `employees.active = true`, and status `Active`, `Probation`, or `On Leave`. Reject all mismatches and terminated access. A manager demotion, disable, or termination must atomically reassign every direct report to an eligible same-branch manager or fail. | On-leave staff retain portal access. Terminated or inconsistent links fail closed. Manager lifecycle actions must include report reassignment. No profile-status column is added. |
 | `5A-D12` | Database field enforcement | Keep one `workloop_runtime` login. Treat each table grant as the minimum verb union needed by trusted FastAPI repositories, with column restriction where one safe union exists. Enforce per-caller field and transition rules in FastAPI; use RLS for row scope and the named protected functions where direct verbs are revoked. Do not add a database role or function for every business operation. | This matches the stated primary-boundary model and keeps RLS as defense in depth. It does not treat the shared SQL grant as a caller permission or as protection against compromise of the runtime credential. |
 | `5A-D13` | Notification inbox scope | Require staff notifications to match the recipient's linked branch; approve no null-branch staff type now. For admins, require a verified branch and return that branch plus tenant-wide null-branch notifications. Keep the producer type/entity allowlist above. | The admin bell follows the selected branch instead of aggregating every branch. A wrongly addressed notification cannot become a cross-branch data channel. |
@@ -967,6 +976,8 @@ provider call. The project owner approved `5A-D20` without amendment on 2026-09-
 | ID | Decision | Approved answer | Consequence |
 |---|---|---|---|
 | `5A-D20` | Storage attempt reservation | Reserve every provider attempt before making the call. After inserting a pending row at count zero, `workloop_runtime` must make an `O1` transition to `claimed`, set `attempt_count = 1`, stamp the claim time, and set a 15-minute lease before the immediate provider call. Give runtime column-update access to `claimed_at` and `lease_expires_at` only for that transition. The provider request deadline must stay below the lease. `S1` may claim or reclaim only while `attempt_count < 8`; each claim increments the count before a provider call. An expired lease at count eight cannot be claimed. The reconciler copies the row scope into a new transaction, marks it terminal `failed`, clears retry and lease fields, emits the safe alert, and makes no provider call. | The database counter becomes a reservation count, so crashes cannot permit a ninth provider call. The later storage phase must test crash-before-call, crash-during-call, crash-after-call, expired leases at counts one and eight, and concurrent claims. This changes the approved `O1` runtime column grant and policy transition but adds no role, table, constraint, context key, helper, or business-table access. |
+| `5A-D21` | Phase 5H security corrections | Withhold offboarding-task deletion until durable custom-task provenance is designed. Keep employee branch correction unavailable until a dedicated source-and-destination workflow is approved. Add one fixed-purpose relationship-lock helper so report mutations serialize with manager reassignment and recheck current authority. Unsupported audit actions remain denied until their protected workflows can prove the matching post-state. | The owner selected the fail-closed course on 2026-09-07. No new role or business table is added, and RLS is not broadened to approximate missing provenance or cross-branch authority. |
+| `5A-D22` | Expiry audit linkage | Keep the exact expiry-job notification grants. Record the source UUID and type as the audit entity; include the recipient app-user ID, source kind, source date, and threshold in the safe metadata allowlist; and require a matching visible notification for the same company, branch, recipient, source, source kind, and threshold-specific related-entity value. | The owner selected the no-grant-expansion course on 2026-09-07. The job cannot read notification IDs, creator IDs, bodies, or timestamps, while the source-kind and threshold tuple still proves the recipient-specific notification that caused the audit event. |
 
 ## Independent review
 
@@ -1035,7 +1046,8 @@ contradiction, unsafe grant, unsupported scope, or new decision.
 | `IR-51` | High | Null-context `S1` visibility omitted exhausted leases and purge candidates, so the reconciler could not obtain their company and branch before scoped terminalization or deletion. | Resolved: null-context `SELECT` can discover the three exact queue classes, null-context `UPDATE` can claim only rows below eight attempts, and terminalization or deletion requires copied scope plus its approved state guard. |
 
 Findings marked `Owner` changed product, schema, role, helper, grant, or retention decisions. The
-project owner's approval of `5A-D1` through `5A-D18` on 2026-09-06 accepts each cited disposition.
+project owner's approval of `5A-D1` through `5A-D20` on 2026-09-06 and `5A-D21` through
+`5A-D22` on 2026-09-07 accepts each cited disposition.
 The reviewer confirmed every owner disposition in the post-approval passes. `IR-51` fit the
 approved design and changed no product or schema decision. The independent review is closed.
 
@@ -1049,7 +1061,7 @@ Final validation ran on 2026-09-06 after the owner approvals and independent rev
   4 source, with no missing or extra identity.
 - The fixture mapping has 19 numbered, unique controls. It exactly matches
   `NEGATIVE_CONTROL_MATRIX`, with no missing or extra control.
-- The decision packet has 20 unique IDs, `5A-D1` through `5A-D20`. The review ledger has 51 unique
+- The decision packet has 22 unique IDs, `5A-D1` through `5A-D22`. The review ledger has 51 unique
   IDs, `IR-01` through `IR-51`.
 - Manual and independent allow-and-deny passes covered row scope, field scope, state guards,
   retention, actor rules, nullable branches, grants, storage retries, and helper paths. No internal

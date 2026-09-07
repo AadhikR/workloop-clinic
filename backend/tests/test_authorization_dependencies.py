@@ -24,7 +24,11 @@ from app.auth.dependencies import (
     require_authorization_principal,
     require_roles,
 )
-from app.db.authorization_context import AuthorizationContextError
+from app.db.authorization_context import (
+    AuthorizationBranchUnavailableError,
+    AuthorizationContextError,
+    AuthorizationContextUnavailableError,
+)
 from app.models.identity import AccountStatus, AppRole
 from tests.test_application_user import (
     StubConnection,
@@ -59,11 +63,26 @@ def dependency_app(
         issuer="https://seed.workloop.test",
         timeout_seconds=1,
     )
+    application.state.authorization_transaction_factory = StubAuthorizationTransactionFactory(
+        approved_branches={row[0] for row in branch_rows or []},
+        unavailable=failure is not None,
+    )
+
+    async def verified_claims() -> AccessTokenClaims:
+        return AccessTokenClaims(
+            issuer="https://seed.workloop.test",
+            subject="synthetic-subject",
+            audience=("workloop-api",),
+            expires_at=1,
+            issued_at=1,
+            not_before=None,
+        )
 
     async def resolved_principal() -> AuthorizationPrincipal:
         return active_principal
 
     application.dependency_overrides[require_authorization_principal] = resolved_principal
+    application.dependency_overrides[require_access_token] = verified_claims
 
     async def tenant_route(_company_id: TenantScope) -> Response:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -99,8 +118,16 @@ def dependency_app(
 
 
 class StubAuthorizationTransactionFactory:
-    def __init__(self, *, rejected: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        rejected: bool = False,
+        unavailable: bool = False,
+        approved_branches: set[object] | None = None,
+    ) -> None:
         self.rejected = rejected
+        self.unavailable = unavailable
+        self.approved_branches = approved_branches
         self.calls: list[tuple[AccessTokenClaims, AuthorizationPrincipal, uuid.UUID | None]] = []
         self.active = False
         self.connection = cast(Any, object())
@@ -114,8 +141,15 @@ class StubAuthorizationTransactionFactory:
         verified_admin_branch_id: uuid.UUID | None = None,
     ) -> AsyncGenerator[Any]:
         self.calls.append((claims, principal, verified_admin_branch_id))
+        if self.unavailable:
+            raise AuthorizationContextUnavailableError
         if self.rejected:
             raise AuthorizationContextError
+        if (
+            self.approved_branches is not None
+            and verified_admin_branch_id not in self.approved_branches
+        ):
+            raise AuthorizationBranchUnavailableError
         self.active = True
         try:
             yield self.connection
@@ -245,12 +279,7 @@ async def test_admin_branch_selection_is_company_scoped_and_temporary() -> None:
     assert response.status_code == 204
     assert admin.employee_id is None
     assert admin.branch_id is None
-    assert engine.connect_count == 1
-    statement = engine.connection.statements[0]
-    assert set(statement.compile().params.values()) >= {admin.company_id, selected_branch}
-    sql = str(statement).lower()
-    assert "branches.id" in sql
-    assert "branches.company_id" in sql
+    assert engine.connect_count == 0
 
 
 @pytest.mark.parametrize(
@@ -447,7 +476,7 @@ async def test_admin_branch_connection_uses_verified_branch() -> None:
         not_before=None,
     )
     application, _ = dependency_app(active_principal, branch_rows=[(selected_branch,)])
-    transaction_factory = StubAuthorizationTransactionFactory()
+    transaction_factory = StubAuthorizationTransactionFactory(approved_branches={selected_branch})
     application.state.authorization_transaction_factory = transaction_factory
 
     async def verified_claims() -> AccessTokenClaims:
@@ -469,7 +498,10 @@ async def test_admin_branch_connection_uses_verified_branch() -> None:
         )
 
     assert response.status_code == 204
-    assert transaction_factory.calls == [(active_claims, active_principal, selected_branch)]
+    assert transaction_factory.calls == [
+        (active_claims, active_principal, selected_branch),
+        (active_claims, active_principal, selected_branch),
+    ]
 
 
 @pytest.mark.asyncio
@@ -513,3 +545,41 @@ async def test_rejected_database_context_returns_safe_account_error() -> None:
             "message": "Application account unavailable",
         }
     }
+
+
+@pytest.mark.asyncio
+async def test_unavailable_database_context_returns_safe_503() -> None:
+    active_principal = principal(AppRole.EMPLOYEE)
+    active_claims = AccessTokenClaims(
+        issuer="https://seed.workloop.test",
+        subject="ravi.employee@horizon.test",
+        audience=("workloop-api",),
+        expires_at=1,
+        issued_at=1,
+        not_before=None,
+    )
+    application = FastAPI()
+    application.state.authorization_transaction_factory = StubAuthorizationTransactionFactory(
+        unavailable=True
+    )
+
+    async def verified_claims() -> AccessTokenClaims:
+        return active_claims
+
+    async def resolved_principal() -> AuthorizationPrincipal:
+        return active_principal
+
+    async def route(_connection: AuthorizedConnection) -> Response:
+        pytest.fail("unavailable context reached route")
+
+    application.dependency_overrides[require_access_token] = verified_claims
+    application.dependency_overrides[require_authorization_principal] = resolved_principal
+    application.add_api_route("/unavailable-transaction", route, methods=["GET"])
+
+    async with AsyncClient(
+        transport=ASGITransport(app=application), base_url="http://testserver"
+    ) as client:
+        response = await client.get("/unavailable-transaction")
+
+    assert response.status_code == 503
+    assert response.json()["detail"]["code"] == "application_account_lookup_unavailable"

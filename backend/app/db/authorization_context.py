@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import uuid
 from collections.abc import AsyncGenerator, Callable
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from datetime import date, datetime
 from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
@@ -121,6 +122,14 @@ class AuthorizationContextError(Exception):
     pass
 
 
+class AuthorizationContextUnavailableError(Exception):
+    pass
+
+
+class AuthorizationBranchUnavailableError(AuthorizationContextError):
+    pass
+
+
 def _dubai_now() -> datetime:
     return datetime.now(DUBAI_TIME_ZONE)
 
@@ -139,9 +148,11 @@ class AuthorizationTransactionFactory:
         self,
         *,
         engine: AsyncEngine,
+        setup_timeout_seconds: float = 5.0,
         clock: Callable[[], datetime] = _dubai_now,
     ) -> None:
         self._engine = engine
+        self._setup_timeout_seconds = setup_timeout_seconds
         self._clock = clock
 
     @asynccontextmanager
@@ -157,10 +168,20 @@ class AuthorizationTransactionFactory:
             principal=principal,
             verified_admin_branch_id=verified_admin_branch_id,
         )
-        async with self._engine.connect() as connection, connection.begin():
-            await connection.execute(_SET_HUMAN_CONTEXT, values)
-            valid = (await connection.execute(_REVALIDATE_HUMAN_CONTEXT)).scalar_one()
+        async with AsyncExitStack() as stack:
+            try:
+                async with asyncio.timeout(self._setup_timeout_seconds):
+                    connection = await stack.enter_async_context(self._engine.connect())
+                    await stack.enter_async_context(connection.begin())
+                    await connection.execute(_SET_HUMAN_CONTEXT, values)
+                    valid = (await connection.execute(_REVALIDATE_HUMAN_CONTEXT)).scalar_one()
+            except AuthorizationContextError:
+                raise
+            except Exception as error:
+                raise AuthorizationContextUnavailableError from error
             if valid is not True:
+                if principal.role is AppRole.ADMIN and verified_admin_branch_id is not None:
+                    raise AuthorizationBranchUnavailableError
                 raise AuthorizationContextError
             yield connection
 

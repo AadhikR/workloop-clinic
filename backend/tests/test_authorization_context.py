@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -5,14 +6,17 @@ from datetime import UTC, datetime
 from typing import Any, cast
 
 import pytest
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.auth.access_token import AccessTokenClaims
 from app.auth.application_user import AuthorizationPrincipal
+from app.db.audit import append_audit_event
 from app.db.authorization_context import (
     CONTEXT_KEYS,
     CONTEXT_READER_NAMES,
     AuthorizationContextError,
+    AuthorizationContextUnavailableError,
     AuthorizationTransactionFactory,
 )
 from app.models.identity import AccountStatus, AppRole
@@ -255,3 +259,52 @@ async def test_naive_clock_fails_before_checkout() -> None:
             pytest.fail("untrusted date reached protected SQL")
 
     assert engine.connect_count == 0
+
+
+@pytest.mark.asyncio
+async def test_stalled_context_setup_obeys_deadline() -> None:
+    class StalledConnection(StubAuthorizationConnection):
+        async def execute(
+            self, statement: Any, parameters: dict[str, str] | None = None
+        ) -> ScalarResult:
+            await asyncio.sleep(1)
+            return await super().execute(statement, parameters)
+
+    connection = StalledConnection()
+    transaction_factory = AuthorizationTransactionFactory(
+        engine=cast(AsyncEngine, StubAuthorizationEngine(connection)),
+        setup_timeout_seconds=0.01,
+        clock=lambda: datetime(2026, 9, 6, tzinfo=UTC),
+    )
+
+    with pytest.raises(AuthorizationContextUnavailableError):
+        async with transaction_factory.transaction(
+            claims=claims(), principal=principal(AppRole.EMPLOYEE)
+        ):
+            pytest.fail("stalled context reached protected SQL")
+
+    assert connection.commits == 0
+    assert connection.rollbacks == 1
+
+
+@pytest.mark.asyncio
+async def test_business_mutation_and_audit_share_one_rollback() -> None:
+    connection = StubAuthorizationConnection()
+
+    with pytest.raises(RuntimeError, match="abort protected workflow"):
+        async with factory(connection).transaction(
+            claims=claims(), principal=principal(AppRole.ADMIN)
+        ) as authorized_connection:
+            await authorized_connection.execute(text("SELECT true"))
+            await append_audit_event(
+                cast(Any, authorized_connection),
+                action="incident_closed",
+                entity_type="incident_report",
+                entity_id=uuid.uuid4(),
+                changed_fields=("status",),
+                reason="Synthetic rollback",
+            )
+            raise RuntimeError("abort protected workflow")
+
+    assert connection.commits == 0
+    assert connection.rollbacks == 1

@@ -12,10 +12,11 @@ from app.auth.application_user import (
     ApplicationUserResolver,
     ApplicationUserUnavailableError,
     AuthorizationPrincipal,
-    BranchUnavailableError,
 )
 from app.db.authorization_context import (
+    AuthorizationBranchUnavailableError,
     AuthorizationContextError,
+    AuthorizationContextUnavailableError,
     AuthorizationTransactionFactory,
 )
 from app.models.identity import AppRole
@@ -182,6 +183,7 @@ async def require_manager_identity(principal: ManagerAuthorizationPrincipal) -> 
 
 async def require_admin_selected_branch(
     request: Request,
+    claims: VerifiedAccessToken,
     principal: AdminAuthorizationPrincipal,
 ) -> uuid.UUID:
     header_values = request.headers.getlist("x-workloop-branch-id")
@@ -197,17 +199,23 @@ async def require_admin_selected_branch(
     except (AttributeError, ValueError):
         raise invalid_branch_error() from None
 
-    resolver: ApplicationUserResolver = request.app.state.application_user_resolver
+    transaction_factory: AuthorizationTransactionFactory = (
+        request.app.state.authorization_transaction_factory
+    )
     try:
-        return await resolver.resolve_admin_branch(
-            company_id=principal.company_id,
-            branch_id=branch_id,
-        )
-    except BranchUnavailableError:
+        async with transaction_factory.transaction(
+            claims=claims,
+            principal=principal,
+            verified_admin_branch_id=branch_id,
+        ):
+            return branch_id
+    except AuthorizationBranchUnavailableError:
         raise resource_not_found_error() from None
-    except ApplicationUserLookupError:
+    except AuthorizationContextUnavailableError:
         logger.warning("authorization_scope_lookup_failed")
         raise application_account_lookup_error() from None
+    except AuthorizationContextError:
+        raise application_account_error() from None
 
 
 TenantScope = Annotated[uuid.UUID, Depends(require_tenant_scope)]
@@ -232,6 +240,9 @@ async def require_authorized_connection(
             yield connection
     except AuthorizationContextError:
         raise application_account_error() from None
+    except AuthorizationContextUnavailableError:
+        logger.warning("authorization_context_setup_failed")
+        raise application_account_lookup_error() from None
 
 
 async def require_admin_branch_authorized_connection(
@@ -252,6 +263,9 @@ async def require_admin_branch_authorized_connection(
             yield connection
     except AuthorizationContextError:
         raise application_account_error() from None
+    except AuthorizationContextUnavailableError:
+        logger.warning("authorization_context_setup_failed")
+        raise application_account_lookup_error() from None
 
 
 AuthorizedConnection = Annotated[AsyncConnection, Depends(require_authorized_connection)]

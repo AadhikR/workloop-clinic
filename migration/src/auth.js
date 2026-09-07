@@ -8,6 +8,10 @@ import {
 
 const callbackPath = '/auth/callback'
 const signedOutState = Object.freeze({ status: 'signed-out' })
+const approvedLocalApiOrigins = new Set([
+  'http://127.0.0.1:8000',
+  'http://127.0.0.1:18000',
+])
 
 function assertPublicConfig(config, location) {
   const required = [
@@ -39,7 +43,7 @@ function assertPublicConfig(config, location) {
 
   const api = new URL(config.apiBaseUrl)
   if (
-    api.origin !== 'http://127.0.0.1:8000'
+    !approvedLocalApiOrigins.has(api.origin)
     || api.pathname !== '/'
     || api.search
     || api.hash

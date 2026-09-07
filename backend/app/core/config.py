@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     application_user_lookup_timeout_seconds: float = Field(
         default=5.0, validation_alias="APPLICATION_USER_LOOKUP_TIMEOUT_SECONDS"
     )
+    authorization_context_setup_timeout_seconds: float = Field(
+        default=5.0, validation_alias="AUTHORIZATION_CONTEXT_SETUP_TIMEOUT_SECONDS"
+    )
     database_url: SecretStr = Field(validation_alias="DATABASE_URL")
     oidc_issuer: AnyHttpUrl = Field(validation_alias="OIDC_ISSUER")
     oidc_audience: str = Field(validation_alias="OIDC_AUDIENCE")
@@ -50,6 +53,8 @@ class Settings(BaseSettings):
             raise ValueError("DATABASE_HEALTH_TIMEOUT_SECONDS must be between 0 and 30")
         if not 0 < self.application_user_lookup_timeout_seconds <= 30:
             raise ValueError("APPLICATION_USER_LOOKUP_TIMEOUT_SECONDS must be between 0 and 30")
+        if not 0 < self.authorization_context_setup_timeout_seconds <= 30:
+            raise ValueError("AUTHORIZATION_CONTEXT_SETUP_TIMEOUT_SECONDS must be between 0 and 30")
         if str(self.oidc_issuer).endswith("/"):
             raise ValueError("OIDC_ISSUER must not end with a slash")
         for setting_name, url in (

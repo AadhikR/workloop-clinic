@@ -1,6 +1,7 @@
 from app.repositories.scoped import (
     InvalidBatchError,
     MutationConflictError,
+    RelationshipLockMode,
     ResourceNotFoundError,
     ScopedRepository,
     build_scoped_delete,
@@ -12,6 +13,7 @@ from app.repositories.scoped import (
 __all__ = [
     "InvalidBatchError",
     "MutationConflictError",
+    "RelationshipLockMode",
     "ResourceNotFoundError",
     "ScopedRepository",
     "build_scoped_delete",

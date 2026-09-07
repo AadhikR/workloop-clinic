@@ -11,11 +11,11 @@ async def test_append_audit_event_uses_callers_transaction() -> None:
     expected_id = uuid.uuid4()
     result = Mock()
     result.scalar_one.return_value = expected_id
-    session = AsyncMock()
-    session.execute.return_value = result
+    connection = AsyncMock()
+    connection.execute.return_value = result
 
     actual_id = await append_audit_event(
-        session,
+        connection,
         action="incident_closed",
         entity_type="incident_report",
         entity_id=uuid.uuid4(),
@@ -25,6 +25,6 @@ async def test_append_audit_event_uses_callers_transaction() -> None:
     )
 
     assert actual_id == expected_id
-    session.execute.assert_awaited_once()
-    session.commit.assert_not_awaited()
-    session.rollback.assert_not_awaited()
+    connection.execute.assert_awaited_once()
+    connection.commit.assert_not_awaited()
+    connection.rollback.assert_not_awaited()

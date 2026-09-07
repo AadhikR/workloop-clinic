@@ -238,7 +238,7 @@ Do not create abstractions merely to match this diagram. Start with the smallest
 | 2 | Local backend and infrastructure foundation | Completed 2026-08-31 | 4–7 days |
 | 3 | Keycloak authentication foundation | Completed 2026-09-01 | 1–2 weeks |
 | 4 | Portable database baseline | Completed 2026-09-06 with owner sign-off | 1–2 weeks |
-| 5 | Authorization and tenant isolation | In progress; 5A through 5D completed 2026-09-06 | 3 to 5 weeks |
+| 5 | Authorization and tenant isolation | In progress; 5A through 5G completed, 5H corrections under verification | 3 to 5 weeks |
 | 6 | Shared API and frontend client | Not started | 3–5 days |
 | 6A | Early DigitalOcean architecture proof | Not started | 3–5 days |
 | 7 | Organization and employee module | Not started | 1–2 weeks |
@@ -636,10 +636,10 @@ gated parts in
 | 5B | Trusted authorization principal and FastAPI dependencies | Completed 2026-09-06; see [`PART_5B_COMPLETION.md`](docs/migration/phase-5/PART_5B_COMPLETION.md) |
 | 5C | Scoped repository rules and protected mutation guards | Completed 2026-09-06; see [`PART_5C_COMPLETION.md`](docs/migration/phase-5/PART_5C_COMPLETION.md) |
 | 5D | Transaction-local PostgreSQL context and pool isolation | Completed 2026-09-06; see [`PART_5D_COMPLETION.md`](docs/migration/phase-5/PART_5D_COMPLETION.md) |
-| 5E | Identity, organization, and workforce RLS | Not started |
-| 5F | Payroll, leave, attendance, and roster RLS | Not started |
-| 5G | Remaining domain RLS and audit foundation | Not started |
-| 5H | Independent security review and completion gate | Not started |
+| 5E | Identity, organization, and workforce RLS | Completed 2026-09-06; see [`PART_5E_COMPLETION.md`](docs/migration/phase-5/PART_5E_COMPLETION.md) |
+| 5F | Payroll, leave, attendance, and roster RLS | Completed 2026-09-06; see [`PART_5F_COMPLETION.md`](docs/migration/phase-5/PART_5F_COMPLETION.md) |
+| 5G | Remaining domain RLS and audit foundation | Completed 2026-09-06; see [`PART_5G_COMPLETION.md`](docs/migration/phase-5/PART_5G_COMPLETION.md) |
+| 5H | Independent security review and completion gate | Local gate passed 2026-09-07; awaiting GitHub result and project-owner signoff; see [`PART_5H_COMPLETION.md`](docs/migration/phase-5/PART_5H_COMPLETION.md) |
 
 The project owner may approve one part at a time under the phase execution protocol. Completing one
 part does not authorize the next. Phase 5 does not authorize business API routes, frontend migration, storage,
@@ -1778,12 +1778,12 @@ Next action: Commit and push Phase 5D once, report the GitHub workflow, and stop
 
 ## Immediate Next Actions
 
-Phase 4 is complete with project-owner sign-off. Phase 5A through Phase 5D completed on 2026-09-06.
-The approved authorization design is recorded in
-[`docs/migration/phase-5/PERMISSION_MATRIX_AND_RLS_DESIGN.md`](docs/migration/phase-5/PERMISSION_MATRIX_AND_RLS_DESIGN.md).
-The implementation evidence is recorded in
-[`docs/migration/phase-5/PART_5B_COMPLETION.md`](docs/migration/phase-5/PART_5B_COMPLETION.md),
-[`docs/migration/phase-5/PART_5C_COMPLETION.md`](docs/migration/phase-5/PART_5C_COMPLETION.md), and
-[`docs/migration/phase-5/PART_5D_COMPLETION.md`](docs/migration/phase-5/PART_5D_COMPLETION.md).
+Phase 4 is complete with project-owner sign-off. Phase 5A through Phase 5G completed on 2026-09-06.
+Phase 5H started on 2026-09-07. Its independent GPT-5.6 review is recorded in
+[`docs/migration/phase-5/PART_5H_SECURITY_REVIEW.md`](docs/migration/phase-5/PART_5H_SECURITY_REVIEW.md).
 
-Stop before Phase 5E. It requires separate project-owner authorization.
+The review found confirmed implementation and verification defects. The project owner selected the
+fail-closed course on 2026-09-07: offboarding-task deletion and employee branch correction remain
+unavailable until their missing provenance and workflow designs are approved. Every finding is
+closed and the complete local Phase 5H gate passed. Push once, wait for the required GitHub result,
+then obtain explicit project-owner signoff for Phase 5. Phase 6 remains unauthorized.

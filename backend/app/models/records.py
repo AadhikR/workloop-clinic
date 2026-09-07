@@ -19,6 +19,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.schema import conv
 
 from app.db.base import Base
 
@@ -1001,8 +1002,15 @@ class AuditEvent(Base):
         CheckConstraint(
             "(actor_kind = 'human' AND actor_app_user_id IS NOT NULL "
             "AND system_actor_key IS NULL) OR (actor_kind <> 'human' "
-            "AND actor_app_user_id IS NULL AND btrim(system_actor_key) <> '')",
+            "AND actor_app_user_id IS NULL AND system_actor_key IS NOT NULL "
+            "AND btrim(system_actor_key) <> '')",
             name="primary_actor",
+        ),
+        CheckConstraint(
+            "(actor_kind = 'human' AND actor_app_user_id IS NOT NULL "
+            "AND system_actor_key IS NULL) OR (actor_kind <> 'human' "
+            "AND actor_app_user_id IS NULL AND btrim(system_actor_key) <> '')",
+            name=conv("phase5h_prior_audit_primary_actor"),
         ),
         CheckConstraint("btrim(action) <> ''", name="action_nonblank"),
         CheckConstraint("btrim(entity_type) <> ''", name="entity_type_nonblank"),

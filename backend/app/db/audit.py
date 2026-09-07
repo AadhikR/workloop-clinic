@@ -3,7 +3,7 @@ from collections.abc import Mapping, Sequence
 
 from sqlalchemy import bindparam, text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncConnection
 from sqlalchemy.types import Text
 
 _APPEND_AUDIT_EVENT = text(
@@ -19,7 +19,7 @@ _APPEND_AUDIT_EVENT = text(
 
 
 async def append_audit_event(
-    session: AsyncSession,
+    connection: AsyncConnection,
     *,
     action: str,
     entity_type: str,
@@ -28,7 +28,7 @@ async def append_audit_event(
     reason: str,
     metadata: Mapping[str, object] | None = None,
 ) -> uuid.UUID:
-    result = await session.execute(
+    result = await connection.execute(
         _APPEND_AUDIT_EVENT,
         {
             "action": action,

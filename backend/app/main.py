@@ -84,7 +84,8 @@ def create_app(
             timeout_seconds=resolved_settings.application_user_lookup_timeout_seconds,
         )
         application.state.authorization_transaction_factory = AuthorizationTransactionFactory(
-            engine=engine
+            engine=engine,
+            setup_timeout_seconds=resolved_settings.authorization_context_setup_timeout_seconds,
         )
         application.state.access_token_verifier = AccessTokenVerifier(
             issuer=str(resolved_settings.oidc_issuer),

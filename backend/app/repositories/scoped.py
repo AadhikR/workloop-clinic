@@ -1,8 +1,20 @@
 import uuid
 from collections.abc import Collection, Sequence
+from enum import StrEnum
 from typing import Any, cast
 
-from sqlalchemy import ColumnElement, Delete, Select, Update, delete, select, update
+from sqlalchemy import (
+    ColumnElement,
+    Delete,
+    Select,
+    Update,
+    bindparam,
+    delete,
+    select,
+    text,
+    update,
+)
+from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.engine import RowMapping
 from sqlalchemy.ext.asyncio import AsyncConnection
 from sqlalchemy.sql.elements import SQLColumnExpression
@@ -21,6 +33,16 @@ class InvalidBatchError(ValueError):
 
 class MutationConflictError(Exception):
     pass
+
+
+class RelationshipLockMode(StrEnum):
+    STABLE = "stable"
+    DIRECT_REPORT = "direct_report"
+
+
+_LOCK_AUTHORIZED_EMPLOYEE_RELATIONSHIPS = text(
+    "SELECT public.lock_authorized_employee_relationships(:employee_ids)"
+).bindparams(bindparam("employee_ids", type_=ARRAY(UUID(as_uuid=True))))
 
 
 def build_scoped_select(
@@ -111,11 +133,29 @@ class ScopedRepository:
         table: FromClause,
         id_column: SQLColumnExpression[uuid.UUID],
         scope_predicate: ColumnElement[bool],
+        relationship_lock: object,
+        authorization_employee_column: SQLColumnExpression[uuid.UUID] | None = None,
+        authorization_from: FromClause | None = None,
     ) -> None:
+        if not isinstance(relationship_lock, RelationshipLockMode):
+            raise TypeError("relationship lock mode must be explicit")
+        if relationship_lock is RelationshipLockMode.DIRECT_REPORT and (
+            authorization_employee_column is None or authorization_from is None
+        ):
+            raise ValueError(
+                "direct-report mutations require an authorization employee column and source"
+            )
+        if relationship_lock is RelationshipLockMode.STABLE and (
+            authorization_employee_column is not None or authorization_from is not None
+        ):
+            raise ValueError("stable authorization cannot declare a relationship source")
         self._connection = connection
         self._table = table
         self._id_column = id_column
         self._scope_predicate = scope_predicate
+        self._relationship_lock = relationship_lock
+        self._authorization_employee_column = authorization_employee_column
+        self._authorization_from = authorization_from
 
     async def fetch_one(
         self,
@@ -160,6 +200,8 @@ class ScopedRepository:
         object_ids: Collection[uuid.UUID],
     ) -> tuple[uuid.UUID, ...]:
         normalized_ids = _normalize_batch_ids(object_ids)
+        if self._relationship_lock is RelationshipLockMode.DIRECT_REPORT:
+            await self._lock_authorization_employees(normalized_ids)
         statement = (
             build_scoped_select(
                 self._table,
@@ -175,6 +217,30 @@ class ScopedRepository:
         if set(visible_ids) != set(normalized_ids) or len(visible_ids) != len(normalized_ids):
             raise ResourceNotFoundError
         return normalized_ids
+
+    async def _lock_authorization_employees(self, object_ids: tuple[uuid.UUID, ...]) -> None:
+        employee_column = self._authorization_employee_column
+        if employee_column is None:
+            raise RuntimeError("missing direct-report authorization employee column")
+        authorization_from = self._authorization_from
+        if authorization_from is None:
+            raise RuntimeError("missing direct-report authorization source")
+        relationship_result = await self._connection.execute(
+            select(self._id_column, employee_column)
+            .select_from(authorization_from)
+            .where(self._scope_predicate, self._id_column.in_(object_ids))
+            .order_by(self._id_column)
+        )
+        relationships = relationship_result.all()
+        if len(relationships) != len(object_ids):
+            raise ResourceNotFoundError
+        employee_ids = tuple(sorted({row[1] for row in relationships if row[1] is not None}))
+        if not employee_ids:
+            return
+        await self._connection.execute(
+            _LOCK_AUTHORIZED_EMPLOYEE_RELATIONSHIPS,
+            {"employee_ids": list(employee_ids)},
+        )
 
     async def update_one(
         self,

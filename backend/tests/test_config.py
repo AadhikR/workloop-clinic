@@ -13,6 +13,7 @@ def set_required_environment(monkeypatch: MonkeyPatch) -> None:
         "LOG_LEVEL": "INFO",
         "DATABASE_HEALTH_TIMEOUT_SECONDS": "5",
         "APPLICATION_USER_LOOKUP_TIMEOUT_SECONDS": "5",
+        "AUTHORIZATION_CONTEXT_SETUP_TIMEOUT_SECONDS": "5",
         "OIDC_ISSUER": "http://127.0.0.1:8080/realms/workloop-dev",
         "OIDC_AUDIENCE": "workloop-api",
         "OIDC_JWKS_URL": (
@@ -49,6 +50,16 @@ def test_settings_reject_unbounded_application_user_lookup(monkeypatch: MonkeyPa
     monkeypatch.setenv("APPLICATION_USER_LOOKUP_TIMEOUT_SECONDS", "31")
 
     with pytest.raises(ValidationError, match="APPLICATION_USER_LOOKUP_TIMEOUT_SECONDS"):
+        Settings()  # pyright: ignore[reportCallIssue]
+
+
+def test_settings_reject_unbounded_authorization_context_setup(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    set_required_environment(monkeypatch)
+    monkeypatch.setenv("AUTHORIZATION_CONTEXT_SETUP_TIMEOUT_SECONDS", "31")
+
+    with pytest.raises(ValidationError, match="AUTHORIZATION_CONTEXT_SETUP_TIMEOUT_SECONDS"):
         Settings()  # pyright: ignore[reportCallIssue]
 
 

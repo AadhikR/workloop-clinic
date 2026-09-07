@@ -26,12 +26,13 @@ if [ "$before" != "$after" ]; then
   exit 1
 fi
 
-if "$DOCKER" compose run --rm --no-deps --entrypoint python backend -m app.db.seed \
-  --validate-only >/tmp/workloop-runtime-seed.out 2>&1; then
+if "$DOCKER" compose run --rm --no-deps --entrypoint sh backend -ec \
+  'python -m app.db.seed --database-url "$DATABASE_URL" --validate-only' \
+  >/tmp/workloop-runtime-seed.out 2>&1; then
   echo "workloop_runtime was allowed to run the seed" >&2
   exit 1
 fi
-if ! grep -q "must not run as the runtime role workloop_runtime" /tmp/workloop-runtime-seed.out; then
+if ! grep -q "must run as the workloop_migration login" /tmp/workloop-runtime-seed.out; then
   echo "runtime refusal did not return the expected guard error" >&2
   exit 1
 fi

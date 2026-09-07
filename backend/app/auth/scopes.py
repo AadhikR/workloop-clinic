@@ -327,6 +327,7 @@ def active_leave_delegate_scope_predicate(
             delegations.c.company_id == scope.company_id,
             delegations.c.branch_id == scope.branch_id,
             delegations.c.delegate_employee_id == scope.delegate_employee_id,
+            employee_column != scope.delegate_employee_id,
             delegations.c.from_date <= scope.business_date,
             delegations.c.to_date >= scope.business_date,
             approvers.c.active.is_(True),

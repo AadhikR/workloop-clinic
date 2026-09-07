@@ -16,7 +16,13 @@ const docker = process.env.DOCKER
     : 'docker')
 const compose = ['compose']
 const kcadmConfig = '/tmp/workloop-phase-3g-kcadm.config'
-const issuer = 'http://127.0.0.1:8080/realms/workloop-dev'
+const keycloakBaseUrl = (process.env.WORKLOOP_KEYCLOAK_BASE_URL
+  || 'http://127.0.0.1:8080').replace(/\/$/, '')
+const apiBaseUrl = (process.env.WORKLOOP_API_BASE_URL
+  || 'http://127.0.0.1:8000').replace(/\/$/, '')
+const issuer = `${keycloakBaseUrl}/realms/workloop-dev`
+const keycloakOrigin = new URL(keycloakBaseUrl).origin
+const apiOrigin = new URL(apiBaseUrl).origin
 const personas = [
   {
     appUserId: '00000000-0000-0000-0000-000000000071',
@@ -351,13 +357,13 @@ async function browserChecks(viteServer) {
       page.on('request', (request) => {
         const requestUrl = new URL(request.url())
         if (
-          requestUrl.origin === 'http://127.0.0.1:8080'
+          requestUrl.origin === keycloakOrigin
           && requestUrl.pathname.endsWith('/protocol/openid-connect/token')
         ) {
           tokenRequestCount += 1
         }
         if (
-          requestUrl.origin === 'http://127.0.0.1:8000'
+          requestUrl.origin === apiOrigin
           && requestUrl.pathname === '/api/v1/auth/token-check'
         ) {
           accountRequestCount += 1
@@ -505,7 +511,7 @@ async function main() {
     fixturesCreated = true
     createFixtures()
     Object.assign(process.env, {
-      VITE_API_BASE_URL: 'http://127.0.0.1:8000',
+      VITE_API_BASE_URL: apiBaseUrl,
       VITE_OIDC_AUTHORITY: issuer,
       VITE_OIDC_CLIENT_ID: 'workloop-migration-web',
       VITE_OIDC_REDIRECT_URI: 'http://127.0.0.1:5174/auth/callback',

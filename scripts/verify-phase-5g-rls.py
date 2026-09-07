@@ -1,6 +1,8 @@
 import json
 import os
 import runpy
+import uuid
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -31,7 +33,7 @@ COMMANDS = {
     "notifications": {"SELECT", "UPDATE"},
     "employee_contracts": {"SELECT", "INSERT"},
     "offboarding_checklists": {"SELECT", "INSERT", "UPDATE"},
-    "offboarding_tasks": {"SELECT", "INSERT", "UPDATE", "DELETE"},
+    "offboarding_tasks": {"SELECT", "INSERT", "UPDATE"},
     "offboarding_task_templates": {"SELECT"},
     "assets": {"SELECT", "INSERT", "UPDATE", "DELETE"},
     "asset_assignments": {"SELECT", "INSERT", "UPDATE"},
@@ -178,7 +180,7 @@ def verify_catalog(engine: Any) -> None:
             connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            == "1b29d4e7f860"
+            == "2c4d6e8f0a1b"
         )
         tables = set(
             connection.execute(
@@ -199,7 +201,7 @@ def verify_catalog(engine: Any) -> None:
             )
         }
         assert policies == expected_policies()
-        assert len(policies) == 70
+        assert len(policies) == 69
         for row in connection.execute(
             text(
                 "SELECT cmd,permissive,qual,with_check FROM pg_catalog.pg_policies WHERE schemaname='public' AND policyname LIKE 'phase5g_%'"
@@ -438,6 +440,77 @@ def verify_notification_helper(runtime: psycopg.Connection[Any], engine: Any) ->
     assert after == before
 
 
+def verify_appraisal_update_scope(
+    runtime: psycopg.Connection[Any], engine: Any
+) -> None:
+    aisha = principal_for("aisha.manager@horizon.test")
+    maria = principal_for("maria.employee@horizon.test")
+    own_section = uuid.UUID("00000000-0000-4000-8000-000000005508")
+    with engine.begin() as connection:
+        own_appraisal = connection.execute(
+            text(
+                "SELECT id FROM appraisals WHERE employee_id=:employee LIMIT 1"
+            ),
+            {"employee": aisha.employee_id},
+        ).scalar_one()
+        connection.execute(
+            text(
+                "INSERT INTO appraisal_sections(id,company_id,branch_id,appraisal_id,"
+                "section_name,weight,sort_order) VALUES(:id,:company,:branch,:appraisal,"
+                "'Manager self-update control',1,99)"
+            ),
+            {
+                "id": own_section,
+                "company": c.COMPANY_ID[c.HORIZON],
+                "branch": c.BRANCH_DXB,
+                "appraisal": own_appraisal,
+            },
+        )
+    try:
+        with engine.connect() as connection:
+            report_section = connection.execute(
+                text(
+                    "SELECT section.id FROM appraisal_sections AS section "
+                    "JOIN appraisals AS appraisal ON appraisal.id=section.appraisal_id "
+                    "WHERE appraisal.employee_id=:employee LIMIT 1"
+                ),
+                {"employee": maria.employee_id},
+            ).scalar_one()
+            before = connection.execute(
+                text(
+                    "SELECT md5(to_jsonb(section)::text) FROM appraisal_sections AS section "
+                    "WHERE id=:id"
+                ),
+                {"id": own_section},
+            ).scalar_one()
+        with human_context(runtime, "aisha.manager@horizon.test") as cursor:
+            cursor.execute(
+                "UPDATE appraisal_sections SET comments=comments WHERE id=%s RETURNING id",
+                (own_section,),
+            )
+            assert cursor.fetchone() is None
+            cursor.execute(
+                "UPDATE appraisal_sections SET comments=comments WHERE id=%s RETURNING id",
+                (report_section,),
+            )
+            assert cursor.fetchone() == (report_section,)
+        with engine.connect() as connection:
+            after = connection.execute(
+                text(
+                    "SELECT md5(to_jsonb(section)::text) FROM appraisal_sections AS section "
+                    "WHERE id=:id"
+                ),
+                {"id": own_section},
+            ).scalar_one()
+        assert after == before
+    finally:
+        with engine.begin() as connection:
+            connection.execute(
+                text("DELETE FROM appraisal_sections WHERE id=:id"),
+                {"id": own_section},
+            )
+
+
 def verify_audit(
     runtime: psycopg.Connection[Any], expiry: psycopg.Connection[Any], engine: Any
 ) -> None:
@@ -577,20 +650,53 @@ def verify_audit(
     else:
         raise AssertionError("audit update was accepted")
 
-    notification_id = None
     with engine.connect() as connection:
-        notification_id = connection.execute(
+        source_id, source_date = connection.execute(
             text(
-                "SELECT id FROM notifications WHERE company_id=:company AND branch_id=:branch LIMIT 1"
+                "SELECT id,expiry_date FROM employee_documents WHERE company_id=:company "
+                "AND branch_id=:branch AND expiry_date IS NOT NULL "
+                "AND status='verified' "
+                "AND document_type NOT IN ('DHA Licence','DOH Licence','MOH Licence',"
+                "'BLS Certificate','ACLS Certificate','PALS Certificate',"
+                "'NRP Certificate','CME Certificate') "
+                "AND expiry_date BETWEEN DATE '2026-09-06' AND DATE '2026-09-06' + 60 "
+                "ORDER BY id LIMIT 1"
             ),
             {"company": c.COMPANY_ID[c.HORIZON], "branch": c.BRANCH_DXB},
-        ).scalar_one()
+        ).one()
+    threshold = 14 if (source_date - date(2026, 9, 6)).days <= 14 else 30
+    if (source_date - date(2026, 9, 6)).days > 30:
+        threshold = 60
+    related_id = f"{source_id}:document:{threshold}"
     with job_context(
         expiry, company_id=c.COMPANY_ID[c.HORIZON], branch_id=c.BRANCH_DXB
     ) as cursor:
         cursor.execute(
-            "INSERT INTO audit_events(company_id,branch_id,actor_kind,system_actor_key,action,entity_type,entity_id,changed_fields,reason,metadata) VALUES (%s,%s,'scheduled_job','expiry_processing','expiry_notification_created','notification',%s,ARRAY['type']::text[],'Expiry alert created','{}')",
-            (c.COMPANY_ID[c.HORIZON], c.BRANCH_DXB, notification_id),
+            "INSERT INTO notifications(company_id,branch_id,recipient_app_user_id,type,title,body,related_entity_type,related_entity_id) VALUES (%s,%s,%s,'document_expiry','Document expiring','Review this expiry item.','employee_document',%s)",
+            (
+                c.COMPANY_ID[c.HORIZON],
+                c.BRANCH_DXB,
+                principal_for("hr.admin@horizon.test").app_user_id,
+                related_id,
+            ),
+        )
+        cursor.execute(
+            "INSERT INTO audit_events(company_id,branch_id,actor_kind,system_actor_key,action,entity_type,entity_id,changed_fields,reason,metadata) VALUES (%s,%s,'scheduled_job','expiry_processing','expiry_notification_created','employee_document',%s,ARRAY['type','recipient_app_user_id']::text[],'Expiry notification created',%s::jsonb)",
+            (
+                c.COMPANY_ID[c.HORIZON],
+                c.BRANCH_DXB,
+                source_id,
+                json.dumps(
+                    {
+                        "threshold_days": threshold,
+                        "source_date": source_date.isoformat(),
+                        "source_kind": "document",
+                        "recipient_app_user_id": str(
+                            principal_for("hr.admin@horizon.test").app_user_id
+                        ),
+                    }
+                ),
+            ),
         )
 
 
@@ -604,6 +710,12 @@ def main() -> None:
             connection.execute(text("DELETE FROM audit_events"))
             connection.execute(
                 text(
+                    "DELETE FROM notifications WHERE created_by_app_user_id IS NULL "
+                    "AND title='Document expiring' AND body='Review this expiry item.'"
+                )
+            )
+            connection.execute(
+                text(
                     "DELETE FROM notifications WHERE type='payslip_available' AND created_by_app_user_id=:actor"
                 ),
                 {"actor": principal_for("hr.admin@horizon.test").app_user_id},
@@ -613,12 +725,19 @@ def main() -> None:
         verify_catalog(engine)
         verify_scopes(runtime)
         verify_notification_helper(runtime, engine)
+        verify_appraisal_update_scope(runtime, engine)
         verify_audit(runtime, expiry, engine)
     finally:
         runtime.close()
         expiry.close()
         with engine.begin() as connection:
             connection.execute(text("DELETE FROM audit_events"))
+            connection.execute(
+                text(
+                    "DELETE FROM notifications WHERE created_by_app_user_id IS NULL "
+                    "AND title='Document expiring' AND body='Review this expiry item.'"
+                )
+            )
             connection.execute(
                 text(
                     "DELETE FROM notifications WHERE type='payslip_available' AND created_by_app_user_id=:actor"

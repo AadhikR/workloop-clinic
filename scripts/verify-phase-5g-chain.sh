@@ -12,6 +12,7 @@ run_revision_check() {
     /verification/verify-phase-5g-revision.py "$1"
 }
 
+run_migration downgrade d85a6f0c3b42
 run_revision_check d85a6f0c3b42
 run_migration upgrade e96f7a1b4c53
 run_revision_check e96f7a1b4c53
@@ -28,3 +29,10 @@ for parent in 0a18c3d6e75f f07a8b2c5d64 e96f7a1b4c53 d85a6f0c3b42; do
   run_migration upgrade 1b29d4e7f860
   run_revision_check 1b29d4e7f860
 done
+
+run_migration upgrade 2c4d6e8f0a1b
+run_revision_check 2c4d6e8f0a1b
+run_migration downgrade 1b29d4e7f860
+run_revision_check 1b29d4e7f860
+run_migration upgrade 2c4d6e8f0a1b
+run_revision_check 2c4d6e8f0a1b

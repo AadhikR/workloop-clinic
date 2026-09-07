@@ -37,7 +37,7 @@ while IFS= read -r path; do
   esac
 
   case "$path" in
-    .github/workflows/*|docker-compose*.yml|backend/alembic/*|backend/app/models/*|backend/app/db/*|infra/local/postgres/*|scripts/database-persistence-*|scripts/verify-phase-*-schema.*|scripts/verify-phase-*-migration*|scripts/verify-phase-*-rls.*|scripts/verify-phase-*-grants.*|scripts/verify-phase-*-function*|scripts/verify-phase-*-triggers.*|scripts/verify-phase-*-seed.*|scripts/verify-phase-*-context.*|scripts/verify-phase-*-boundaries.*|scripts/verify-phase-*-repositories.*|scripts/verify-phase-*-revision.*|scripts/verify-phase-*-downgrade.*|scripts/verify-phase-*-concurrency.*)
+    .github/workflows/*|docker-compose*.yml|backend/alembic/*|backend/app/models/*|backend/app/db/*|backend/app/auth/*|backend/app/repositories/*|backend/app/schemas/*|backend/tests/test_authorization_*|backend/tests/test_mutation_*|backend/tests/test_scoped_repositories.py|infra/local/postgres/*|scripts/database-persistence-*|scripts/phase-5g-catalogue.json|scripts/phase-5h-control-manifest.json|scripts/verify-phase-*-schema.*|scripts/verify-phase-*-migration*|scripts/verify-phase-*-rls.*|scripts/verify-phase-*-grants.*|scripts/verify-phase-*-function*|scripts/verify-phase-*-triggers.*|scripts/verify-phase-*-seed.*|scripts/verify-phase-*-context.*|scripts/verify-phase-*-boundaries.*|scripts/verify-phase-*-repositories.*|scripts/verify-phase-*-revision.*|scripts/verify-phase-*-downgrade.*|scripts/verify-phase-*-concurrency.*|scripts/verify-phase-*-security.*)
       database_deep=true
       ;;
   esac

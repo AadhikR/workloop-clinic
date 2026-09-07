@@ -27,6 +27,7 @@ from app.models.identity import AccountStatus, AppRole, AppUser, Employee
 from app.models.leave import LeaveApprovalDelegate, LeaveRequest
 from app.repositories.scoped import (
     MutationConflictError,
+    RelationshipLockMode,
     ResourceNotFoundError,
     ScopedRepository,
 )
@@ -240,6 +241,7 @@ async def verify(database_url: str) -> None:
                     table=Employee.__table__,
                     id_column=Employee.__table__.c.id,
                     scope_predicate=branch_predicate,
+                    relationship_lock=RelationshipLockMode.STABLE,
                 )
                 for inaccessible_id in (uuid.uuid4(), CEDAR_EMPLOYEE_ID):
                     try:

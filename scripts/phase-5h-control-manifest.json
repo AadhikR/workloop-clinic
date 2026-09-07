@@ -1,0 +1,24 @@
+{
+  "version": 2,
+  "controls": [
+    {"id": 1, "name": "horizon-admin.cedar-employee", "layers": {"A": ["verify-phase-5h-controls:control_01_application"], "R": ["verify-phase-5h-controls:control_01_rls"]}},
+    {"id": 2, "name": "horizon-admin.cedar-payroll", "layers": {"A": ["verify-phase-5h-controls:control_02_application"], "R": ["verify-phase-5h-controls:control_02_rls"]}},
+    {"id": 3, "name": "horizon-admin.replace-cedar-payroll", "layers": {"A": ["verify-phase-5h-controls:control_03_application"], "R": ["verify-phase-5h-controls:control_03_rls"]}},
+    {"id": 4, "name": "horizon-admin.repay-cedar-advance", "layers": {"A": ["verify-phase-5h-controls:control_04_application"], "R": ["verify-phase-5h-controls:control_04_rls"]}},
+    {"id": 5, "name": "horizon-admin.approve-cedar-swap", "layers": {"A": ["verify-phase-5h-controls:control_05_application"], "R": ["verify-phase-5h-controls:control_05_rls"]}},
+    {"id": 6, "name": "aisha.approve-omar-report-leave", "layers": {"A": ["verify-phase-5h-controls:control_06_application"], "R": ["verify-phase-5h-controls:control_06_rls"]}},
+    {"id": 7, "name": "aisha.act-on-priya-report-expense", "layers": {"A": ["verify-phase-5h-controls:control_07_application"], "R": ["verify-phase-5h-controls:control_07_rls"]}},
+    {"id": 8, "name": "aisha.rate-leila-or-cedar-appraisal", "layers": {"A": ["verify-phase-5h-controls:control_08_application"], "R": ["verify-phase-5h-controls:control_08_rls"]}},
+    {"id": 9, "name": "ravi.other-employee-records", "layers": {"A": ["verify-phase-5h-controls:control_09_application"], "R": ["verify-phase-5h-controls:control_09_rls"]}},
+    {"id": 10, "name": "ravi.other-employee-storage-folder", "layers": {"A": ["verify-phase-5h-controls:control_10_application"], "S": ["deferred:phase-11-provider-signing"]}},
+    {"id": 11, "name": "ravi.delete-approved-expense", "layers": {"A": ["verify-phase-5h-controls:control_11_application"], "R": ["verify-phase-5h-controls:control_11_rls"]}},
+    {"id": 12, "name": "ravi.cancel-active-or-settled-advance", "layers": {"A": ["verify-phase-5h-controls:control_12_application"], "R": ["verify-phase-5h-controls:control_12_rls"]}},
+    {"id": 13, "name": "ravi.request-cedar-swap", "layers": {"A": ["verify-phase-5h-controls:control_13_application"], "R": ["verify-phase-5h-controls:control_13_rls"]}},
+    {"id": 14, "name": "dubai-view.abu-dhabi-core", "layers": {"A": ["verify-phase-5h-controls:control_14_application"], "R": ["verify-phase-5h-controls:control_14_rls"]}},
+    {"id": 15, "name": "dubai-view.abu-dhabi-supporting", "layers": {"A": ["verify-phase-5h-controls:control_15_application"], "R": ["verify-phase-5h-controls:control_15_rls"]}},
+    {"id": 16, "name": "leila.explicit-abu-dhabi-company-resolution", "layers": {"A": ["verify-phase-5h-controls:control_16_application"], "R": ["verify-phase-5h-controls:control_16_rls"]}},
+    {"id": 17, "name": "caller.expired-signed-url", "layers": {"A": ["verify-phase-5h-controls:control_17_application"], "S": ["deferred:phase-11-provider-url-expiry"]}},
+    {"id": 18, "name": "horizon-user.cedar-object-path", "layers": {"A": ["verify-phase-5h-controls:control_18_application"], "S": ["deferred:phase-11-provider-not-called"]}},
+    {"id": 19, "name": "aisha.manager-reassignment", "layers": {"A": ["test_scoped_repositories:test_report_mutation_locks_relationship_before_business_row"], "R": ["verify-phase-5h-manager-concurrency:main"]}}
+  ]
+}

@@ -19,7 +19,8 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 REALM_FILE = ROOT / "keycloak" / "realm" / "workloop-dev-realm.json"
-BASE_URL = "http://127.0.0.1:8080"
+BASE_URL = os.environ.get("WORKLOOP_KEYCLOAK_BASE_URL", "http://127.0.0.1:8080").rstrip("/")
+API_BASE_URL = os.environ.get("WORKLOOP_API_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
 REALM_URL = f"{BASE_URL}/realms/workloop-dev"
 CLIENT_ID = "workloop-migration-web"
 REDIRECT_URI = "http://127.0.0.1:5174/auth/callback"
@@ -502,7 +503,7 @@ def verify_real_tokens(username: str, password: str) -> None:
 
     def assert_application_account_unavailable(state: str) -> None:
         status, _, body = request(
-            "http://127.0.0.1:8000/api/v1/auth/token-check",
+            f"{API_BASE_URL}/api/v1/auth/token-check",
             headers={"Authorization": f"Bearer {tokens['access_token']}"},
         )
         assert status == 403, f"{state} mapping did not return the safe account rejection"
@@ -548,7 +549,7 @@ def verify_real_tokens(username: str, password: str) -> None:
             company_id=company_id,
         )
         status, _, body = request(
-            "http://127.0.0.1:8000/api/v1/auth/token-check",
+            f"{API_BASE_URL}/api/v1/auth/token-check",
             headers={"Authorization": f"Bearer {tokens['access_token']}"},
         )
         assert status == 204 and body == b"", "active mapping was not accepted"
@@ -573,7 +574,7 @@ def verify_real_tokens(username: str, password: str) -> None:
     assert id_claims["aud"] == CLIENT_ID
     assert id_claims.get("aud") != "workloop-api"
     status, _, body = request(
-        "http://127.0.0.1:8000/api/v1/auth/token-check",
+        f"{API_BASE_URL}/api/v1/auth/token-check",
         headers={"Authorization": f"Bearer {tokens['id_token']}"},
     )
     assert status == 401

@@ -7,7 +7,9 @@ from pydantic import ValidationError
 
 from app.schemas.mutations import (
     COMPENSATION_FIELDS,
+    DOCUMENT_EVIDENCE_FIELDS,
     IDENTITY_SCOPE_FIELDS,
+    PROTECTED_FIELDS_BY_TABLE,
     PROTECTED_MUTATION_FIELDS,
     WORKFLOW_STATE_FIELDS,
     GuardedMutationValues,
@@ -131,3 +133,26 @@ def test_protected_catalogue_covers_required_field_classes() -> None:
     assert {"role", "company_id", "branch_id", "employee_id"} <= IDENTITY_SCOPE_FIELDS
     assert {"basic_salary", "iban", "bank_name"} <= COMPENSATION_FIELDS
     assert {"status", "approval_status", "payroll_run_id"} <= WORKFLOW_STATE_FIELDS
+    assert {
+        "submitted_by_app_user_id",
+        "rejected_by_app_user_id",
+        "wps_payment_status",
+        "closed_by_app_user_id",
+        "actioned_by_app_user_id",
+        "rating",
+    } <= WORKFLOW_STATE_FIELDS
+    assert {"storage_path", "file_name", "submitted_by", "evidence_url"} <= (
+        DOCUMENT_EVIDENCE_FIELDS
+    )
+    assert {
+        "payroll_runs",
+        "payroll_entries",
+        "employee_documents",
+        "training_records",
+        "certifications",
+        "appraisals",
+        "appraisal_sections",
+        "incident_reports",
+        "offboarding_checklists",
+        "letter_requests",
+    } <= set(PROTECTED_FIELDS_BY_TABLE)

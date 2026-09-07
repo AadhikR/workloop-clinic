@@ -132,6 +132,8 @@ jobs:
       needs.frontend-regression.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 25
+    env:
+      COMPOSE_PROJECT_NAME: workloop-clinic
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
@@ -219,7 +221,14 @@ jobs:
           sh scripts/verify-phase-5e-rls.sh
           sh scripts/verify-phase-5f-rls.sh
           sh scripts/verify-phase-5g-rls.sh
+          sh scripts/verify-phase-5h-security.sh
           sh scripts/verify-phase-4f-boundaries.sh
+      - name: Verify context isolation after restart
+        if: needs.changes.outputs.database_deep == 'true'
+        run: |
+          docker compose restart postgres backend
+          docker compose up --detach --wait postgres backend
+          sh scripts/verify-phase-5d-context.sh
       - name: Verify service health
         run: |
           curl --fail --silent --show-error http://127.0.0.1:8000/health | jq --exit-status '.status == "ok" and .database == "ok"'

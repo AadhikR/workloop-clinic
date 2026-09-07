@@ -204,6 +204,26 @@ async def test_invalid_access_token_claims_are_rejected(
         await client.aclose()
 
 
+@pytest.mark.asyncio
+async def test_expired_access_token_is_rejected_before_new_authorization(
+    signing_keys: tuple[rsa.RSAPrivateKey, rsa.RSAPrivateKey, rsa.RSAPrivateKey],
+) -> None:
+    key = signing_keys[0]
+    endpoint = JwksEndpoint({"keys": [make_jwk(key, "current-key")]})
+    verifier, client = make_verifier(endpoint, MutableClock())
+    expired_token = make_token(
+        key,
+        "current-key",
+        claims=make_claims(exp=int(time.time()) - 1),
+    )
+
+    try:
+        with pytest.raises(AccessTokenError):
+            await verifier.verify(expired_token)
+    finally:
+        await client.aclose()
+
+
 @pytest.mark.parametrize("algorithm", ["RS384", "HS256"])
 @pytest.mark.asyncio
 async def test_token_selected_algorithm_is_rejected_before_jwks_request(
