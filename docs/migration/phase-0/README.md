@@ -172,7 +172,7 @@ Named external reviewers are not required to begin development because DigitalOc
 | Phase 4 | Canonical portable PostgreSQL and Alembic baseline for all recorded entities |
 | Phase 5 | Cross-tenant, branch, manager, employee, and system authorization |
 | Phase 6 | Shared HTTP client, API conventions, errors, tokens, and cutover rules |
-| Phase 6A | Early DigitalOcean proof covering React, FastAPI, Keycloak, PostgreSQL, Spaces, and deployment migrations |
+| Phase 6G | Early DigitalOcean proof covering React, FastAPI, Keycloak, PostgreSQL, Spaces, and deployment migrations |
 | Phase 7 | Companies, branches, departments, staffing rules, employees, job history, and portal role assignment |
 | Phase 8 | Leave settings, types, holidays, requests, balances, approvals, delegates, attachments, and audit |
 | Phase 9 | Payroll, entries, approval, payslips, WPS, SIF, advances, repayments, expenses, and financial audit |

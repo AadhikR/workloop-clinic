@@ -234,13 +234,13 @@ Do not create abstractions merely to match this diagram. Start with the smallest
 | Phase | Name | Status | Estimated effort |
 |---|---|---|---:|
 | 0 | Baseline and inventory | Completed 2026-08-27 | 2–4 days |
-| 1 | DigitalOcean access and cost controls | Completed 2026-08-27 — spend alert deferred to Phase 6A gate | 1–2 days |
+| 1 | DigitalOcean access and cost controls | Completed 2026-08-27 — spend alert deferred to Phase 6G gate | 1–2 days |
 | 2 | Local backend and infrastructure foundation | Completed 2026-08-31 | 4–7 days |
 | 3 | Keycloak authentication foundation | Completed 2026-09-01 | 1–2 weeks |
 | 4 | Portable database baseline | Completed 2026-09-06 with owner sign-off | 1–2 weeks |
-| 5 | Authorization and tenant isolation | In progress; 5A through 5G completed, 5H corrections under verification | 3 to 5 weeks |
-| 6 | Shared API and frontend client | Not started | 3–5 days |
-| 6A | Early DigitalOcean architecture proof | Not started | 3–5 days |
+| 5 | Authorization and tenant isolation | Completed 2026-09-07 with owner signoff | 3 to 5 weeks |
+| 6 | Shared API, frontend client, compatibility, and architecture proof | Planning complete; Parts 6A through 6G require separate authorization | 2–3 weeks |
+| 6G | Early DigitalOcean architecture proof | Not started; billable work requires separate authorization | 3–5 days |
 | 7 | Organization and employee module | Not started | 1–2 weeks |
 | 8 | Leave vertical slice | Not started | 1–2 weeks |
 | 9 | Payroll, advances, and expenses | Not started | 3–4 weeks |
@@ -340,7 +340,7 @@ Use a planning range of USD 50–150 per month for the shared development enviro
 
 ### Completion Gate
 
-Passed on 2026-08-27 with a time-bound exception: the repository is visible to App Platform, required resource categories can be created, no credentials were committed, and the spend alert is deferred as a hard Phase 6A pre-provisioning checkpoint.
+Passed on 2026-08-27 with a time-bound exception: the repository is visible to App Platform, required resource categories can be created, no credentials were committed, and the spend alert is deferred as a hard Phase 6G pre-provisioning checkpoint.
 
 ## Phase 2: Local Backend and Infrastructure Foundation
 
@@ -639,7 +639,7 @@ gated parts in
 | 5E | Identity, organization, and workforce RLS | Completed 2026-09-06; see [`PART_5E_COMPLETION.md`](docs/migration/phase-5/PART_5E_COMPLETION.md) |
 | 5F | Payroll, leave, attendance, and roster RLS | Completed 2026-09-06; see [`PART_5F_COMPLETION.md`](docs/migration/phase-5/PART_5F_COMPLETION.md) |
 | 5G | Remaining domain RLS and audit foundation | Completed 2026-09-06; see [`PART_5G_COMPLETION.md`](docs/migration/phase-5/PART_5G_COMPLETION.md) |
-| 5H | Independent security review and completion gate | Local gate passed 2026-09-07; awaiting GitHub result and project-owner signoff; see [`PART_5H_COMPLETION.md`](docs/migration/phase-5/PART_5H_COMPLETION.md) |
+| 5H | Independent security review and completion gate | Completed 2026-09-07 with project-owner signoff; see [`PART_5H_COMPLETION.md`](docs/migration/phase-5/PART_5H_COMPLETION.md) |
 
 The project owner may approve one part at a time under the phase execution protocol. Completing one
 part does not authorize the next. Phase 5 does not authorize business API routes, frontend migration, storage,
@@ -705,13 +705,28 @@ cross-employee, cross-manager, mass-assignment, bulk, disabled-account, and pool
 fail closed on an isolated fresh PostgreSQL 17.11 database. The complete local and GitHub gates pass,
 and the project owner signs off. Stop before Phase 6.
 
-## Phase 6: Shared API and Frontend Client
+## Phase 6: Shared API and frontend client
 
 ### Objective
 
 Create stable conventions before converting business modules.
 
-### API Conventions
+Phase 6 is split into seven separately authorized parts because its original scope joined local API
+contracts, backend middleware, frontend transport, migration cutover controls, end-to-end proof, an
+independent review, and billable cloud deployment. The detailed gates and rollback boundaries are in
+[`docs/migration/phase-6/SUBPHASE_PLAN.md`](docs/migration/phase-6/SUBPHASE_PLAN.md).
+
+| Part | Scope | Status |
+|---|---|---|
+| 6A | API contract and error decisions | Not started; requires separate authorization |
+| 6B | Backend HTTP boundary and middleware | Not started; requires separate authorization |
+| 6C | Frontend HTTP client | Not started; requires separate authorization |
+| 6D | Dual-build compatibility and cutover controls | Not started; requires separate authorization |
+| 6E | Public and protected sample API slice | Not started; requires separate authorization |
+| 6F | Independent review and local completion gate | Not started; requires separate authorization |
+| 6G | Early DigitalOcean architecture proof | Not started; requires separate authorization and billable-resource approval |
+
+### API conventions
 
 - Prefix endpoints with `/api/v1`.
 - Use Pydantic request and response schemas.
@@ -726,7 +741,7 @@ Create stable conventions before converting business modules.
 - Configure CORS for exact frontend origins rather than `*` on authenticated endpoints.
 - Add rate limiting before public or production use.
 
-### Frontend Client Conventions
+### Frontend client conventions
 
 - Create one HTTP client responsible for base URL, tokens, JSON parsing, timeouts, and normalized errors.
 - Keep backend-only secrets out of React.
@@ -735,7 +750,7 @@ Create stable conventions before converting business modules.
 - Distinguish authentication, authorization, validation, conflict, and server errors.
 - Avoid showing raw database or Python error messages to users.
 
-### Compatibility Strategy
+### Compatibility strategy
 
 Run two explicit development entry points during migration:
 
@@ -758,15 +773,26 @@ Each feature cutover requires:
 - A check proving no screen writes the same business record to both databases.
 - A mapping from legacy Supabase user IDs to application-owned IDs when synthetic reference data is refreshed.
 
-### Completion Gate
+### Completion gate
 
 The migration build can call authenticated and public FastAPI endpoints through one client, errors are consistent, CORS is restricted, and a sample protected endpoint passes integration tests. The legacy build still works independently with Supabase, and neither build holds or forwards the other build's token.
 
-## Phase 6A: Early DigitalOcean Architecture Proof
+This gate closes local Parts 6A through 6F only. Part 6G still requires separate authorization,
+billable-resource approval, and its cloud completion gate.
+
+## Phase 6G: Early DigitalOcean architecture proof
 
 ### Objective
 
 Prove the selected cloud architecture before investing in business-module conversion.
+
+### Hard prerequisites
+
+- Obtain separate project-owner approval for billable DigitalOcean work and its monthly cost ceiling.
+- Create the deferred spend alert or record a new explicit waiver.
+- Verify the GitHub App installation is limited to `AadhikR/workloop-clinic`.
+- Enable the approved administrator MFA control before exposing Keycloak.
+- Confirm the region, resource sizes, secret owners, teardown procedure, and test window.
 
 ### Work
 
@@ -780,7 +806,7 @@ Prove the selected cloud architecture before investing in business-module conver
 - Restart and redeploy every component and prove that identities, schema, and the test object persist.
 - Record actual monthly cost and resource sizes.
 
-### Completion Gate
+### Completion gate
 
 The deployed browser completes a real Keycloak login, calls the protected FastAPI endpoint, reaches managed PostgreSQL, stores and retrieves a private test object, survives redeployment, and exposes no wildcard callback, CORS, or public-storage access.
 
@@ -1460,7 +1486,7 @@ Record new decisions here so future sessions do not reopen them without a reason
 | 2026-08-27 | Use default App Platform addresses | A custom development domain is not required | Public pilot or production planning |
 | 2026-08-27 | Use synthetic data only | No real clinics or records exist, and UAE residency is a production concern | Never for DigitalOcean under this plan |
 | 2026-08-31 | Allow automatic progression inside an authorized multipart phase when no owner action or decision is required | The project owner requested fewer pauses between self-contained technical subparts | Stop whenever the Phase Execution Protocol requires owner involvement |
-| 2026-08-31 | Approve the Phase 3A authentication design defaults | Fixes local identifiers, OIDC flow, token handling, role trust, frontend isolation, and time-bound SMTP and MFA deferrals before implementation | Before Phase 6A cloud exposure and during production security review |
+| 2026-08-31 | Approve the Phase 3A authentication design defaults | Fixes local identifiers, OIDC flow, token handling, role trust, frontend isolation, and time-bound SMTP and MFA deferrals before implementation | Before Phase 6G cloud exposure and during production security review |
 
 ## Progress Log Template
 
@@ -1511,7 +1537,7 @@ Phase: 1 — DigitalOcean access and cost controls
 Change completed: Confirmed required resource categories; connected GitHub; created the empty workloop-clinic-dev project; selected Frankfurt; created and pushed migration/fastapi-keycloak; recorded costs, ownership, branch policy, and future secrets.
 Tests run: Git branch and upstream verification; remote branch verification; repository credential scan; git diff --check.
 Result: Phase 1 gate passes with no billable resources created. The project owner accepted deferral of the spend alert.
-Known issues: Spend alert must be created or explicitly reconsidered before Phase 6A provisions billable resources. GitHub repository-only installation scope is user-confirmed intent and should be rechecked before deployment.
+Known issues: Spend alert must be created or explicitly reconsidered before Phase 6G provisions billable resources. GitHub repository-only installation scope is user-confirmed intent and should be rechecked before deployment.
 Decision needed: None before local Phase 2. Phase 2 still requires explicit authorization.
 Next action: Stop and await project-owner authorization for Phase 2.
 ```
@@ -1628,7 +1654,7 @@ Phase: 3A - Authentication design
 Change completed: Fixed the local realm, client, audience, issuer, callback, logout, and service identifiers; selected oidc-client-ts 3.5.0; defined token lifetimes, browser storage and reload behavior, Keycloak client restrictions, FastAPI token checks, PostgreSQL role trust, lifecycle states, and physical frontend isolation.
 Tests run: Current frontend authentication and Supabase import-graph inspection; package metadata review; local port check; documentation links and whitespace check; existing backend and frontend regressions; GitHub foundation checks after push.
 Result: Phase 3A gate passes with project-owner approval. The design changes no runtime behavior and creates no realm, schema, identity, dependency, secret, port, or cloud resource.
-Known issues: SMTP and administrator MFA remain time-bound deferrals. The local Keycloak administrator must receive an approved MFA control before Phase 6A cloud exposure. Existing npm advisories remain separately documented.
+Known issues: SMTP and administrator MFA remain time-bound deferrals. The local Keycloak administrator must receive an approved MFA control before Phase 6G cloud exposure. Existing npm advisories remain separately documented.
 Decision needed: None for completed Phase 3A. The project owner requested a stop before Phase 3B.
 Next action: Commit and push Phase 3A, verify GitHub checks, then stop.
 ```
@@ -1776,14 +1802,37 @@ Decision needed: None for completed Phase 5D. Phase 5E requires separate project
 Next action: Commit and push Phase 5D once, report the GitHub workflow, and stop before Phase 5E.
 ```
 
-## Immediate Next Actions
+### 2026-09-07 - Phase 5 signoff
 
-Phase 4 is complete with project-owner sign-off. Phase 5A through Phase 5G completed on 2026-09-06.
-Phase 5H started on 2026-09-07. Its independent GPT-5.6 review is recorded in
-[`docs/migration/phase-5/PART_5H_SECURITY_REVIEW.md`](docs/migration/phase-5/PART_5H_SECURITY_REVIEW.md).
+```text
+Date: 2026-09-07
+Phase: Phase 5 - Authorization and tenant isolation
+Change completed: The project owner signed off Parts 5A through 5H after the independent security review, complete local gate, and required GitHub workflow passed.
+Tests run: Phase 5H local completion gate and GitHub Actions run 34102040342 at commit 9d92e67.
+Result: Phase 5 is complete. All 27 Phase 5H findings are closed, the branch was clean and synchronized, and the disposable PostgreSQL 17.11 environment was removed without changing workloop-clinic_postgres_data.
+Known issues: Offboarding-task deletion and employee branch correction remain unavailable under decision 5A-D21. Storage-provider checks remain assigned to the storage phase.
+Decision needed: None for Phase 5. Phase 6A requires separate authorization.
+Next action: Prepare the Phase 6 subphase plan without starting implementation.
+```
 
-The review found confirmed implementation and verification defects. The project owner selected the
-fail-closed course on 2026-09-07: offboarding-task deletion and employee branch correction remain
-unavailable until their missing provenance and workflow designs are approved. Every finding is
-closed and the complete local Phase 5H gate passed. Push once, wait for the required GitHub result,
-then obtain explicit project-owner signoff for Phase 5. Phase 6 remains unauthorized.
+### 2026-09-07 - Phase 6 planning split
+
+```text
+Date: 2026-09-07
+Phase: Phase 6 planning only
+Change completed: Split Phase 6 into Parts 6A through 6G. Parts 6A through 6F cover the local API contract, backend boundary, frontend client, compatibility controls, sample slice, and independent completion gate. Part 6G retains the early DigitalOcean architecture proof.
+Tests run: Documentation formatting, reference, scope, and changed-file checks only. No Phase 6 runtime or cloud work was authorized or performed.
+Result: Each part has a bounded scope, dependencies, negative tests, rollback boundary, completion gate, and model recommendation.
+Known issues: The deferred spend alert, repository-only GitHub App scope, administrator MFA, cloud cost ceiling, and teardown plan remain hard prerequisites for billable Part 6G.
+Decision needed: Phase 6A requires separate project-owner authorization.
+Next action: Stop and await authorization for Phase 6A.
+```
+
+## Immediate next actions
+
+Phase 5 is complete with project-owner signoff. Phase 6 now has seven separately gated parts in
+[`docs/migration/phase-6/SUBPHASE_PLAN.md`](docs/migration/phase-6/SUBPHASE_PLAN.md).
+
+No Phase 6 implementation or cloud work is authorized. The next action is explicit project-owner
+authorization for documentation-only Part 6A, which fixes the API and error contract before code
+changes begin.

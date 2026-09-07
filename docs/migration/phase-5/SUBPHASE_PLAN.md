@@ -2,11 +2,10 @@
 
 ## Status
 
-Phase 5 is in progress. Phase 5A through Phase 5G completed on 2026-09-06 after separate
-project-owner approvals. Phase 5H started on 2026-09-07. The owner approved the fail-closed
-correction course in `5A-D21` and the no-grant-expansion expiry audit design in `5A-D22`.
-Implementation and verification are in progress. Phase 6 is not
-authorized.
+Phase 5 is complete. Phase 5A through Phase 5G completed on 2026-09-06 after separate
+project-owner approvals. Phase 5H, its independent review, the complete local gate, and GitHub
+Actions run `34102040342` passed on 2026-09-07. The project owner signed off Phase 5 on the same
+date. Phase 6A requires separate authorization.
 
 Phase 5 is split into eight parts, 5A through 5H. The original phase combined policy design,
 FastAPI authorization, scoped data access, PostgreSQL RLS across 54 tables, audit controls, and a
@@ -50,7 +49,7 @@ action.
 | 5E | Identity, organization, and workforce RLS | Completed 2026-09-06; see [`PART_5E_COMPLETION.md`](PART_5E_COMPLETION.md) |
 | 5F | Payroll, leave, attendance, and roster RLS | Completed 2026-09-06; see [`PART_5F_COMPLETION.md`](PART_5F_COMPLETION.md) |
 | 5G | Remaining domain RLS and audit foundation | Completed 2026-09-06; see [`PART_5G_COMPLETION.md`](PART_5G_COMPLETION.md) |
-| 5H | Independent security review and completion gate | In progress; owner decision recorded and corrections under verification in [`PART_5H_SECURITY_REVIEW.md`](PART_5H_SECURITY_REVIEW.md) |
+| 5H | Independent security review and completion gate | Completed 2026-09-07 with project-owner signoff; see [`PART_5H_COMPLETION.md`](PART_5H_COMPLETION.md) |
 
 ## Rules shared by every part
 
@@ -607,9 +606,9 @@ database rollback.
 The independent review has no unresolved finding, the local and GitHub gates pass, the branch is
 clean and synchronized, and the project owner signs off. Stop before Phase 6.
 
-The independent review's 27 findings are closed and the complete local gate passed on 2026-09-07.
-The required GitHub result and explicit project-owner signoff remain. See
-[`PART_5H_COMPLETION.md`](PART_5H_COMPLETION.md).
+The independent review's 27 findings are closed. The complete local gate and GitHub Actions run
+`34102040342` passed on 2026-09-07, and the project owner signed off Phase 5. See
+[`PART_5H_COMPLETION.md`](PART_5H_COMPLETION.md). Phase 6A requires separate authorization.
 
 ### Recommended model and effort
 

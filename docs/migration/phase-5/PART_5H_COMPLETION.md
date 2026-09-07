@@ -2,9 +2,9 @@
 
 ## Status
 
-Phase 5H implementation and its complete local gate passed on 2026-09-07. The branch still needs
-the required GitHub workflow result and explicit project-owner signoff before Phase 5 closes.
-Phase 6 remains unauthorized.
+Phase 5H implementation, its complete local gate, and the required GitHub workflow passed on
+2026-09-07. The project owner signed off Phase 5 on the same date. Phase 5 is complete. Phase 6A
+requires separate authorization.
 
 ## Review outcome
 
@@ -57,7 +57,7 @@ Phase 5H adds no business feature route, cloud resource, storage provider, SMTP 
 production account, or real data. Application rollback must precede database rollback after later
 phases begin consuming these policies.
 
-## Remaining gate
+## Final gate
 
-Push this completion once, wait for the required GitHub workflow, and obtain explicit project-owner
-signoff for Phase 5. Stop before Phase 6.
+Commit `9d92e67` passed GitHub Actions run `34102040342`. The branch was clean and synchronized, and
+the project owner signed off Phase 5 on 2026-09-07. Phase 6 planning does not authorize Phase 6A.

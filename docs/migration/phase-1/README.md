@@ -4,7 +4,7 @@
 
 **Completed on 2026-08-27 with one accepted deferral.**
 
-The spend alert is deferred by the project owner. It must be created or explicitly reconsidered before Phase 6A creates the first billable DigitalOcean resources.
+The spend alert is deferred by the project owner. It must be created or explicitly reconsidered before Phase 6G creates the first billable DigitalOcean resources.
 
 ## Purpose
 
@@ -34,7 +34,7 @@ Visibility demonstrates practical creation access for Phase 1 planning. Each ser
 | Visibility to DigitalOcean | Confirmed by project owner |
 | App created | No |
 | Deployment started | No |
-| Repository installation scope | Intended to be this repository only; verify in GitHub application settings before Phase 6A |
+| Repository installation scope | Intended to be this repository only; verify in GitHub application settings before Phase 6G |
 | Stable reference branch | `main` |
 | Migration branch | `migration/fastapi-keycloak` |
 | Remote branch | `origin/migration/fastapi-keycloak` |
@@ -85,7 +85,7 @@ This estimate uses public DigitalOcean prices reviewed on 2026-08-27. Actual pri
 | Spaces | Base plan | USD 5 |
 | Expected base total | Before tax, SMTP, overages, or resizing | **USD 55.15/month** |
 
-Keycloak memory must be measured during Phase 6A. A smaller plan may be unstable, while a larger plan increases cost. Managed PostgreSQL is preferred over the USD 7 App Platform development database because the latter is not backed up by default, cannot create the separate Workloop and Keycloak databases required by the plan, and is deleted with its app.
+Keycloak memory must be measured during Phase 6G. A smaller plan may be unstable, while a larger plan increases cost. Managed PostgreSQL is preferred over the USD 7 App Platform development database because the latter is not backed up by default, cannot create the separate Workloop and Keycloak databases required by the plan, and is deleted with its app.
 
 Planning guardrail:
 
@@ -106,7 +106,7 @@ Official references:
 
 The project owner could not access the spend-alert interface and chose to defer this task.
 
-This does not block local Phases 2–6 because they do not require DigitalOcean infrastructure. It becomes a hard checkpoint before Phase 6A.
+This does not block local Phases 2–6F because they do not require DigitalOcean infrastructure. It becomes a hard checkpoint before Phase 6G.
 
 Before any billable DigitalOcean resource is created:
 
@@ -191,7 +191,7 @@ The Phase 1 technical gate passes with the documented cost-control deferral:
 - No credential has been committed.
 - No billable Workloop resource has been created.
 
-The spend alert is the only deferred control. It is mandatory to resolve or explicitly waive again before Phase 6A provisioning.
+The spend alert is the only deferred control. It is mandatory to resolve or explicitly waive again before Phase 6G provisioning.
 
 ## Next Phase
 

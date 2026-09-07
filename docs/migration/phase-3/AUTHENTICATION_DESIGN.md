@@ -49,7 +49,7 @@ The local Vite servers must use fixed ports with `strictPort: true` so they fail
 to an unregistered callback port.
 
 Cloud issuer, callback, logout, and origin URLs will be different. Add exact App Platform URLs only
-when Phase 6A is authorized. Wildcards remain prohibited.
+when Phase 6G is authorized. Wildcards remain prohibited.
 
 ## Keycloak realm policy
 
@@ -83,7 +83,7 @@ and must never receive a Workloop business role. Its unique password remains loc
 
 Keycloak supports administrator TOTP, but this design proposes a time-bound local deferral. The
 administrator is reachable only through a loopback-bound development service with synthetic data.
-TOTP or another approved MFA control becomes mandatory before Phase 6A exposes Keycloak in a
+TOTP or another approved MFA control becomes mandatory before Phase 6G exposes Keycloak in a
 shared cloud environment. The project owner must approve this deferral.
 
 ## React client policy
@@ -264,7 +264,7 @@ The project owner approved:
 - Public registration, remember-me, Direct Access Grants, implicit flow, service accounts, and
   offline access disabled.
 - SMTP, verification, and password-reset email delivery deferred.
-- Local administrator MFA deferred until before Phase 6A.
+- Local administrator MFA deferred until before Phase 6G.
 - PostgreSQL as the only source of business roles and authorization scope.
 - Physical migration-root isolation from every legacy `src/` and `@supabase/*` module.
 
