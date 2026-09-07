@@ -6,9 +6,9 @@ Phase 5G completed its local gate on 2026-09-06 after the project owner authoriz
 Work started from clean, synchronized commit `92045f82370b342eac5c3c0fec61ea44a668073b`
 on branch `migration/fastapi-keycloak`. Alembic head is now `1b29d4e7f860`.
 
-The commit containing this record must pass the existing GitHub workflow. The task handoff reports
-that run, so this file does not need a second commit for the workflow ID. Phase 5H has not started
-and requires separate project-owner authorization.
+The Phase 5G branch must pass the existing GitHub workflow. The task handoff reports that run, so
+this file does not need another commit for the workflow ID. Phase 5H has not started and requires
+separate project-owner authorization.
 
 ## Remaining domain enforcement
 
