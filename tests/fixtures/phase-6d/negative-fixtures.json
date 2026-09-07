@@ -1,0 +1,91 @@
+[
+  {
+    "name": "missing dependency",
+    "operation": "remove",
+    "path": "/dependencies/declared/3",
+    "expectedCode": "dependencies.incomplete"
+  },
+  {
+    "name": "missing authoritative reader",
+    "operation": "remove",
+    "path": "/authority/readSystem",
+    "expectedCode": "authority.readSystem"
+  },
+  {
+    "name": "missing authoritative writer",
+    "operation": "remove",
+    "path": "/authority/writeSystem",
+    "expectedCode": "authority.writeSystem"
+  },
+  {
+    "name": "ambiguous authority",
+    "operation": "replace",
+    "path": "/authority/readSystem",
+    "value": "legacy-or-migration",
+    "expectedCode": "authority.readSystem"
+  },
+  {
+    "name": "two writable systems",
+    "operation": "replace",
+    "path": "/authority/writableSystems",
+    "value": ["legacy-supabase", "migration-fastapi"],
+    "expectedCode": "authority.writableSystems"
+  },
+  {
+    "name": "incomplete read freeze",
+    "operation": "remove",
+    "path": "/freeze/read/verificationCommand",
+    "expectedCode": "freeze.read.verificationCommand"
+  },
+  {
+    "name": "incomplete write freeze",
+    "operation": "remove",
+    "path": "/freeze/write/releaseCondition",
+    "expectedCode": "freeze.write.releaseCondition"
+  },
+  {
+    "name": "partial rollback",
+    "operation": "remove",
+    "path": "/rollback/steps/4",
+    "expectedCode": "rollback.steps"
+  },
+  {
+    "name": "missing refresh provenance",
+    "operation": "remove",
+    "path": "/refresh/source/locator",
+    "expectedCode": "refresh.source.locator"
+  },
+  {
+    "name": "missing refresh evidence",
+    "operation": "remove",
+    "path": "/refresh/lastRefresh/evidence",
+    "expectedCode": "refresh.lastRefresh.evidence"
+  },
+  {
+    "name": "invalid refresh evidence",
+    "operation": "replace",
+    "path": "/refresh/lastRefresh/evidence/sha256",
+    "value": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "expectedCode": "refresh.evidence.sha256"
+  },
+  {
+    "name": "stale refresh evidence",
+    "operation": "replace",
+    "path": "/refresh/lastRefresh/timestamp",
+    "value": "2026-09-05T08:30:00Z",
+    "expectedCode": "refresh.lastRefresh.stale"
+  },
+  {
+    "name": "incomplete identity mapping",
+    "operation": "remove",
+    "path": "/identityMapping/mappings/1",
+    "expectedCode": "identityMapping.incomplete"
+  },
+  {
+    "name": "ambiguous status",
+    "operation": "replace",
+    "path": "/status/current",
+    "value": "active-cutover",
+    "expectedCode": "status.history"
+  }
+]

@@ -1,0 +1,8 @@
+{
+  "command": "node tools/run-synthetic-refresh.mjs --feature synthetic-employee-directory --source tests/fixtures/phase-6d/synthetic-users.json",
+  "featureId": "synthetic-employee-directory",
+  "refreshedAt": "2026-09-07T08:30:00Z",
+  "sourceDigest": "sha256:1ebfc4d976b2763da0ea319f387c78c69d98d16c05d03708f3515012640e04be",
+  "sourceRecordCount": 2,
+  "targetRecordCount": 2
+}

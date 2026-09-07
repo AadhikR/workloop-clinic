@@ -1,0 +1,241 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://workloop.local/schemas/feature-cutover-record-v1.json",
+  "title": "Workloop feature cutover record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "featureId",
+    "dataClassification",
+    "status",
+    "dependencies",
+    "authority",
+    "freeze",
+    "refresh",
+    "identityMapping",
+    "rollback",
+    "validation"
+  ],
+  "properties": {
+    "$schema": { "const": "./cutover-record.schema.json" },
+    "schemaVersion": { "const": 1 },
+    "featureId": { "type": "string", "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$" },
+    "dataClassification": { "const": "synthetic" },
+    "status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["current", "changedAt", "history"],
+      "properties": {
+        "current": { "$ref": "#/$defs/statusName" },
+        "changedAt": { "$ref": "#/$defs/timestamp" },
+        "history": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["state", "at", "reason"],
+            "properties": {
+              "state": { "$ref": "#/$defs/statusName" },
+              "at": { "$ref": "#/$defs/timestamp" },
+              "reason": { "$ref": "#/$defs/nonEmptyString" }
+            }
+          }
+        }
+      }
+    },
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["inventorySource", "requiredIds", "declared"],
+      "properties": {
+        "inventorySource": { "$ref": "#/$defs/nonEmptyString" },
+        "requiredIds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/stableId" }
+        },
+        "declared": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "system", "kind", "locator", "cutoverDisposition"],
+            "properties": {
+              "id": { "$ref": "#/$defs/stableId" },
+              "system": { "$ref": "#/$defs/system" },
+              "kind": {
+                "enum": ["module", "configuration", "data-contract", "storage"]
+              },
+              "locator": { "$ref": "#/$defs/nonEmptyString" },
+              "cutoverDisposition": {
+                "enum": ["retain", "replace", "remove", "freeze"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "authority": { "$ref": "#/$defs/authority" },
+    "freeze": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["read", "write"],
+      "properties": {
+        "read": { "$ref": "#/$defs/freezeRule" },
+        "write": { "$ref": "#/$defs/freezeRule" }
+      }
+    },
+    "refresh": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "source", "command", "lastRefresh"],
+      "properties": {
+        "mode": { "const": "synthetic-only" },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "locator", "digest"],
+          "properties": {
+            "kind": { "const": "tracked-fixture" },
+            "locator": { "$ref": "#/$defs/nonEmptyString" },
+            "digest": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "command": { "$ref": "#/$defs/nonEmptyString" },
+        "lastRefresh": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["timestamp", "command", "sourceDigest", "evidence"],
+          "properties": {
+            "timestamp": { "$ref": "#/$defs/timestamp" },
+            "command": { "$ref": "#/$defs/nonEmptyString" },
+            "sourceDigest": { "$ref": "#/$defs/sha256" },
+            "evidence": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["path", "sha256"],
+              "properties": {
+                "path": { "$ref": "#/$defs/nonEmptyString" },
+                "sha256": { "$ref": "#/$defs/sha256" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "identityMapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "legacyIdField", "applicationIdField", "requiredLegacyUserIds", "mappings"],
+      "properties": {
+        "mode": { "const": "synthetic-only" },
+        "legacyIdField": { "const": "legacySupabaseUserId" },
+        "applicationIdField": { "const": "applicationUserId" },
+        "requiredLegacyUserIds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/uuid" }
+        },
+        "mappings": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["legacySupabaseUserId", "applicationUserId", "synthetic"],
+            "properties": {
+              "legacySupabaseUserId": { "$ref": "#/$defs/uuid" },
+              "applicationUserId": { "$ref": "#/$defs/uuid" },
+              "synthetic": { "const": true }
+            }
+          }
+        }
+      }
+    },
+    "rollback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["trigger", "owner", "targetAuthority", "steps"],
+      "properties": {
+        "trigger": { "$ref": "#/$defs/nonEmptyString" },
+        "owner": { "$ref": "#/$defs/nonEmptyString" },
+        "targetAuthority": { "$ref": "#/$defs/authority" },
+        "steps": {
+          "type": "array",
+          "minItems": 5,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "action", "verificationCommand"],
+            "properties": {
+              "id": {
+                "enum": [
+                  "freeze-migration-writes",
+                  "restore-legacy-writes",
+                  "restore-legacy-reads",
+                  "verify-authority",
+                  "verify-data"
+                ]
+              },
+              "action": { "$ref": "#/$defs/nonEmptyString" },
+              "verificationCommand": { "$ref": "#/$defs/nonEmptyString" }
+            }
+          }
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["asOf", "refreshMaxAgeHours"],
+      "properties": {
+        "asOf": { "$ref": "#/$defs/timestamp" },
+        "refreshMaxAgeHours": { "type": "integer", "minimum": 1, "maximum": 168 }
+      }
+    }
+  },
+  "$defs": {
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["readSystem", "writeSystem", "writableSystems"],
+      "properties": {
+        "readSystem": { "$ref": "#/$defs/system" },
+        "writeSystem": { "$ref": "#/$defs/system" },
+        "writableSystems": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/system" }
+        }
+      }
+    },
+    "freezeRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["system", "condition", "releaseCondition", "verificationCommand"],
+      "properties": {
+        "system": { "$ref": "#/$defs/system" },
+        "condition": { "$ref": "#/$defs/nonEmptyString" },
+        "releaseCondition": { "$ref": "#/$defs/nonEmptyString" },
+        "verificationCommand": { "$ref": "#/$defs/nonEmptyString" }
+      }
+    },
+    "nonEmptyString": { "type": "string", "minLength": 1, "pattern": "\\S" },
+    "sha256": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "stableId": { "type": "string", "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$" },
+    "statusName": { "enum": ["preparation", "active-cutover", "completed", "rollback"] },
+    "system": { "enum": ["legacy-supabase", "migration-fastapi"] },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    }
+  }
+}

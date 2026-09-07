@@ -3,9 +3,9 @@
 ## Status
 
 Phase 5 received project-owner signoff on 2026-09-07. The project owner approved Phase 6A and
-authorized Phases 6B and 6C on the same date. The API contract, backend HTTP boundary, frontend HTTP
-client, and their local gates are complete. Parts 6D through 6G remain unauthorized and separately
-gated.
+authorized Phases 6B, 6C, and 6D on the same date. The API contract, backend HTTP boundary, frontend
+HTTP client, and dual-build cutover controls have complete local gates. Phase 6D awaits its required
+GitHub result. Parts 6E through 6G remain unauthorized and separately gated.
 
 Phase 6 is split into seven parts, 6A through 6G. The original scope mixed HTTP contracts, backend
 middleware, frontend transport, migration compatibility, an end-to-end API slice, an independent
@@ -37,7 +37,7 @@ architecture proof. It remains a separate, billable gate with its own prerequisi
 | 6A | API contract and error decisions | Complete; owner approved 2026-09-07 |
 | 6B | Backend HTTP boundary and middleware | Complete; owner authorized 2026-09-07 |
 | 6C | Frontend HTTP client | Complete; owner authorized 2026-09-07 |
-| 6D | Dual-build compatibility and cutover controls | Not started; requires separate authorization |
+| 6D | Dual-build compatibility and cutover controls | Implementation and local gate complete; GitHub result pending |
 | 6E | Public and protected sample API slice | Not started; requires separate authorization |
 | 6F | Independent review and local completion gate | Not started; requires separate authorization |
 | 6G | Early DigitalOcean architecture proof | Not started; requires separate authorization and billable-resource approval |

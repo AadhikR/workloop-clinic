@@ -1,0 +1,154 @@
+{
+  "$schema": "./cutover-record.schema.json",
+  "schemaVersion": 1,
+  "featureId": "synthetic-employee-directory",
+  "dataClassification": "synthetic",
+  "status": {
+    "current": "preparation",
+    "changedAt": "2026-09-07T08:00:00Z",
+    "history": [
+      {
+        "state": "preparation",
+        "at": "2026-09-07T08:00:00Z",
+        "reason": "The declaration is ready for validation. No business authority has changed."
+      }
+    ]
+  },
+  "dependencies": {
+    "inventorySource": "docs/migration/phase-0/SUPABASE_DEPENDENCY_INVENTORY.md",
+    "requiredIds": [
+      "legacy-employee-reader",
+      "legacy-employee-writer",
+      "migration-employee-reader",
+      "synthetic-identity-map"
+    ],
+    "declared": [
+      {
+        "id": "legacy-employee-reader",
+        "system": "legacy-supabase",
+        "kind": "module",
+        "locator": "src/utils/storage.js",
+        "cutoverDisposition": "retain"
+      },
+      {
+        "id": "legacy-employee-writer",
+        "system": "legacy-supabase",
+        "kind": "module",
+        "locator": "src/utils/storage.js",
+        "cutoverDisposition": "retain"
+      },
+      {
+        "id": "migration-employee-reader",
+        "system": "migration-fastapi",
+        "kind": "module",
+        "locator": "synthetic://migration-employee-reader",
+        "cutoverDisposition": "freeze"
+      },
+      {
+        "id": "synthetic-identity-map",
+        "system": "migration-fastapi",
+        "kind": "data-contract",
+        "locator": "tests/fixtures/phase-6d/synthetic-users.json",
+        "cutoverDisposition": "retain"
+      }
+    ]
+  },
+  "authority": {
+    "readSystem": "legacy-supabase",
+    "writeSystem": "legacy-supabase",
+    "writableSystems": ["legacy-supabase"]
+  },
+  "freeze": {
+    "read": {
+      "system": "migration-fastapi",
+      "condition": "The migration employee reader stays disconnected from business screens.",
+      "releaseCondition": "A later feature phase proves the dependency-complete read path and receives owner approval.",
+      "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-6/cutover-record.template.json"
+    },
+    "write": {
+      "system": "migration-fastapi",
+      "condition": "The migration build has no employee write path.",
+      "releaseCondition": "A later feature phase freezes legacy writes before it enables migration writes.",
+      "verificationCommand": "node --test tests/phase-6d-cutover.test.js"
+    }
+  },
+  "refresh": {
+    "mode": "synthetic-only",
+    "source": {
+      "kind": "tracked-fixture",
+      "locator": "tests/fixtures/phase-6d/synthetic-users.json",
+      "digest": "sha256:1ebfc4d976b2763da0ea319f387c78c69d98d16c05d03708f3515012640e04be"
+    },
+    "command": "node tools/run-synthetic-refresh.mjs --feature synthetic-employee-directory --source tests/fixtures/phase-6d/synthetic-users.json",
+    "lastRefresh": {
+      "timestamp": "2026-09-07T08:30:00Z",
+      "command": "node tools/run-synthetic-refresh.mjs --feature synthetic-employee-directory --source tests/fixtures/phase-6d/synthetic-users.json",
+      "sourceDigest": "sha256:1ebfc4d976b2763da0ea319f387c78c69d98d16c05d03708f3515012640e04be",
+      "evidence": {
+        "path": "tests/fixtures/phase-6d/synthetic-refresh-evidence.json",
+        "sha256": "sha256:53554a454ef90895207ae00ff740b086df672b6edf4b0d42d70f41c8660833a6"
+      }
+    }
+  },
+  "identityMapping": {
+    "mode": "synthetic-only",
+    "legacyIdField": "legacySupabaseUserId",
+    "applicationIdField": "applicationUserId",
+    "requiredLegacyUserIds": [
+      "11111111-1111-4111-8111-111111111111",
+      "22222222-2222-4222-8222-222222222222"
+    ],
+    "mappings": [
+      {
+        "legacySupabaseUserId": "11111111-1111-4111-8111-111111111111",
+        "applicationUserId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+        "synthetic": true
+      },
+      {
+        "legacySupabaseUserId": "22222222-2222-4222-8222-222222222222",
+        "applicationUserId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
+        "synthetic": true
+      }
+    ]
+  },
+  "rollback": {
+    "trigger": "Use this plan if a later synthetic cutover check fails after migration writes are enabled.",
+    "owner": "phase-owner",
+    "targetAuthority": {
+      "readSystem": "legacy-supabase",
+      "writeSystem": "legacy-supabase",
+      "writableSystems": ["legacy-supabase"]
+    },
+    "steps": [
+      {
+        "id": "freeze-migration-writes",
+        "action": "Disable the migration write path before changing either reader.",
+        "verificationCommand": "node --test tests/phase-6d-cutover.test.js"
+      },
+      {
+        "id": "restore-legacy-writes",
+        "action": "Confirm that the legacy Supabase writer is the only writable system.",
+        "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-6/cutover-record.template.json"
+      },
+      {
+        "id": "restore-legacy-reads",
+        "action": "Route the feature screen back to the legacy Supabase reader.",
+        "verificationCommand": "node scripts/frontend-build-isolation.mjs"
+      },
+      {
+        "id": "verify-authority",
+        "action": "Check the record again with legacy Supabase as the only reader and writer.",
+        "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-6/cutover-record.template.json"
+      },
+      {
+        "id": "verify-data",
+        "action": "Compare the synthetic source and rollback target counts and identifiers.",
+        "verificationCommand": "node --test tests/phase-6d-cutover.test.js"
+      }
+    ]
+  },
+  "validation": {
+    "asOf": "2026-09-07T09:00:00Z",
+    "refreshMaxAgeHours": 24
+  }
+}
