@@ -718,7 +718,7 @@ independent review, and billable cloud deployment. The detailed gates and rollba
 
 | Part | Scope | Status |
 |---|---|---|
-| 6A | API contract and error decisions | Not started; requires separate authorization |
+| 6A | API contract and error decisions | Complete; owner approved 2026-09-07 |
 | 6B | Backend HTTP boundary and middleware | Not started; requires separate authorization |
 | 6C | Frontend HTTP client | Not started; requires separate authorization |
 | 6D | Dual-build compatibility and cutover controls | Not started; requires separate authorization |
