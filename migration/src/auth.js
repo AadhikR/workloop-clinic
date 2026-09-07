@@ -6,12 +6,10 @@ import {
   WebStorageStateStore,
 } from 'oidc-client-ts'
 
+import { HttpClientError, assertApiBaseUrl, createHttpClient } from './http.js'
+
 const callbackPath = '/auth/callback'
 const signedOutState = Object.freeze({ status: 'signed-out' })
-const approvedLocalApiOrigins = new Set([
-  'http://127.0.0.1:8000',
-  'http://127.0.0.1:18000',
-])
 
 function assertPublicConfig(config, location) {
   const required = [
@@ -41,17 +39,7 @@ function assertPublicConfig(config, location) {
     throw new Error('Migration authentication redirect configuration is invalid')
   }
 
-  const api = new URL(config.apiBaseUrl)
-  if (
-    !approvedLocalApiOrigins.has(api.origin)
-    || api.pathname !== '/'
-    || api.search
-    || api.hash
-    || api.username
-    || api.password
-  ) {
-    throw new Error('Migration API configuration is invalid')
-  }
+  assertApiBaseUrl(config.apiBaseUrl)
   new URL(config.oidcAuthority)
 }
 
@@ -79,22 +67,6 @@ export function createUserManager(config, browser = window) {
   })
 }
 
-function accountState(response) {
-  if (response.status === 204) {
-    return Object.freeze({ status: 'signed-in' })
-  }
-  if (response.status === 401) {
-    return Object.freeze({ status: 'session-expired' })
-  }
-  if (response.status === 403) {
-    return Object.freeze({ status: 'account-unavailable' })
-  }
-  if (response.status === 503) {
-    return Object.freeze({ status: 'service-unavailable' })
-  }
-  return Object.freeze({ status: 'error' })
-}
-
 export function createNonce(crypto) {
   const bytes = crypto.getRandomValues(new Uint8Array(32))
   let value = ''
@@ -104,13 +76,16 @@ export function createNonce(crypto) {
 
 export class AuthenticationSession {
   constructor({ config, manager, fetch: fetchRequest, history, location, nonce, responseUrl }) {
-    this.config = config
     this.manager = manager
-    this.fetch = fetchRequest
     this.history = history
     this.location = location
     this.nonce = nonce
     this.responseUrl = responseUrl
+    this.http = createHttpClient({
+      apiBaseUrl: config.apiBaseUrl,
+      fetch: fetchRequest,
+      getAccessToken: () => this.currentUser?.access_token ?? null,
+    })
     this.listeners = new Set()
     this.state = Object.freeze({ status: 'loading' })
     this.initialization = null
@@ -128,6 +103,10 @@ export class AuthenticationSession {
     this.listeners.add(listener)
     listener(this.state)
     return () => this.listeners.delete(listener)
+  }
+
+  request(path, options) {
+    return this.http.request(path, options)
   }
 
   setState(state) {
@@ -295,30 +274,34 @@ export class AuthenticationSession {
       return
     }
 
-    let response
     try {
-      response = await this.fetch(new URL('/api/v1/auth/token-check', this.config.apiBaseUrl), {
-        method: 'GET',
-        headers: { Authorization: `Bearer ${user.access_token}` },
-        cache: 'no-store',
-        credentials: 'omit',
-        redirect: 'error',
+      await this.http.request('/api/v1/auth/token-check', {
+        access: 'protected',
       })
-    } catch {
-      if (generation === this.accountGeneration && this.currentUser === user) {
-        this.setState(Object.freeze({ status: 'service-unavailable' }))
+    } catch (error) {
+      if (generation !== this.accountGeneration || this.currentUser !== user) return
+      if (error instanceof HttpClientError && error.status === 401) {
+        await this.expireSession(generation, user)
+        return
       }
+      if (error instanceof HttpClientError && error.status === 403) {
+        this.setState(Object.freeze({ status: 'account-unavailable' }))
+        return
+      }
+      if (
+        error instanceof HttpClientError
+        && (error.status === 503 || ['network', 'availability'].includes(error.kind)
+          || error.kind === 'timeout' && error.status === null)
+      ) {
+        this.setState(Object.freeze({ status: 'service-unavailable' }))
+        return
+      }
+      this.setState(Object.freeze({ status: 'error' }))
       return
     }
 
     if (generation !== this.accountGeneration || this.currentUser !== user) return
-
-    const nextState = accountState(response)
-    if (nextState.status === 'session-expired') {
-      await this.expireSession(generation, user)
-      return
-    }
-    this.setState(nextState)
+    this.setState(Object.freeze({ status: 'signed-in' }))
   }
 }
 

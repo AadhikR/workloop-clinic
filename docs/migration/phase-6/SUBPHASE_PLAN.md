@@ -3,8 +3,9 @@
 ## Status
 
 Phase 5 received project-owner signoff on 2026-09-07. The project owner approved Phase 6A and
-authorized Phase 6B on the same date. The API contract, backend HTTP boundary, and Phase 6B local
-gate are complete. Parts 6C through 6G remain unauthorized and separately gated.
+authorized Phases 6B and 6C on the same date. The API contract, backend HTTP boundary, frontend HTTP
+client, and their local gates are complete. Parts 6D through 6G remain unauthorized and separately
+gated.
 
 Phase 6 is split into seven parts, 6A through 6G. The original scope mixed HTTP contracts, backend
 middleware, frontend transport, migration compatibility, an end-to-end API slice, an independent
@@ -35,7 +36,7 @@ architecture proof. It remains a separate, billable gate with its own prerequisi
 |---|---|---|
 | 6A | API contract and error decisions | Complete; owner approved 2026-09-07 |
 | 6B | Backend HTTP boundary and middleware | Complete; owner authorized 2026-09-07 |
-| 6C | Frontend HTTP client | Not started; requires separate authorization |
+| 6C | Frontend HTTP client | Complete; owner authorized 2026-09-07 |
 | 6D | Dual-build compatibility and cutover controls | Not started; requires separate authorization |
 | 6E | Public and protected sample API slice | Not started; requires separate authorization |
 | 6F | Independent review and local completion gate | Not started; requires separate authorization |

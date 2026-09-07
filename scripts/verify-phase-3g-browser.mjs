@@ -354,8 +354,16 @@ async function browserChecks(viteServer) {
       let leakedCallbackReferrer = null
       let tokenRequestCount = 0
       let accountRequestCount = 0
+      let accountRequestsUsedBearer = true
+      let healthRequestCount = 0
+      let healthRequestUsedAuthorization = false
+      let bearerLeftApiOrigin = false
       page.on('request', (request) => {
         const requestUrl = new URL(request.url())
+        const authorization = request.headers().authorization
+        if (authorization?.startsWith('Bearer ') && requestUrl.origin !== apiOrigin) {
+          bearerLeftApiOrigin = true
+        }
         if (
           requestUrl.origin === keycloakOrigin
           && requestUrl.pathname.endsWith('/protocol/openid-connect/token')
@@ -367,6 +375,14 @@ async function browserChecks(viteServer) {
           && requestUrl.pathname === '/api/v1/auth/token-check'
         ) {
           accountRequestCount += 1
+          accountRequestsUsedBearer &&= authorization?.startsWith('Bearer ') === true
+        }
+        if (
+          requestUrl.origin === apiOrigin
+          && requestUrl.pathname === '/health'
+        ) {
+          healthRequestCount += 1
+          healthRequestUsedAuthorization ||= Boolean(authorization)
         }
         if (
           requestUrl.origin === 'http://127.0.0.1:5174'
@@ -398,6 +414,17 @@ async function browserChecks(viteServer) {
       stage(`${persona.role} callback referrer ${leakedCallbackReferrer ?? 'none'}`)
       assert.equal(leakedCallbackReferrer, null)
       await assertNoPersistedTokens(page)
+
+      stage(`${persona.role} public health client`)
+      const health = await page.evaluate(async () => {
+        const { authenticationSession } = await import('/src/App.jsx')
+        return authenticationSession().request('/health', { access: 'public' })
+      })
+      assert.deepEqual(health.data, { status: 'ok', database: 'ok' })
+      assert.equal(healthRequestCount, 1)
+      assert.equal(healthRequestUsedAuthorization, false)
+      assert.equal(accountRequestsUsedBearer, true)
+      assert.equal(bearerLeftApiOrigin, false)
 
       if (persona.role === 'admin') {
         stage('admin refresh-token renewal')
@@ -458,6 +485,9 @@ async function browserChecks(viteServer) {
         await waitForStatus(page, 'error')
         await assertNoPersistedTokens(page)
       }
+      assert.equal(accountRequestsUsedBearer, true)
+      assert.equal(healthRequestUsedAuthorization, false)
+      assert.equal(bearerLeftApiOrigin, false)
       await context.close()
     }
 

@@ -13,6 +13,31 @@ const config = {
   oidcPostLogoutRedirectUri: 'http://127.0.0.1:5174/',
   oidcAudience: 'workloop-api',
 }
+const correlationId = '00f202d5-2ef0-4d6f-9553-830e5dcfb833'
+
+function accountResponse(status) {
+  if (status === 204) {
+    return new Response(null, {
+      status,
+      headers: { 'X-Correlation-ID': correlationId },
+    })
+  }
+  const errors = {
+    401: ['invalid_access_token', 'Authentication required'],
+    403: ['application_account_unavailable', 'Application account unavailable'],
+    500: ['internal_error', 'Unexpected server error'],
+    503: ['service_unavailable', 'Service temporarily unavailable'],
+  }
+  const [code, message] = errors[status]
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Correlation-ID': correlationId,
+  }
+  if (status === 401) headers['WWW-Authenticate'] = 'Bearer'
+  return new Response(JSON.stringify({
+    error: { code, message, correlationId, details: [] },
+  }), { status, headers })
+}
 
 class MemoryStorage {
   constructor() {
@@ -84,7 +109,7 @@ function session(overrides = {}) {
   const authentication = new AuthenticationSession({
     config,
     manager,
-    fetch: overrides.fetch ?? (async () => ({ status: 204 })),
+    fetch: overrides.fetch ?? (async () => accountResponse(204)),
     history: { replaceState: (...args) => replacements.push(args) },
     location,
     nonce: () => 'test-nonce',
@@ -173,7 +198,7 @@ test('checks the FastAPI account after a validated callback and clears its URL',
   const requests = []
   const { authentication, replacements } = session({
     manager,
-    fetch: async (...args) => { requests.push(args); return { status: 204 } },
+    fetch: async (...args) => { requests.push(args); return accountResponse(204) },
     location: {
       href: 'http://127.0.0.1:5174/auth/callback?code=redacted&state=redacted',
       origin: 'http://127.0.0.1:5174',
@@ -218,14 +243,14 @@ test('fails closed for callback replay and prompt-none login_required', async ()
   }
 })
 
-test('maps account states without reading response bodies and clears rejected tokens', async () => {
+test('maps normalized account errors and clears rejected tokens', async () => {
   for (const [status, expected, removesUser] of [
     [401, 'session-expired', true],
     [403, 'account-unavailable', false],
     [503, 'service-unavailable', false],
     [500, 'error', false],
   ]) {
-    const { authentication, manager } = session({ fetch: async () => ({ status }) })
+    const { authentication, manager } = session({ fetch: async () => accountResponse(status) })
     await authentication.checkAccount({ access_token: 'not-a-real-token', expired: false })
     assert.equal(authentication.state.status, expected)
     assert.equal(manager.calls.some(([name]) => name === 'removeUser'), removesUser)
@@ -327,7 +352,7 @@ test('ignores an account response after the session expires', async () => {
   const check = authentication.checkAccount({ access_token: 'old-token', expired: false })
 
   await authentication.expireSession()
-  resolveRequest({ status: 204 })
+  resolveRequest(accountResponse(204))
   await check
 
   assert.equal(authentication.state.status, 'session-expired')
@@ -340,13 +365,13 @@ test('ignores an older account response after a new user is checked', async () =
   const { authentication } = session({
     fetch: () => {
       requestCount += 1
-      return requestCount === 1 ? oldRequest : Promise.resolve({ status: 403 })
+      return requestCount === 1 ? oldRequest : Promise.resolve(accountResponse(403))
     },
   })
   const oldCheck = authentication.checkAccount({ access_token: 'old-token', expired: false })
 
   await authentication.checkAccount({ access_token: 'new-token', expired: false })
-  resolveOldRequest({ status: 204 })
+  resolveOldRequest(accountResponse(204))
   await oldCheck
 
   assert.equal(authentication.state.status, 'account-unavailable')
@@ -366,7 +391,7 @@ test('does not let old token removal overwrite a newer signed-in user', async ()
     manager,
     fetch: async () => {
       requestCount += 1
-      return { status: requestCount === 1 ? 401 : 204 }
+      return accountResponse(requestCount === 1 ? 401 : 204)
     },
   })
   const oldCheck = authentication.checkAccount(storedUser)
