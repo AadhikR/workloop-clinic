@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Callable
+from contextlib import suppress
 from uuid import uuid4
 
 from starlette.routing import Match
@@ -112,6 +113,7 @@ class HttpBoundaryMiddleware:
                     return
 
                 route_match = self._route_match(scope)
+                client_receive = receive
                 if route_match is Match.FULL:
                     retry_after = await self.rate_limiter.check(
                         self._rate_limit_class(scope), self._client_ip(scope)
@@ -150,7 +152,15 @@ class HttpBoundaryMiddleware:
                     health_timeout if scope.get("path") == "/health" else request_timeout
                 )
                 async with asyncio.timeout(timeout_seconds):
-                    await self.app(scope, receive, send_with_contract)
+                    if route_match is Match.FULL:
+                        await self._run_until_complete_or_disconnect(
+                            scope,
+                            receive,
+                            client_receive,
+                            send_with_contract,
+                        )
+                    else:
+                        await self.app(scope, receive, send_with_contract)
             except TimeoutError:
                 logger.warning("http_request_timed_out", extra={"error_code": "request_timeout"})
                 if not response_started:
@@ -280,9 +290,6 @@ class HttpBoundaryMiddleware:
         return False
 
     async def _bounded_receive(self, scope: Scope, receive: Receive) -> tuple[Receive, str | None]:
-        method = str(scope.get("method", ""))
-        if method not in {"POST", "PATCH", "PUT", "DELETE"}:
-            return receive, None
         body_parts: list[bytes] = []
         total = 0
         while True:
@@ -313,6 +320,43 @@ class HttpBoundaryMiddleware:
             return {"type": "http.request", "body": b"", "more_body": False}
 
         return replay, None
+
+    async def _run_until_complete_or_disconnect(
+        self,
+        scope: Scope,
+        receive: Receive,
+        client_receive: Receive,
+        send: Send,
+    ) -> None:
+        application_task: asyncio.Future[None] = asyncio.ensure_future(
+            self.app(scope, receive, send)
+        )
+        disconnect_task: asyncio.Future[None] = asyncio.ensure_future(
+            self._wait_for_disconnect(client_receive)
+        )
+        try:
+            done, _pending = await asyncio.wait(
+                {application_task, disconnect_task},
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            if application_task in done:
+                await application_task
+                return
+            application_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await application_task
+        finally:
+            for task in (application_task, disconnect_task):
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(application_task, disconnect_task, return_exceptions=True)
+
+    @staticmethod
+    async def _wait_for_disconnect(receive: Receive) -> None:
+        while True:
+            message = await receive()
+            if message["type"] == "http.disconnect":
+                return
 
     @staticmethod
     def _is_json_content_type(value: str) -> bool:

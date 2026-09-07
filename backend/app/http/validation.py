@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Collection
+from collections.abc import Awaitable, Callable, Collection
 from dataclasses import dataclass
 from typing import Any
 
 from fastapi import Request
+from fastapi.exceptions import RequestValidationError
+from pydantic import BaseModel, ValidationError
 
 from app.http.errors import api_error
 
@@ -31,6 +33,46 @@ def parse_strict_json(body: bytes) -> Any:
         return json.loads(text, object_pairs_hook=reject_duplicates)
     except (UnicodeDecodeError, json.JSONDecodeError, _DuplicateJsonName):
         raise ValueError("invalid JSON") from None
+
+
+async def parse_json_request[ModelType: BaseModel](
+    request: Request, model: type[ModelType]
+) -> ModelType:
+    try:
+        value = parse_strict_json(await request.body())
+    except ValueError:
+        raise api_error("invalid_request") from None
+    try:
+        return model.model_validate(value)
+    except ValidationError as error:
+        details: list[dict[str, Any]] = []
+        for item in error.errors():
+            mapped: dict[str, Any] = dict(item)
+            mapped["loc"] = ("body", *item.get("loc", ()))
+            details.append(mapped)
+        raise RequestValidationError(details) from None
+
+
+def strict_json_body[ModelType: BaseModel](
+    model: type[ModelType],
+) -> Callable[[Request], Awaitable[ModelType]]:
+    async def dependency(request: Request) -> ModelType:
+        return await parse_json_request(request, model)
+
+    return dependency
+
+
+def strict_json_request_body_documentation(model: type[BaseModel]) -> dict[str, Any]:
+    return {
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "schema": model.model_json_schema(by_alias=True, mode="validation")
+                }
+            },
+        }
+    }
 
 
 @dataclass(frozen=True, slots=True)

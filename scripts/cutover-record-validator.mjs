@@ -26,6 +26,13 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const SHA256 = /^sha256:[a-f0-9]{64}$/
 const ISO_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/
 const defaultRepositoryDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const cutoverRecordSchema = JSON.parse(readFileSync(path.join(
+  defaultRepositoryDirectory,
+  'docs',
+  'migration',
+  'phase-6',
+  'cutover-record.schema.json',
+), 'utf8'))
 
 function isObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -59,6 +66,113 @@ function sortedUnique(values) {
 
 function sameSet(left, right) {
   return JSON.stringify(sortedUnique(left)) === JSON.stringify(sortedUnique(right))
+}
+
+function schemaReference(root, reference) {
+  if (!reference.startsWith('#/')) return null
+  return reference.slice(2).split('/').reduce((value, part) => value?.[part], root)
+}
+
+function schemaValueMatchesType(value, type) {
+  if (type === 'object') return isObject(value)
+  if (type === 'array') return Array.isArray(value)
+  if (type === 'string') return typeof value === 'string'
+  if (type === 'integer') return Number.isInteger(value)
+  return true
+}
+
+function validateSchemaNode(schema, value, instancePath, add, root = cutoverRecordSchema) {
+  if (schema.$ref) {
+    const resolved = schemaReference(root, schema.$ref)
+    if (!resolved) {
+      add(`schema.${instancePath}.$ref`, 'Schema reference does not resolve.')
+      return
+    }
+    validateSchemaNode(resolved, value, instancePath, add, root)
+    return
+  }
+
+  if (schema.type && !schemaValueMatchesType(value, schema.type)) {
+    add(`schema.${instancePath}.type`, `Value must have type ${schema.type}.`)
+    return
+  }
+  if (Object.hasOwn(schema, 'const') && JSON.stringify(value) !== JSON.stringify(schema.const)) {
+    add(`schema.${instancePath}.const`, 'Value does not match the fixed schema value.')
+  }
+  if (schema.enum && !schema.enum.includes(value)) {
+    add(`schema.${instancePath}.enum`, 'Value is not in the schema allowlist.')
+  }
+
+  if (schema.type === 'object') {
+    for (const requiredName of schema.required ?? []) {
+      if (!Object.hasOwn(value, requiredName)) {
+        add(
+          `schema.${instancePath}.required.${requiredName}`,
+          `Required property ${requiredName} is missing.`,
+        )
+      }
+    }
+    const properties = schema.properties ?? {}
+    if (schema.additionalProperties === false) {
+      for (const name of Object.keys(value)) {
+        if (!Object.hasOwn(properties, name)) {
+          add(
+            `schema.${instancePath}.additionalProperties.${name}`,
+            `Property ${name} is not allowed.`,
+          )
+        }
+      }
+    }
+    for (const [name, childSchema] of Object.entries(properties)) {
+      if (Object.hasOwn(value, name)) {
+        validateSchemaNode(childSchema, value[name], `${instancePath}.${name}`, add, root)
+      }
+    }
+    return
+  }
+
+  if (schema.type === 'array') {
+    if (schema.minItems !== undefined && value.length < schema.minItems) {
+      add(`schema.${instancePath}.minItems`, 'Array contains too few items.')
+    }
+    if (schema.maxItems !== undefined && value.length > schema.maxItems) {
+      add(`schema.${instancePath}.maxItems`, 'Array contains too many items.')
+    }
+    if (schema.uniqueItems === true) {
+      const serialized = value.map((item) => JSON.stringify(item))
+      if (new Set(serialized).size !== serialized.length) {
+        add(`schema.${instancePath}.uniqueItems`, 'Array items must be unique.')
+      }
+    }
+    if (schema.items) {
+      value.forEach((item, index) => {
+        validateSchemaNode(schema.items, item, `${instancePath}.${index}`, add, root)
+      })
+    }
+    return
+  }
+
+  if (schema.type === 'string') {
+    if (schema.minLength !== undefined && value.length < schema.minLength) {
+      add(`schema.${instancePath}.minLength`, 'String is too short.')
+    }
+    if (schema.pattern && !(new RegExp(schema.pattern)).test(value)) {
+      add(`schema.${instancePath}.pattern`, 'String does not match the required format.')
+    }
+    if (schema.format === 'date-time' && !Number.isFinite(Date.parse(value))) {
+      add(`schema.${instancePath}.format`, 'String is not a valid date-time.')
+    }
+    return
+  }
+
+  if (schema.type === 'integer') {
+    if (schema.minimum !== undefined && value < schema.minimum) {
+      add(`schema.${instancePath}.minimum`, 'Integer is below the minimum.')
+    }
+    if (schema.maximum !== undefined && value > schema.maximum) {
+      add(`schema.${instancePath}.maximum`, 'Integer is above the maximum.')
+    }
+  }
 }
 
 function checkAuthority(value, prefix, add) {
@@ -408,7 +522,8 @@ export function validateCutoverRecord(record, options = {}) {
   const errors = []
   const add = (code, message) => errors.push({ code, message })
 
-  if (!isObject(record)) return [{ code: 'record', message: 'Cutover record must be an object.' }]
+  validateSchemaNode(cutoverRecordSchema, record, '$', add)
+  if (!isObject(record)) return errors
   if (record.schemaVersion !== 1) add('schemaVersion', 'Schema version must be 1.')
   if (!STABLE_ID.test(record.featureId ?? '')) add('featureId', 'Feature ID must be a stable lowercase identifier.')
   if (record.dataClassification !== 'synthetic') {

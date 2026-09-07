@@ -79,3 +79,41 @@ test('rejects an impossible status transition', async () => {
   const errors = validateCutoverRecord(record, { repositoryDirectory })
   assert.ok(errors.some(({ code }) => code === 'status.history'))
 })
+
+test('enforces the complete cutover record structure', async (context) => {
+  const template = await readJson(templatePath)
+  const cases = [
+    {
+      name: 'missing required root property',
+      mutate(record) { delete record.rollback },
+      expectedCode: 'schema.$.required.rollback',
+    },
+    {
+      name: 'wrong schema discriminator',
+      mutate(record) { record.$schema = './another-schema.json' },
+      expectedCode: 'schema.$.$schema.const',
+    },
+    {
+      name: 'extra root property',
+      mutate(record) { record.unapproved = true },
+      expectedCode: 'schema.$.additionalProperties.unapproved',
+    },
+    {
+      name: 'extra nested property',
+      mutate(record) { record.authority.unapproved = true },
+      expectedCode: 'schema.$.authority.additionalProperties.unapproved',
+    },
+  ]
+
+  for (const item of cases) {
+    await context.test(item.name, () => {
+      const record = structuredClone(template)
+      item.mutate(record)
+      const errors = validateCutoverRecord(record, { repositoryDirectory })
+      assert.ok(
+        errors.some(({ code }) => code === item.expectedCode),
+        `Expected ${item.expectedCode}, received ${errors.map(({ code }) => code).join(', ')}`,
+      )
+    })
+  }
+})

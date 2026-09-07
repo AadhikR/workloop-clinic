@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from app.auth.access_token import AccessTokenClaims
 from app.auth.application_user import AuthorizationPrincipal
 from app.auth.dependencies import require_access_token, require_authorization_principal
-from app.http.rate_limit import RateLimitClass
+from app.http.rate_limit import RATE_LIMITS_PER_MINUTE, RateLimitClass
 from app.models.identity import AccountStatus, AppRole
 from app.services.execution import ServiceExecutionError
 from tests.test_http_boundary import make_settings
@@ -152,9 +152,27 @@ async def test_current_account_returns_only_the_verified_principal(role: AppRole
     assert executor.calls[0][2] is None
     assert limiter.calls == [
         (RateLimitClass.PROTECTED_ATTEMPT, "127.0.0.1"),
-        (RateLimitClass.AUTHENTICATED_READ, f"app_user:{active_principal.app_user_id}"),
-        (RateLimitClass.AUTHENTICATED_READ, f"company:{active_principal.company_id}"),
+        (RateLimitClass.AUTHENTICATED_READ_USER, f"app_user:{active_principal.app_user_id}"),
+        (
+            RateLimitClass.AUTHENTICATED_READ_COMPANY,
+            f"company:{active_principal.company_id}",
+        ),
     ]
+
+
+def test_authenticated_rate_limit_classes_pin_user_and_company_ceilings() -> None:
+    assert RATE_LIMITS_PER_MINUTE == {
+        RateLimitClass.PUBLIC: 60,
+        RateLimitClass.AUTHENTICATION_CHECK: 30,
+        RateLimitClass.PROTECTED_ATTEMPT: 600,
+        RateLimitClass.INVALID_ACCESS_TOKEN: 60,
+        RateLimitClass.AUTHENTICATED_READ_USER: 300,
+        RateLimitClass.AUTHENTICATED_READ_COMPANY: 3_000,
+        RateLimitClass.AUTHENTICATED_WRITE_USER: 60,
+        RateLimitClass.AUTHENTICATED_WRITE_COMPANY: 600,
+        RateLimitClass.FINANCIAL_OR_APPROVAL_USER: 20,
+        RateLimitClass.FINANCIAL_OR_APPROVAL_COMPANY: 200,
+    }
 
 
 @pytest.mark.asyncio

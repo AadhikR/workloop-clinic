@@ -173,12 +173,12 @@ async def require_authenticated_read_principal(
 ) -> AuthorizationPrincipal:
     await _check_rate_limit(
         request,
-        RateLimitClass.AUTHENTICATED_READ,
+        RateLimitClass.AUTHENTICATED_READ_USER,
         f"app_user:{principal.app_user_id}",
     )
     await _check_rate_limit(
         request,
-        RateLimitClass.AUTHENTICATED_READ,
+        RateLimitClass.AUTHENTICATED_READ_COMPANY,
         f"company:{principal.company_id}",
     )
     return principal
