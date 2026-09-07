@@ -1,10 +1,9 @@
 import logging
 import uuid
-from collections.abc import AsyncGenerator, Awaitable, Callable
-from typing import Annotated
+from collections.abc import Awaitable, Callable
+from typing import Annotated, NoReturn
 
 from fastapi import Depends, HTTPException, Request, status
-from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.auth.access_token import AccessTokenClaims, AccessTokenError, AccessTokenVerifier
 from app.auth.application_user import (
@@ -13,15 +12,29 @@ from app.auth.application_user import (
     ApplicationUserUnavailableError,
     AuthorizationPrincipal,
 )
-from app.db.authorization_context import (
-    AuthorizationBranchUnavailableError,
-    AuthorizationContextError,
-    AuthorizationContextUnavailableError,
-    AuthorizationTransactionFactory,
-)
+from app.http.errors import api_error
+from app.http.rate_limit import RateLimitClass, RateLimiter
 from app.models.identity import AppRole
 
 logger = logging.getLogger(__name__)
+
+
+async def _check_rate_limit(
+    request: Request, request_class: RateLimitClass, trusted_key: str
+) -> None:
+    limiter: RateLimiter | None = getattr(request.app.state, "rate_limiter", None)
+    if limiter is None:
+        return
+    retry_after = await limiter.check(request_class, trusted_key)
+    if retry_after is not None:
+        raise api_error(
+            "rate_limit_exceeded",
+            headers={"Retry-After": str(max(1, int(retry_after)))},
+        )
+
+
+def _direct_client_ip(request: Request) -> str:
+    return request.client.host if request.client is not None else "unknown"
 
 
 def authentication_error() -> HTTPException:
@@ -35,22 +48,29 @@ def authentication_error() -> HTTPException:
     )
 
 
+async def reject_access_token(request: Request) -> NoReturn:
+    await _check_rate_limit(
+        request, RateLimitClass.INVALID_ACCESS_TOKEN, _direct_client_ip(request)
+    )
+    raise authentication_error()
+
+
 async def require_access_token(request: Request) -> AccessTokenClaims:
     authorization_values = request.headers.getlist("authorization")
     if len(authorization_values) != 1:
-        raise authentication_error()
+        await reject_access_token(request)
     authorization = authorization_values[0]
     if authorization.count(" ") != 1:
-        raise authentication_error()
+        await reject_access_token(request)
     scheme, token = authorization.split(" ", maxsplit=1)
     if scheme.lower() != "bearer" or not token or any(character.isspace() for character in token):
-        raise authentication_error()
+        await reject_access_token(request)
 
     verifier: AccessTokenVerifier = request.app.state.access_token_verifier
     try:
         return await verifier.verify(token)
     except AccessTokenError:
-        raise authentication_error() from None
+        await reject_access_token(request)
 
 
 VerifiedAccessToken = Annotated[AccessTokenClaims, Depends(require_access_token)]
@@ -122,12 +142,19 @@ async def require_authorization_principal(
 ) -> AuthorizationPrincipal:
     resolver: ApplicationUserResolver = request.app.state.application_user_resolver
     try:
-        return await resolver.resolve(issuer=claims.issuer, subject=claims.subject)
+        principal = await resolver.resolve(issuer=claims.issuer, subject=claims.subject)
     except ApplicationUserUnavailableError:
         raise application_account_error() from None
     except ApplicationUserLookupError:
         logger.warning("application_user_lookup_failed")
         raise application_account_lookup_error() from None
+    if request.url.path == "/api/v1/auth/token-check":
+        await _check_rate_limit(
+            request,
+            RateLimitClass.AUTHENTICATION_CHECK,
+            str(principal.app_user_id),
+        )
+    return principal
 
 
 require_application_user = require_authorization_principal
@@ -183,7 +210,7 @@ async def require_manager_identity(principal: ManagerAuthorizationPrincipal) -> 
 
 async def require_admin_selected_branch(
     request: Request,
-    claims: VerifiedAccessToken,
+    _claims: VerifiedAccessToken,
     principal: AdminAuthorizationPrincipal,
 ) -> uuid.UUID:
     header_values = request.headers.getlist("x-workloop-branch-id")
@@ -199,76 +226,12 @@ async def require_admin_selected_branch(
     except (AttributeError, ValueError):
         raise invalid_branch_error() from None
 
-    transaction_factory: AuthorizationTransactionFactory = (
-        request.app.state.authorization_transaction_factory
-    )
-    try:
-        async with transaction_factory.transaction(
-            claims=claims,
-            principal=principal,
-            verified_admin_branch_id=branch_id,
-        ):
-            return branch_id
-    except AuthorizationBranchUnavailableError:
-        raise resource_not_found_error() from None
-    except AuthorizationContextUnavailableError:
-        logger.warning("authorization_scope_lookup_failed")
-        raise application_account_lookup_error() from None
-    except AuthorizationContextError:
-        raise application_account_error() from None
+    if branch_id.version is None or str(branch_id) != raw_branch_id:
+        raise invalid_branch_error()
+    return branch_id
 
 
 TenantScope = Annotated[uuid.UUID, Depends(require_tenant_scope)]
 EmployeeSelfIdentity = Annotated[uuid.UUID, Depends(require_employee_self_identity)]
 ManagerIdentity = Annotated[uuid.UUID, Depends(require_manager_identity)]
 AdminSelectedBranch = Annotated[uuid.UUID, Depends(require_admin_selected_branch)]
-
-
-async def require_authorized_connection(
-    request: Request,
-    claims: VerifiedAccessToken,
-    principal: AuthenticatedAuthorizationPrincipal,
-) -> AsyncGenerator[AsyncConnection]:
-    transaction_factory: AuthorizationTransactionFactory = (
-        request.app.state.authorization_transaction_factory
-    )
-    try:
-        async with transaction_factory.transaction(
-            claims=claims,
-            principal=principal,
-        ) as connection:
-            yield connection
-    except AuthorizationContextError:
-        raise application_account_error() from None
-    except AuthorizationContextUnavailableError:
-        logger.warning("authorization_context_setup_failed")
-        raise application_account_lookup_error() from None
-
-
-async def require_admin_branch_authorized_connection(
-    request: Request,
-    claims: VerifiedAccessToken,
-    principal: AdminAuthorizationPrincipal,
-    branch_id: AdminSelectedBranch,
-) -> AsyncGenerator[AsyncConnection]:
-    transaction_factory: AuthorizationTransactionFactory = (
-        request.app.state.authorization_transaction_factory
-    )
-    try:
-        async with transaction_factory.transaction(
-            claims=claims,
-            principal=principal,
-            verified_admin_branch_id=branch_id,
-        ) as connection:
-            yield connection
-    except AuthorizationContextError:
-        raise application_account_error() from None
-    except AuthorizationContextUnavailableError:
-        logger.warning("authorization_context_setup_failed")
-        raise application_account_lookup_error() from None
-
-
-AuthorizedConnection = Annotated[AsyncConnection, Depends(require_authorized_connection)]
-AdminBranchAuthorizedConnection = Annotated[
-    AsyncConnection, Depends(require_admin_branch_authorized_connection)
-]

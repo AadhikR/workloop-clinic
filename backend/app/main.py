@@ -6,8 +6,6 @@ from typing import Literal
 
 import httpx
 from fastapi import FastAPI, Request, Response, status
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncEngine
 
@@ -19,6 +17,15 @@ from app.core.config import Settings
 from app.core.logging import configure_logging
 from app.db.authorization_context import AuthorizationTransactionFactory
 from app.db.engine import create_database_engine, probe_database
+from app.http.errors import (
+    api_error,
+    error_response_documentation,
+    install_exception_handlers,
+    success_response_documentation,
+)
+from app.http.middleware import ALLOWED_ORIGIN, HttpBoundaryMiddleware
+from app.http.rate_limit import InactiveRateLimiter, RateLimiter
+from app.services.execution import AuthorizedServiceExecutor
 
 DatabaseProbe = Callable[[AsyncEngine], Awaitable[None]]
 
@@ -37,7 +44,7 @@ async def check_access_token(_principal: AuthenticatedAuthorizationPrincipal) ->
     )
 
 
-async def health(request: Request) -> HealthResponse | JSONResponse:
+async def health(request: Request) -> HealthResponse:
     active_settings: Settings = request.app.state.settings
     engine: AsyncEngine = request.app.state.database_engine
     database_probe: DatabaseProbe = request.app.state.database_probe
@@ -46,19 +53,14 @@ async def health(request: Request) -> HealthResponse | JSONResponse:
             await database_probe(engine)
     except Exception:
         logger.warning("database_health_check_failed")
-        return JSONResponse(
-            status_code=503,
-            content={
-                "status": "error",
-                "database": "unavailable",
-            },
-        )
+        raise api_error("service_unavailable") from None
     return HealthResponse(status="ok", database="ok")
 
 
 def create_app(
     settings: Settings | None = None,
     database_probe: DatabaseProbe = probe_database,
+    rate_limiter: RateLimiter | None = None,
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncGenerator[None]:
@@ -83,9 +85,14 @@ def create_app(
             issuer=str(resolved_settings.oidc_issuer),
             timeout_seconds=resolved_settings.application_user_lookup_timeout_seconds,
         )
-        application.state.authorization_transaction_factory = AuthorizationTransactionFactory(
+        transaction_factory = AuthorizationTransactionFactory(
             engine=engine,
             setup_timeout_seconds=resolved_settings.authorization_context_setup_timeout_seconds,
+        )
+        application.state.authorization_transaction_factory = transaction_factory
+        application.state.authorized_service_executor = AuthorizedServiceExecutor(
+            transaction_factory,
+            deadline_seconds=resolved_settings.api_request_timeout_seconds,
         )
         application.state.access_token_verifier = AccessTokenVerifier(
             issuer=str(resolved_settings.oidc_issuer),
@@ -109,12 +116,15 @@ def create_app(
         version=__version__,
         lifespan=lifespan,
     )
+    resolved_rate_limiter = rate_limiter or InactiveRateLimiter()
+    application.state.rate_limiter = resolved_rate_limiter
+    install_exception_handlers(application)
     application.add_middleware(
-        CORSMiddleware,
-        allow_origins=["http://127.0.0.1:5174"],
-        allow_methods=["GET"],
-        allow_headers=["Authorization", "X-Workloop-Branch-ID"],
-        allow_credentials=False,
+        HttpBoundaryMiddleware,
+        allowed_origins=(ALLOWED_ORIGIN,),
+        request_timeout_seconds=(settings.api_request_timeout_seconds if settings else 15.0),
+        health_timeout_seconds=(settings.database_health_timeout_seconds if settings else 5.0),
+        rate_limiter=resolved_rate_limiter,
     )
 
     application.add_api_route(
@@ -122,6 +132,22 @@ def create_app(
         health,
         methods=["GET"],
         response_model=HealthResponse,
+        operation_id="health_check",
+        responses={
+            **success_response_documentation(200, "Health check passed"),
+            **error_response_documentation(
+                "invalid_request",
+                "origin_not_allowed",
+                "method_not_allowed",
+                "not_acceptable",
+                "request_too_large",
+                "unsupported_media_type",
+                "rate_limit_exceeded",
+                "service_unavailable",
+                "request_timeout",
+                "internal_error",
+            ),
+        },
         tags=["system"],
     )
     application.add_api_route(
@@ -129,6 +155,25 @@ def create_app(
         check_access_token,
         methods=["GET"],
         status_code=status.HTTP_204_NO_CONTENT,
+        response_model=None,
+        operation_id="check_access_token",
+        responses={
+            **success_response_documentation(204, "Access token and account are valid"),
+            **error_response_documentation(
+                "invalid_request",
+                "invalid_access_token",
+                "application_account_unavailable",
+                "origin_not_allowed",
+                "method_not_allowed",
+                "not_acceptable",
+                "request_too_large",
+                "unsupported_media_type",
+                "rate_limit_exceeded",
+                "application_account_lookup_unavailable",
+                "request_timeout",
+                "internal_error",
+            ),
+        },
         tags=["authentication"],
     )
 

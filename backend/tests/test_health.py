@@ -15,7 +15,7 @@ def make_settings() -> Settings:
     return Settings(
         app_env="test",
         app_base_url=AnyHttpUrl("http://127.0.0.1:8000"),
-        frontend_url=AnyHttpUrl("http://127.0.0.1:5173"),
+        frontend_url=AnyHttpUrl("http://127.0.0.1:5174"),
         log_level="INFO",
         database_health_timeout_seconds=1,
         database_url=SecretStr(
@@ -64,9 +64,15 @@ async def test_health_fails_closed_without_error_details() -> None:
         response = await client.get("/health")
 
     assert response.status_code == 503
-    assert cast(dict[str, str], response.json()) == {
-        "status": "error",
-        "database": "unavailable",
+    body = cast(dict[str, object], response.json())
+    correlation_id = cast(dict[str, object], body["error"])["correlationId"]
+    assert body == {
+        "error": {
+            "code": "service_unavailable",
+            "message": "Service temporarily unavailable",
+            "correlationId": correlation_id,
+            "details": [],
+        }
     }
     assert "sensitive" not in response.text
 
@@ -102,7 +108,8 @@ async def test_authentication_cors_allows_only_migration_origin() -> None:
     assert allowed.headers["access-control-allow-origin"] == "http://127.0.0.1:5174"
     assert "x-workloop-branch-id" in allowed.headers["access-control-allow-headers"].lower()
     assert allowed.headers.get("access-control-allow-credentials") is None
-    assert rejected.status_code == 400
+    assert rejected.status_code == 403
+    assert rejected.json()["error"]["code"] == "origin_not_allowed"
     assert "access-control-allow-origin" not in rejected.headers
     assert protected.status_code == 401
     assert protected.headers["access-control-allow-origin"] == "http://127.0.0.1:5174"

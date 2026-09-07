@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     database_health_timeout_seconds: float = Field(
         default=5.0, validation_alias="DATABASE_HEALTH_TIMEOUT_SECONDS"
     )
+    api_request_timeout_seconds: float = Field(
+        default=15.0, validation_alias="API_REQUEST_TIMEOUT_SECONDS"
+    )
     application_user_lookup_timeout_seconds: float = Field(
         default=5.0, validation_alias="APPLICATION_USER_LOOKUP_TIMEOUT_SECONDS"
     )
@@ -49,8 +52,10 @@ class Settings(BaseSettings):
         database_url = self.database_url.get_secret_value()
         if not database_url.startswith("postgresql+psycopg://"):
             raise ValueError("DATABASE_URL must use the postgresql+psycopg driver")
-        if not 0 < self.database_health_timeout_seconds <= 30:
-            raise ValueError("DATABASE_HEALTH_TIMEOUT_SECONDS must be between 0 and 30")
+        if not 0 < self.database_health_timeout_seconds <= 5:
+            raise ValueError("DATABASE_HEALTH_TIMEOUT_SECONDS must be between 0 and 5")
+        if not 0 < self.api_request_timeout_seconds <= 15:
+            raise ValueError("API_REQUEST_TIMEOUT_SECONDS must be between 0 and 15")
         if not 0 < self.application_user_lookup_timeout_seconds <= 30:
             raise ValueError("APPLICATION_USER_LOOKUP_TIMEOUT_SECONDS must be between 0 and 30")
         if not 0 < self.authorization_context_setup_timeout_seconds <= 30:
@@ -81,4 +86,14 @@ class Settings(BaseSettings):
             raise ValueError("OIDC_JWKS_CACHE_TTL_SECONDS must be between 1 and 3600")
         if not 0.1 <= self.oidc_jwks_refresh_cooldown_seconds <= 60:
             raise ValueError("OIDC_JWKS_REFRESH_COOLDOWN_SECONDS must be between 0.1 and 60")
+        if self.app_env in {"local", "test"} and str(self.frontend_url).rstrip("/") != (
+            "http://127.0.0.1:5174"
+        ):
+            raise ValueError("FRONTEND_URL must be http://127.0.0.1:5174 in local and test")
         return self
+
+    @property
+    def cors_allowed_origins(self) -> tuple[str, ...]:
+        if self.app_env in {"local", "test"}:
+            return ("http://127.0.0.1:5174",)
+        return ()

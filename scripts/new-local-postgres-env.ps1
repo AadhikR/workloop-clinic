@@ -88,6 +88,7 @@ $apiLines = @(
     "FRONTEND_URL=http://127.0.0.1:5174"
     "LOG_LEVEL=INFO"
     "DATABASE_HEALTH_TIMEOUT_SECONDS=5"
+    "API_REQUEST_TIMEOUT_SECONDS=15"
     "OIDC_ISSUER=http://127.0.0.1:8080/realms/workloop-dev"
     "OIDC_AUDIENCE=workloop-api"
     "OIDC_JWKS_URL=http://127.0.0.1:8080/realms/workloop-dev/protocol/openid-connect/certs"
@@ -99,13 +100,11 @@ $apiLines = @(
     "DATABASE_URL=postgresql+psycopg://workloop_runtime:${runtimePassword}@postgres:5432/workloop"
 )
 
-if (-not (Test-Path -LiteralPath $apiPath)) {
-    [System.IO.File]::WriteAllLines(
-        $apiPath,
-        $apiLines,
-        (New-Object System.Text.UTF8Encoding($false))
-    )
-}
+[System.IO.File]::WriteAllLines(
+    $apiPath,
+    $apiLines,
+    (New-Object System.Text.UTF8Encoding($false))
+)
 
 if (-not (Test-Path -LiteralPath $migrationPath)) {
     $migrationLines = @(

@@ -94,3 +94,41 @@ def test_settings_reject_oidc_url_credentials(monkeypatch: MonkeyPatch) -> None:
 
     with pytest.raises(ValidationError, match="must not contain credentials"):
         Settings()  # pyright: ignore[reportCallIssue]
+
+
+def test_local_settings_require_exact_migration_frontend(monkeypatch: MonkeyPatch) -> None:
+    set_required_environment(monkeypatch)
+    monkeypatch.setenv("FRONTEND_URL", "http://localhost:5174")
+
+    with pytest.raises(ValidationError, match="FRONTEND_URL"):
+        Settings()  # pyright: ignore[reportCallIssue]
+
+
+def test_cloud_cors_allowlist_stays_empty(monkeypatch: MonkeyPatch) -> None:
+    set_required_environment(monkeypatch)
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("OIDC_ISSUER", "https://identity.example.test/realms/workloop")
+    monkeypatch.setenv(
+        "OIDC_JWKS_URL", "https://identity.example.test/realms/workloop/openid-connect/certs"
+    )
+
+    settings = Settings()  # pyright: ignore[reportCallIssue]
+
+    assert settings.cors_allowed_origins == ()
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        ("DATABASE_HEALTH_TIMEOUT_SECONDS", "5.1"),
+        ("API_REQUEST_TIMEOUT_SECONDS", "15.1"),
+    ],
+)
+def test_settings_reject_deadlines_above_contract(
+    monkeypatch: MonkeyPatch, name: str, value: str
+) -> None:
+    set_required_environment(monkeypatch)
+    monkeypatch.setenv(name, value)
+
+    with pytest.raises(ValidationError, match=name):
+        Settings()  # pyright: ignore[reportCallIssue]

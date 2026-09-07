@@ -233,6 +233,8 @@ jobs:
         run: |
           curl --fail --silent --show-error http://127.0.0.1:8000/health | jq --exit-status '.status == "ok" and .database == "ok"'
           curl --fail --silent --show-error http://127.0.0.1:9000/health/ready | jq --exit-status '.status == "UP"'
+      - name: Verify Phase 6B HTTP boundary
+        run: python scripts/verify-phase-6b-http.py
       - name: Configure access-token subject
         run: python scripts/configure-phase-3d-keycloak.py
       - name: Verify Keycloak configuration idempotence

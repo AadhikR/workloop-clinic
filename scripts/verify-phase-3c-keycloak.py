@@ -13,6 +13,7 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -142,6 +143,33 @@ def request(
         return error.code, error.headers, error.read()
     with response:
         return response.status, response.headers, response.read()
+
+
+def assert_api_error(
+    *,
+    status: int,
+    headers: Any,
+    body: bytes,
+    expected_status: int,
+    expected_code: str,
+    expected_message: str,
+) -> None:
+    assert status == expected_status
+    payload = json.loads(body)
+    correlation_id = payload["error"]["correlationId"]
+    parsed_correlation_id = uuid.UUID(correlation_id)
+    assert parsed_correlation_id.version == 4
+    assert str(parsed_correlation_id) == correlation_id
+    assert headers["X-Correlation-ID"] == correlation_id
+    assert headers["Cache-Control"] == "no-store"
+    assert payload == {
+        "error": {
+            "code": expected_code,
+            "message": expected_message,
+            "correlationId": correlation_id,
+            "details": [],
+        }
+    }
 
 
 def authorization_request(
@@ -502,17 +530,21 @@ def verify_real_tokens(username: str, password: str) -> None:
     assert "offline_access" not in access_claims["scope"].split()
 
     def assert_application_account_unavailable(state: str) -> None:
-        status, _, body = request(
+        status, headers, body = request(
             f"{API_BASE_URL}/api/v1/auth/token-check",
             headers={"Authorization": f"Bearer {tokens['access_token']}"},
         )
-        assert status == 403, f"{state} mapping did not return the safe account rejection"
-        assert json.loads(body) == {
-            "detail": {
-                "code": "application_account_unavailable",
-                "message": "Application account unavailable",
-            }
-        }, f"{state} mapping returned an unexpected account rejection"
+        try:
+            assert_api_error(
+                status=status,
+                headers=headers,
+                body=body,
+                expected_status=403,
+                expected_code="application_account_unavailable",
+                expected_message="Application account unavailable",
+            )
+        except AssertionError as error:
+            raise AssertionError(f"{state} mapping returned an unexpected rejection") from error
 
     app_user_id = PHASE_3_TEST_APP_USER_ID
     company_id = PHASE_5B_TEST_COMPANY_ID
@@ -548,11 +580,14 @@ def verify_real_tokens(username: str, password: str) -> None:
             app_user_id=app_user_id,
             company_id=company_id,
         )
-        status, _, body = request(
+        status, headers, body = request(
             f"{API_BASE_URL}/api/v1/auth/token-check",
             headers={"Authorization": f"Bearer {tokens['access_token']}"},
         )
         assert status == 204 and body == b"", "active mapping was not accepted"
+        assert uuid.UUID(headers["X-Correlation-ID"]).version == 4
+        assert headers["Cache-Control"] == "no-store"
+        assert headers.get("Content-Type") is None
     finally:
         psql(cleanup_sql, app_user_id=app_user_id, company_id=company_id)
     assert (
@@ -573,12 +608,19 @@ def verify_real_tokens(username: str, password: str) -> None:
     id_claims = decode_claims(tokens["id_token"])
     assert id_claims["aud"] == CLIENT_ID
     assert id_claims.get("aud") != "workloop-api"
-    status, _, body = request(
+    status, headers, body = request(
         f"{API_BASE_URL}/api/v1/auth/token-check",
         headers={"Authorization": f"Bearer {tokens['id_token']}"},
     )
-    assert status == 401
-    assert json.loads(body)["detail"]["code"] == "invalid_access_token"
+    assert_api_error(
+        status=status,
+        headers=headers,
+        body=body,
+        expected_status=401,
+        expected_code="invalid_access_token",
+        expected_message="Authentication required",
+    )
+    assert headers["WWW-Authenticate"] == "Bearer"
 
     refresh_token = tokens["refresh_token"]
     status, _, body = request(
