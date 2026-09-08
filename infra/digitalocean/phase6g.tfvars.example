@@ -1,0 +1,9 @@
+provisioning_authorized               = false
+spend_alert_confirmed                 = false
+github_app_repository_only_confirmed = false
+project_isolation_confirmed           = false
+admin_mfa_gate_armed                  = false
+public_exposure_enabled               = false
+budget_ceiling_usd                    = 20
+test_window_hours                     = 72
+teardown_deadline_utc                 = ""

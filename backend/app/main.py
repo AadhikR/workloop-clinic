@@ -24,11 +24,18 @@ from app.http.errors import (
     success_response_documentation,
 )
 from app.http.middleware import ALLOWED_ORIGIN, HttpBoundaryMiddleware
-from app.http.rate_limit import InactiveRateLimiter, RateLimiter
+from app.http.rate_limit import ConfigurableRateLimiter, RateLimiter
 from app.http.sample_schemas import CurrentAccountResponse, PublicStatusResponse
 from app.http.schemas import DataResponse
 from app.sample_api import get_current_account, get_public_status
 from app.services.execution import AuthorizedServiceExecutor
+from app.storage import ObjectStorage, create_object_storage
+from app.storage.proof_api import (
+    StorageProofResponse,
+    create_storage_proof,
+    delete_storage_proof,
+    read_storage_proof,
+)
 
 DatabaseProbe = Callable[[AsyncEngine], Awaitable[None]]
 
@@ -64,10 +71,20 @@ def create_app(
     settings: Settings | None = None,
     database_probe: DatabaseProbe = probe_database,
     rate_limiter: RateLimiter | None = None,
+    object_storage: ObjectStorage | None = None,
 ) -> FastAPI:
+    automatic_rate_limiter = ConfigurableRateLimiter(
+        deployed=settings is not None and settings.app_env not in {"local", "test"}
+    )
+    resolved_rate_limiter = rate_limiter or automatic_rate_limiter
+
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncGenerator[None]:
         resolved_settings = settings or Settings()  # pyright: ignore[reportCallIssue]
+        if rate_limiter is None:
+            automatic_rate_limiter.configure(
+                deployed=resolved_settings.app_env not in {"local", "test"}
+            )
         configure_logging(resolved_settings.log_level)
         engine = create_database_engine(resolved_settings.database_url.get_secret_value())
         oidc_http_client = httpx.AsyncClient(
@@ -106,10 +123,13 @@ def create_app(
             cache_ttl_seconds=resolved_settings.oidc_jwks_cache_ttl_seconds,
             refresh_cooldown_seconds=resolved_settings.oidc_jwks_refresh_cooldown_seconds,
         )
+        active_storage = object_storage or create_object_storage(resolved_settings)
+        application.state.object_storage = active_storage
         logger.info("application_started")
         try:
             yield
         finally:
+            await active_storage.close()
             await oidc_http_client.aclose()
             await engine.dispose()
             logger.info("application_stopped")
@@ -119,12 +139,11 @@ def create_app(
         version=__version__,
         lifespan=lifespan,
     )
-    resolved_rate_limiter = rate_limiter or InactiveRateLimiter()
     application.state.rate_limiter = resolved_rate_limiter
     install_exception_handlers(application)
     application.add_middleware(
         HttpBoundaryMiddleware,
-        allowed_origins=(ALLOWED_ORIGIN,),
+        allowed_origins=(settings.cors_allowed_origins if settings else (ALLOWED_ORIGIN,)),
         request_timeout_seconds=(settings.api_request_timeout_seconds if settings else 15.0),
         health_timeout_seconds=(settings.database_health_timeout_seconds if settings else 5.0),
         rate_limiter=resolved_rate_limiter,
@@ -236,6 +255,65 @@ def create_app(
             ),
         },
         tags=["account"],
+    )
+    storage_errors = error_response_documentation(
+        "invalid_request",
+        "invalid_access_token",
+        "application_account_unavailable",
+        "origin_not_allowed",
+        "resource_not_found",
+        "method_not_allowed",
+        "not_acceptable",
+        "request_too_large",
+        "unsupported_media_type",
+        "validation_failed",
+        "rate_limit_exceeded",
+        "application_account_lookup_unavailable",
+        "service_unavailable",
+        "request_timeout",
+        "internal_error",
+    )
+    application.add_api_route(
+        "/api/v1/architecture-proof/storage",
+        create_storage_proof,
+        methods=["POST"],
+        status_code=status.HTTP_201_CREATED,
+        response_model=DataResponse[StorageProofResponse],
+        operation_id="create_storage_architecture_proof",
+        responses={
+            **success_response_documentation(
+                201, "Synthetic private object persisted", cache_control="no-store"
+            ),
+            **storage_errors,
+        },
+        tags=["architecture-proof"],
+    )
+    application.add_api_route(
+        "/api/v1/architecture-proof/storage",
+        read_storage_proof,
+        methods=["GET"],
+        response_model=DataResponse[StorageProofResponse],
+        operation_id="get_storage_architecture_proof",
+        responses={
+            **success_response_documentation(
+                200, "Synthetic private object verified", cache_control="no-store"
+            ),
+            **storage_errors,
+        },
+        tags=["architecture-proof"],
+    )
+    application.add_api_route(
+        "/api/v1/architecture-proof/storage",
+        delete_storage_proof,
+        methods=["DELETE"],
+        status_code=status.HTTP_204_NO_CONTENT,
+        response_model=None,
+        operation_id="delete_storage_architecture_proof",
+        responses={
+            **success_response_documentation(204, "Synthetic private object removed"),
+            **storage_errors,
+        },
+        tags=["architecture-proof"],
     )
 
     return application

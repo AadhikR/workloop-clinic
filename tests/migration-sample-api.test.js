@@ -2,8 +2,11 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  createStorageProof,
+  deleteStorageProof,
   readCurrentAccount,
   readPublicStatus,
+  readStorageProof,
 } from '../migration/src/sampleApi.js'
 
 const identifiers = {
@@ -67,5 +70,44 @@ test('forwards cancellation and rejects malformed sample responses', async () =>
       ? readPublicStatus(authentication)
       : readCurrentAccount(authentication)
     await assert.rejects(operation, /invalid sample response/i)
+  }
+})
+
+test('creates, verifies, and removes the private synthetic storage proof', async () => {
+  const proof = {
+    status: 'persisted',
+    sizeBytes: 38,
+    sha256: 'a'.repeat(64),
+  }
+  const authentication = session(proof)
+
+  assert.deepEqual(await createStorageProof(authentication), proof)
+  assert.deepEqual(await readStorageProof(authentication), proof)
+  authentication.request = async (path, options) => {
+    authentication.requests.push([path, options])
+    return { data: null }
+  }
+  assert.equal(await deleteStorageProof(authentication), undefined)
+
+  assert.deepEqual(authentication.requests, [
+    ['/api/v1/architecture-proof/storage', {
+      access: 'protected', method: 'POST', signal: undefined,
+    }],
+    ['/api/v1/architecture-proof/storage', {
+      access: 'protected', signal: undefined,
+    }],
+    ['/api/v1/architecture-proof/storage', {
+      access: 'protected', method: 'DELETE', signal: undefined,
+    }],
+  ])
+})
+
+test('rejects malformed storage proof responses', async () => {
+  for (const data of [
+    { status: 'stored', sizeBytes: 38, sha256: 'a'.repeat(64) },
+    { status: 'persisted', sizeBytes: 0, sha256: 'a'.repeat(64) },
+    { status: 'persisted', sizeBytes: 38, sha256: 'not-a-digest' },
+  ]) {
+    await assert.rejects(createStorageProof(session(data)), /invalid sample response/i)
   }
 })

@@ -106,6 +106,25 @@ h1 {
   font-size: 0.78rem;
 }
 
+.sample-status .storage-proof {
+  margin-top: 0.4rem;
+  padding-top: 1rem;
+  border-top: 1px solid #dbe1dc;
+}
+
+.proof-actions {
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 1 / -1;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.proof-actions button {
+  padding: 0.55rem 0.7rem;
+  font-size: 0.78rem;
+}
+
 button {
   padding: 0.8rem 1.2rem;
   border: 1px solid #1a4d3a;

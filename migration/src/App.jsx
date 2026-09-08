@@ -2,7 +2,13 @@ import { useEffect, useState } from 'react'
 
 import { authenticationSession } from './authSession.js'
 import { migrationPublicConfig } from './config.js'
-import { readCurrentAccount, readPublicStatus } from './sampleApi.js'
+import {
+  createStorageProof,
+  deleteStorageProof,
+  readCurrentAccount,
+  readPublicStatus,
+  readStorageProof,
+} from './sampleApi.js'
 
 const messages = {
   'account-unavailable': 'Your Workloop account is not active. Contact an administrator.',
@@ -48,6 +54,34 @@ function CurrentAccountSample() {
   )
 }
 
+function StorageProofSample() {
+  const [proof, setProof] = useState({ status: 'waiting' })
+
+  const run = async (operation) => {
+    setProof({ status: 'checking' })
+    try {
+      const data = await operation(authenticationSession())
+      setProof(data ? { status: 'persisted', data } : { status: 'removed' })
+    } catch {
+      setProof({ status: 'unavailable' })
+    }
+  }
+
+  return (
+    <div className="storage-proof">
+      <dt>Private object</dt>
+      <dd data-storage-proof-status={proof.status}>
+        {proof.status === 'persisted' ? `${proof.data.sizeBytes} bytes verified` : proof.status}
+      </dd>
+      <div className="proof-actions">
+        <button type="button" onClick={() => run(createStorageProof)}>Create or verify</button>
+        <button type="button" className="secondary" onClick={() => run(readStorageProof)}>Read again</button>
+        <button type="button" className="secondary" onClick={() => run(deleteStorageProof)}>Remove</button>
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
   const [sessionState, setSessionState] = useState({ status: 'loading' })
   const [publicSample, setPublicSample] = useState({ status: 'loading' })
@@ -87,7 +121,7 @@ export default function App() {
     <main data-api-configured={Boolean(migrationPublicConfig.apiBaseUrl)} data-session-status={status}>
       <section className="auth-panel" aria-live="polite">
         <p className="eyebrow">Workloop Clinic</p>
-        <h1>Local authentication</h1>
+        <h1>Architecture proof</h1>
         <p className="status">
           {status === 'configuration-error'
             ? 'The migration frontend is missing its public local configuration.'
@@ -115,7 +149,10 @@ export default function App() {
               </dd>
             </div>
             {status === 'signed-in' ? (
-              <CurrentAccountSample />
+              <>
+                <CurrentAccountSample />
+                <StorageProofSample />
+              </>
             ) : (
               <div>
                 <dt>Protected account</dt>
@@ -124,7 +161,7 @@ export default function App() {
             )}
           </dl>
         </section>
-        <p className="boundary">Local synthetic identities only. Tokens are kept in memory.</p>
+        <p className="boundary">Synthetic identities only. Tokens are kept in memory.</p>
       </section>
     </main>
   )

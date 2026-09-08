@@ -520,6 +520,29 @@ async def test_invalid_token_bucket_runs_after_route_attempt_bucket() -> None:
 
 
 @pytest.mark.asyncio
+async def test_digitalocean_proxy_uses_only_platform_client_ip_header() -> None:
+    limiter = RejectingRateLimiter()
+    settings = make_settings(
+        app_env="production",
+        app_base_url=AnyHttpUrl("https://workloop.example.test"),
+        frontend_url=AnyHttpUrl("https://workloop.example.test"),
+        oidc_issuer=AnyHttpUrl("https://workloop.example.test/auth/realms/workloop-dev"),
+        oidc_jwks_url=AnyHttpUrl(
+            "https://workloop.example.test/auth/realms/workloop-dev/protocol/openid-connect/certs"
+        ),
+        trusted_proxy="digitalocean_app_platform",
+    )
+    async with client_for(settings=settings, rate_limiter=limiter) as (client, _application):
+        response = await client.get(
+            "/health",
+            headers={"DO-Connecting-IP": "203.0.113.9", "X-Forwarded-For": "198.51.100.8"},
+        )
+
+    assert response.status_code == 429
+    assert limiter.calls == [(RateLimitClass.PUBLIC, "203.0.113.9")]
+
+
+@pytest.mark.asyncio
 async def test_openapi_names_operations_and_common_error_headers() -> None:
     async with client_for() as (client, _application):
         response = await client.get("/openapi.json")

@@ -146,6 +146,22 @@ test('accepts only approved relative API paths and local API origins', async () 
     fetch: async () => {},
     getAccessToken: () => null,
   }))
+
+  assert.doesNotThrow(() => createHttpClient({
+    apiBaseUrl: 'https://workloop-phase-6g-example.ondigitalocean.app',
+    browserOrigin: 'https://workloop-phase-6g-example.ondigitalocean.app',
+    fetch: async () => {},
+    getAccessToken: () => null,
+  }))
+  assert.throws(
+    () => createHttpClient({
+      apiBaseUrl: 'https://other-app.ondigitalocean.app',
+      browserOrigin: 'https://workloop-phase-6g-example.ondigitalocean.app',
+      fetch: async () => {},
+      getAccessToken: () => null,
+    }),
+    /Migration API configuration is invalid/,
+  )
 })
 
 test('rejects caller-controlled transport and authorization fields', async () => {

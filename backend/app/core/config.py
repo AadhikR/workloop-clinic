@@ -1,3 +1,4 @@
+import re
 from typing import Literal, Self
 
 from pydantic import AnyHttpUrl, Field, SecretStr, model_validator
@@ -46,12 +47,25 @@ class Settings(BaseSettings):
     oidc_jwks_refresh_cooldown_seconds: float = Field(
         default=1.0, validation_alias="OIDC_JWKS_REFRESH_COOLDOWN_SECONDS"
     )
+    trusted_proxy: Literal["direct", "digitalocean_app_platform"] = Field(
+        default="direct", validation_alias="TRUSTED_PROXY"
+    )
+    storage_backend: Literal["disabled", "spaces"] = Field(
+        default="disabled", validation_alias="STORAGE_BACKEND"
+    )
+    spaces_endpoint_url: AnyHttpUrl | None = Field(
+        default=None, validation_alias="SPACES_ENDPOINT_URL"
+    )
+    spaces_region: str | None = Field(default=None, validation_alias="SPACES_REGION")
+    spaces_bucket: str | None = Field(default=None, validation_alias="SPACES_BUCKET")
+    spaces_access_key: SecretStr | None = Field(default=None, validation_alias="SPACES_ACCESS_KEY")
+    spaces_secret_key: SecretStr | None = Field(default=None, validation_alias="SPACES_SECRET_KEY")
 
     @model_validator(mode="after")
     def validate_database_settings(self) -> Self:
         database_url = self.database_url.get_secret_value()
-        if not database_url.startswith("postgresql+psycopg://"):
-            raise ValueError("DATABASE_URL must use the postgresql+psycopg driver")
+        if not database_url.startswith(("postgresql://", "postgresql+psycopg://")):
+            raise ValueError("DATABASE_URL must use PostgreSQL")
         if not 0 < self.database_health_timeout_seconds <= 5:
             raise ValueError("DATABASE_HEALTH_TIMEOUT_SECONDS must be between 0 and 5")
         if not 0 < self.api_request_timeout_seconds <= 15:
@@ -74,6 +88,10 @@ class Settings(BaseSettings):
             self.oidc_issuer.scheme != "https" or self.oidc_jwks_url.scheme != "https"
         ):
             raise ValueError("OIDC_ISSUER and OIDC_JWKS_URL must use HTTPS outside local and test")
+        if self.app_env not in {"local", "test"} and (
+            self.app_base_url.scheme != "https" or self.frontend_url.scheme != "https"
+        ):
+            raise ValueError("APP_BASE_URL and FRONTEND_URL must use HTTPS outside local and test")
         if not self.oidc_audience or any(character.isspace() for character in self.oidc_audience):
             raise ValueError("OIDC_AUDIENCE must be a non-empty value without whitespace")
         if not 0 < self.oidc_jwks_connect_timeout_seconds <= 10:
@@ -90,10 +108,48 @@ class Settings(BaseSettings):
             "http://127.0.0.1:5174"
         ):
             raise ValueError("FRONTEND_URL must be http://127.0.0.1:5174 in local and test")
+        for setting_name, url in (
+            ("APP_BASE_URL", self.app_base_url),
+            ("FRONTEND_URL", self.frontend_url),
+        ):
+            if url.username or url.password or url.query or url.fragment:
+                raise ValueError(
+                    f"{setting_name} must not contain credentials, a query, or a fragment"
+                )
+            if url.path not in {"", "/"}:
+                raise ValueError(f"{setting_name} must be an origin without a path")
+        if self.app_env not in {"local", "test"} and self.trusted_proxy != (
+            "digitalocean_app_platform"
+        ):
+            raise ValueError("TRUSTED_PROXY must identify DigitalOcean App Platform when deployed")
+        self._validate_storage_settings()
         return self
+
+    def _validate_storage_settings(self) -> None:
+        if self.storage_backend == "disabled":
+            return
+        required = {
+            "SPACES_ENDPOINT_URL": self.spaces_endpoint_url,
+            "SPACES_REGION": self.spaces_region,
+            "SPACES_BUCKET": self.spaces_bucket,
+            "SPACES_ACCESS_KEY": self.spaces_access_key,
+            "SPACES_SECRET_KEY": self.spaces_secret_key,
+        }
+        missing = [name for name, value in required.items() if value is None]
+        if missing:
+            raise ValueError(f"Spaces configuration is incomplete: {', '.join(sorted(missing))}")
+        assert self.spaces_endpoint_url is not None
+        assert self.spaces_region is not None
+        assert self.spaces_bucket is not None
+        if self.spaces_endpoint_url.scheme != "https":
+            raise ValueError("SPACES_ENDPOINT_URL must use HTTPS")
+        if self.spaces_endpoint_url.host != f"{self.spaces_region}.digitaloceanspaces.com":
+            raise ValueError("SPACES_ENDPOINT_URL must match SPACES_REGION")
+        if not re.fullmatch(r"[a-z0-9](?:[a-z0-9.-]{1,61}[a-z0-9])?", self.spaces_bucket):
+            raise ValueError("SPACES_BUCKET must be a valid lowercase bucket name")
 
     @property
     def cors_allowed_origins(self) -> tuple[str, ...]:
         if self.app_env in {"local", "test"}:
             return ("http://127.0.0.1:5174",)
-        return ()
+        return (str(self.frontend_url).rstrip("/"),)

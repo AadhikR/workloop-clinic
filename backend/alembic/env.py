@@ -4,6 +4,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.pool import NullPool
 
 from alembic import context
+from app.db.engine import normalize_psycopg_url
 from app.models import Base
 
 target_metadata = Base.metadata
@@ -13,9 +14,10 @@ def migration_database_url() -> str:
     database_url = os.environ.get("MIGRATION_DATABASE_URL")
     if not database_url:
         raise RuntimeError("MIGRATION_DATABASE_URL is required")
-    if not database_url.startswith("postgresql+psycopg://"):
-        raise RuntimeError("MIGRATION_DATABASE_URL must use the postgresql+psycopg driver")
-    return database_url
+    try:
+        return normalize_psycopg_url(database_url)
+    except ValueError as error:
+        raise RuntimeError("MIGRATION_DATABASE_URL must use PostgreSQL") from error
 
 
 def run_migrations_offline() -> None:

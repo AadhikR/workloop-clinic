@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import logging
 from collections.abc import Callable
 from contextlib import suppress
@@ -37,6 +38,26 @@ def ordinary_body_limit(_scope: Scope) -> int:
     return ORDINARY_BODY_LIMIT_BYTES
 
 
+def trusted_client_ip(scope: Scope) -> str:
+    application = scope.get("app")
+    settings = getattr(getattr(application, "state", None), "settings", None)
+    if getattr(settings, "trusted_proxy", "direct") == "digitalocean_app_platform":
+        values = HttpBoundaryMiddleware.header_values(scope, b"do-connecting-ip")
+        if len(values) != 1:
+            return "unknown"
+        try:
+            return str(ipaddress.ip_address(values[0]))
+        except ValueError:
+            return "unknown"
+    client = scope.get("client")
+    if isinstance(client, tuple) and client and isinstance(client[0], str):
+        try:
+            return str(ipaddress.ip_address(client[0]))
+        except ValueError:
+            return "unknown"
+    return "unknown"
+
+
 class HttpBoundaryMiddleware:
     def __init__(
         self,
@@ -69,7 +90,7 @@ class HttpBoundaryMiddleware:
             if active_settings is not None
             else self.allowed_origins
         )
-        origin_values = self._header_values(scope, b"origin")
+        origin_values = self.header_values(scope, b"origin")
         origin = origin_values[0] if len(origin_values) == 1 else None
         response_started = False
 
@@ -116,7 +137,7 @@ class HttpBoundaryMiddleware:
                 client_receive = receive
                 if route_match is Match.FULL:
                     retry_after = await self.rate_limiter.check(
-                        self._rate_limit_class(scope), self._client_ip(scope)
+                        self._rate_limit_class(scope), trusted_client_ip(scope)
                     )
                     if retry_after is not None:
                         await error_response(
@@ -192,7 +213,7 @@ class HttpBoundaryMiddleware:
         return best
 
     @staticmethod
-    def _header_values(scope: Scope, name: bytes) -> list[str]:
+    def header_values(scope: Scope, name: bytes) -> list[str]:
         return [value.decode("latin-1") for key, value in scope["headers"] if key.lower() == name]
 
     @staticmethod
@@ -221,8 +242,8 @@ class HttpBoundaryMiddleware:
         correlation_id: str,
         origin: str | None,
     ) -> None:
-        method_values = self._header_values(scope, b"access-control-request-method")
-        header_values = self._header_values(scope, b"access-control-request-headers")
+        method_values = self.header_values(scope, b"access-control-request-method")
+        header_values = self.header_values(scope, b"access-control-request-headers")
         valid = origin is not None and len(method_values) == 1 and len(header_values) <= 1
         requested_method = method_values[0] if method_values else ""
         requested_headers = (
@@ -253,15 +274,15 @@ class HttpBoundaryMiddleware:
         await send({"type": "http.response.body", "body": b""})
 
     def _check_transport_headers(self, scope: Scope) -> str | None:
-        encodings = self._header_values(scope, b"content-encoding")
+        encodings = self.header_values(scope, b"content-encoding")
         if len(encodings) > 1 or (encodings and encodings[0].lower() != "identity"):
             return "unsupported_media_type"
-        accept_values = self._header_values(scope, b"accept")
+        accept_values = self.header_values(scope, b"accept")
         if len(accept_values) > 1:
             return "invalid_request"
         if accept_values and not self._accepts_json(accept_values[0]):
             return "not_acceptable"
-        lengths = self._header_values(scope, b"content-length")
+        lengths = self.header_values(scope, b"content-length")
         if len(lengths) > 1:
             return "invalid_request"
         if lengths:
@@ -305,7 +326,7 @@ class HttpBoundaryMiddleware:
                 break
         body = b"".join(body_parts)
         if body:
-            content_types = self._header_values(scope, b"content-type")
+            content_types = self.header_values(scope, b"content-type")
             if len(content_types) > 1:
                 return receive, "invalid_request"
             if not content_types or not self._is_json_content_type(content_types[0]):
@@ -373,10 +394,3 @@ class HttpBoundaryMiddleware:
         if path == "/api/v1/auth/token-check":
             return RateLimitClass.AUTHENTICATION_CHECK
         return RateLimitClass.PROTECTED_ATTEMPT
-
-    @staticmethod
-    def _client_ip(scope: Scope) -> str:
-        client = scope.get("client")
-        if isinstance(client, tuple) and client and isinstance(client[0], str):
-            return client[0]
-        return "unknown"

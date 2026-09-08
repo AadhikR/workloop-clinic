@@ -31,13 +31,13 @@ while IFS= read -r path; do
   esac
 
   case "$path" in
-    .github/*|docker-compose*.yml|backend/Dockerfile|backend/requirements*.lock|backend/pyproject.toml|infra/*|keycloak/*|migration/*|package.json|package-lock.json|scripts/new-local-postgres-env.ps1|scripts/configure-phase-*|scripts/verify-phase-*|backend/app/main.py|backend/app/auth/*|backend/app/db/*)
+    .github/*|docker-compose*.yml|backend/Dockerfile|backend/requirements*.lock|backend/pyproject.toml|infra/*|keycloak/*|migration/*|package.json|package-lock.json|scripts/new-local-postgres-env.ps1|scripts/configure-phase-*|scripts/verify-phase-*|backend/app/main.py|backend/app/auth/*|backend/app/db/*|backend/app/storage/*)
       full_stack=true
       ;;
   esac
 
   case "$path" in
-    docker-compose*.yml|backend/alembic/*|backend/app/models/*|backend/app/db/*|backend/app/repositories/*|backend/app/schemas/*|backend/tests/test_authorization_context.py|backend/tests/test_authorization_scopes.py|backend/tests/test_mutation_*|backend/tests/test_scoped_repositories.py|infra/local/postgres/*|scripts/database-persistence-*|scripts/phase-5g-catalogue.json|scripts/phase-5h-control-manifest.json|scripts/verify-phase-*-schema.*|scripts/verify-phase-*-migration*|scripts/verify-phase-*-rls.*|scripts/verify-phase-*-grants.*|scripts/verify-phase-*-function*|scripts/verify-phase-*-triggers.*|scripts/verify-phase-*-seed.*|scripts/verify-phase-*-context.*|scripts/verify-phase-*-boundaries.*|scripts/verify-phase-*-repositories.*|scripts/verify-phase-*-revision.*|scripts/verify-phase-*-downgrade.*|scripts/verify-phase-*-concurrency.*|scripts/verify-phase-*-security.*)
+    docker-compose*.yml|backend/alembic/*|backend/app/models/*|backend/app/db/*|backend/app/repositories/*|backend/app/schemas/*|backend/tests/test_authorization_*|backend/tests/test_mutation_*|backend/tests/test_scoped_repositories.py|infra/local/postgres/*|scripts/database-persistence-*|scripts/phase-5g-catalogue.json|scripts/phase-5h-control-manifest.json|scripts/verify-phase-*-schema.*|scripts/verify-phase-*-migration*|scripts/verify-phase-*-rls.*|scripts/verify-phase-*-grants.*|scripts/verify-phase-*-function*|scripts/verify-phase-*-triggers.*|scripts/verify-phase-*-seed.*|scripts/verify-phase-*-context.*|scripts/verify-phase-*-boundaries.*|scripts/verify-phase-*-repositories.*|scripts/verify-phase-*-revision.*|scripts/verify-phase-*-downgrade.*|scripts/verify-phase-*-concurrency.*|scripts/verify-phase-*-security.*)
       database_deep=true
       ;;
   esac

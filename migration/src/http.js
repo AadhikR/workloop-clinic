@@ -82,7 +82,7 @@ function invalidRequest() {
   return clientError('validation', 'client_invalid_request')
 }
 
-export function assertApiBaseUrl(apiBaseUrl) {
+export function assertApiBaseUrl(apiBaseUrl, browserOrigin = null) {
   let api
   try {
     api = new URL(apiBaseUrl)
@@ -91,7 +91,12 @@ export function assertApiBaseUrl(apiBaseUrl) {
   }
 
   if (
-    !approvedLocalApiOrigins.has(api.origin)
+    !(
+      approvedLocalApiOrigins.has(api.origin)
+      || api.protocol === 'https:'
+        && api.origin === browserOrigin
+        && api.hostname.endsWith('.ondigitalocean.app')
+    )
     || api.pathname !== '/'
     || api.search
     || api.hash
@@ -331,11 +336,12 @@ function requestBody(options, method) {
 
 export function createHttpClient({
   apiBaseUrl,
+  browserOrigin = globalThis.location?.origin ?? null,
   fetch: fetchRequest,
   getAccessToken,
   timers = globalThis,
 }) {
-  const baseUrl = assertApiBaseUrl(apiBaseUrl)
+  const baseUrl = assertApiBaseUrl(apiBaseUrl, browserOrigin)
   if (
     typeof fetchRequest !== 'function'
     || typeof getAccessToken !== 'function'

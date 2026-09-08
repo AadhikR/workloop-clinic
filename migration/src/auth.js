@@ -26,6 +26,12 @@ function assertPublicConfig(config, location) {
 
   const redirect = new URL(config.oidcRedirectUri)
   const logout = new URL(config.oidcPostLogoutRedirectUri)
+  const authority = new URL(config.oidcAuthority)
+  const localAuthorities = new Set([
+    'http://127.0.0.1:8080/realms/workloop-dev',
+    'http://127.0.0.1:18080/realms/workloop-dev',
+  ])
+  const cloudAuthority = `${location.origin}/auth/realms/workloop-dev`
   if (
     redirect.origin !== location.origin
     || redirect.pathname !== callbackPath
@@ -35,12 +41,18 @@ function assertPublicConfig(config, location) {
     || logout.pathname !== '/'
     || logout.search
     || logout.hash
+    || (
+      location.origin === 'http://127.0.0.1:5174'
+        ? !localAuthorities.has(config.oidcAuthority)
+        : config.oidcAuthority !== cloudAuthority
+    )
+    || authority.search
+    || authority.hash
   ) {
     throw new Error('Migration authentication redirect configuration is invalid')
   }
 
-  assertApiBaseUrl(config.apiBaseUrl)
-  new URL(config.oidcAuthority)
+  assertApiBaseUrl(config.apiBaseUrl, location.origin)
 }
 
 export function createUserManager(config, browser = window) {
@@ -83,6 +95,7 @@ export class AuthenticationSession {
     this.responseUrl = responseUrl
     this.http = createHttpClient({
       apiBaseUrl: config.apiBaseUrl,
+      browserOrigin: location.origin,
       fetch: fetchRequest,
       getAccessToken: () => this.currentUser?.access_token ?? null,
     })

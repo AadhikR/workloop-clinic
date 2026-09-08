@@ -14,6 +14,7 @@ from app.auth.application_user import (
     AuthorizationPrincipal,
 )
 from app.http.errors import api_error
+from app.http.middleware import trusted_client_ip
 from app.http.rate_limit import RateLimitClass, RateLimiter
 from app.models.identity import AppRole
 
@@ -35,10 +36,6 @@ async def _check_rate_limit(
         )
 
 
-def _direct_client_ip(request: Request) -> str:
-    return request.client.host if request.client is not None else "unknown"
-
-
 def authentication_error() -> HTTPException:
     return HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -52,7 +49,7 @@ def authentication_error() -> HTTPException:
 
 async def reject_access_token(request: Request) -> NoReturn:
     await _check_rate_limit(
-        request, RateLimitClass.INVALID_ACCESS_TOKEN, _direct_client_ip(request)
+        request, RateLimitClass.INVALID_ACCESS_TOKEN, trusted_client_ip(request.scope)
     )
     raise authentication_error()
 
@@ -186,6 +183,29 @@ async def require_authenticated_read_principal(
 
 AuthenticatedReadPrincipal = Annotated[
     AuthorizationPrincipal, Depends(require_authenticated_read_principal)
+]
+
+
+async def require_authenticated_write_principal(
+    request: Request,
+    principal: AuthenticatedAuthorizationPrincipal,
+    _security: Annotated[HTTPAuthorizationCredentials | None, Security(bearer_security)],
+) -> AuthorizationPrincipal:
+    await _check_rate_limit(
+        request,
+        RateLimitClass.AUTHENTICATED_WRITE_USER,
+        f"app_user:{principal.app_user_id}",
+    )
+    await _check_rate_limit(
+        request,
+        RateLimitClass.AUTHENTICATED_WRITE_COMPANY,
+        f"company:{principal.company_id}",
+    )
+    return principal
+
+
+AuthenticatedWritePrincipal = Annotated[
+    AuthorizationPrincipal, Depends(require_authenticated_write_principal)
 ]
 
 

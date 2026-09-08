@@ -41,7 +41,7 @@ def test_settings_reject_non_postgresql_database(monkeypatch: MonkeyPatch) -> No
     set_required_environment(monkeypatch)
     monkeypatch.setenv("DATABASE_URL", "sqlite:///workloop.db")
 
-    with pytest.raises(ValidationError, match=r"postgresql\+psycopg"):
+    with pytest.raises(ValidationError, match="PostgreSQL"):
         Settings()  # pyright: ignore[reportCallIssue]
 
 
@@ -79,6 +79,9 @@ def test_deployed_settings_accept_https_oidc_urls(monkeypatch: MonkeyPatch) -> N
     monkeypatch.setenv(
         "OIDC_JWKS_URL", "https://identity.example.test/realms/workloop/openid-connect/certs"
     )
+    monkeypatch.setenv("APP_BASE_URL", "https://workloop.example.test")
+    monkeypatch.setenv("FRONTEND_URL", "https://workloop.example.test")
+    monkeypatch.setenv("TRUSTED_PROXY", "digitalocean_app_platform")
 
     settings = Settings()  # pyright: ignore[reportCallIssue]
 
@@ -104,17 +107,54 @@ def test_local_settings_require_exact_migration_frontend(monkeypatch: MonkeyPatc
         Settings()  # pyright: ignore[reportCallIssue]
 
 
-def test_cloud_cors_allowlist_stays_empty(monkeypatch: MonkeyPatch) -> None:
+def test_cloud_cors_allowlist_uses_exact_frontend_origin(monkeypatch: MonkeyPatch) -> None:
     set_required_environment(monkeypatch)
     monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.setenv("OIDC_ISSUER", "https://identity.example.test/realms/workloop")
     monkeypatch.setenv(
         "OIDC_JWKS_URL", "https://identity.example.test/realms/workloop/openid-connect/certs"
     )
+    monkeypatch.setenv("APP_BASE_URL", "https://workloop.example.test")
+    monkeypatch.setenv("FRONTEND_URL", "https://workloop.example.test")
+    monkeypatch.setenv("TRUSTED_PROXY", "digitalocean_app_platform")
 
     settings = Settings()  # pyright: ignore[reportCallIssue]
 
-    assert settings.cors_allowed_origins == ()
+    assert settings.cors_allowed_origins == ("https://workloop.example.test",)
+
+
+def test_deployed_settings_require_named_proxy(monkeypatch: MonkeyPatch) -> None:
+    set_required_environment(monkeypatch)
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("APP_BASE_URL", "https://workloop.example.test")
+    monkeypatch.setenv("FRONTEND_URL", "https://workloop.example.test")
+    monkeypatch.setenv("OIDC_ISSUER", "https://workloop.example.test/auth/realms/workloop-dev")
+    monkeypatch.setenv(
+        "OIDC_JWKS_URL",
+        "https://workloop.example.test/auth/realms/workloop-dev/protocol/openid-connect/certs",
+    )
+
+    with pytest.raises(ValidationError, match="TRUSTED_PROXY"):
+        Settings()  # pyright: ignore[reportCallIssue]
+
+
+def test_spaces_settings_require_exact_https_regional_endpoint(monkeypatch: MonkeyPatch) -> None:
+    set_required_environment(monkeypatch)
+    monkeypatch.setenv("STORAGE_BACKEND", "spaces")
+    monkeypatch.setenv("SPACES_ENDPOINT_URL", "https://fra1.digitaloceanspaces.com")
+    monkeypatch.setenv("SPACES_REGION", "fra1")
+    monkeypatch.setenv("SPACES_BUCKET", "workloop-phase-6g-example")
+    monkeypatch.setenv("SPACES_ACCESS_KEY", "scoped-access")
+    monkeypatch.setenv("SPACES_SECRET_KEY", "scoped-secret")
+
+    settings = Settings()  # pyright: ignore[reportCallIssue]
+
+    assert settings.storage_backend == "spaces"
+    assert "scoped-secret" not in repr(settings)
+
+    monkeypatch.setenv("SPACES_ENDPOINT_URL", "https://ams3.digitaloceanspaces.com")
+    with pytest.raises(ValidationError, match="must match SPACES_REGION"):
+        Settings()  # pyright: ignore[reportCallIssue]
 
 
 @pytest.mark.parametrize(

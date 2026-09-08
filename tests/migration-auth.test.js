@@ -148,9 +148,13 @@ test('rejects an API token destination outside the approved local origin', () =>
   )
 })
 
-test('accepts the dedicated local verification API origin', () => {
+test('accepts the dedicated local verification origins', () => {
   assert.doesNotThrow(() => createUserManager(
-    { ...config, apiBaseUrl: 'http://127.0.0.1:18000' },
+    {
+      ...config,
+      apiBaseUrl: 'http://127.0.0.1:18000',
+      oidcAuthority: 'http://127.0.0.1:18080/realms/workloop-dev',
+    },
     {
       location: { origin: 'http://127.0.0.1:5174' },
       sessionStorage: new MemoryStorage(),
