@@ -40,7 +40,7 @@ installed for the legacy build until final cutover.
 | FastAPI audience | `workloop-api` |
 | Legacy frontend | `http://127.0.0.1:5173` |
 | Migration frontend | `http://127.0.0.1:5174` |
-| Login callback | `http://127.0.0.1:5174/auth/callback` |
+| Login callback | `http://127.0.0.1:5174/oidc/callback` |
 | Post-logout destination | `http://127.0.0.1:5174/` |
 | FastAPI | `http://127.0.0.1:8000` |
 

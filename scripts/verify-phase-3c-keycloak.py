@@ -24,7 +24,7 @@ BASE_URL = os.environ.get("WORKLOOP_KEYCLOAK_BASE_URL", "http://127.0.0.1:8080")
 API_BASE_URL = os.environ.get("WORKLOOP_API_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
 REALM_URL = f"{BASE_URL}/realms/workloop-dev"
 CLIENT_ID = "workloop-migration-web"
-REDIRECT_URI = "http://127.0.0.1:5174/auth/callback"
+REDIRECT_URI = "http://127.0.0.1:5174/oidc/callback"
 LOGOUT_URI = "http://127.0.0.1:5174/"
 ORIGIN = "http://127.0.0.1:5174"
 KCADM_CONFIG = "/tmp/workloop-phase-3c-kcadm.config"
@@ -366,11 +366,11 @@ def verify_protocol_restrictions() -> None:
 
     rejected_redirects = (
         "http://127.0.0.1:5174/",
-        "http://127.0.0.1:5174/auth/callback/extra",
-        "http://127.0.0.1:5173/auth/callback",
-        "http://localhost:5174/auth/callback",
-        "https://127.0.0.1:5174/auth/callback",
-        "https://example.test/auth/callback",
+        "http://127.0.0.1:5174/oidc/callback/extra",
+        "http://127.0.0.1:5173/oidc/callback",
+        "http://localhost:5174/oidc/callback",
+        "https://127.0.0.1:5174/oidc/callback",
+        "https://example.test/oidc/callback",
     )
     for redirect_uri in rejected_redirects:
         status, headers, _ = authorization_request(redirect_uri=redirect_uri)

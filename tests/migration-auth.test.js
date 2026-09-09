@@ -9,7 +9,7 @@ const config = {
   apiBaseUrl: 'http://127.0.0.1:8000',
   oidcAuthority: 'http://127.0.0.1:8080/realms/workloop-dev',
   oidcClientId: 'workloop-migration-web',
-  oidcRedirectUri: 'http://127.0.0.1:5174/auth/callback',
+  oidcRedirectUri: 'http://127.0.0.1:5174/oidc/callback',
   oidcPostLogoutRedirectUri: 'http://127.0.0.1:5174/',
   oidcAudience: 'workloop-api',
 }
@@ -114,7 +114,7 @@ function session(overrides = {}) {
     location,
     nonce: () => 'test-nonce',
     responseUrl: overrides.responseUrl
-      ?? (location.pathname === '/auth/callback' ? location.href : null),
+      ?? (location.pathname === '/oidc/callback' ? location.href : null),
   })
   return { authentication, manager, replacements }
 }
@@ -204,9 +204,9 @@ test('checks the FastAPI account after a validated callback and clears its URL',
     manager,
     fetch: async (...args) => { requests.push(args); return accountResponse(204) },
     location: {
-      href: 'http://127.0.0.1:5174/auth/callback?code=redacted&state=redacted',
+      href: 'http://127.0.0.1:5174/oidc/callback?code=redacted&state=redacted',
       origin: 'http://127.0.0.1:5174',
-      pathname: '/auth/callback',
+      pathname: '/oidc/callback',
       search: '?code=redacted&state=redacted',
     },
   })
@@ -232,9 +232,9 @@ test('fails closed for callback replay and prompt-none login_required', async ()
     const { authentication, replacements } = session({
       manager,
       location: {
-        href: 'http://127.0.0.1:5174/auth/callback?state=invalid',
+        href: 'http://127.0.0.1:5174/oidc/callback?state=invalid',
         origin: 'http://127.0.0.1:5174',
-        pathname: '/auth/callback',
+        pathname: '/oidc/callback',
         search: '?state=invalid',
       },
     })

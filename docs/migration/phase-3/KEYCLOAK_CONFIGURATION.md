@@ -56,8 +56,11 @@ Its ignored local credential is not present in the realm file or test output.
 `workloop-migration-web` is a public OIDC client with no secret. Its only login callback is:
 
 ```text
-http://127.0.0.1:5174/auth/callback
+http://127.0.0.1:5174/oidc/callback
 ```
+
+The callback stays outside `/auth/*` so a reverse proxy can reserve that path for Keycloak
+without intercepting the browser application's OIDC response.
 
 Its only post-logout destination and web origin are:
 

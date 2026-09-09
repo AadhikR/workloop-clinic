@@ -425,7 +425,7 @@ async function browserChecks(viteServer) {
         }
         if (
           requestUrl.origin === 'http://127.0.0.1:5174'
-          && requestUrl.pathname === '/auth/callback'
+          && requestUrl.pathname === '/oidc/callback'
           && requestUrl.searchParams.has('code')
         ) {
           callbackUrl = requestUrl.toString()
@@ -593,7 +593,7 @@ async function main() {
       VITE_API_BASE_URL: apiBaseUrl,
       VITE_OIDC_AUTHORITY: issuer,
       VITE_OIDC_CLIENT_ID: 'workloop-migration-web',
-      VITE_OIDC_REDIRECT_URI: 'http://127.0.0.1:5174/auth/callback',
+      VITE_OIDC_REDIRECT_URI: 'http://127.0.0.1:5174/oidc/callback',
       VITE_OIDC_POST_LOGOUT_REDIRECT_URI: 'http://127.0.0.1:5174/',
       VITE_OIDC_AUDIENCE: 'workloop-api',
     })

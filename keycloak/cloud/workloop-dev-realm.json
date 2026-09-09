@@ -70,7 +70,7 @@
       "fullScopeAllowed": false,
       "frontchannelLogout": false,
       "redirectUris": [
-        "${WORKLOOP_PUBLIC_URL}/auth/callback"
+        "${WORKLOOP_PUBLIC_URL}/oidc/callback"
       ],
       "webOrigins": [
         "${WORKLOOP_PUBLIC_URL}"

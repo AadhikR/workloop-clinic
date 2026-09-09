@@ -48,6 +48,10 @@ def verify_terraform() -> None:
             'value = "$${workloop-runtime.DATABASE_PRIVATE_URL}"',
             "private API database URL",
         ),
+        (
+            'value = "$${APP_URL}/oidc/callback"',
+            "OIDC callback outside the Keycloak ingress path",
+        ),
         ('dockerfile_path    = "keycloak/Dockerfile"', "Keycloak Dockerfile path"),
         ("deploy_on_push = false", "manual deployment control"),
     ):
@@ -80,6 +84,7 @@ def verify_terraform() -> None:
         "storage_autoscale",
         'dockerfile_path    = "Dockerfile"',
         "ignore_changes = all",
+        'value = "$${APP_URL}/auth/callback"',
     )
     for value in forbidden:
         if value in source:
@@ -97,7 +102,7 @@ def verify_realm() -> None:
         )
     clients = {client["clientId"]: client for client in realm["clients"]}
     migration_client = clients["workloop-migration-web"]
-    if migration_client["redirectUris"] != ["${WORKLOOP_PUBLIC_URL}/auth/callback"]:
+    if migration_client["redirectUris"] != ["${WORKLOOP_PUBLIC_URL}/oidc/callback"]:
         raise AssertionError("cloud callback is not exact")
     if migration_client["webOrigins"] != ["${WORKLOOP_PUBLIC_URL}"]:
         raise AssertionError("cloud web origin is not exact")

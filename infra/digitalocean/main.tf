@@ -514,7 +514,7 @@ resource "digitalocean_app" "proof" {
 
       env {
         key   = "VITE_OIDC_REDIRECT_URI"
-        value = "$${APP_URL}/auth/callback"
+        value = "$${APP_URL}/oidc/callback"
         scope = "BUILD_TIME"
         type  = "GENERAL"
       }

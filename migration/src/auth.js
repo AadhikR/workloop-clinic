@@ -8,7 +8,7 @@ import {
 
 import { HttpClientError, assertApiBaseUrl, createHttpClient } from './http.js'
 
-const callbackPath = '/auth/callback'
+const callbackPath = '/oidc/callback'
 const signedOutState = Object.freeze({ status: 'signed-out' })
 
 function assertPublicConfig(config, location) {
