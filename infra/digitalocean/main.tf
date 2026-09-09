@@ -76,11 +76,6 @@ resource "digitalocean_database_cluster" "proof" {
   region               = local.resource_region
   node_count           = 1
   private_network_uuid = digitalocean_vpc.proof[0].id
-  project_id           = data.digitalocean_project.workloop[0].id
-
-  storage_autoscale {
-    enabled = false
-  }
 
   depends_on = [terraform_data.phase_6g_guard]
 }
@@ -101,18 +96,30 @@ resource "digitalocean_database_user" "workloop_migration" {
   count      = local.enabled ? 1 : 0
   cluster_id = digitalocean_database_cluster.proof[0].id
   name       = "workloop_migration"
+
+  lifecycle {
+    ignore_changes = [settings]
+  }
 }
 
 resource "digitalocean_database_user" "workloop_runtime" {
   count      = local.enabled ? 1 : 0
   cluster_id = digitalocean_database_cluster.proof[0].id
   name       = "workloop_runtime"
+
+  lifecycle {
+    ignore_changes = [settings]
+  }
 }
 
 resource "digitalocean_database_user" "keycloak" {
   count      = local.enabled ? 1 : 0
   cluster_id = digitalocean_database_cluster.proof[0].id
   name       = "keycloak"
+
+  lifecycle {
+    ignore_changes = [settings]
+  }
 }
 
 resource "digitalocean_spaces_bucket" "proof" {
@@ -140,8 +147,7 @@ resource "digitalocean_spaces_key" "api" {
 }
 
 resource "digitalocean_app" "proof" {
-  count      = local.enabled ? 1 : 0
-  project_id = data.digitalocean_project.workloop[0].id
+  count = local.enabled ? 1 : 0
 
   spec {
     name   = local.app_name
@@ -214,7 +220,7 @@ resource "digitalocean_app" "proof" {
       instance_size_slug = "apps-s-1vcpu-1gb"
       run_command        = "python -m app.db.cloud_bootstrap && alembic upgrade head && python -m app.db.cloud_seed"
       source_dir         = "backend"
-      dockerfile_path    = "Dockerfile"
+      dockerfile_path    = "backend/Dockerfile"
 
       github {
         repo           = local.github_repository
@@ -257,7 +263,7 @@ resource "digitalocean_app" "proof" {
       instance_size_slug = "apps-s-1vcpu-1gb"
       http_port          = 8000
       source_dir         = "backend"
-      dockerfile_path    = "Dockerfile"
+      dockerfile_path    = "backend/Dockerfile"
 
       github {
         repo           = local.github_repository
@@ -381,7 +387,7 @@ resource "digitalocean_app" "proof" {
       http_port          = 8080
       internal_ports     = [9000]
       source_dir         = "keycloak"
-      dockerfile_path    = "Dockerfile"
+      dockerfile_path    = "keycloak/Dockerfile"
 
       github {
         repo           = local.github_repository
@@ -601,5 +607,7 @@ resource "digitalocean_project_resources" "spaces" {
   project = data.digitalocean_project.workloop[0].id
   resources = [
     digitalocean_spaces_bucket.proof[0].urn,
+    digitalocean_database_cluster.proof[0].urn,
+    digitalocean_app.proof[0].urn,
   ]
 }
