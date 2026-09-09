@@ -16,7 +16,7 @@ The proof uses these resources in Frankfurt:
 - one VPC and one short pre-deploy job.
 
 The standing monthly rate is USD 55.15 before tax and overages. That monthly amount is not
-authorized. The approved run is at most 72 hours, with an estimated prorated cost of USD 5.91. Stop
+authorized. The approved run is at most 48 hours, with an estimated prorated cost of USD 3.94. Stop
 new work and request teardown approval if the team spend reaches USD 15. The absolute total ceiling
 is USD 20. Do not resize components, add dedicated IPs, enable autoscaling, or add other billable
 resources.
@@ -40,7 +40,7 @@ Complete these checks before an authorized plan:
 5. Create a temporary full-access Spaces key for Terraform to create and delete the private bucket.
    The app receives a separate bucket-scoped `readwrite` key. Revoke the temporary full-access key
    after teardown.
-6. Choose a UTC teardown deadline no more than 72 hours after provisioning begins.
+6. Choose a UTC teardown deadline no more than 48 hours after provisioning begins.
 7. Generate two unrelated temporary passwords of at least 20 characters for the Keycloak bootstrap
    administrator and the synthetic login. Keep them out of files, shell history, chat, and source
    control.
