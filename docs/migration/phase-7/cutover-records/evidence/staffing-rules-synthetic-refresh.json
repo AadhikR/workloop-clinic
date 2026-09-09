@@ -1,0 +1,8 @@
+{
+  "command": "node -e \"const f=require('node:fs');const s=JSON.parse(f.readFileSync('tests/fixtures/phase-6d/synthetic-users.json'));const r=JSON.parse(f.readFileSync('docs/migration/phase-7/cutover-records/staffing-rules.json'));if(s.length!==r.identityMapping.mappings.length)process.exit(1)\"",
+  "featureId": "phase7-staffing-rules",
+  "refreshedAt": "2026-09-09T15:35:28Z",
+  "sourceDigest": "sha256:1ebfc4d976b2763da0ea319f387c78c69d98d16c05d03708f3515012640e04be",
+  "sourceRecordCount": 2,
+  "targetRecordCount": 2
+}

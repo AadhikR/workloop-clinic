@@ -1,0 +1,206 @@
+{
+  "$schema": "./cutover-record.schema.json",
+  "schemaVersion": 1,
+  "featureId": "phase7-staffing-rules",
+  "dataClassification": "synthetic",
+  "status": {
+    "current": "preparation",
+    "changedAt": "2026-09-09T15:35:28Z",
+    "history": [
+      {
+        "state": "preparation",
+        "at": "2026-09-09T15:35:28Z",
+        "reason": "Phase 7A prepared this declaration. No business authority has changed."
+      }
+    ]
+  },
+  "dependencies": {
+    "inventorySource": "docs/migration/phase-7/PART_7A_DOMAIN_CONTRACT.md",
+    "requiredIds": [
+      "legacy-staffing-storage",
+      "legacy-department-storage",
+      "legacy-phase7-consumers",
+      "legacy-schema-contracts",
+      "target-domain-models",
+      "target-scope-foundation",
+      "target-http-client",
+      "target-build-isolation",
+      "planned-staffing-writer",
+      "synthetic-identity-map"
+    ],
+    "declared": [
+      {
+        "id": "legacy-staffing-storage",
+        "system": "legacy-supabase",
+        "kind": "module",
+        "locator": "src/utils/staffingStorage.js",
+        "cutoverDisposition": "retain"
+      },
+      {
+        "id": "legacy-department-storage",
+        "system": "legacy-supabase",
+        "kind": "module",
+        "locator": "src/utils/departmentStorage.js",
+        "cutoverDisposition": "retain"
+      },
+      {
+        "id": "legacy-phase7-consumers",
+        "system": "legacy-supabase",
+        "kind": "module",
+        "locator": "src/components and src/context",
+        "cutoverDisposition": "retain"
+      },
+      {
+        "id": "legacy-schema-contracts",
+        "system": "legacy-supabase",
+        "kind": "data-contract",
+        "locator": "supabase_schema.sql, root supabase_migration_*.sql, and sql/*.sql",
+        "cutoverDisposition": "retain"
+      },
+      {
+        "id": "target-domain-models",
+        "system": "migration-fastapi",
+        "kind": "module",
+        "locator": "backend/app/models/identity.py and backend/app/models/people.py",
+        "cutoverDisposition": "retain"
+      },
+      {
+        "id": "target-scope-foundation",
+        "system": "migration-fastapi",
+        "kind": "module",
+        "locator": "backend/app/auth, backend/app/repositories/scoped.py, and backend/app/services/execution.py",
+        "cutoverDisposition": "retain"
+      },
+      {
+        "id": "target-http-client",
+        "system": "migration-fastapi",
+        "kind": "module",
+        "locator": "migration/src/http.js",
+        "cutoverDisposition": "retain"
+      },
+      {
+        "id": "target-build-isolation",
+        "system": "migration-fastapi",
+        "kind": "configuration",
+        "locator": "migration/vite-isolation.js and scripts/frontend-build-isolation.mjs",
+        "cutoverDisposition": "retain"
+      },
+      {
+        "id": "planned-staffing-writer",
+        "system": "migration-fastapi",
+        "kind": "module",
+        "locator": "synthetic://phase-7e/staffing-writer",
+        "cutoverDisposition": "freeze"
+      },
+      {
+        "id": "synthetic-identity-map",
+        "system": "migration-fastapi",
+        "kind": "data-contract",
+        "locator": "tests/fixtures/phase-6d/synthetic-users.json",
+        "cutoverDisposition": "retain"
+      }
+    ]
+  },
+  "authority": {
+    "readSystem": "legacy-supabase",
+    "writeSystem": "legacy-supabase",
+    "writableSystems": [
+      "legacy-supabase"
+    ]
+  },
+  "freeze": {
+    "read": {
+      "system": "migration-fastapi",
+      "condition": "The migration feature reader stays disconnected from business screens.",
+      "releaseCondition": "The owning Phase 7 implementation part proves every declared reader and receives owner approval.",
+      "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-7/cutover-records/staffing-rules.json"
+    },
+    "write": {
+      "system": "migration-fastapi",
+      "condition": "The migration feature has no enabled business write path.",
+      "releaseCondition": "The owning Phase 7 implementation part freezes the matching legacy writer before it enables migration writes.",
+      "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-7/cutover-records/staffing-rules.json"
+    }
+  },
+  "refresh": {
+    "mode": "synthetic-only",
+    "source": {
+      "kind": "tracked-fixture",
+      "locator": "tests/fixtures/phase-6d/synthetic-users.json",
+      "digest": "sha256:1ebfc4d976b2763da0ea319f387c78c69d98d16c05d03708f3515012640e04be"
+    },
+    "command": "node -e \"const f=require('node:fs');const s=JSON.parse(f.readFileSync('tests/fixtures/phase-6d/synthetic-users.json'));const r=JSON.parse(f.readFileSync('docs/migration/phase-7/cutover-records/staffing-rules.json'));if(s.length!==r.identityMapping.mappings.length)process.exit(1)\"",
+    "lastRefresh": {
+      "timestamp": "2026-09-09T15:35:28Z",
+      "command": "node -e \"const f=require('node:fs');const s=JSON.parse(f.readFileSync('tests/fixtures/phase-6d/synthetic-users.json'));const r=JSON.parse(f.readFileSync('docs/migration/phase-7/cutover-records/staffing-rules.json'));if(s.length!==r.identityMapping.mappings.length)process.exit(1)\"",
+      "sourceDigest": "sha256:1ebfc4d976b2763da0ea319f387c78c69d98d16c05d03708f3515012640e04be",
+      "evidence": {
+        "path": "docs/migration/phase-7/cutover-records/evidence/staffing-rules-synthetic-refresh.json",
+        "sha256": "sha256:883b6c7143c2c6a2fef1f8d755928710b451f26d92f000f04d265f75ab52f03a"
+      }
+    }
+  },
+  "identityMapping": {
+    "mode": "synthetic-only",
+    "legacyIdField": "legacySupabaseUserId",
+    "applicationIdField": "applicationUserId",
+    "requiredLegacyUserIds": [
+      "11111111-1111-4111-8111-111111111111",
+      "22222222-2222-4222-8222-222222222222"
+    ],
+    "mappings": [
+      {
+        "legacySupabaseUserId": "11111111-1111-4111-8111-111111111111",
+        "applicationUserId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+        "synthetic": true
+      },
+      {
+        "legacySupabaseUserId": "22222222-2222-4222-8222-222222222222",
+        "applicationUserId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
+        "synthetic": true
+      }
+    ]
+  },
+  "rollback": {
+    "trigger": "Use this plan if a later synthetic cutover check fails after migration writes are enabled.",
+    "owner": "phase-owner",
+    "targetAuthority": {
+      "readSystem": "legacy-supabase",
+      "writeSystem": "legacy-supabase",
+      "writableSystems": [
+        "legacy-supabase"
+      ]
+    },
+    "steps": [
+      {
+        "id": "freeze-migration-writes",
+        "action": "Disable the migration write path before changing either reader.",
+        "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-7/cutover-records/staffing-rules.json"
+      },
+      {
+        "id": "restore-legacy-writes",
+        "action": "Confirm that the matching legacy writer is the only writable system.",
+        "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-7/cutover-records/staffing-rules.json"
+      },
+      {
+        "id": "restore-legacy-reads",
+        "action": "Route every consumer in this cutover unit back to the legacy reader.",
+        "verificationCommand": "node scripts/frontend-build-isolation.mjs"
+      },
+      {
+        "id": "verify-authority",
+        "action": "Validate legacy Supabase as the sole read and write authority.",
+        "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-7/cutover-records/staffing-rules.json"
+      },
+      {
+        "id": "verify-data",
+        "action": "Compare the synthetic identity source with this record's complete mapping.",
+        "verificationCommand": "node -e \"const f=require('node:fs');const s=JSON.parse(f.readFileSync('tests/fixtures/phase-6d/synthetic-users.json'));const r=JSON.parse(f.readFileSync('docs/migration/phase-7/cutover-records/staffing-rules.json'));if(s.length!==r.identityMapping.mappings.length)process.exit(1)\""
+      }
+    ]
+  },
+  "validation": {
+    "asOf": "2026-09-09T15:36:00Z",
+    "refreshMaxAgeHours": 24
+  }
+}
