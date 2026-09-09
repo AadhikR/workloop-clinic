@@ -9,11 +9,17 @@ from psycopg.conninfo import conninfo_to_dict
 
 
 @dataclass(frozen=True, slots=True)
+class DatabaseRole:
+    name: str
+    inherit: bool = True
+
+
+@dataclass(frozen=True, slots=True)
 class DatabaseBootstrap:
     environment_name: str
     database: str
     owner: str
-    runtime_role: str | None = None
+    connect_roles: tuple[DatabaseRole, ...] = ()
 
 
 BOOTSTRAPS = (
@@ -21,7 +27,10 @@ BOOTSTRAPS = (
         environment_name="CLOUD_ADMIN_WORKLOOP_DATABASE_URL",
         database="workloop",
         owner="workloop_migration",
-        runtime_role="workloop_runtime",
+        connect_roles=(
+            DatabaseRole("workloop_runtime"),
+            DatabaseRole("workloop_expiry_processing", inherit=False),
+        ),
     ),
     DatabaseBootstrap(
         environment_name="CLOUD_ADMIN_KEYCLOAK_DATABASE_URL",
@@ -67,13 +76,37 @@ def apply_bootstrap(specification: DatabaseBootstrap, connection_url: str) -> No
         connection.execute(
             sql.SQL("ALTER SCHEMA public OWNER TO {}").format(sql.Identifier(specification.owner))
         )
-        if specification.runtime_role is not None:
+        for connect_role in specification.connect_roles:
             connection.execute(
                 sql.SQL("GRANT CONNECT ON DATABASE {} TO {}").format(
                     sql.Identifier(specification.database),
-                    sql.Identifier(specification.runtime_role),
+                    sql.Identifier(connect_role.name),
                 )
             )
+            if not connect_role.inherit:
+                connection.execute(
+                    sql.SQL("ALTER ROLE {} NOINHERIT").format(sql.Identifier(connect_role.name))
+                )
+            role_attributes = connection.execute(
+                """
+SELECT rolcanlogin, rolinherit, rolsuper, rolcreatedb, rolcreaterole,
+       rolreplication, rolbypassrls
+FROM pg_catalog.pg_roles
+WHERE rolname = %s
+""",
+                (connect_role.name,),
+            ).fetchone()
+            expected_attributes = (
+                True,
+                connect_role.inherit,
+                False,
+                False,
+                False,
+                False,
+                False,
+            )
+            if role_attributes != expected_attributes:
+                raise RuntimeError(f"cloud database role {connect_role.name} is not restricted")
 
 
 def main() -> int:

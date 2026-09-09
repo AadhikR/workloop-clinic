@@ -1,7 +1,7 @@
 import pytest
 
 from app.db import cloud_migrate
-from app.db.cloud_bootstrap import validate_admin_connection_url
+from app.db.cloud_bootstrap import BOOTSTRAPS, validate_admin_connection_url
 from app.db.cloud_seed import issuer_from_public_url
 from app.db.engine import normalize_psycopg_url
 
@@ -42,6 +42,17 @@ def test_accepts_exact_private_admin_database_url() -> None:
 def test_rejects_admin_database_url_outside_boundary(value: str) -> None:
     with pytest.raises(RuntimeError, match="approved boundary"):
         validate_admin_connection_url(value, "workloop")
+
+
+def test_cloud_bootstrap_grants_only_approved_database_connections() -> None:
+    bootstraps = {bootstrap.database: bootstrap for bootstrap in BOOTSTRAPS}
+
+    workloop_roles = bootstraps["workloop"].connect_roles
+    assert [(role.name, role.inherit) for role in workloop_roles] == [
+        ("workloop_runtime", True),
+        ("workloop_expiry_processing", False),
+    ]
+    assert bootstraps["keycloak"].connect_roles == ()
 
 
 def test_builds_cloud_issuer_from_exact_origin() -> None:

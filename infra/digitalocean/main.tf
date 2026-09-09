@@ -112,6 +112,16 @@ resource "digitalocean_database_user" "workloop_runtime" {
   }
 }
 
+resource "digitalocean_database_user" "workloop_expiry_processing" {
+  count      = local.enabled ? 1 : 0
+  cluster_id = digitalocean_database_cluster.proof[0].id
+  name       = "workloop_expiry_processing"
+
+  lifecycle {
+    ignore_changes = [settings]
+  }
+}
+
 resource "digitalocean_database_user" "keycloak" {
   count      = local.enabled ? 1 : 0
   cluster_id = digitalocean_database_cluster.proof[0].id
@@ -599,6 +609,7 @@ resource "digitalocean_app" "proof" {
   depends_on = [
     digitalocean_database_user.workloop_migration,
     digitalocean_database_user.workloop_runtime,
+    digitalocean_database_user.workloop_expiry_processing,
     digitalocean_database_user.keycloak,
     digitalocean_spaces_key.api,
     terraform_data.phase_6g_guard,

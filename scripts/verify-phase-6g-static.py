@@ -57,6 +57,10 @@ def verify_terraform() -> None:
             'run_command        = "python -m app.db.cloud_migrate"',
             "single-process database migration entrypoint",
         ),
+        (
+            'name       = "workloop_expiry_processing"',
+            "dedicated expiry-processing database user",
+        ),
         ("deploy_on_push = false", "manual deployment control"),
     ):
         require(source, value, description)
@@ -64,7 +68,7 @@ def verify_terraform() -> None:
         raise AssertionError(
             "the API and migration job must use the repository-root backend Dockerfile path"
         )
-    if source.count("ignore_changes = [settings]") != 3:
+    if source.count("ignore_changes = [settings]") != 4:
         raise AssertionError(
             "all PostgreSQL users must ignore provider-only database settings drift"
         )
@@ -90,6 +94,7 @@ def verify_terraform() -> None:
         "ignore_changes = all",
         'value = "$${APP_URL}/auth/callback"',
         "python -m app.db.cloud_bootstrap && alembic upgrade head",
+        "digitalocean_database_user.workloop_expiry_processing[0].password",
     )
     for value in forbidden:
         if value in source:
