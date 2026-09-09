@@ -2,14 +2,15 @@
 
 ## Status
 
-Phase 6G is running as a temporary DigitalOcean architecture test with an absolute USD 20 ceiling.
-The owner confirmed a USD 20 prepayment and spend alert on 2026-09-08. The approved test window is
-48 hours, with teardown due by `2026-09-10T11:41:35Z`. Its estimated cost is USD 3.94 before tax and
-overages. Phase 7 is not authorized.
+Phase 6G completed successfully on 2026-09-09 and its billable DigitalOcean resources have been
+destroyed. The owner confirmed a USD 20 prepayment and spend alert on 2026-09-08. The approved test
+window was 48 hours, with an estimated cost of USD 3.94 before tax and overages. Phase 7 is not
+authorized.
 
 The local implementation and cloud definitions passed their complete local gate on 2026-09-08.
-The current cloud proof runs from Terraform state retained outside the repository at
-`%LOCALAPPDATA%\Workloop\phase-6g\terraform.tfstate`.
+The cloud proof used Terraform state outside the repository at
+`%LOCALAPPDATA%\Workloop\phase-6g\terraform.tfstate`. The state, backups, plans, and ignored variables
+file were deleted after teardown was verified and the temporary credentials were revoked.
 
 ## Proof boundary
 
@@ -87,12 +88,36 @@ The live proof passed these checks on 2026-09-09:
   estimated balance after credits. The page was last updated at 2026-09-09 07:39 GMT+4, so this is
   not a phase-only or real-time charge figure.
 
-The proof remains billable until teardown. Final cost and teardown evidence, credential revocation,
-and owner signoff are still pending.
+## Teardown evidence
+
+The owner approved teardown on 2026-09-09. The reviewed destroy plan contained 14 exact delete
+actions, with no create or update actions. Terraform removed the app, database cluster, databases,
+users, firewall, Space, bucket-scoped application key, project assignment, and local guard.
+
+DigitalOcean refused to delete the proof VPC because the first VPC created in FRA1 had automatically
+become that region's default. The VPC had zero members, and the Phase 6G project was already empty.
+Creating a replacement would still leave one regional default VPC, so the owner approved retaining
+the empty, non-billable network. It was renamed `fra1-default` and detached from Phase 6G state.
+
+The final checks confirmed that:
+
+- Terraform state and the `workloop-clinic-dev` DigitalOcean project were empty.
+- The former App Platform hostname no longer resolved, and the former Space endpoint returned HTTP
+  404.
+- The temporary DigitalOcean API token and full-access Terraform Spaces key were revoked. Terraform
+  had already deleted the bucket-scoped application key.
+- The external Terraform state, its backups, both saved plans, and the ignored `phase6g.auto.tfvars`
+  file were permanently deleted.
+- DigitalOcean's final available billing view still reported USD 0.22 in account-level September
+  usage and a USD 0.00 estimated balance after credits. The dashboard was last updated at 2026-09-09
+  07:39 GMT+4, so it was not a phase-only or real-time charge figure.
+- The original `workloop-clinic_postgres_data` volume retained its
+  `2026-08-31T07:31:48Z` creation time. No teardown command targeted the existing local containers or
+  volume.
 
 ## Completion rule
 
-Phase 6G completes only after the deployed browser login, protected account call, managed database,
-private object persistence, controlled migration, component redeploy, restart persistence, exact
-security boundary, cost evidence, teardown evidence, GitHub checks, and owner signoff all pass. Stop
+The deployed browser login, protected account call, managed database, private object persistence,
+controlled migration, component redeploy, restart persistence, exact security boundary, cost
+evidence, teardown evidence, GitHub checks, and owner signoff all passed. Phase 6G is complete. Stop
 before Phase 7.

@@ -35,13 +35,15 @@ Complete these checks before an authorized plan:
    spending cap.
 2. Confirm the DigitalOcean GitHub App can access only `AadhikR/workloop-clinic`.
 3. Confirm the existing `workloop-clinic-dev` project contains no unrelated resources.
-4. Create a short-lived DigitalOcean API token with only the project, app, database, VPC, Spaces-key,
+4. Confirm FRA1 already has a regional default VPC outside this proof. DigitalOcean automatically
+   makes the first VPC in a region the default and does not allow that network to be deleted.
+5. Create a short-lived DigitalOcean API token with only the project, app, database, VPC, Spaces-key,
    and project-assignment permissions needed by this configuration.
-5. Create a temporary full-access Spaces key for Terraform to create and delete the private bucket.
+6. Create a temporary full-access Spaces key for Terraform to create and delete the private bucket.
    The app receives a separate bucket-scoped `readwrite` key. Revoke the temporary full-access key
    after teardown.
-6. Choose a UTC teardown deadline no more than 48 hours after provisioning begins.
-7. Generate two unrelated temporary passwords of at least 20 characters for the Keycloak bootstrap
+7. Choose a UTC teardown deadline no more than 48 hours after provisioning begins.
+8. Generate two unrelated temporary passwords of at least 20 characters for the Keycloak bootstrap
    administrator and the synthetic login. Keep them out of files, shell history, chat, and source
    control.
 
@@ -101,3 +103,8 @@ status, and persistence results without credentials or tokens. Teardown requires
 approval. Use the retained state for `terraform destroy`, confirm the project is empty, revoke the
 temporary API and Spaces bootstrap keys, clear the five environment variables, and remove the local
 state only after the destroy result is verified.
+
+If DigitalOcean has made the proof VPC the regional default, the API will refuse to delete it even
+after every member has been removed. Do not create a chain of replacement VPCs. Verify that the
+network has zero members and the proof project is empty, then obtain explicit owner approval before
+renaming the non-billable regional default and detaching only that VPC from Terraform state.
