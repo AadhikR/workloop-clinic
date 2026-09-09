@@ -53,6 +53,10 @@ def verify_terraform() -> None:
             "OIDC callback outside the Keycloak ingress path",
         ),
         ('dockerfile_path    = "keycloak/Dockerfile"', "Keycloak Dockerfile path"),
+        (
+            'run_command        = "python -m app.db.cloud_migrate"',
+            "single-process database migration entrypoint",
+        ),
         ("deploy_on_push = false", "manual deployment control"),
     ):
         require(source, value, description)
@@ -85,6 +89,7 @@ def verify_terraform() -> None:
         'dockerfile_path    = "Dockerfile"',
         "ignore_changes = all",
         'value = "$${APP_URL}/auth/callback"',
+        "python -m app.db.cloud_bootstrap && alembic upgrade head",
     )
     for value in forbidden:
         if value in source:

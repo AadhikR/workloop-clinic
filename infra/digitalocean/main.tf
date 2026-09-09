@@ -219,7 +219,7 @@ resource "digitalocean_app" "proof" {
       kind               = "PRE_DEPLOY"
       instance_count     = 1
       instance_size_slug = "apps-s-1vcpu-1gb"
-      run_command        = "python -m app.db.cloud_bootstrap && alembic upgrade head && python -m app.db.cloud_seed"
+      run_command        = "python -m app.db.cloud_migrate"
       source_dir         = "backend"
       dockerfile_path    = "backend/Dockerfile"
 

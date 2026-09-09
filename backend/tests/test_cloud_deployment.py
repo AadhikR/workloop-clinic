@@ -1,5 +1,6 @@
 import pytest
 
+from app.db import cloud_migrate
 from app.db.cloud_bootstrap import validate_admin_connection_url
 from app.db.cloud_seed import issuer_from_public_url
 from app.db.engine import normalize_psycopg_url
@@ -61,3 +62,31 @@ def test_builds_cloud_issuer_from_exact_origin() -> None:
 def test_rejects_cloud_seed_origin_outside_boundary(value: str) -> None:
     with pytest.raises(RuntimeError, match="exact App Platform HTTPS origin"):
         issuer_from_public_url(value)
+
+
+def test_cloud_migration_runs_every_stage_in_order(monkeypatch: pytest.MonkeyPatch) -> None:
+    stages: list[str] = []
+    monkeypatch.setattr(cloud_migrate.cloud_bootstrap, "main", lambda: stages.append("bootstrap"))
+    monkeypatch.setattr(cloud_migrate, "upgrade_schema", lambda: stages.append("alembic"))
+    monkeypatch.setattr(cloud_migrate.cloud_seed, "main", lambda: stages.append("seed"))
+
+    assert cloud_migrate.main() == 0
+    assert stages == ["bootstrap", "alembic", "seed"]
+
+
+def test_cloud_migration_stops_before_seed_when_upgrade_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stages: list[str] = []
+    monkeypatch.setattr(cloud_migrate.cloud_bootstrap, "main", lambda: stages.append("bootstrap"))
+
+    def fail_upgrade() -> None:
+        stages.append("alembic")
+        raise RuntimeError("upgrade failed")
+
+    monkeypatch.setattr(cloud_migrate, "upgrade_schema", fail_upgrade)
+    monkeypatch.setattr(cloud_migrate.cloud_seed, "main", lambda: stages.append("seed"))
+
+    with pytest.raises(RuntimeError, match="upgrade failed"):
+        cloud_migrate.main()
+    assert stages == ["bootstrap", "alembic"]
