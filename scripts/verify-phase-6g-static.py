@@ -60,6 +60,18 @@ def verify_terraform() -> None:
         raise AssertionError(
             "all PostgreSQL users must ignore provider-only database settings drift"
         )
+    if source.count("instance_count     = 1") != 3:
+        raise AssertionError("every billable App Platform component must stay single-instance")
+    for value in (
+        "spec[0].job[0].env",
+        "spec[0].service[0].env",
+        "spec[0].service[1].env",
+    ):
+        if source.count(value) != 1:
+            raise AssertionError(
+                "App Platform secret drift must be ignored only for the three "
+                f"configured component environment collections: {value}"
+            )
     forbidden = (
         "public-read",
         'permission = "fullaccess"',
@@ -67,6 +79,7 @@ def verify_terraform() -> None:
         "deploy_on_push = true",
         "storage_autoscale",
         'dockerfile_path    = "Dockerfile"',
+        "ignore_changes = all",
     )
     for value in forbidden:
         if value in source:

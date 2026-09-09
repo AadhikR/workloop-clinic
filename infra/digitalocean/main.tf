@@ -217,6 +217,7 @@ resource "digitalocean_app" "proof" {
     job {
       name               = "database-migrate"
       kind               = "PRE_DEPLOY"
+      instance_count     = 1
       instance_size_slug = "apps-s-1vcpu-1gb"
       run_command        = "python -m app.db.cloud_bootstrap && alembic upgrade head && python -m app.db.cloud_seed"
       source_dir         = "backend"
@@ -581,6 +582,18 @@ resource "digitalocean_app" "proof" {
         }
       }
     }
+  }
+
+  # DigitalOcean encrypts SECRET values after creation. Provider 2.100.0 cannot
+  # compare those values with the configured inputs, so ignore only the affected
+  # component environment collections during updates. The static verifier checks
+  # that the Phase 6G environment definitions remain present in this file.
+  lifecycle {
+    ignore_changes = [
+      spec[0].job[0].env,
+      spec[0].service[0].env,
+      spec[0].service[1].env,
+    ]
   }
 
   depends_on = [
