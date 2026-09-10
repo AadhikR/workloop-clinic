@@ -1,3 +1,5 @@
+import base64
+import binascii
 import re
 from typing import Literal, Self
 
@@ -29,6 +31,7 @@ class Settings(BaseSettings):
         default=5.0, validation_alias="AUTHORIZATION_CONTEXT_SETUP_TIMEOUT_SECONDS"
     )
     database_url: SecretStr = Field(validation_alias="DATABASE_URL")
+    cursor_signing_key: SecretStr = Field(validation_alias="CURSOR_SIGNING_KEY")
     oidc_issuer: AnyHttpUrl = Field(validation_alias="OIDC_ISSUER")
     oidc_audience: str = Field(validation_alias="OIDC_AUDIENCE")
     oidc_jwks_url: AnyHttpUrl = Field(validation_alias="OIDC_JWKS_URL")
@@ -66,6 +69,17 @@ class Settings(BaseSettings):
         database_url = self.database_url.get_secret_value()
         if not database_url.startswith(("postgresql://", "postgresql+psycopg://")):
             raise ValueError("DATABASE_URL must use PostgreSQL")
+        cursor_key = self.cursor_signing_key.get_secret_value()
+        try:
+            decoded_cursor_key = base64.b64decode(
+                cursor_key + "=" * (-len(cursor_key) % 4),
+                altchars=b"-_",
+                validate=True,
+            )
+        except (ValueError, binascii.Error):
+            raise ValueError("CURSOR_SIGNING_KEY must be unpadded base64url") from None
+        if len(decoded_cursor_key) != 32 or "=" in cursor_key:
+            raise ValueError("CURSOR_SIGNING_KEY must encode exactly 32 bytes")
         if not 0 < self.database_health_timeout_seconds <= 5:
             raise ValueError("DATABASE_HEALTH_TIMEOUT_SECONDS must be between 0 and 5")
         if not 0 < self.api_request_timeout_seconds <= 15:

@@ -120,6 +120,25 @@ h1 {
   margin-top: 0.5rem;
 }
 
+.branch-chooser,
+.organization-summary {
+  grid-column: 1 / -1;
+  margin-top: 0.4rem;
+  padding-top: 1rem;
+  border-top: 1px solid #dbe1dc;
+}
+
+.branch-chooser h2,
+.organization-summary h2 {
+  margin: 0 0 0.5rem;
+}
+
+.branch-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 .proof-actions button {
   padding: 0.55rem 0.7rem;
   font-size: 0.78rem;

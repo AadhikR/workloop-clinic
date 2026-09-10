@@ -509,11 +509,18 @@ function checkStatusAuthority(record, add) {
   const current = record.status?.current
   const authority = record.authority
   if (!isObject(authority) || !STATUSES.has(current)) return
-  const expected = current === 'active-cutover' || current === 'completed'
-    ? 'migration-fastapi'
-    : 'legacy-supabase'
-  if (authority.readSystem !== expected || authority.writeSystem !== expected) {
-    add('status.authority', `${current} requires ${expected} read and write authority.`)
+  if (current === 'preparation' || current === 'rollback') {
+    if (authority.readSystem !== 'legacy-supabase' || authority.writeSystem !== 'legacy-supabase') {
+      add('status.authority', `${current} requires legacy-supabase read and write authority.`)
+    }
+    return
+  }
+  if (authority.readSystem !== 'migration-fastapi'
+    && authority.writeSystem !== 'migration-fastapi') {
+    add(
+      'status.authority',
+      `${current} requires at least one migration-fastapi authority boundary.`,
+    )
   }
 }
 

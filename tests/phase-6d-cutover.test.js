@@ -80,6 +80,40 @@ test('rejects an impossible status transition', async () => {
   assert.ok(errors.some(({ code }) => code === 'status.history'))
 })
 
+test('accepts a completed read-only cutover with the legacy writer retained', async () => {
+  const record = await readJson(templatePath)
+  record.status.history.push({
+    state: 'active-cutover',
+    at: '2026-09-07T09:15:00Z',
+    reason: 'Synthetic readers entered cutover.',
+  })
+  record.status.history.push({
+    state: 'completed',
+    at: '2026-09-07T09:30:00Z',
+    reason: 'Synthetic reader verification passed.',
+  })
+  record.status.current = 'completed'
+  record.status.changedAt = '2026-09-07T09:30:00Z'
+  record.authority.readSystem = 'migration-fastapi'
+  record.freeze.read.system = 'legacy-supabase'
+
+  assert.deepEqual(validateCutoverRecord(record, { repositoryDirectory }), [])
+})
+
+test('rejects an active cutover that leaves both authorities on legacy', async () => {
+  const record = await readJson(templatePath)
+  record.status.history.push({
+    state: 'active-cutover',
+    at: '2026-09-07T09:15:00Z',
+    reason: 'Synthetic cutover did not change authority.',
+  })
+  record.status.current = 'active-cutover'
+  record.status.changedAt = '2026-09-07T09:15:00Z'
+
+  const errors = validateCutoverRecord(record, { repositoryDirectory })
+  assert.ok(errors.some(({ code }) => code === 'status.authority'))
+})
+
 test('enforces the complete cutover record structure', async (context) => {
   const template = await readJson(templatePath)
   const cases = [

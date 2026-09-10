@@ -14,7 +14,15 @@ const docker = process.env.DOCKER
     && existsSync('C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.exe')
     ? 'C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.exe'
     : 'docker')
-const compose = ['compose']
+const compose = [
+  'compose',
+  ...(process.env.WORKLOOP_COMPOSE_PROJECT_NAME
+    ? ['--project-name', process.env.WORKLOOP_COMPOSE_PROJECT_NAME]
+    : []),
+  ...(process.env.WORKLOOP_COMPOSE_FILES
+    ? process.env.WORKLOOP_COMPOSE_FILES.split(';').flatMap((file) => ['--file', file])
+    : []),
+]
 const kcadmConfig = '/tmp/workloop-phase-3g-kcadm.config'
 const keycloakBaseUrl = (process.env.WORKLOOP_KEYCLOAK_BASE_URL
   || 'http://127.0.0.1:8080').replace(/\/$/, '')
@@ -44,10 +52,11 @@ const personas = [
   },
 ]
 const companyId = '00000000-0000-0000-0000-000000000070'
-const branchId = '00000000-0000-0000-0000-000000000071'
+const branchId = '00000000-0000-4000-8000-000000000071'
+const alternateBranchId = '00000000-0000-4000-8000-000000000074'
 const createdRows = {
   appUsers: [],
-  branch: false,
+  branches: [],
   company: false,
   employees: [],
   profiles: [],
@@ -116,10 +125,13 @@ function setPassword(userId, password) {
 }
 
 function createFixtures() {
+  stage('synthetic Keycloak administrator authentication')
   authenticateAdministrator()
+  stage('synthetic Keycloak identity preflight')
   for (const persona of personas) {
     assert.deepEqual(findUsers(persona.userName), [])
   }
+  stage('synthetic PostgreSQL identity preflight')
   assert.equal(
     psql(
       "SELECT count(*) FROM companies WHERE id = :'company_id' "
@@ -156,6 +168,7 @@ function createFixtures() {
   )
 
   for (const persona of personas) {
+    stage(`synthetic ${persona.role} identity creation`)
     persona.password = randomBytes(32).toString('base64url')
     persona.identityId = kcadm([
       'create', 'users', '-r', 'workloop-dev',
@@ -175,14 +188,21 @@ function createFixtures() {
     setPassword(persona.identityId, persona.password)
   }
 
+  stage('synthetic organization row creation')
   psql("INSERT INTO companies (id) VALUES (:'company_id')", { company_id: companyId })
   createdRows.company = true
-  psql(
-    "INSERT INTO branches (id, company_id) VALUES (:'branch_id', :'company_id')",
-    { branch_id: branchId, company_id: companyId },
-  )
-  createdRows.branch = true
+  for (const [createdBranchId, name] of [
+    [branchId, 'Phase 3G main'],
+    [alternateBranchId, 'Phase 3G alternate'],
+  ]) {
+    psql(
+      "INSERT INTO branches (id, company_id, name) VALUES (:'branch_id', :'company_id', :'name')",
+      { branch_id: createdBranchId, company_id: companyId, name },
+    )
+    createdRows.branches.push(createdBranchId)
+  }
   for (const persona of personas.filter(({ employeeId }) => employeeId)) {
+    stage(`synthetic ${persona.role} employee creation`)
     psql(
       "INSERT INTO employees (id, company_id, branch_id, name, mol_id) "
         + "VALUES (:'employee_id', :'company_id', :'branch_id', :'name', :'mol_id')",
@@ -197,6 +217,7 @@ function createFixtures() {
     createdRows.employees.push(persona.employeeId)
   }
   for (const persona of personas) {
+    stage(`synthetic ${persona.role} application profile creation`)
     psql(
       "INSERT INTO app_users (id, identity_issuer, identity_subject, status) "
         + "VALUES (:'app_user_id', :'issuer', :'subject', 'active')",
@@ -245,8 +266,11 @@ function cleanupFixtures() {
       cleanup(() => psql("DELETE FROM employees WHERE id = :'employee_id'", { employee_id: employeeId }))
     }
     if (createdRows.company) {
-      if (createdRows.branch) {
-        cleanup(() => psql("DELETE FROM branches WHERE id = :'branch_id'", { branch_id: branchId }))
+      for (const createdBranchId of createdRows.branches) {
+        cleanup(() => psql(
+          "DELETE FROM branches WHERE id = :'branch_id'",
+          { branch_id: createdBranchId },
+        ))
       }
       cleanup(() => psql("DELETE FROM companies WHERE id = :'company_id'", { company_id: companyId }))
     }
@@ -364,6 +388,117 @@ async function assertSampleApi(page, persona) {
   }
 }
 
+function businessFingerprint() {
+  return psql(
+    "SELECT md5(concat_ws('|', "
+      + "(SELECT coalesce(jsonb_agg(to_jsonb(c) ORDER BY c.id)::text, '[]') FROM companies c), "
+      + "(SELECT coalesce(jsonb_agg(to_jsonb(b) ORDER BY b.id)::text, '[]') FROM branches b), "
+      + "(SELECT coalesce(jsonb_agg(to_jsonb(e) ORDER BY e.id)::text, '[]') FROM employees e), "
+      + "(SELECT coalesce(jsonb_agg(to_jsonb(a) ORDER BY a.id)::text, '[]') FROM app_users a), "
+      + "(SELECT coalesce(jsonb_agg(to_jsonb(p) ORDER BY p.app_user_id)::text, '[]') FROM user_profiles p)))",
+  )
+}
+
+async function assertOrganizationApi(page, persona) {
+  await page.waitForFunction(
+    (role) => role === 'admin'
+      ? Boolean(document.querySelector('.branch-chooser'))
+      : Boolean(document.querySelector('.organization-summary')),
+    persona.role,
+    { timeout: 20_000 },
+  )
+
+  const result = await page.evaluate(async ({ role, branchId, alternateBranchId }) => {
+    const { authenticationSession } = await import('/src/authSession.js')
+    const session = authenticationSession()
+    const capture = async (operation) => {
+      try {
+        return { response: await operation() }
+      } catch (error) {
+        return { error: { code: error.code, status: error.status } }
+      }
+    }
+    const branches = await session.request('/api/v1/branches?limit=1&sort=name', {
+      access: 'protected',
+    })
+    const next = branches.page.nextCursor === null
+      ? null
+      : await session.request(`/api/v1/branches?limit=1&sort=name&cursor=${branches.page.nextCursor}`, {
+        access: 'protected',
+      })
+    return {
+      branches,
+      next,
+      company: await capture(() => session.request('/api/v1/company', { access: 'protected' })),
+      employer: await capture(() => session.request('/api/v1/employer', { access: 'protected' })),
+      detail: await capture(() => session.request(`/api/v1/branches/${branchId}`, {
+        access: 'protected',
+        headers: { 'X-Workloop-Branch-ID': branchId },
+      })),
+      mismatch: await capture(() => session.request(`/api/v1/branches/${alternateBranchId}`, {
+        access: 'protected',
+        headers: { 'X-Workloop-Branch-ID': branchId },
+      })),
+      unknown: await capture(() => session.request('/api/v1/branches?companyId=guessed', {
+        access: 'protected',
+      })),
+      role,
+    }
+  }, { role: persona.role, branchId, alternateBranchId })
+
+  stage(`${persona.role} organization API ${JSON.stringify({
+    company: result.company.error ?? 'ok',
+    detail: result.detail.error ?? 'ok',
+    employer: result.employer.error ?? 'ok',
+    mismatch: result.mismatch.error ?? 'ok',
+    unknown: result.unknown.error ?? 'ok',
+  })}`)
+
+  if (persona.role === 'admin') {
+    assert.deepEqual(Object.keys(result.company.response.data).sort(), [
+      'createdAt', 'enableNafis', 'id', 'nafisQuotaPercent', 'name', 'sector', 'updatedAt',
+    ])
+    assert.equal(result.employer.error.code, 'operation_not_permitted')
+    assert.equal(result.branches.data.length, 1)
+    assert.equal(result.branches.page.hasMore, true)
+    assert.equal(result.next.data.length, 1)
+    assert.notEqual(result.branches.data[0].id, result.next.data[0].id)
+    assert.deepEqual(Object.keys(result.detail.response.data).sort(), [
+      'address', 'contactEmail', 'createdAt', 'defaultBankRoutingCode', 'defaultSalaryDay',
+      'enableBiometricImport', 'enableStaffingRules', 'freeZoneName', 'id', 'logoUrl',
+      'molEmployerId', 'name', 'updatedAt', 'workLocationType',
+    ])
+    assert.equal(result.mismatch.error.code, 'resource_not_found')
+    assert.equal(result.mismatch.error.status, 404)
+    const options = page.locator('.branch-options button')
+    assert.equal(await options.count(), 2)
+    const chosenName = (await options.first().textContent()).trim()
+    await options.first().click()
+    await page.locator('.organization-summary').waitFor()
+    assert.equal((await page.locator('.organization-summary p').textContent()).trim(), chosenName)
+    assert.match(
+      await page.evaluate(() => sessionStorage.getItem('workloop.branchId')),
+      /^[0-9a-f-]{36}$/,
+    )
+    await page.getByRole('button', { name: 'Change branch' }).click()
+    await page.locator('.branch-chooser').waitFor()
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('workloop.branchId')), null)
+  } else {
+    assert.equal(result.company.error.code, 'operation_not_permitted')
+    assert.deepEqual(Object.keys(result.employer.response.data).sort(), [
+      'branchAddress', 'branchContactEmail', 'branchName', 'companyName',
+      'freeZoneName', 'logoUrl', 'workLocationType',
+    ])
+    assert.equal(result.branches.data.length, 1)
+    assert.equal(result.branches.data[0].id, branchId)
+    assert.equal(result.next, null)
+    assert.equal(result.detail.error.code, 'operation_not_permitted')
+    assert.equal(result.mismatch.error.code, 'operation_not_permitted')
+  }
+  assert.equal(result.unknown.error.code, 'validation_failed')
+  assert.equal(result.unknown.error.status, 422)
+}
+
 async function browserChecks(viteServer) {
   const browser = await chromium.launch({ headless: true })
   try {
@@ -446,6 +581,9 @@ async function browserChecks(viteServer) {
       stage(`${persona.role} interactive login`)
       await interactiveLogin(page, persona)
       await assertSampleApi(page, persona)
+      const beforeOrganizationReads = businessFingerprint()
+      await assertOrganizationApi(page, persona)
+      assert.equal(businessFingerprint(), beforeOrganizationReads)
       assert.equal(accountRequestCount, 1)
       assert.ok(publicStatusRequestCount >= 1)
       assert.ok(currentAccountRequestCount >= 1)
@@ -510,6 +648,16 @@ async function browserChecks(viteServer) {
           "UPDATE app_users SET status = 'disabled' WHERE id = :'app_user_id'",
           { app_user_id: persona.appUserId },
         )
+        const disabledRead = await page.evaluate(async () => {
+          const { authenticationSession } = await import('/src/authSession.js')
+          try {
+            await authenticationSession().request('/api/v1/employer', { access: 'protected' })
+          } catch (error) {
+            return { code: error.code, status: error.status }
+          }
+          return null
+        })
+        assert.deepEqual(disabledRead, { code: 'application_account_unavailable', status: 403 })
         await page.reload()
         await waitForStatus(page, 'account-unavailable')
       }
@@ -615,7 +763,8 @@ async function main() {
   console.log('Phase 3G browser checks passed')
 }
 
-main().catch(() => {
+main().catch((error) => {
   console.error(`Phase 3G browser checks failed at ${activeStage}`)
+  console.error(error instanceof Error ? error.message : 'Unknown browser check failure')
   process.exitCode = 1
 })

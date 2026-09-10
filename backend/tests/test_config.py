@@ -25,6 +25,7 @@ def set_required_environment(monkeypatch: MonkeyPatch) -> None:
         "OIDC_JWKS_CACHE_TTL_SECONDS": "300",
         "OIDC_JWKS_REFRESH_COOLDOWN_SECONDS": "1",
         "DATABASE_URL": "postgresql+psycopg://workloop_runtime:test-secret@postgres/workloop",
+        "CURSOR_SIGNING_KEY": "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA",
     }
     for name, value in values.items():
         monkeypatch.setenv(name, value)
@@ -35,6 +36,21 @@ def test_settings_hide_database_url(monkeypatch: MonkeyPatch) -> None:
     settings = Settings()  # pyright: ignore[reportCallIssue]
 
     assert "test-secret" not in repr(settings)
+    assert "MDAwMDAwMDAw" not in repr(settings)
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["short", "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA="],
+)
+def test_settings_require_a_32_byte_unpadded_cursor_key(
+    monkeypatch: MonkeyPatch, value: str
+) -> None:
+    set_required_environment(monkeypatch)
+    monkeypatch.setenv("CURSOR_SIGNING_KEY", value)
+
+    with pytest.raises(ValidationError, match="CURSOR_SIGNING_KEY"):
+        Settings()  # pyright: ignore[reportCallIssue]
 
 
 def test_settings_reject_non_postgresql_database(monkeypatch: MonkeyPatch) -> None:

@@ -1,0 +1,35 @@
+{
+  "featureId": "phase7-organization-context",
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/api/v1/company",
+      "roles": ["admin"],
+      "projection": "legal-company"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/employer",
+      "roles": ["manager", "employee"],
+      "projection": "safe-employer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/branches",
+      "roles": ["admin", "manager", "employee"],
+      "projection": "role-scoped-branches"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/branches/{branchId}",
+      "roles": ["admin"],
+      "projection": "selected-admin-branch"
+    }
+  ],
+  "syntheticPrincipals": [
+    "hr.admin@horizon.test",
+    "aisha.manager@horizon.test",
+    "ravi.employee@horizon.test",
+    "hr.admin@cedar.test"
+  ]
+}

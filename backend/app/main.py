@@ -27,8 +27,10 @@ from app.http.middleware import ALLOWED_ORIGIN, HttpBoundaryMiddleware
 from app.http.rate_limit import ConfigurableRateLimiter, RateLimiter
 from app.http.sample_schemas import CurrentAccountResponse, PublicStatusResponse
 from app.http.schemas import DataResponse
+from app.organization_api import router as organization_router
 from app.sample_api import get_current_account, get_public_status
 from app.services.execution import AuthorizedServiceExecutor
+from app.services.organization import BranchCursorCodec
 from app.storage import ObjectStorage, create_object_storage
 from app.storage.proof_api import (
     StorageProofResponse,
@@ -114,6 +116,9 @@ def create_app(
             transaction_factory,
             deadline_seconds=resolved_settings.api_request_timeout_seconds,
         )
+        application.state.organization_cursor_codec = BranchCursorCodec.from_base64url(
+            resolved_settings.cursor_signing_key.get_secret_value()
+        )
         application.state.access_token_verifier = AccessTokenVerifier(
             issuer=str(resolved_settings.oidc_issuer),
             audience=resolved_settings.oidc_audience,
@@ -148,6 +153,7 @@ def create_app(
         health_timeout_seconds=(settings.database_health_timeout_seconds if settings else 5.0),
         rate_limiter=resolved_rate_limiter,
     )
+    application.include_router(organization_router)
 
     application.add_api_route(
         "/health",

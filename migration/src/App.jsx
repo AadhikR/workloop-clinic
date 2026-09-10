@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 
 import { authenticationSession } from './authSession.js'
 import { migrationPublicConfig } from './config.js'
+import OrganizationPanel from './OrganizationPanel.jsx'
 import {
   createStorageProof,
   deleteStorageProof,
@@ -152,6 +153,7 @@ export default function App() {
               <>
                 <CurrentAccountSample />
                 <StorageProofSample />
+                <OrganizationPanel authentication={authenticationSession()} />
               </>
             ) : (
               <div>

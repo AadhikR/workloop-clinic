@@ -97,6 +97,7 @@ $apiLines = @(
     "OIDC_JWKS_TOTAL_TIMEOUT_SECONDS=5"
     "OIDC_JWKS_CACHE_TTL_SECONDS=300"
     "OIDC_JWKS_REFRESH_COOLDOWN_SECONDS=1"
+    "CURSOR_SIGNING_KEY=$(New-LocalSecret)"
     "DATABASE_URL=postgresql+psycopg://workloop_runtime:${runtimePassword}@postgres:5432/workloop"
 )
 
