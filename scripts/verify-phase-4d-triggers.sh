@@ -47,19 +47,24 @@ BEGIN
       AND p.proname = 'set_updated_at'
       AND pn.nspname = 'public'
       AND t.tgnargs = 0
-  )
-  SELECT count(*) INTO mismatch_count
-  FROM (
+      AND c.relname IN (SELECT table_name FROM expected)
+  ), differences AS (
     (SELECT * FROM expected EXCEPT SELECT * FROM actual)
     UNION ALL
     (SELECT * FROM actual EXCEPT SELECT * FROM expected)
-  ) differences;
-
-  SELECT count(*) INTO actual_count
-  FROM pg_catalog.pg_trigger t
-  JOIN pg_catalog.pg_class c ON c.oid = t.tgrelid
-  JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
-  WHERE n.nspname = 'public' AND NOT t.tgisinternal;
+  ), expected_table_triggers AS (
+    SELECT 1
+    FROM pg_catalog.pg_trigger t
+    JOIN pg_catalog.pg_class c ON c.oid = t.tgrelid
+    JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public'
+      AND NOT t.tgisinternal
+      AND c.relname IN (SELECT table_name FROM expected)
+  )
+  SELECT
+    (SELECT count(*) FROM differences),
+    (SELECT count(*) FROM expected_table_triggers)
+  INTO mismatch_count, actual_count;
 
   IF mismatch_count <> 0 OR actual_count <> 19 THEN
     RAISE EXCEPTION

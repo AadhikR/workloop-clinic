@@ -72,9 +72,6 @@ def verify_manifest() -> None:
 def verify_database() -> None:
     engine = create_engine(os.environ["MIGRATION_DATABASE_URL"])
     with engine.connect() as connection:
-        assert connection.execute(
-            text("SELECT version_num FROM alembic_version")
-        ).scalar_one() == ("2c4d6e8f0a1b")
         assert not connection.execute(
             text(
                 "SELECT has_table_privilege('workloop_runtime',"

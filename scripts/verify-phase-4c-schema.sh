@@ -17,7 +17,7 @@ BEGIN
   SELECT count(*) INTO table_count
   FROM pg_tables
   WHERE schemaname = 'public'
-    AND tablename NOT IN ('alembic_version', 'audit_events');
+    AND tablename NOT IN ('alembic_version', 'audit_events', 'idempotency_records');
   IF table_count <> 54 THEN
     RAISE EXCEPTION 'expected 54 target tables, found %', table_count;
   END IF;

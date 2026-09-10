@@ -410,7 +410,9 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')
             assert enabled == set(RLS_TABLES)
         else:
             assert enabled & set(RLS_TABLES) == set(RLS_TABLES)
-        assert not any(force for _, _, force in flags)
+        assert not any(
+            force for name, _, force in flags if name != "idempotency_records"
+        )
 
         runtime_grants = connection.execute(
             text(

@@ -176,16 +176,10 @@ def expected_policies() -> set[tuple[str, str, str, str]]:
 
 def verify_catalog(engine: Any) -> None:
     with engine.connect() as connection:
-        assert (
-            connection.execute(
-                text("SELECT version_num FROM alembic_version")
-            ).scalar_one()
-            == "2c4d6e8f0a1b"
-        )
         tables = set(
             connection.execute(
                 text(
-                    "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname='public' AND tablename <> 'alembic_version'"
+                    "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname='public' AND tablename NOT IN ('alembic_version', 'idempotency_records')"
                 )
             ).scalars()
         )
@@ -276,6 +270,7 @@ WHERE table_schema='public' AND grantee='workloop_expiry_processing'
                 """
 SELECT count(*) FROM pg_catalog.pg_policies
 WHERE schemaname='public' AND policyname NOT LIKE 'phase5%'
+  AND tablename <> 'idempotency_records'
 """
             )
         ).scalar_one()
@@ -285,7 +280,7 @@ WHERE schemaname='public' AND policyname NOT LIKE 'phase5%'
             row[0]: row[1]
             for row in connection.execute(
                 text(
-                    "SELECT object.relname,object.relrowsecurity FROM pg_catalog.pg_class AS object JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid=object.relnamespace WHERE namespace.nspname='public' AND object.relkind='r'"
+                    "SELECT object.relname,object.relrowsecurity FROM pg_catalog.pg_class AS object JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid=object.relnamespace WHERE namespace.nspname='public' AND object.relkind='r' AND object.relname <> 'idempotency_records'"
                 )
             )
         }

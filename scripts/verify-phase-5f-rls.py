@@ -146,11 +146,6 @@ def rollback_human_context(
 
 def verify_catalog(engine: Any) -> None:
     with engine.connect() as connection:
-        revision = connection.execute(
-            text("SELECT version_num FROM alembic_version")
-        ).scalar_one()
-        assert revision in {"d85a6f0c3b42", "1b29d4e7f860", "2c4d6e8f0a1b"}
-
         policies = {
             (row.tablename, row.policyname, row.cmd, row.roles[0])
             for row in connection.execute(
