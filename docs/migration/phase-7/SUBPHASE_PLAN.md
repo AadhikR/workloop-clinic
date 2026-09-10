@@ -6,9 +6,10 @@ Phase 6 and its temporary Phase 6G DigitalOcean proof are complete. The proof re
 credentials were removed on 2026-09-09; the retained empty FRA1 default VPC is non-billable and is
 not managed by this repository.
 
-Phase 7A is complete. The project owner authorized Phase 7B on 2026-09-10, and its implementation
-and local completion gate are finished. Phase 7C and later work remain unauthorized. No cloud
-spending or production-data work is authorized by this document.
+Phase 7A and Phase 7B are complete. The project owner authorized Phase 7C and approved idempotency
+decisions `7C-IDEM-D1` and `7C-IDEM-D2` on 2026-09-10. Its implementation and local completion gate
+are finished; the required GitHub result remains pending. Phase 7D and later work remain
+unauthorized. No cloud spending or production-data work is authorized by this document.
 
 Phase 7 is split into eight parts, 7A through 7H. The original scope combines organization settings,
 branch administration, employee data, departments, staffing rules, job history, and portal roles.
@@ -21,10 +22,10 @@ Phase 8 remains separately gated.
 
 ## Starting point
 
-- Branch `migration/fastapi-keycloak` is synchronized at Phase 6 closeout commit
-  `d9cd18b86f95381b99531d0e974e5522c46ad0f9`.
-- Alembic head is `2c4d6e8f0a1b`; the approved schema and RLS design already contain the Phase 7
-  organization and workforce tables.
+- Phase 7C started from synchronized branch `migration/fastapi-keycloak` at Phase 7B closeout commit
+  `b827e0daf771b31a005d5f6d99e6644f9acc5494`.
+- Alembic head is `31d7b4c8e2f0`. It adds the approved shared idempotency record and bounded cleanup
+  function without changing the existing Phase 7 organization or workforce tables.
 - Phase 3 supplies Keycloak login and trusted application-user resolution.
 - Phase 5 supplies trusted principals, branch-scoped repositories, PostgreSQL RLS, protected
   workflows, and append-only audit controls.
@@ -43,7 +44,7 @@ Phase 8 remains separately gated.
 | --- | --- | --- |
 | 7A | Domain contracts, dependency inventory, and cutover decisions | Complete |
 | 7B | Company and branch read foundation | Complete |
-| 7C | Company and branch administration | Not authorized |
+| 7C | Company and branch administration | Local gate complete; GitHub pending |
 | 7D | Employee directory, self, and manager read projections | Not authorized |
 | 7E | Departments, hierarchy, and staffing rules | Not authorized |
 | 7F | Employee onboarding, editing, and CSV import | Not authorized |

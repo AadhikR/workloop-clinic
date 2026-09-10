@@ -4,13 +4,23 @@
   "featureId": "phase7-organization-administration",
   "dataClassification": "synthetic",
   "status": {
-    "current": "preparation",
-    "changedAt": "2026-09-09T15:35:28Z",
+    "current": "completed",
+    "changedAt": "2026-09-10T12:13:12Z",
     "history": [
       {
         "state": "preparation",
         "at": "2026-09-09T15:35:28Z",
         "reason": "Phase 7A prepared this declaration. No business authority has changed."
+      },
+      {
+        "state": "active-cutover",
+        "at": "2026-09-10T12:13:11Z",
+        "reason": "The migration organization mutations and frozen legacy writers passed the complete synthetic cutover gate."
+      },
+      {
+        "state": "completed",
+        "at": "2026-09-10T12:13:12Z",
+        "reason": "Migration FastAPI is the sole organization read and write authority."
       }
     ]
   },
@@ -43,7 +53,7 @@
         "system": "legacy-supabase",
         "kind": "module",
         "locator": "src/utils/storage.js",
-        "cutoverDisposition": "retain"
+        "cutoverDisposition": "freeze"
       },
       {
         "id": "legacy-company-context",
@@ -105,8 +115,8 @@
         "id": "planned-organization-writer",
         "system": "migration-fastapi",
         "kind": "module",
-        "locator": "synthetic://phase-7c/organization-writer",
-        "cutoverDisposition": "freeze"
+        "locator": "backend/app/organization_api.py, backend/app/idempotency_api.py, backend/app/schemas/organization.py, backend/app/repositories/organization.py, backend/app/repositories/idempotency.py, backend/app/services/organization.py, backend/app/services/idempotency.py, migration/src/organizationApi.js, migration/src/idempotencyRecovery.js, migration/src/OrganizationSettings.jsx, and migration/src/CompanyContext.jsx",
+        "cutoverDisposition": "retain"
       },
       {
         "id": "synthetic-identity-map",
@@ -118,23 +128,23 @@
     ]
   },
   "authority": {
-    "readSystem": "legacy-supabase",
-    "writeSystem": "legacy-supabase",
+    "readSystem": "migration-fastapi",
+    "writeSystem": "migration-fastapi",
     "writableSystems": [
-      "legacy-supabase"
+      "migration-fastapi"
     ]
   },
   "freeze": {
     "read": {
-      "system": "migration-fastapi",
-      "condition": "The migration feature reader stays disconnected from business screens.",
-      "releaseCondition": "The owning Phase 7 implementation part proves every declared reader and receives owner approval.",
+      "system": "legacy-supabase",
+      "condition": "Migration organization consumers use the FastAPI company and branch projections and have no Supabase organization read path.",
+      "releaseCondition": "The phase owner invokes the tested rollback after disabling migration organization writes.",
       "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-7/cutover-records/organization-administration.json"
     },
     "write": {
-      "system": "migration-fastapi",
-      "condition": "The migration feature has no enabled business write path.",
-      "releaseCondition": "The owning Phase 7 implementation part freezes the matching legacy writer before it enables migration writes.",
+      "system": "legacy-supabase",
+      "condition": "The legacy saveCompany, saveCompanyLogo, createBranch, and deleteBranch entry points fail closed before any Supabase mutation.",
+      "releaseCondition": "Disable every migration organization mutation before restoring the legacy writer implementation.",
       "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-7/cutover-records/organization-administration.json"
     }
   },
@@ -142,17 +152,17 @@
     "mode": "synthetic-only",
     "source": {
       "kind": "tracked-fixture",
-      "locator": "tests/fixtures/phase-6d/synthetic-users.json",
-      "digest": "sha256:1ebfc4d976b2763da0ea319f387c78c69d98d16c05d03708f3515012640e04be"
+      "locator": "tests/fixtures/phase-7c/organization-administration.json",
+      "digest": "sha256:d86370fa4215568df611be000b40ee12986a4cf9a5478306d3f1b903052513c0"
     },
-    "command": "node -e \"const f=require('node:fs');const s=JSON.parse(f.readFileSync('tests/fixtures/phase-6d/synthetic-users.json'));const r=JSON.parse(f.readFileSync('docs/migration/phase-7/cutover-records/organization-administration.json'));if(s.length!==r.identityMapping.mappings.length)process.exit(1)\"",
+    "command": "python scripts/verify-phase-7c-organization.py && node scripts/verify-phase-3g-browser.mjs",
     "lastRefresh": {
-      "timestamp": "2026-09-09T15:35:28Z",
-      "command": "node -e \"const f=require('node:fs');const s=JSON.parse(f.readFileSync('tests/fixtures/phase-6d/synthetic-users.json'));const r=JSON.parse(f.readFileSync('docs/migration/phase-7/cutover-records/organization-administration.json'));if(s.length!==r.identityMapping.mappings.length)process.exit(1)\"",
-      "sourceDigest": "sha256:1ebfc4d976b2763da0ea319f387c78c69d98d16c05d03708f3515012640e04be",
+      "timestamp": "2026-09-10T12:13:12Z",
+      "command": "python scripts/verify-phase-7c-organization.py && node scripts/verify-phase-3g-browser.mjs",
+      "sourceDigest": "sha256:d86370fa4215568df611be000b40ee12986a4cf9a5478306d3f1b903052513c0",
       "evidence": {
         "path": "docs/migration/phase-7/cutover-records/evidence/organization-administration-synthetic-refresh.json",
-        "sha256": "sha256:8db0f87c2d435e9b53ba0fcb41d7ee3a113ad742c9f21d6427b3af7b1b5fd538"
+        "sha256": "sha256:efa9c5967f28940e9282ec21239a46ea1996070d550da13e1bf91bfc05c9fd93"
       }
     }
   },
@@ -178,7 +188,7 @@
     ]
   },
   "rollback": {
-    "trigger": "Use this plan if a later synthetic cutover check fails after migration writes are enabled.",
+    "trigger": "Use this plan if a migration organization mutation or consumer fails after write authority changes.",
     "owner": "phase-owner",
     "targetAuthority": {
       "readSystem": "legacy-supabase",
@@ -190,33 +200,33 @@
     "steps": [
       {
         "id": "freeze-migration-writes",
-        "action": "Disable the migration write path before changing either reader.",
-        "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-7/cutover-records/organization-administration.json"
+        "action": "Disable the four FastAPI organization mutations and the migration settings forms before restoring any legacy writer.",
+        "verificationCommand": "node --test tests/migration-organization.test.js"
       },
       {
         "id": "restore-legacy-writes",
-        "action": "Confirm that the matching legacy writer is the only writable system.",
+        "action": "Restore the four frozen legacy organization writer entry points after migration writes are disabled.",
         "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-7/cutover-records/organization-administration.json"
       },
       {
         "id": "restore-legacy-reads",
-        "action": "Route every consumer in this cutover unit back to the legacy reader.",
+        "action": "Disconnect the migration organization settings consumer and restore the legacy company context for this cutover unit.",
         "verificationCommand": "node scripts/frontend-build-isolation.mjs"
       },
       {
         "id": "verify-authority",
-        "action": "Validate legacy Supabase as the sole read and write authority.",
+        "action": "Record and validate legacy Supabase as the sole organization read and write authority.",
         "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-7/cutover-records/organization-administration.json"
       },
       {
         "id": "verify-data",
-        "action": "Compare the synthetic identity source with this record's complete mapping.",
-        "verificationCommand": "node -e \"const f=require('node:fs');const s=JSON.parse(f.readFileSync('tests/fixtures/phase-6d/synthetic-users.json'));const r=JSON.parse(f.readFileSync('docs/migration/phase-7/cutover-records/organization-administration.json'));if(s.length!==r.identityMapping.mappings.length)process.exit(1)\""
+        "action": "Run the synthetic organization reader proof and verify that rollback did not change company or branch data.",
+        "verificationCommand": "python scripts/verify-phase-7b-organization.py"
       }
     ]
   },
   "validation": {
-    "asOf": "2026-09-09T15:36:00Z",
+    "asOf": "2026-09-10T12:13:12Z",
     "refreshMaxAgeHours": 24
   }
 }

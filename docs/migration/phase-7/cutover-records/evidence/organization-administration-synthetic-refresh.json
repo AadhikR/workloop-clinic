@@ -1,8 +1,64 @@
 {
-  "command": "node -e \"const f=require('node:fs');const s=JSON.parse(f.readFileSync('tests/fixtures/phase-6d/synthetic-users.json'));const r=JSON.parse(f.readFileSync('docs/migration/phase-7/cutover-records/organization-administration.json'));if(s.length!==r.identityMapping.mappings.length)process.exit(1)\"",
+  "command": "python scripts/verify-phase-7c-organization.py && node scripts/verify-phase-3g-browser.mjs",
   "featureId": "phase7-organization-administration",
-  "refreshedAt": "2026-09-09T15:35:28Z",
-  "sourceDigest": "sha256:1ebfc4d976b2763da0ea319f387c78c69d98d16c05d03708f3515012640e04be",
-  "sourceRecordCount": 2,
-  "targetRecordCount": 2
+  "refreshedAt": "2026-09-10T12:13:12Z",
+  "sourceDigest": "sha256:d86370fa4215568df611be000b40ee12986a4cf9a5478306d3f1b903052513c0",
+  "sourceRecordCount": 4,
+  "targetRecordCount": 4,
+  "alembicHead": "31d7b4c8e2f0",
+  "routes": [
+    "PATCH /api/v1/company",
+    "POST /api/v1/branches",
+    "PATCH /api/v1/branches/{branchId}",
+    "DELETE /api/v1/branches/{branchId}"
+  ],
+  "mutationProof": {
+    "adminTenantWrites": true,
+    "crossTenantDenied": true,
+    "crossBranchDenied": true,
+    "staffDenied": true,
+    "inactiveAccountDenied": true,
+    "staleVersionDenied": true,
+    "guardedDeleteDenied": true,
+    "failedStateUnchanged": true,
+    "auditAtomic": true
+  },
+  "idempotencyProof": {
+    "firstCommitPassed": true,
+    "identicalReplayPassed": true,
+    "fingerprintConflictPassed": true,
+    "inProgressPassed": true,
+    "authorizationReplayPassed": true,
+    "rollbackCleanupPassed": true,
+    "retentionFloorDays": 7,
+    "tenantCleanupLimit": 100,
+    "crossUserCleanupPassed": true,
+    "directRuntimeDeleteDenied": true,
+    "syntheticState": "dd5e4f94ae8c89f41e738b8fe29f80f1e9a975bf49626f377ebd594fb9e68b55"
+  },
+  "frontendProof": {
+    "companyMutationPassed": true,
+    "branchCreateUpdateDeletePassed": true,
+    "staleWriteReviewPassed": true,
+    "unresolvedKeyRecoveryPassed": true,
+    "automaticMutationRetryAbsent": true,
+    "legacyWritersFrozen": true,
+    "supabaseWritesAbsent": true
+  },
+  "finalGateProof": {
+    "backendTests": 406,
+    "frontendTests": 91,
+    "legacyBuildModules": 449,
+    "migrationBuildModules": 30,
+    "catalogFingerprint": "91cdc830c87f0dc6d85f0a8615c8c83b",
+    "keycloakSigningKeyCount": 2,
+    "backendImage": "sha256:3608799ecb39653077ad2355248b17e7852896fd6f22b79019226018cd21c759",
+    "restartPersistencePassed": true,
+    "authenticationPassed": true,
+    "browserPassed": true,
+    "logSafetyPassed": true,
+    "syntheticCleanupPassed": true,
+    "temporaryResourcesRemoved": true,
+    "preservedVolumeUntouched": true
+  }
 }
