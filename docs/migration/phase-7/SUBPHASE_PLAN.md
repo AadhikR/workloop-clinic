@@ -6,8 +6,9 @@ Phase 6 and its temporary Phase 6G DigitalOcean proof are complete. The proof re
 credentials were removed on 2026-09-09; the retained empty FRA1 default VPC is non-billable and is
 not managed by this repository.
 
-Phase 7A is complete. No Phase 7 runtime implementation, deployment, cloud spending, or
-production-data work is authorized by this document.
+Phase 7A is complete. The project owner authorized Phase 7B on 2026-09-10, and its implementation
+and local completion gate are finished. Phase 7C and later work remain unauthorized. No cloud
+spending or production-data work is authorized by this document.
 
 Phase 7 is split into eight parts, 7A through 7H. The original scope combines organization settings,
 branch administration, employee data, departments, staffing rules, job history, and portal roles.
@@ -41,7 +42,7 @@ Phase 8 remains separately gated.
 | Part | Scope | Status |
 | --- | --- | --- |
 | 7A | Domain contracts, dependency inventory, and cutover decisions | Complete |
-| 7B | Company and branch read foundation | Not authorized |
+| 7B | Company and branch read foundation | Complete |
 | 7C | Company and branch administration | Not authorized |
 | 7D | Employee directory, self, and manager read projections | Not authorized |
 | 7E | Departments, hierarchy, and staffing rules | Not authorized |

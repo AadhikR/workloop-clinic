@@ -1,8 +1,42 @@
 {
-  "command": "node -e \"const f=require('node:fs');const s=JSON.parse(f.readFileSync('tests/fixtures/phase-6d/synthetic-users.json'));const r=JSON.parse(f.readFileSync('docs/migration/phase-7/cutover-records/organization-context.json'));if(s.length!==r.identityMapping.mappings.length)process.exit(1)\"",
+  "command": "python scripts/verify-phase-7b-organization.py && node scripts/verify-phase-3g-browser.mjs",
   "featureId": "phase7-organization-context",
-  "refreshedAt": "2026-09-09T15:35:28Z",
-  "sourceDigest": "sha256:1ebfc4d976b2763da0ea319f387c78c69d98d16c05d03708f3515012640e04be",
-  "sourceRecordCount": 2,
-  "targetRecordCount": 2
+  "refreshedAt": "2026-09-10T08:04:06Z",
+  "sourceDigest": "sha256:64cc78954fa5086aa421a02aa5bbc4fe47b3865f17bcd9e5a803e2d7111a34b7",
+  "sourceRecordCount": 4,
+  "targetRecordCount": 4,
+  "alembicHead": "2c4d6e8f0a1b",
+  "databaseFingerprint": "4a0731e2e75bb0a0e534227af6500ebe64dc2ed9ad19ffe0fb8d315311fc18e3",
+  "readStateUnchanged": true,
+  "routes": [
+    "GET /api/v1/company",
+    "GET /api/v1/employer",
+    "GET /api/v1/branches",
+    "GET /api/v1/branches/{branchId}"
+  ],
+  "scopeProof": {
+    "adminTenantBranches": 2,
+    "staffOwnBranchRoles": ["manager", "employee"],
+    "crossTenantDenied": true,
+    "crossBranchDenied": true,
+    "inactiveAccountDenied": true
+  },
+  "frontendProof": {
+    "validatedSessionSelection": true,
+    "staleSelectionCleared": true,
+    "missingSelectionOpenedChooser": true,
+    "firstBranchFallbackAbsent": true,
+    "supabaseImportsAbsent": true
+  },
+  "finalGateProof": {
+    "catalogFingerprint": "eeb158a9d2fcda117c6d603498d048b2",
+    "keycloakSigningKeyCount": 2,
+    "restartPersistencePassed": true,
+    "authenticationPassed": true,
+    "browserPassed": true,
+    "logSafetyPassed": true,
+    "syntheticCleanupPassed": true,
+    "temporaryResourcesRemoved": true,
+    "preservedVolumeUntouched": true
+  }
 }
