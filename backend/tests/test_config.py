@@ -26,6 +26,8 @@ def set_required_environment(monkeypatch: MonkeyPatch) -> None:
         "OIDC_JWKS_REFRESH_COOLDOWN_SECONDS": "1",
         "DATABASE_URL": "postgresql+psycopg://workloop_runtime:test-secret@postgres/workloop",
         "CURSOR_SIGNING_KEY": "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA",
+        "IDEMPOTENCY_RECOVERY_CURRENT_KEY_ID": "1234abcd",
+        "IDEMPOTENCY_RECOVERY_CURRENT_KEY": "MTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTE",
     }
     for name, value in values.items():
         monkeypatch.setenv(name, value)
@@ -50,6 +52,37 @@ def test_settings_require_a_32_byte_unpadded_cursor_key(
     monkeypatch.setenv("CURSOR_SIGNING_KEY", value)
 
     with pytest.raises(ValidationError, match="CURSOR_SIGNING_KEY"):
+        Settings()  # pyright: ignore[reportCallIssue]
+
+
+def test_settings_validate_recovery_key_rotation(monkeypatch: MonkeyPatch) -> None:
+    set_required_environment(monkeypatch)
+    monkeypatch.setenv(
+        "IDEMPOTENCY_RECOVERY_PREVIOUS_KEYS",
+        '[{"keyId":"8765dcba","key":"MjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjI",'
+        '"acceptUntil":"2026-09-17T00:00:00Z"}]',
+    )
+
+    settings = Settings()  # pyright: ignore[reportCallIssue]
+
+    assert settings.decoded_previous_idempotency_recovery_keys()[0][0] == "8765dcba"
+
+
+@pytest.mark.parametrize(
+    "previous",
+    [
+        '[{"keyId":"1234abcd","key":"MjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjI",'
+        '"acceptUntil":"2026-09-17T00:00:00Z"}]',
+        '[{"keyId":"8765dcba","key":"short","acceptUntil":"2026-09-17T00:00:00Z"}]',
+        '[{"keyId":"8765dcba","key":"MjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjI",'
+        '"acceptUntil":"2026-09-17T04:00:00+04:00"}]',
+    ],
+)
+def test_settings_reject_invalid_recovery_rotation(monkeypatch: MonkeyPatch, previous: str) -> None:
+    set_required_environment(monkeypatch)
+    monkeypatch.setenv("IDEMPOTENCY_RECOVERY_PREVIOUS_KEYS", previous)
+
+    with pytest.raises(ValidationError, match="IDEMPOTENCY_RECOVERY_PREVIOUS_KEYS"):
         Settings()  # pyright: ignore[reportCallIssue]
 
 

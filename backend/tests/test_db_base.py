@@ -65,12 +65,12 @@ PHASE_4_TARGET_TABLES = frozenset(
         "letter_requests",
     }
 )
-PHASE_5G_TARGET_TABLES = PHASE_4_TARGET_TABLES | {"audit_events"}
+PHASE_5G_TARGET_TABLES = PHASE_4_TARGET_TABLES | {"audit_events", "idempotency_records"}
 
 
 def test_metadata_contains_exactly_the_phase_5g_target_tables() -> None:
     assert len(PHASE_4_TARGET_TABLES) == 54
-    assert len(PHASE_5G_TARGET_TABLES) == 55
+    assert len(PHASE_5G_TARGET_TABLES) == 56
     assert set(Base.metadata.tables) == PHASE_5G_TARGET_TABLES
 
 

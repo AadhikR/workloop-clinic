@@ -27,9 +27,11 @@ from app.http.middleware import ALLOWED_ORIGIN, HttpBoundaryMiddleware
 from app.http.rate_limit import ConfigurableRateLimiter, RateLimiter
 from app.http.sample_schemas import CurrentAccountResponse, PublicStatusResponse
 from app.http.schemas import DataResponse
+from app.idempotency_api import router as idempotency_router
 from app.organization_api import router as organization_router
 from app.sample_api import get_current_account, get_public_status
 from app.services.execution import AuthorizedServiceExecutor
+from app.services.idempotency import RecoveryKey, RecoveryNamespaces
 from app.services.organization import BranchCursorCodec
 from app.storage import ObjectStorage, create_object_storage
 from app.storage.proof_api import (
@@ -119,6 +121,18 @@ def create_app(
         application.state.organization_cursor_codec = BranchCursorCodec.from_base64url(
             resolved_settings.cursor_signing_key.get_secret_value()
         )
+        application.state.idempotency_recovery_namespaces = RecoveryNamespaces(
+            RecoveryKey(
+                key_id=resolved_settings.idempotency_recovery_current_key_id,
+                key=resolved_settings.decoded_idempotency_recovery_key(),
+            ),
+            [
+                RecoveryKey(key_id=key_id, key=key, accept_until=accept_until)
+                for key_id, key, accept_until in (
+                    resolved_settings.decoded_previous_idempotency_recovery_keys()
+                )
+            ],
+        )
         application.state.access_token_verifier = AccessTokenVerifier(
             issuer=str(resolved_settings.oidc_issuer),
             audience=resolved_settings.oidc_audience,
@@ -154,6 +168,7 @@ def create_app(
         rate_limiter=resolved_rate_limiter,
     )
     application.include_router(organization_router)
+    application.include_router(idempotency_router)
 
     application.add_api_route(
         "/health",

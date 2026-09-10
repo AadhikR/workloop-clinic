@@ -19,6 +19,7 @@ from app.schemas.organization import (
     CompanyAdminResponse,
     SafeEmployerResponse,
 )
+from app.services.idempotency import IdempotentResponse
 from tests.test_http_boundary import make_settings
 
 COMPANY_ID = uuid.UUID("3afbf0a0-9642-4d44-9884-e9654983eb9b")
@@ -65,6 +66,12 @@ class StubService:
             created_at=NOW,
             updated_at=NOW,
         )
+
+    async def update_company(
+        self, active: AuthorizationPrincipal, request: object
+    ) -> CompanyAdminResponse:
+        self.calls.append(("update_company", request))
+        return await self.get_company(active)
 
     async def get_employer(self, active: AuthorizationPrincipal) -> SafeEmployerResponse:
         self.calls.append(("employer", active))
@@ -121,6 +128,36 @@ class StubService:
         assert isinstance(item, BranchAdminResponse)
         return item
 
+    async def create_branch(
+        self, active: AuthorizationPrincipal, request: object
+    ) -> BranchAdminResponse:
+        self.calls.append(("create_branch", request))
+        return await self.get_branch(active, BRANCH_ID)
+
+    async def authorize_branch_replay(
+        self, active: AuthorizationPrincipal, kind: str, resource_id: uuid.UUID | None
+    ) -> None:
+        assert active.role is AppRole.ADMIN
+        assert (kind, resource_id) == ("branch", BRANCH_ID)
+
+    async def update_branch(
+        self, active: AuthorizationPrincipal, branch_id: uuid.UUID, request: object
+    ) -> BranchAdminResponse:
+        self.calls.append(("update_branch", request))
+        return await self.get_branch(active, branch_id)
+
+    async def delete_branch(
+        self, active: AuthorizationPrincipal, branch_id: uuid.UUID, expected: datetime
+    ) -> None:
+        assert active.role is AppRole.ADMIN
+        self.calls.append(("delete_branch", (branch_id, expected)))
+
+
+class ImmediateIdempotency:
+    async def execute(self, **values: object) -> IdempotentResponse:
+        mutation = cast(Callable[[], Awaitable[IdempotentResponse]], values["mutation"])
+        return await mutation()
+
 
 class RecordingExecutor:
     def __init__(self, service: StubService) -> None:
@@ -155,7 +192,11 @@ async def client_for(
     def service_factory(_connection: AsyncConnection) -> StubService:
         return service
 
+    def idempotency_factory(_connection: AsyncConnection) -> ImmediateIdempotency:
+        return ImmediateIdempotency()
+
     application.state.organization_service_factory = service_factory
+    application.state.idempotency_coordinator_factory = idempotency_factory
 
     async def verified_claims() -> AccessTokenClaims:
         return claims()
@@ -304,4 +345,61 @@ async def test_malformed_branch_path_is_validation_failure_and_does_not_enter_tr
         )
 
     assert malformed.status_code == uppercase.status_code == 422
+    assert executor.selected == []
+
+
+@pytest.mark.asyncio
+async def test_admin_mutation_routes_apply_exact_headers_and_projections() -> None:
+    key = "7c000000-0000-4000-8000-000000000002"
+    body = {
+        "name": "Dubai",
+        "expectedUpdatedAt": "2026-09-09T12:30:45.123Z",
+    }
+    async with client_for(AppRole.ADMIN) as (client, _app, service, executor):
+        company = await client.patch("/api/v1/company", json=body)
+        created = await client.post(
+            "/api/v1/branches",
+            headers={"Idempotency-Key": key},
+            json={"name": "Dubai"},
+        )
+        updated = await client.patch(
+            f"/api/v1/branches/{BRANCH_ID}",
+            headers={"X-Workloop-Branch-ID": str(BRANCH_ID)},
+            json=body,
+        )
+        deleted = await client.delete(
+            f"/api/v1/branches/{BRANCH_ID}?expectedUpdatedAt=2026-09-09T12%3A30%3A45.123Z",
+            headers={"X-Workloop-Branch-ID": str(BRANCH_ID)},
+        )
+
+    assert company.status_code == updated.status_code == 200
+    assert created.status_code == 201
+    assert created.headers["location"] == f"/api/v1/branches/{BRANCH_ID}"
+    assert deleted.status_code == 204 and not deleted.content
+    assert executor.selected == [None, None, BRANCH_ID, BRANCH_ID]
+    assert [name for name, _value in service.calls].count("create_branch") == 1
+
+
+@pytest.mark.asyncio
+async def test_mutations_reject_unknown_fields_missing_keys_and_mismatched_selectors() -> None:
+    async with client_for(AppRole.ADMIN) as (client, _app, _service, executor):
+        unknown = await client.patch(
+            "/api/v1/company",
+            json={
+                "name": "Dubai",
+                "expectedUpdatedAt": "2026-09-09T12:30:45.123Z",
+                "id": str(COMPANY_ID),
+            },
+        )
+        missing_key = await client.post("/api/v1/branches", json={"name": "Dubai"})
+        mismatch = await client.patch(
+            f"/api/v1/branches/{BRANCH_ID}",
+            headers={"X-Workloop-Branch-ID": str(OTHER_BRANCH_ID)},
+            json={"name": "Dubai", "expectedUpdatedAt": "2026-09-09T12:30:45.123Z"},
+        )
+
+    assert unknown.status_code == 422
+    assert missing_key.status_code == 400
+    assert missing_key.json()["error"]["code"] == "idempotency_key_required"
+    assert mismatch.status_code == 404
     assert executor.selected == []

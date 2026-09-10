@@ -1,10 +1,31 @@
 import base64
 import binascii
 import re
+from datetime import UTC, datetime
 from typing import Literal, Self
 
-from pydantic import AnyHttpUrl, Field, SecretStr, model_validator
+from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+DEFAULT_RECOVERY_KEY_ID = "00000000"
+DEFAULT_RECOVERY_KEY = "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA"
+
+
+def _to_camel(value: str) -> str:
+    head, *tail = value.split("_")
+    return head + "".join(part.capitalize() for part in tail)
+
+
+class PreviousRecoveryKey(BaseModel):
+    model_config = ConfigDict(alias_generator=_to_camel, populate_by_name=True, extra="forbid")
+
+    key_id: str
+    key: SecretStr
+    accept_until: datetime
+
+
+def _empty_previous_recovery_keys() -> list[PreviousRecoveryKey]:
+    return []
 
 
 class Settings(BaseSettings):
@@ -32,6 +53,18 @@ class Settings(BaseSettings):
     )
     database_url: SecretStr = Field(validation_alias="DATABASE_URL")
     cursor_signing_key: SecretStr = Field(validation_alias="CURSOR_SIGNING_KEY")
+    idempotency_recovery_current_key_id: str = Field(
+        default=DEFAULT_RECOVERY_KEY_ID,
+        validation_alias="IDEMPOTENCY_RECOVERY_CURRENT_KEY_ID",
+    )
+    idempotency_recovery_current_key: SecretStr = Field(
+        default=SecretStr(DEFAULT_RECOVERY_KEY),
+        validation_alias="IDEMPOTENCY_RECOVERY_CURRENT_KEY",
+    )
+    idempotency_recovery_previous_keys: list[PreviousRecoveryKey] = Field(
+        default_factory=_empty_previous_recovery_keys,
+        validation_alias="IDEMPOTENCY_RECOVERY_PREVIOUS_KEYS",
+    )
     oidc_issuer: AnyHttpUrl = Field(validation_alias="OIDC_ISSUER")
     oidc_audience: str = Field(validation_alias="OIDC_AUDIENCE")
     oidc_jwks_url: AnyHttpUrl = Field(validation_alias="OIDC_JWKS_URL")
@@ -80,6 +113,12 @@ class Settings(BaseSettings):
             raise ValueError("CURSOR_SIGNING_KEY must be unpadded base64url") from None
         if len(decoded_cursor_key) != 32 or "=" in cursor_key:
             raise ValueError("CURSOR_SIGNING_KEY must encode exactly 32 bytes")
+        self._validate_idempotency_recovery_keys()
+        if self.app_env not in {"local", "test"} and (
+            self.idempotency_recovery_current_key_id == DEFAULT_RECOVERY_KEY_ID
+            or self.idempotency_recovery_current_key.get_secret_value() == DEFAULT_RECOVERY_KEY
+        ):
+            raise ValueError("deployed idempotency recovery key must not use the local default")
         if not 0 < self.database_health_timeout_seconds <= 5:
             raise ValueError("DATABASE_HEALTH_TIMEOUT_SECONDS must be between 0 and 5")
         if not 0 < self.api_request_timeout_seconds <= 15:
@@ -138,6 +177,67 @@ class Settings(BaseSettings):
             raise ValueError("TRUSTED_PROXY must identify DigitalOcean App Platform when deployed")
         self._validate_storage_settings()
         return self
+
+    @staticmethod
+    def _decode_32_byte_key(value: str, name: str) -> bytes:
+        try:
+            decoded = base64.b64decode(
+                value + "=" * (-len(value) % 4),
+                altchars=b"-_",
+                validate=True,
+            )
+        except (ValueError, binascii.Error):
+            raise ValueError(f"{name} must be unpadded base64url") from None
+        if len(decoded) != 32 or "=" in value:
+            raise ValueError(f"{name} must encode exactly 32 bytes")
+        return decoded
+
+    def _validate_idempotency_recovery_keys(self) -> None:
+        if not re.fullmatch(r"[0-9a-f]{8}", self.idempotency_recovery_current_key_id):
+            raise ValueError(
+                "IDEMPOTENCY_RECOVERY_CURRENT_KEY_ID must be eight lowercase hex digits"
+            )
+        self._decode_32_byte_key(
+            self.idempotency_recovery_current_key.get_secret_value(),
+            "IDEMPOTENCY_RECOVERY_CURRENT_KEY",
+        )
+        identifiers = {self.idempotency_recovery_current_key_id}
+        for previous in self.idempotency_recovery_previous_keys:
+            if not re.fullmatch(r"[0-9a-f]{8}", previous.key_id):
+                raise ValueError(
+                    "IDEMPOTENCY_RECOVERY_PREVIOUS_KEYS keyId must be eight lowercase hex digits"
+                )
+            if previous.key_id in identifiers:
+                raise ValueError("IDEMPOTENCY_RECOVERY_PREVIOUS_KEYS keyId must be unique")
+            identifiers.add(previous.key_id)
+            self._decode_32_byte_key(
+                previous.key.get_secret_value(),
+                "IDEMPOTENCY_RECOVERY_PREVIOUS_KEYS key",
+            )
+            if (
+                previous.accept_until.tzinfo is None
+                or previous.accept_until.utcoffset() != UTC.utcoffset(previous.accept_until)
+            ):
+                raise ValueError("IDEMPOTENCY_RECOVERY_PREVIOUS_KEYS acceptUntil must include UTC")
+
+    def decoded_idempotency_recovery_key(self) -> bytes:
+        return self._decode_32_byte_key(
+            self.idempotency_recovery_current_key.get_secret_value(),
+            "IDEMPOTENCY_RECOVERY_CURRENT_KEY",
+        )
+
+    def decoded_previous_idempotency_recovery_keys(self) -> list[tuple[str, bytes, datetime]]:
+        return [
+            (
+                previous.key_id,
+                self._decode_32_byte_key(
+                    previous.key.get_secret_value(),
+                    "IDEMPOTENCY_RECOVERY_PREVIOUS_KEYS key",
+                ),
+                previous.accept_until.astimezone(UTC),
+            )
+            for previous in self.idempotency_recovery_previous_keys
+        ]
 
     def _validate_storage_settings(self) -> None:
         if self.storage_backend == "disabled":

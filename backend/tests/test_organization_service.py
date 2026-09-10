@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from app.auth.application_user import AuthorizationPrincipal
 from app.models.identity import AccountStatus, AppRole
 from app.repositories.organization import OrganizationRepository
+from app.schemas.organization import BranchCreateRequest
 from app.services.execution import ServiceExecutionError
 from app.services.organization import (
     BranchCursorCodec,
@@ -50,8 +51,19 @@ class MappingResult:
         assert len(self.rows) <= 1
         return self.rows[0] if self.rows else None
 
+    def one(self) -> dict[str, Any]:
+        assert len(self.rows) == 1
+        return self.rows[0]
+
     def all(self) -> list[dict[str, Any]]:
         return self.rows
+
+    def scalar_one_or_none(self) -> object | None:
+        assert len(self.rows) <= 1
+        if not self.rows:
+            return None
+        assert len(self.rows[0]) == 1
+        return next(iter(self.rows[0].values()))
 
 
 class RecordingConnection:
@@ -93,6 +105,37 @@ def branch_row(identifier: uuid.UUID = BRANCH_ID) -> dict[str, Any]:
         "created_at": NOW,
         "updated_at": NOW,
     }
+
+
+def test_branch_create_values_use_database_column_names() -> None:
+    values = BranchCreateRequest.model_validate({"name": "Dubai Annex"}).values()
+
+    assert "mol_employer_id" in values
+    assert "molEmployerId" not in values
+    assert values["work_location_type"] == "Mainland"
+
+
+@pytest.mark.asyncio
+async def test_repository_compares_versions_at_the_public_millisecond_precision() -> None:
+    stored = NOW.replace(microsecond=123789)
+    connection = RecordingConnection([[{"updated_at": stored}], [company_row()]])
+    repository = OrganizationRepository(cast(AsyncConnection, connection))
+
+    updated = await repository.update_company(
+        company_id=COMPANY_ID,
+        expected_updated_at=NOW,
+        changes={"name": "Horizon Clinic"},
+    )
+
+    assert updated["id"] == COMPANY_ID
+    stale_connection = RecordingConnection([[{"updated_at": stored}]])
+    stale_repository = OrganizationRepository(cast(AsyncConnection, stale_connection))
+    with pytest.raises(ValueError, match="state conflict"):
+        await stale_repository.update_company(
+            company_id=COMPANY_ID,
+            expected_updated_at=NOW.replace(microsecond=124000),
+            changes={"name": "Horizon Clinic"},
+        )
 
 
 @pytest.mark.asyncio

@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass
-from typing import Protocol
 
 from fastapi import Request
 
@@ -25,15 +23,3 @@ def parse_idempotency_key(request: Request, *, required: bool) -> uuid.UUID | No
     if parsed.version != 4 or str(parsed) != raw_value:
         raise api_error("invalid_idempotency_key")
     return parsed
-
-
-@dataclass(frozen=True, slots=True)
-class IdempotencyRequest:
-    key: uuid.UUID
-    operation_id: str
-    method: str
-
-
-class IdempotencyService(Protocol):
-    async def execute(self, request: IdempotencyRequest) -> object:
-        """Coordinate a later mutation without defining persistence in Phase 6B."""

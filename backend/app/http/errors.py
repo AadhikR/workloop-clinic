@@ -40,6 +40,7 @@ ERROR_REGISTRY: dict[str, ErrorSpec] = {
     "method_not_allowed": ErrorSpec(405, "Method not allowed"),
     "not_acceptable": ErrorSpec(406, "Requested response type is not available"),
     "state_conflict": ErrorSpec(409, "Resource state changed"),
+    "branch_conflict": ErrorSpec(409, "Branch state prevents this operation"),
     "idempotency_conflict": ErrorSpec(409, "Idempotency key already used"),
     "idempotency_in_progress": ErrorSpec(
         409,

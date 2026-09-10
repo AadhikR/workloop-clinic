@@ -34,6 +34,10 @@ def make_settings(**overrides: object) -> Settings:
             "postgresql+psycopg://workloop_runtime:test-secret@postgres/workloop"
         ),
         "cursor_signing_key": SecretStr("MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA"),
+        "idempotency_recovery_current_key_id": "1234abcd",
+        "idempotency_recovery_current_key": SecretStr(
+            "MTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTE"
+        ),
         "oidc_issuer": AnyHttpUrl("http://127.0.0.1:8080/realms/workloop-dev"),
         "oidc_audience": "workloop-api",
         "oidc_jwks_url": AnyHttpUrl(

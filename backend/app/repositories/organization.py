@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Sequence
+from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import Select, and_, asc, desc, func, or_, select
+from sqlalchemy import Select, and_, asc, delete, desc, func, insert, or_, select, update
 from sqlalchemy.engine import RowMapping
 from sqlalchemy.ext.asyncio import AsyncConnection
 
@@ -50,6 +51,14 @@ BRANCH_SAFE_COLUMNS = (
 )
 
 
+def _same_version(actual: datetime, expected: datetime) -> bool:
+    def milliseconds(value: datetime) -> datetime:
+        utc_value = value.astimezone(UTC)
+        return utc_value.replace(microsecond=utc_value.microsecond // 1000 * 1000)
+
+    return milliseconds(actual) == milliseconds(expected)
+
+
 def _after_position(sort: tuple[tuple[str, bool], ...], values: tuple[object, ...]) -> Any:
     sort_columns = {"name": Branch.name, "createdAt": Branch.created_at}
     components: list[tuple[Any, bool]] = [
@@ -75,6 +84,29 @@ class OrganizationRepository:
         if row is None:
             raise ResourceNotFoundError
         return row
+
+    async def update_company(
+        self,
+        *,
+        company_id: uuid.UUID,
+        expected_updated_at: datetime,
+        changes: dict[str, object],
+    ) -> RowMapping:
+        current = await self._connection.execute(
+            select(Company.updated_at).where(Company.id == company_id).with_for_update().limit(1)
+        )
+        updated_at = current.scalar_one_or_none()
+        if updated_at is None:
+            raise ResourceNotFoundError
+        if not _same_version(updated_at, expected_updated_at):
+            raise ValueError("state conflict")
+        result = await self._connection.execute(
+            update(Company)
+            .where(Company.id == company_id)
+            .values(**changes)
+            .returning(*COMPANY_COLUMNS)
+        )
+        return result.mappings().one()
 
     async def fetch_employer(self, company_id: uuid.UUID, branch_id: uuid.UUID) -> RowMapping:
         statement = (
@@ -109,6 +141,74 @@ class OrganizationRepository:
         if row is None:
             raise ResourceNotFoundError
         return row
+
+    async def create_branch(
+        self, *, company_id: uuid.UUID, values: dict[str, object]
+    ) -> RowMapping:
+        result = await self._connection.execute(
+            insert(Branch).values(company_id=company_id, **values).returning(*BRANCH_ADMIN_COLUMNS)
+        )
+        return result.mappings().one()
+
+    async def update_branch(
+        self,
+        *,
+        company_id: uuid.UUID,
+        branch_id: uuid.UUID,
+        expected_updated_at: datetime,
+        changes: dict[str, object],
+    ) -> RowMapping:
+        current = await self._connection.execute(
+            select(Branch.updated_at)
+            .where(Branch.company_id == company_id, Branch.id == branch_id)
+            .with_for_update()
+            .limit(1)
+        )
+        updated_at = current.scalar_one_or_none()
+        if updated_at is None:
+            raise ResourceNotFoundError
+        if not _same_version(updated_at, expected_updated_at):
+            raise ValueError("state conflict")
+        result = await self._connection.execute(
+            update(Branch)
+            .where(Branch.company_id == company_id, Branch.id == branch_id)
+            .values(**changes)
+            .returning(*BRANCH_ADMIN_COLUMNS)
+        )
+        return result.mappings().one()
+
+    async def append_branch_audit(self, action: str, branch_id: uuid.UUID) -> None:
+        await self._connection.exec_driver_sql(
+            "SELECT public.append_audit_event(%s, 'branch', %s, "
+            "ARRAY['id']::text[], %s, '{}'::jsonb)",
+            (action, branch_id, action.replace("_", " ").capitalize()),
+        )
+
+    async def delete_branch(
+        self,
+        *,
+        company_id: uuid.UUID,
+        branch_id: uuid.UUID,
+        expected_updated_at: datetime,
+    ) -> None:
+        current = await self._connection.execute(
+            select(Branch.updated_at)
+            .where(Branch.company_id == company_id, Branch.id == branch_id)
+            .with_for_update()
+            .limit(1)
+        )
+        updated_at = current.scalar_one_or_none()
+        if updated_at is None:
+            raise ResourceNotFoundError
+        if not _same_version(updated_at, expected_updated_at):
+            raise ValueError("state conflict")
+        await self.append_branch_audit("branch_deleted", branch_id)
+        result = await self._connection.execute(
+            delete(Branch).where(Branch.company_id == company_id, Branch.id == branch_id)
+        )
+        if result.rowcount != 1:
+            raise ResourceNotFoundError
+        await self._connection.exec_driver_sql("SET CONSTRAINTS ALL IMMEDIATE")
 
     async def fetch_branch_position(
         self,

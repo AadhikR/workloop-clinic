@@ -25,10 +25,14 @@ from app.db.seed.fixtures import build_rows
 from app.db.seed.runner import apply_rows, clean, validate
 from app.models.identity import AccountStatus, AppRole
 from app.services.execution import AuthorizedServiceExecutor, ServiceExecutionError
-from app.services.organization import BranchCursorCodec, BranchListQuery, OrganizationService
+from app.services.organization import (
+    BranchCursorCodec,
+    BranchListQuery,
+    OrganizationService,
+)
 
 TABLES = ("companies", "branches", "app_users", "user_profiles", "employees")
-EXPECTED_HEAD = "2c4d6e8f0a1b"
+EXPECTED_HEAD = os.environ.get("WORKLOOP_EXPECTED_ALEMBIC_HEAD", "2c4d6e8f0a1b")
 CURSOR_CODEC = BranchCursorCodec(b"phase-7b-synthetic-cursor-key!!!")
 
 

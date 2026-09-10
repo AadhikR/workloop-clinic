@@ -1,0 +1,27 @@
+name: workloop-phase7c-final
+
+services:
+  keycloak:
+    environment:
+      KC_HOSTNAME: http://127.0.0.1:28080
+    ports: !override
+      - "127.0.0.1:28080:8080"
+      - "127.0.0.1:29000:9000"
+
+  migrate:
+    env_file:
+      - path: ./backend/.env.migration
+        required: true
+      - path: ./backend/.env.postgres
+        required: true
+
+  backend:
+    environment:
+      APP_BASE_URL: http://127.0.0.1:28000
+      OIDC_ISSUER: http://127.0.0.1:28080/realms/workloop-dev
+    ports: !override
+      - "127.0.0.1:28000:8000"
+
+  postgres:
+    ports: !override
+      - "127.0.0.1:25432:5432"

@@ -12,6 +12,7 @@ from app.models.attendance import (
     ShiftAssignment,
     ShiftSwapRequest,
 )
+from app.models.idempotency import IdempotencyRecord
 from app.models.identity import AppUser, Branch, Company, Employee, UserProfile
 from app.models.leave import (
     LeaveApprovalDelegate,
@@ -86,6 +87,7 @@ __all__ = [
     "EmployeeInsurance",
     "EmployeeJobHistory",
     "ExpenseClaim",
+    "IdempotencyRecord",
     "IncidentReport",
     "InsuranceDependant",
     "InsurancePolicy",

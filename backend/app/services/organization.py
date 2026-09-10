@@ -16,6 +16,7 @@ from typing import Any, Literal, cast
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from sqlalchemy.engine import RowMapping
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.auth.application_user import AuthorizationPrincipal
@@ -24,8 +25,11 @@ from app.repositories.organization import OrganizationRepository
 from app.repositories.scoped import ResourceNotFoundError
 from app.schemas.organization import (
     BranchAdminResponse,
+    BranchCreateRequest,
     BranchSafeResponse,
+    BranchUpdateRequest,
     CompanyAdminResponse,
+    CompanyUpdateRequest,
     SafeEmployerResponse,
 )
 from app.services.execution import ServiceExecutionError
@@ -234,6 +238,23 @@ class OrganizationService:
         except ResourceNotFoundError:
             raise ServiceExecutionError("resource_not_found") from None
 
+    async def update_company(
+        self, principal: AuthorizationPrincipal, request: CompanyUpdateRequest
+    ) -> CompanyAdminResponse:
+        if principal.role is not AppRole.ADMIN or principal.branch_id is not None:
+            raise ServiceExecutionError("operation_not_permitted")
+        try:
+            row = await self._repository.update_company(
+                company_id=principal.company_id,
+                expected_updated_at=request.expected_updated_at,
+                changes=request.changes(),
+            )
+        except ResourceNotFoundError:
+            raise ServiceExecutionError("resource_not_found") from None
+        except ValueError:
+            raise ServiceExecutionError("state_conflict") from None
+        return _company(row)
+
     async def get_employer(self, principal: AuthorizationPrincipal) -> SafeEmployerResponse:
         if (
             principal.role not in {AppRole.MANAGER, AppRole.EMPLOYEE}
@@ -310,3 +331,77 @@ class OrganizationService:
             )
         except ResourceNotFoundError:
             raise ServiceExecutionError("resource_not_found") from None
+
+    async def create_branch(
+        self, principal: AuthorizationPrincipal, request: BranchCreateRequest
+    ) -> BranchAdminResponse:
+        if principal.role is not AppRole.ADMIN or principal.branch_id is not None:
+            raise ServiceExecutionError("operation_not_permitted")
+        try:
+            row = await self._repository.create_branch(
+                company_id=principal.company_id,
+                values=request.values(),
+            )
+            await self._repository.append_branch_audit("branch_created", row["id"])
+        except IntegrityError:
+            raise ServiceExecutionError("branch_conflict") from None
+        return _admin_branch(row)
+
+    async def authorize_branch_replay(
+        self, principal: AuthorizationPrincipal, kind: str, resource_id: uuid.UUID | None
+    ) -> None:
+        if (
+            principal.role is not AppRole.ADMIN
+            or principal.branch_id is not None
+            or kind != "branch"
+            or resource_id is None
+        ):
+            raise ServiceExecutionError("operation_not_permitted")
+        try:
+            await self._repository.fetch_branch(principal.company_id, resource_id)
+        except ResourceNotFoundError:
+            raise ServiceExecutionError("resource_not_found") from None
+
+    async def update_branch(
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        request: BranchUpdateRequest,
+    ) -> BranchAdminResponse:
+        if principal.role is not AppRole.ADMIN or principal.branch_id is not None:
+            raise ServiceExecutionError("operation_not_permitted")
+        try:
+            row = await self._repository.update_branch(
+                company_id=principal.company_id,
+                branch_id=branch_id,
+                expected_updated_at=request.expected_updated_at,
+                changes=request.changes(),
+            )
+        except ResourceNotFoundError:
+            raise ServiceExecutionError("resource_not_found") from None
+        except ValueError:
+            raise ServiceExecutionError("state_conflict") from None
+        except IntegrityError:
+            raise ServiceExecutionError("branch_conflict") from None
+        return _admin_branch(row)
+
+    async def delete_branch(
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        expected_updated_at: datetime,
+    ) -> None:
+        if principal.role is not AppRole.ADMIN or principal.branch_id is not None:
+            raise ServiceExecutionError("operation_not_permitted")
+        try:
+            await self._repository.delete_branch(
+                company_id=principal.company_id,
+                branch_id=branch_id,
+                expected_updated_at=expected_updated_at,
+            )
+        except ResourceNotFoundError:
+            raise ServiceExecutionError("resource_not_found") from None
+        except ValueError:
+            raise ServiceExecutionError("state_conflict") from None
+        except IntegrityError:
+            raise ServiceExecutionError("branch_conflict") from None
