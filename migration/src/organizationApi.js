@@ -1,4 +1,5 @@
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+const uuid4Pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 const instantPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
 const moneyPattern = /^(?:0|[1-9]\d*)\.\d{2}$/
 const workLocationTypes = new Set(['mainland', 'free_zone'])
@@ -212,6 +213,176 @@ export async function readBranch(authentication, branchId, { signal } = {}) {
     throw invalidOrganizationResponse()
   }
   return branch
+}
+
+function exactMutation(value, allowed, required = []) {
+  if (!isRecord(value) || Object.keys(value).some((key) => !allowed.includes(key))) {
+    throw new TypeError('Invalid organization mutation')
+  }
+  if (required.some((key) => !Object.hasOwn(value, key))) {
+    throw new TypeError('Invalid organization mutation')
+  }
+  return value
+}
+
+const branchWriteKeys = [
+  'name', 'molEmployerId', 'defaultBankRoutingCode', 'address', 'contactEmail',
+  'defaultSalaryDay', 'workLocationType', 'freeZoneName', 'logoUrl',
+  'enableStaffingRules', 'enableBiometricImport',
+]
+
+function requireExpectedUpdatedAt(value) {
+  if (!isInstant(value)) throw new TypeError('Invalid expected update time')
+  return value
+}
+
+function validateCompanyMutation(body) {
+  if (Object.hasOwn(body, 'name') && (!isText(body.name) || !body.name.trim() || body.name.length > 200)) {
+    throw new TypeError('Invalid company update')
+  }
+  if (Object.hasOwn(body, 'sector') && (!isText(body.sector) || body.sector.length > 200)) {
+    throw new TypeError('Invalid company update')
+  }
+  if (
+    Object.hasOwn(body, 'nafisQuotaPercent')
+    && (!moneyPattern.test(body.nafisQuotaPercent) || Number(body.nafisQuotaPercent) > 100)
+  ) throw new TypeError('Invalid company update')
+  if (Object.hasOwn(body, 'enableNafis') && typeof body.enableNafis !== 'boolean') {
+    throw new TypeError('Invalid company update')
+  }
+}
+
+const branchTextLimits = {
+  name: 200,
+  molEmployerId: 200,
+  defaultBankRoutingCode: 200,
+  address: 2000,
+  contactEmail: 320,
+  freeZoneName: 200,
+  logoUrl: 2048,
+}
+
+function validateBranchMutation(body) {
+  for (const [name, maximum] of Object.entries(branchTextLimits)) {
+    if (Object.hasOwn(body, name) && (!isText(body[name]) || body[name].length > maximum)) {
+      throw new TypeError('Invalid branch mutation')
+    }
+  }
+  if (Object.hasOwn(body, 'name') && !body.name.trim()) throw new TypeError('Invalid branch mutation')
+  if (
+    Object.hasOwn(body, 'defaultSalaryDay')
+    && body.defaultSalaryDay !== null
+    && (!Number.isInteger(body.defaultSalaryDay) || body.defaultSalaryDay < 1 || body.defaultSalaryDay > 31)
+  ) throw new TypeError('Invalid branch mutation')
+  if (Object.hasOwn(body, 'workLocationType') && !workLocationTypes.has(body.workLocationType)) {
+    throw new TypeError('Invalid branch mutation')
+  }
+  for (const name of ['enableStaffingRules', 'enableBiometricImport']) {
+    if (Object.hasOwn(body, name) && typeof body[name] !== 'boolean') {
+      throw new TypeError('Invalid branch mutation')
+    }
+  }
+}
+
+export async function updateCompany(authentication, changes, { signal } = {}) {
+  const body = exactMutation(changes, [
+    'name', 'sector', 'nafisQuotaPercent', 'enableNafis', 'expectedUpdatedAt',
+  ], ['expectedUpdatedAt'])
+  requireExpectedUpdatedAt(body.expectedUpdatedAt)
+  if (Object.keys(body).length === 1) throw new TypeError('Invalid company update')
+  validateCompanyMutation(body)
+  const { data } = await authentication.request('/api/v1/company', {
+    access: 'protected',
+    method: 'PATCH',
+    json: body,
+    signal,
+  })
+  return parseCompany(data)
+}
+
+export async function createBranch(authentication, values, { idempotencyKey, signal } = {}) {
+  const body = exactMutation(values, branchWriteKeys, ['name'])
+  validateBranchMutation(body)
+  if (!uuid4Pattern.test(idempotencyKey)) throw new TypeError('Invalid idempotency key')
+  const response = await authentication.request('/api/v1/branches', {
+    access: 'protected',
+    method: 'POST',
+    headers: { 'Idempotency-Key': idempotencyKey },
+    json: body,
+    signal,
+  })
+  const data = parseBranch(response.data)
+  if (
+    response.status !== 201
+    || !hasExactKeys(data, adminBranchKeys)
+    || response.location !== `/api/v1/branches/${data.id}`
+  ) throw invalidOrganizationResponse()
+  return Object.freeze({ data, replayed: response.replayed })
+}
+
+export async function updateBranch(authentication, branchId, changes, { signal } = {}) {
+  if (!isUuid(branchId)) throw new TypeError('Invalid branch ID')
+  const body = exactMutation(changes, [...branchWriteKeys, 'expectedUpdatedAt'], ['expectedUpdatedAt'])
+  requireExpectedUpdatedAt(body.expectedUpdatedAt)
+  if (Object.keys(body).length === 1) throw new TypeError('Invalid branch update')
+  validateBranchMutation(body)
+  const { data } = await authentication.request(`/api/v1/branches/${branchId}`, {
+    access: 'protected',
+    method: 'PATCH',
+    headers: { 'X-Workloop-Branch-ID': branchId },
+    json: body,
+    signal,
+  })
+  const branch = parseBranch(data)
+  if (!hasExactKeys(branch, adminBranchKeys) || branch.id !== branchId) {
+    throw invalidOrganizationResponse()
+  }
+  return branch
+}
+
+export async function deleteBranch(authentication, branchId, expectedUpdatedAt, { signal } = {}) {
+  if (!isUuid(branchId)) throw new TypeError('Invalid branch ID')
+  requireExpectedUpdatedAt(expectedUpdatedAt)
+  const response = await authentication.request(
+    `/api/v1/branches/${branchId}?expectedUpdatedAt=${encodeURIComponent(expectedUpdatedAt)}`,
+    {
+      access: 'protected',
+      method: 'DELETE',
+      headers: { 'X-Workloop-Branch-ID': branchId },
+      signal,
+    },
+  )
+  if (response.status !== 204 || response.data !== null) throw invalidOrganizationResponse()
+}
+
+export async function readIdempotencyNamespaces(authentication, { signal } = {}) {
+  const { data } = await authentication.request('/api/v1/idempotency-recovery-namespaces', {
+    access: 'protected',
+    signal,
+  })
+  if (
+    !hasExactKeys(data, ['current', 'accepted'])
+    || typeof data.current !== 'string'
+    || !/^rn1\.[0-9a-f]{8}\.[A-Za-z0-9_-]{22}$/.test(data.current)
+    || !Array.isArray(data.accepted)
+    || !data.accepted.includes(data.current)
+    || data.accepted.some((item) => typeof item !== 'string')
+  ) throw invalidOrganizationResponse()
+  return Object.freeze({ current: data.current, accepted: Object.freeze([...data.accepted]) })
+}
+
+export async function readIdempotencyStatus(authentication, idempotencyKey, { signal } = {}) {
+  if (!uuid4Pattern.test(idempotencyKey)) throw new TypeError('Invalid idempotency key')
+  const { data } = await authentication.request('/api/v1/idempotency-status', {
+    access: 'protected',
+    headers: { 'Idempotency-Key': idempotencyKey },
+    signal,
+  })
+  if (
+    !hasExactKeys(data, ['status'])
+    || !['in_progress', 'completed', 'not_found'].includes(data.status)
+  ) throw invalidOrganizationResponse()
+  return data.status
 }
 
 export function createBranchSelection({ sessionStorage }) {

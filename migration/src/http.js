@@ -1,6 +1,7 @@
 const approvedLocalApiOrigins = new Set([
   'http://127.0.0.1:8000',
   'http://127.0.0.1:18000',
+  'http://127.0.0.1:28000',
 ])
 
 const allowedMethods = new Set(['GET', 'POST', 'PATCH', 'DELETE'])
@@ -24,6 +25,7 @@ const errorContract = new Map([
   ['method_not_allowed', [405, 'validation']],
   ['not_acceptable', [406, 'validation']],
   ['state_conflict', [409, 'conflict']],
+  ['branch_conflict', [409, 'conflict']],
   ['idempotency_conflict', [409, 'conflict']],
   ['idempotency_in_progress', [409, 'conflict']],
   ['request_too_large', [413, 'validation']],

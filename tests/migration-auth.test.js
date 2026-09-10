@@ -149,17 +149,19 @@ test('rejects an API token destination outside the approved local origin', () =>
 })
 
 test('accepts the dedicated local verification origins', () => {
-  assert.doesNotThrow(() => createUserManager(
-    {
-      ...config,
-      apiBaseUrl: 'http://127.0.0.1:18000',
-      oidcAuthority: 'http://127.0.0.1:18080/realms/workloop-dev',
-    },
-    {
-      location: { origin: 'http://127.0.0.1:5174' },
-      sessionStorage: new MemoryStorage(),
-    },
-  ))
+  for (const portPrefix of ['1', '2']) {
+    assert.doesNotThrow(() => createUserManager(
+      {
+        ...config,
+        apiBaseUrl: `http://127.0.0.1:${portPrefix}8000`,
+        oidcAuthority: `http://127.0.0.1:${portPrefix}8080/realms/workloop-dev`,
+      },
+      {
+        location: { origin: 'http://127.0.0.1:5174' },
+        sessionStorage: new MemoryStorage(),
+      },
+    ))
+  }
 })
 
 test('uses one top-level prompt-none redirect when no in-memory user exists', async () => {

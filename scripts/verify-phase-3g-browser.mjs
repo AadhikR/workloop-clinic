@@ -77,7 +77,8 @@ function run(args, { input = undefined, output = false } = {}) {
     windowsHide: true,
   })
   if (result.status !== 0) {
-    throw new Error('local synthetic fixture operation failed')
+    const detail = result.stderr.trim() || result.stdout.trim() || `exit ${result.status}`
+    throw new Error(`local synthetic fixture operation failed: ${detail}`)
   }
   return output ? result.stdout.trim() : ''
 }
@@ -253,6 +254,16 @@ function cleanupFixtures() {
     }
   }
   for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (createdRows.company) {
+      cleanup(() => psql(
+        "DELETE FROM idempotency_records WHERE company_id = :'company_id'",
+        { company_id: companyId },
+      ))
+      cleanup(() => psql(
+        "DELETE FROM audit_events WHERE company_id = :'company_id'",
+        { company_id: companyId },
+      ))
+    }
     for (const appUserId of createdRows.profiles) {
       cleanup(() => psql(
         "DELETE FROM user_profiles WHERE app_user_id = :'app_user_id'",
@@ -472,15 +483,72 @@ async function assertOrganizationApi(page, persona) {
     assert.equal(result.mismatch.error.status, 404)
     const options = page.locator('.branch-options button')
     assert.equal(await options.count(), 2)
-    const chosenName = (await options.first().textContent()).trim()
-    await options.first().click()
+    const chosen = page.getByRole('button', { name: 'Phase 3G main', exact: true })
+    const chosenName = (await chosen.textContent()).trim()
+    await chosen.click()
     await page.locator('.organization-summary').waitFor()
-    assert.equal((await page.locator('.organization-summary p').textContent()).trim(), chosenName)
+    assert.equal((await page.locator('.organization-summary > p').textContent()).trim(), chosenName)
     assert.match(
       await page.evaluate(() => sessionStorage.getItem('workloop.branchId')),
       /^[0-9a-f-]{36}$/,
     )
-    await page.getByRole('button', { name: 'Change branch' }).click()
+
+    const selectedBranchForm = page.locator('.settings-form').filter({
+      has: page.getByRole('heading', { name: 'Selected branch' }),
+    })
+    await selectedBranchForm.getByRole('button', { name: 'Delete branch' }).click()
+    await selectedBranchForm.getByText('Select delete again to confirm.').waitFor()
+    await selectedBranchForm.getByRole('button', { name: 'Confirm delete' }).click()
+    const guardedDeleteStatus = selectedBranchForm.getByRole('status')
+    await page.waitForFunction(
+      () => {
+        const text = [...document.querySelectorAll('.settings-form')]
+          .find((form) => form.querySelector('h3')?.textContent === 'Selected branch')
+          ?.querySelector('[role="status"]')?.textContent
+        return Boolean(text) && text !== 'Select delete again to confirm.'
+      },
+      undefined,
+      { timeout: 30_000 },
+    )
+    const guardedDeleteMessage = (await guardedDeleteStatus.textContent()).trim()
+    stage(`admin guarded delete ${guardedDeleteMessage}`)
+    assert.equal(
+      guardedDeleteMessage,
+      'This branch name or its retained records prevent the change.',
+    )
+
+    const createBranchForm = page.locator('.settings-form').filter({
+      has: page.getByRole('heading', { name: 'Create branch' }),
+    })
+    await createBranchForm.getByLabel('Name').fill('Phase 7C browser branch')
+    const createResponsePromise = page.waitForResponse((response) => {
+      const request = response.request()
+      return request.method() === 'POST' && new URL(response.url()).pathname === '/api/v1/branches'
+    })
+    await createBranchForm.getByRole('button', { name: 'Create branch' }).click()
+    const createResponse = await createResponsePromise
+    const createResponseBody = await createResponse.json()
+    const createdBranchId = createResponseBody?.data?.id
+    if (typeof createdBranchId === 'string' && !createdRows.branches.includes(createdBranchId)) {
+      createdRows.branches.push(createdBranchId)
+    }
+    stage(`admin create branch response ${createResponse.status()} ${JSON.stringify(createResponseBody)}`)
+    assert.equal(createResponse.status(), 201)
+    const createStatus = createBranchForm.getByRole('status')
+    await createStatus.waitFor()
+    const createMessage = (await createStatus.textContent()).trim()
+    stage(`admin create branch ${createMessage}`)
+    assert.equal(createMessage, 'Branch created.')
+    assert.equal(
+      (await page.locator('.organization-summary > p').textContent()).trim(),
+      'Phase 7C browser branch',
+    )
+
+    await selectedBranchForm.getByLabel('Name', { exact: true }).fill('Phase 7C browser branch updated')
+    await selectedBranchForm.getByRole('button', { name: 'Save branch' }).click()
+    await selectedBranchForm.getByText('Branch settings saved.').waitFor()
+    await selectedBranchForm.getByRole('button', { name: 'Delete branch' }).click()
+    await selectedBranchForm.getByRole('button', { name: 'Confirm delete' }).click()
     await page.locator('.branch-chooser').waitFor()
     assert.equal(await page.evaluate(() => sessionStorage.getItem('workloop.branchId')), null)
   } else {
@@ -733,6 +801,7 @@ async function browserChecks(viteServer) {
 async function main() {
   let fixturesCreated = false
   let viteServer
+  let primaryError
   try {
     stage('synthetic fixture creation')
     fixturesCreated = true
@@ -755,9 +824,21 @@ async function main() {
     stage('browser checks')
     await browserChecks(viteServer)
     viteServer = undefined
+  } catch (error) {
+    primaryError = error
+    throw error
   } finally {
     if (viteServer) await viteServer.close()
-    if (fixturesCreated) cleanupFixtures()
+    if (fixturesCreated) {
+      try {
+        cleanupFixtures()
+      } catch (error) {
+        if (!primaryError) throw error
+        console.error(
+          `Phase 3G browser cleanup failed: ${error instanceof Error ? error.message : 'unknown error'}`,
+        )
+      }
+    }
   }
 
   console.log('Phase 3G browser checks passed')

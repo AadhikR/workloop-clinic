@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { CompanyContext } from './companyContextState.js'
 import { HttpClientError } from './http.js'
@@ -80,8 +80,70 @@ export function CompanyProvider({ account, authentication, children }) {
     setState({ ...state, status: 'choose-branch', selectedBranch: null })
   }
 
+  const replaceCompany = (company) => {
+    if (account.role !== 'admin') return
+    setState((current) => ({ ...current, company }))
+  }
+
+  const replaceBranch = (branch) => {
+    if (account.role !== 'admin') return
+    setState((current) => ({
+      ...current,
+      branches: current.branches.map((item) => item.id === branch.id ? branch : item),
+      selectedBranch: current.selectedBranch?.id === branch.id ? branch : current.selectedBranch,
+    }))
+  }
+
+  const addBranch = (branch) => {
+    if (account.role !== 'admin') return
+    selection.select(branch.id, [branch])
+    setState((current) => ({
+      ...current,
+      status: 'ready',
+      branches: [...current.branches, branch],
+      selectedBranch: branch,
+    }))
+  }
+
+  const removeBranch = (branchId) => {
+    if (account.role !== 'admin') return
+    selection.clear()
+    setState((current) => ({
+      ...current,
+      status: 'choose-branch',
+      branches: current.branches.filter((branch) => branch.id !== branchId),
+      selectedBranch: null,
+    }))
+  }
+
+  const refresh = useCallback(async (preferredBranchId = null) => {
+    if (account.role !== 'admin') return
+    const [company, branches] = await Promise.all([
+      readCompany(authentication),
+      readAllBranches(authentication),
+    ])
+    const selectedBranch = preferredBranchId === null
+      ? selection.validate(branches)
+      : selection.select(preferredBranchId, branches)
+    setState({
+      status: selectedBranch === null ? 'choose-branch' : 'ready',
+      company,
+      branches,
+      selectedBranch,
+    })
+  }, [account.role, authentication, selection])
+
   return (
-    <CompanyContext.Provider value={{ ...state, chooseBranch, clearBranch }}>
+    <CompanyContext.Provider value={{
+      ...state,
+      chooseBranch,
+      clearBranch,
+      replaceCompany,
+      replaceBranch,
+      addBranch,
+      removeBranch,
+      refresh,
+    }}>
       {children}
     </CompanyContext.Provider>
   )

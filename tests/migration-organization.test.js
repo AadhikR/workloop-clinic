@@ -2,17 +2,26 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  createBranch,
   createBranchSelection,
+  deleteBranch,
   readAllBranches,
   readBranch,
   readBranches,
   readCompany,
   readEmployer,
+  readIdempotencyNamespaces,
+  readIdempotencyStatus,
+  updateBranch,
+  updateCompany,
 } from '../migration/src/organizationApi.js'
+import { createIdempotencyRecoveryStore } from '../migration/src/idempotencyRecovery.js'
 
 const companyId = '3afbf0a0-9642-4d44-9884-e9654983eb9b'
 const dubaiId = 'de0fb0c1-2d7a-438a-b19a-98e5bc3698c2'
 const sharjahId = '07186a4f-e0df-4799-916f-b524503743a4'
+const idempotencyKey = '7c000000-0000-4000-8000-000000000002'
+const namespace = 'rn1.1234abcd.AAAAAAAAAAAAAAAAAAAAAA'
 
 const company = {
   id: companyId,
@@ -189,4 +198,81 @@ test('accepts only an accessible explicit choice', () => {
   assert.equal(selection.currentId(), null)
   assert.deepEqual(selection.select(dubaiId, [branch]), branch)
   assert.equal(selection.currentId(), dubaiId)
+})
+
+test('sends exact organization mutations, concurrency guards, and cancellation', async () => {
+  const controller = new AbortController()
+  const companyClient = client({ data: { ...company, name: 'Updated' } })
+  await updateCompany(companyClient, {
+    name: 'Updated', expectedUpdatedAt: company.updatedAt,
+  }, { signal: controller.signal })
+  assert.deepEqual(companyClient.requests[0], ['/api/v1/company', {
+    access: 'protected', method: 'PATCH',
+    json: { name: 'Updated', expectedUpdatedAt: company.updatedAt },
+    signal: controller.signal,
+  }])
+
+  const createClient = client({
+    data: branch, status: 201, location: `/api/v1/branches/${dubaiId}`, replayed: false,
+  })
+  await createBranch(createClient, { name: 'Dubai' }, {
+    idempotencyKey, signal: controller.signal,
+  })
+  assert.equal(createClient.requests[0][1].headers['Idempotency-Key'], idempotencyKey)
+
+  const updateClient = client({ data: { ...branch, name: 'Dubai Main' } })
+  await updateBranch(updateClient, dubaiId, {
+    name: 'Dubai Main', expectedUpdatedAt: branch.updatedAt,
+  }, { signal: controller.signal })
+  assert.equal(updateClient.requests[0][1].headers['X-Workloop-Branch-ID'], dubaiId)
+
+  const deleteClient = client({ data: null, status: 204 })
+  await deleteBranch(deleteClient, dubaiId, branch.updatedAt, { signal: controller.signal })
+  assert.match(deleteClient.requests[0][0], /expectedUpdatedAt=2026-09-09T12%3A30%3A45.123Z/)
+  assert.equal(deleteClient.requests[0][1].signal, controller.signal)
+})
+
+test('rejects unknown or malformed organization mutations before transport', async () => {
+  const authentication = client({ data: company })
+  await assert.rejects(
+    updateCompany(authentication, { companyId, expectedUpdatedAt: company.updatedAt }),
+    /invalid organization mutation/i,
+  )
+  await assert.rejects(createBranch(authentication, { name: ' ' }, { idempotencyKey }), /invalid branch mutation/i)
+  await assert.rejects(
+    updateBranch(authentication, dubaiId, { defaultSalaryDay: 32, expectedUpdatedAt: branch.updatedAt }),
+    /invalid branch mutation/i,
+  )
+  assert.deepEqual(authentication.requests, [])
+})
+
+test('validates recovery namespaces and status without putting keys in URLs', async () => {
+  const namespacesClient = client({ data: { current: namespace, accepted: [namespace] } })
+  assert.deepEqual(await readIdempotencyNamespaces(namespacesClient), {
+    current: namespace, accepted: [namespace],
+  })
+  const statusClient = client({ data: { status: 'completed' } })
+  assert.equal(await readIdempotencyStatus(statusClient, idempotencyKey), 'completed')
+  assert.equal(statusClient.requests[0][0], '/api/v1/idempotency-status')
+  assert.equal(statusClient.requests[0][1].headers['Idempotency-Key'], idempotencyKey)
+})
+
+test('retains unresolved idempotency keys and removes terminal or expired entries', () => {
+  const values = new Map()
+  let current = Date.UTC(2026, 8, 10)
+  const store = createIdempotencyRecoveryStore({
+    localStorage: {
+      getItem: (key) => values.get(key) ?? null,
+      setItem: (key, value) => values.set(key, value),
+      removeItem: (key) => values.delete(key),
+    },
+    now: () => current,
+    randomUUID: () => idempotencyKey,
+  })
+  assert.equal(store.begin(namespace), idempotencyKey)
+  assert.equal(store.has(idempotencyKey), true)
+  assert.equal(store.accepted([namespace]).length, 1)
+  current += 7 * 24 * 60 * 60 * 1000
+  assert.deepEqual(store.accepted([namespace]), [])
+  assert.equal(store.has(idempotencyKey), false)
 })

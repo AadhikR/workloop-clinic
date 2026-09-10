@@ -4,8 +4,9 @@ import BranchChooser from './BranchChooser.jsx'
 import { CompanyProvider } from './CompanyContext.jsx'
 import { useCompanyContext } from './companyContextState.js'
 import { readCurrentAccount } from './sampleApi.js'
+import OrganizationSettings from './OrganizationSettings.jsx'
 
-function OrganizationSummary() {
+function OrganizationSummary({ authentication }) {
   const organization = useCompanyContext()
   if (organization.status === 'loading') return <p>Loading organization...</p>
   if (organization.status === 'unavailable') return <p>Organization details are unavailable.</p>
@@ -17,9 +18,12 @@ function OrganizationSummary() {
       <h2>{organization.company?.name ?? organization.employer?.companyName}</h2>
       <p>{organization.selectedBranch.name}</p>
       {organization.company && (
-        <button type="button" className="secondary" onClick={organization.clearBranch}>
-          Change branch
-        </button>
+        <>
+          <button type="button" className="secondary" onClick={organization.clearBranch}>
+            Change branch
+          </button>
+          <OrganizationSettings authentication={authentication} />
+        </>
       )}
     </div>
   )
@@ -42,7 +46,7 @@ export default function OrganizationPanel({ authentication }) {
   if (account === null) return <p>Organization details are unavailable.</p>
   return (
     <CompanyProvider account={account} authentication={authentication}>
-      <OrganizationSummary />
+      <OrganizationSummary authentication={authentication} />
     </CompanyProvider>
   )
 }

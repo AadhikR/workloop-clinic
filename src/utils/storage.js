@@ -57,58 +57,17 @@ export async function getCompany(id) {
   return dbToCompany(data);
 }
 
-/**
- * Saves (updates or inserts) a company/branch row.
- * Always updates by id if the company already exists.
- * For new companies (no id), inserts a fresh row.
- */
+/** Legacy organization writes are disabled after the Phase 7C authority switch. */
 export async function saveCompany(company) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated — please sign out and sign in again');
-
-  const row = companyToDb(company, user.id);
-
-  if (company.id) {
-    const { error } = await supabase
-      .from('companies')
-      .update(row)
-      .eq('id', company.id);
-    if (error) { console.error('saveCompany update:', error); throw error; }
-  } else {
-    // First-time company creation: plain INSERT (no upsert on user_id —
-    // multi-company allows multiple rows per admin).
-    const { data, error } = await supabase
-      .from('companies')
-      .insert({ ...row })
-      .select()
-      .single();
-    if (error) { console.error('saveCompany insert:', error); throw error; }
-    return data ? { ...dbToCompany(data) } : company;
-  }
+  void company;
+  throw new Error('Organization writes have moved to the migration settings screen.');
 }
 
-/**
- * Targeted update: persist only the company logo (data URL or empty string).
- *
- * Used by CompanySettings' logo picker so the user doesn't have to click
- * the global "Save Settings" button — uploading is the intent to save. This
- * also avoids clobbering unsaved edits on other fields.
- *
- * Returns { ok: true } on success. Throws with a user-friendly message
- * (surfacing PostgREST body-size errors, RLS denials, etc.) so callers can
- * show it in the UI rather than a silent no-op.
- */
+/** Legacy logo writes are disabled after the Phase 7C authority switch. */
 export async function saveCompanyLogo(companyId, logoDataUrl) {
-  if (!companyId) throw new Error('saveCompanyLogo: companyId is required.');
-  const { error } = await supabase
-    .from('companies')
-    .update({ logo_url: logoDataUrl ?? '' })
-    .eq('id', companyId);
-  if (error) {
-    console.error('saveCompanyLogo:', error);
-    throw new Error(error.message || 'Failed to save logo.');
-  }
-  return { ok: true };
+  void companyId;
+  void logoDataUrl;
+  throw new Error('Organization writes have moved to the migration settings screen.');
 }
 
 /**
@@ -141,61 +100,17 @@ export async function cascadeBankRoutingCodeToDrafts(companyId, newCode) {
   return { count: data?.length || 0 };
 }
 
-/**
- * Creates a new branch for the current admin.
- * `name` is the branch label (e.g. "Abu Dhabi Branch").
- * `templateCompany` (optional) copies some settings from an existing branch.
- */
+/** Legacy branch creation is disabled after the Phase 7C authority switch. */
 export async function createBranch(name, templateCompany) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-
-  const row = {
-    user_id:                    user.id,
-    branch_name:                name.trim(),
-    // Copy non-sensitive settings from template branch; MOL ID must be unique
-    name:                       templateCompany?.name ?? '',
-    mol_employer_id:            '',  // Each branch has its own MOL ID
-    default_bank_routing_code:  templateCompany?.defaultBankRoutingCode ?? '',
-    address:                    templateCompany?.address ?? '',
-    contact_email:              templateCompany?.contactEmail ?? '',
-    default_salary_day:         templateCompany?.defaultSalaryDay ?? 25,
-    work_location_type:         templateCompany?.workLocationType ?? 'Mainland',
-    free_zone_name:             templateCompany?.freeZoneName ?? '',
-    logo_url:                   templateCompany?.logoUrl ?? '',
-    sector:                     templateCompany?.sector ?? '',
-    nafis_quota_percent:        templateCompany?.nafisQuotaPercent ?? 2,
-  };
-
-  const { data, error } = await supabase
-    .from('companies')
-    .insert(row)
-    .select()
-    .single();
-  if (error) { console.error('createBranch:', error); throw error; }
-  return dbToCompany(data);
+  void name;
+  void templateCompany;
+  throw new Error('Organization writes have moved to the migration settings screen.');
 }
 
-/**
- * Deletes a branch. Guards against deleting a branch that still has active employees.
- */
+/** Legacy branch deletion is disabled after the Phase 7C authority switch. */
 export async function deleteBranch(id) {
-  const { count, error: checkErr } = await supabase
-    .from('employees')
-    .select('id', { count: 'exact', head: true })
-    .eq('company_id', id)
-    .eq('active', true);
-
-  if (checkErr) throw checkErr;
-  if (count > 0) {
-    throw new Error(
-      `Cannot delete this branch — it still has ${count} active employee(s). ` +
-      'Transfer or archive them first.'
-    );
-  }
-
-  const { error } = await supabase.from('companies').delete().eq('id', id);
-  if (error) throw error;
+  void id;
+  throw new Error('Organization writes have moved to the migration settings screen.');
 }
 
 // ─── EMPLOYEES ──────────────────────────────────────────────────────────────
@@ -1361,30 +1276,6 @@ function dbToCompany(data) {
     enableStaffingRules:    data.enable_staffing_rules   ?? true,
     enableBiometricImport:  data.enable_biometric_import ?? true,
   };
-}
-
-function companyToDb(company, userId) {
-  const row = {
-    user_id:                    userId,
-    branch_name:                company.branchName ?? '',   // Feature 21
-    name:                       company.name ?? '',
-    mol_employer_id:            company.molEmployerId ?? '',
-    default_bank_routing_code:  company.defaultBankRoutingCode ?? '',
-    address:                    company.address ?? '',
-    contact_email:              company.contactEmail ?? '',
-    default_salary_day:         company.defaultSalaryDay ?? 25,
-    work_location_type:         company.workLocationType ?? 'Mainland',
-    free_zone_name:             company.freeZoneName ?? '',
-    logo_url:                   company.logoUrl ?? '',
-    sector:                     company.sector ?? '',
-    nafis_quota_percent:        parseFloat(company.nafisQuotaPercent) || 2,
-  };
-  // Only include the toggle columns when the caller passed them, so an install
-  // that hasn't run migration 049 yet doesn't fail with "column does not exist".
-  if (company.enableNafis           !== undefined) row.enable_nafis            = !!company.enableNafis;
-  if (company.enableStaffingRules   !== undefined) row.enable_staffing_rules   = !!company.enableStaffingRules;
-  if (company.enableBiometricImport !== undefined) row.enable_biometric_import = !!company.enableBiometricImport;
-  return row;
 }
 
 function dbToEmployee(row) {

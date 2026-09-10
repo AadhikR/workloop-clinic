@@ -274,6 +274,7 @@ test('normalizes every approved server error group without exposing backend mess
     ['resource_not_found', 404, 'authorization'],
     ['validation_failed', 422, 'validation'],
     ['state_conflict', 409, 'conflict'],
+    ['branch_conflict', 409, 'conflict'],
     ['rate_limit_exceeded', 429, 'rate-limit'],
     ['service_unavailable', 503, 'availability'],
     ['request_timeout', 504, 'timeout'],

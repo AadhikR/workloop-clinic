@@ -30,6 +30,7 @@ function assertPublicConfig(config, location) {
   const localAuthorities = new Set([
     'http://127.0.0.1:8080/realms/workloop-dev',
     'http://127.0.0.1:18080/realms/workloop-dev',
+    'http://127.0.0.1:28080/realms/workloop-dev',
   ])
   const cloudAuthority = `${location.origin}/auth/realms/workloop-dev`
   if (
