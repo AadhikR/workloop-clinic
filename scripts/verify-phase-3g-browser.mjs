@@ -59,8 +59,10 @@ const createdRows = {
   branches: [],
   company: false,
   employees: [],
+  jobHistory: [],
   profiles: [],
 }
+const browserHistoryId = '00000000-0000-4000-8000-000000000075'
 const createdIdentityIds = []
 let activeStage = 'startup'
 
@@ -205,14 +207,21 @@ function createFixtures() {
   for (const persona of personas.filter(({ employeeId }) => employeeId)) {
     stage(`synthetic ${persona.role} employee creation`)
     psql(
-      "INSERT INTO employees (id, company_id, branch_id, name, mol_id) "
-        + "VALUES (:'employee_id', :'company_id', :'branch_id', :'name', :'mol_id')",
+      "INSERT INTO employees (id, company_id, branch_id, emp_no, name, mol_id, work_email, "
+        + "job_title, department, reporting_manager_id, basic_salary) "
+        + "VALUES (:'employee_id', :'company_id', :'branch_id', :'emp_no', :'name', "
+        + ":'mol_id', :'work_email', :'job_title', 'Clinical', "
+        + "NULLIF(:'manager_id', '')::uuid, 10000.00)",
       {
         branch_id: branchId,
         company_id: companyId,
         employee_id: persona.employeeId,
+        emp_no: `E-${persona.role}`,
+        job_title: persona.role === 'manager' ? 'Clinical manager' : 'Registered nurse',
+        manager_id: persona.role === 'employee' ? personas[1].employeeId : '',
         mol_id: `MOL-${persona.role}`,
         name: `Phase ${persona.role}`,
+        work_email: `${persona.role}@example.test`,
       },
     )
     createdRows.employees.push(persona.employeeId)
@@ -237,6 +246,20 @@ function createFixtures() {
     )
     createdRows.profiles.push(persona.appUserId)
   }
+  psql(
+    "INSERT INTO employee_job_history "
+      + "(id, company_id, branch_id, employee_id, changed_at, change_type, old_value, "
+      + "new_value, reason) VALUES (:'id', :'company_id', :'branch_id', :'employee_id', "
+      + "'2026-09-10T08:00:00Z', 'title_change', 'Assistant nurse', "
+      + "'Registered nurse', 'Synthetic browser proof')",
+    {
+      id: browserHistoryId,
+      company_id: companyId,
+      branch_id: branchId,
+      employee_id: personas[2].employeeId,
+    },
+  )
+  createdRows.jobHistory.push(browserHistoryId)
 }
 
 function cleanupFixtures() {
@@ -262,6 +285,12 @@ function cleanupFixtures() {
       cleanup(() => psql(
         "DELETE FROM audit_events WHERE company_id = :'company_id'",
         { company_id: companyId },
+      ))
+    }
+    for (const historyId of createdRows.jobHistory) {
+      cleanup(() => psql(
+        "DELETE FROM employee_job_history WHERE id = :'history_id'",
+        { history_id: historyId },
       ))
     }
     for (const appUserId of createdRows.profiles) {
@@ -303,6 +332,7 @@ function cleanupFixtures() {
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM app_users'), '0'))
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM user_profiles'), '0'))
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM employees'), '0'))
+  verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM employee_job_history'), '0'))
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM companies'), '0'))
   verifyCleanup(() => run(['exec', '-T', 'keycloak', 'rm', '-f', kcadmConfig]))
   verifyCleanup(() => run(['exec', '-T', 'keycloak', 'test', '!', '-e', kcadmConfig]))
@@ -405,9 +435,106 @@ function businessFingerprint() {
       + "(SELECT coalesce(jsonb_agg(to_jsonb(c) ORDER BY c.id)::text, '[]') FROM companies c), "
       + "(SELECT coalesce(jsonb_agg(to_jsonb(b) ORDER BY b.id)::text, '[]') FROM branches b), "
       + "(SELECT coalesce(jsonb_agg(to_jsonb(e) ORDER BY e.id)::text, '[]') FROM employees e), "
+      + "(SELECT coalesce(jsonb_agg(to_jsonb(h) ORDER BY h.id)::text, '[]') FROM employee_job_history h), "
       + "(SELECT coalesce(jsonb_agg(to_jsonb(a) ORDER BY a.id)::text, '[]') FROM app_users a), "
       + "(SELECT coalesce(jsonb_agg(to_jsonb(p) ORDER BY p.app_user_id)::text, '[]') FROM user_profiles p)))",
   )
+}
+
+async function assertEmployeeApi(page, persona) {
+  if (persona.role === 'admin' && await page.locator('.branch-chooser').count()) {
+    await page.getByRole('button', { name: 'Phase 3G main', exact: true }).click()
+  }
+  await page.locator('.employee-directory').waitFor({ timeout: 20_000 })
+  const result = await page.evaluate(async ({ role, branchId, employeeId }) => {
+    const { authenticationSession } = await import('/src/authSession.js')
+    const session = authenticationSession()
+    const capture = async (operation) => {
+      try {
+        return { response: await operation() }
+      } catch (error) {
+        return { error: { code: error.code, status: error.status } }
+      }
+    }
+    const adminHeaders = { 'X-Workloop-Branch-ID': branchId }
+    return {
+      listing: await capture(() => session.request('/api/v1/employees', {
+        access: 'protected', headers: adminHeaders,
+      })),
+      detail: await capture(() => session.request(`/api/v1/employees/${employeeId}`, {
+        access: 'protected', headers: adminHeaders,
+      })),
+      self: await capture(() => session.request('/api/v1/employees/self', {
+        access: 'protected',
+      })),
+      reports: await capture(() => session.request('/api/v1/employees/direct-reports', {
+        access: 'protected',
+      })),
+      employeeHistory: await capture(() => session.request(
+        `/api/v1/employees/${employeeId}/job-history`,
+        { access: 'protected', headers: adminHeaders },
+      )),
+      branchHistory: await capture(() => session.request('/api/v1/employee-job-history', {
+        access: 'protected', headers: adminHeaders,
+      })),
+      headerOnSelf: await capture(() => session.request('/api/v1/employees/self', {
+        access: 'protected', headers: adminHeaders,
+      })),
+      role,
+    }
+  }, {
+    role: persona.role,
+    branchId,
+    employeeId: personas[2].employeeId,
+  })
+
+  if (persona.role === 'admin') {
+    assert.equal(result.listing.response.data.length, 2)
+    assert.ok(result.listing.response.data.every((employee) => employee.basicSalary === '10000.00'))
+    assert.deepEqual(Object.keys(result.detail.response.data).sort(), [
+      'active', 'allowance', 'bankAccountHolder', 'bankName', 'bankRoutingCode',
+      'basicSalary', 'createdAt', 'dateOfBirth', 'department', 'emergencyContactName',
+      'emergencyContactPhone', 'emergencyContactRelationship', 'emiratesId',
+      'emiratesIdExpiry', 'empNo', 'employmentStartDate', 'employmentStatus',
+      'freeZoneName', 'gender', 'homeCountryAddress', 'housingAllowance', 'iban', 'id',
+      'jobTitle', 'labourCardExpiry', 'labourCardNumber', 'licenceAuthority',
+      'licenceExpiry', 'licenceNumber', 'maritalStatus', 'molId', 'nafisRegistrationNo',
+      'name', 'nationality', 'otherAllowances', 'otherAllowancesLabel', 'passportExpiry',
+      'passportNumber', 'personalEmail', 'phone', 'photoUrl', 'probationEndDate',
+      'probationExtended', 'reportingManagerId', 'sponsoringEntity', 'terminationDate',
+      'terminationReason', 'transportAllowance', 'updatedAt', 'visaExpiry', 'visaNumber',
+      'visaType', 'workEmail', 'workLocationType',
+    ])
+    assert.equal(result.employeeHistory.response.data.length, 1)
+    assert.equal(result.branchHistory.response.data.length, 1)
+    assert.equal(result.self.error.code, 'operation_not_permitted')
+    assert.equal(result.reports.error.code, 'operation_not_permitted')
+    assert.equal(result.headerOnSelf.error.code, 'operation_not_permitted')
+    await page.getByRole('button', { name: /Phase employee/ }).click()
+    await page.getByRole('heading', { name: 'Phase employee' }).waitFor()
+    await page.getByRole('button', { name: 'Change branch' }).click()
+    await page.locator('.branch-chooser').waitFor()
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('workloop.branchId')), null)
+  } else {
+    assert.equal(result.listing.error.code, 'operation_not_permitted')
+    assert.equal(result.detail.error.code, 'operation_not_permitted')
+    assert.equal(result.employeeHistory.error.code, 'operation_not_permitted')
+    assert.equal(result.branchHistory.error.code, 'operation_not_permitted')
+    assert.equal(result.headerOnSelf.error.code, 'operation_not_permitted')
+    assert.equal(result.self.response.data.id, persona.employeeId)
+    assert.equal(result.self.response.data.basicSalary, '10000.00')
+    if (persona.role === 'manager') {
+      assert.equal(result.reports.response.data.length, 1)
+      assert.deepEqual(Object.keys(result.reports.response.data[0]).sort(), [
+        'department', 'empNo', 'employmentStartDate', 'employmentStatus', 'id', 'jobTitle',
+        'name', 'photoUrl', 'probationEndDate',
+      ])
+      assert.equal(await page.locator('.direct-reports li').count(), 1)
+    } else {
+      assert.equal(result.reports.error.code, 'operation_not_permitted')
+      assert.equal(await page.locator('.direct-reports').count(), 0)
+    }
+  }
 }
 
 async function assertOrganizationApi(page, persona) {
@@ -651,6 +778,7 @@ async function browserChecks(viteServer) {
       await assertSampleApi(page, persona)
       const beforeOrganizationReads = businessFingerprint()
       await assertOrganizationApi(page, persona)
+      await assertEmployeeApi(page, persona)
       assert.equal(businessFingerprint(), beforeOrganizationReads)
       assert.equal(accountRequestCount, 1)
       assert.ok(publicStatusRequestCount >= 1)

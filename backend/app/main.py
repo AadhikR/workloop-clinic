@@ -17,6 +17,7 @@ from app.core.config import Settings
 from app.core.logging import configure_logging
 from app.db.authorization_context import AuthorizationTransactionFactory
 from app.db.engine import create_database_engine, probe_database
+from app.employee_api import router as employee_router
 from app.http.errors import (
     api_error,
     error_response_documentation,
@@ -30,6 +31,7 @@ from app.http.schemas import DataResponse
 from app.idempotency_api import router as idempotency_router
 from app.organization_api import router as organization_router
 from app.sample_api import get_current_account, get_public_status
+from app.services.employees import EmployeeCursorCodec
 from app.services.execution import AuthorizedServiceExecutor
 from app.services.idempotency import RecoveryKey, RecoveryNamespaces
 from app.services.organization import BranchCursorCodec
@@ -121,6 +123,9 @@ def create_app(
         application.state.organization_cursor_codec = BranchCursorCodec.from_base64url(
             resolved_settings.cursor_signing_key.get_secret_value()
         )
+        application.state.employee_cursor_codec = EmployeeCursorCodec.from_base64url(
+            resolved_settings.cursor_signing_key.get_secret_value()
+        )
         application.state.idempotency_recovery_namespaces = RecoveryNamespaces(
             RecoveryKey(
                 key_id=resolved_settings.idempotency_recovery_current_key_id,
@@ -168,6 +173,7 @@ def create_app(
         rate_limiter=resolved_rate_limiter,
     )
     application.include_router(organization_router)
+    application.include_router(employee_router)
     application.include_router(idempotency_router)
 
     application.add_api_route(

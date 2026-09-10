@@ -3,10 +3,11 @@ import { useEffect, useState } from 'react'
 import BranchChooser from './BranchChooser.jsx'
 import { CompanyProvider } from './CompanyContext.jsx'
 import { useCompanyContext } from './companyContextState.js'
+import EmployeeDirectory from './EmployeeDirectory.jsx'
 import { readCurrentAccount } from './sampleApi.js'
 import OrganizationSettings from './OrganizationSettings.jsx'
 
-function OrganizationSummary({ authentication }) {
+function OrganizationSummary({ account, authentication }) {
   const organization = useCompanyContext()
   if (organization.status === 'loading') return <p>Loading organization...</p>
   if (organization.status === 'unavailable') return <p>Organization details are unavailable.</p>
@@ -25,6 +26,12 @@ function OrganizationSummary({ authentication }) {
           <OrganizationSettings authentication={authentication} />
         </>
       )}
+      <EmployeeDirectory
+        account={account}
+        authentication={authentication}
+        branchId={organization.selectedBranch.id}
+        clearBranch={organization.clearBranch}
+      />
     </div>
   )
 }
@@ -46,7 +53,7 @@ export default function OrganizationPanel({ authentication }) {
   if (account === null) return <p>Organization details are unavailable.</p>
   return (
     <CompanyProvider account={account} authentication={authentication}>
-      <OrganizationSummary authentication={authentication} />
+      <OrganizationSummary account={account} authentication={authentication} />
     </CompanyProvider>
   )
 }

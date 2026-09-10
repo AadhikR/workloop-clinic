@@ -4,13 +4,23 @@
   "featureId": "phase7-employee-directory",
   "dataClassification": "synthetic",
   "status": {
-    "current": "preparation",
-    "changedAt": "2026-09-09T15:35:28Z",
+    "current": "completed",
+    "changedAt": "2026-09-10T17:03:00Z",
     "history": [
       {
         "state": "preparation",
         "at": "2026-09-09T15:35:28Z",
         "reason": "Phase 7A prepared this declaration. No business authority has changed."
+      },
+      {
+        "state": "active-cutover",
+        "at": "2026-09-10T17:02:59Z",
+        "reason": "All six migration employee readers and their migration frontend consumers passed the complete synthetic cutover gate."
+      },
+      {
+        "state": "completed",
+        "at": "2026-09-10T17:03:00Z",
+        "reason": "Migration employee reads are authoritative. Legacy Supabase remains the sole employee write authority."
       }
     ]
   },
@@ -97,8 +107,8 @@
         "id": "planned-employee-reader",
         "system": "migration-fastapi",
         "kind": "module",
-        "locator": "synthetic://phase-7d/employee-reader",
-        "cutoverDisposition": "freeze"
+        "locator": "backend/app/employee_api.py, backend/app/schemas/employees.py, backend/app/repositories/employees.py, backend/app/services/employees.py, backend/alembic/versions/7d4a9c2e6b10_add_reporting_manager_reader.py, migration/src/employeeApi.js, migration/src/EmployeeDirectory.jsx, and migration/src/OrganizationPanel.jsx",
+        "cutoverDisposition": "retain"
       },
       {
         "id": "synthetic-identity-map",
@@ -110,7 +120,7 @@
     ]
   },
   "authority": {
-    "readSystem": "legacy-supabase",
+    "readSystem": "migration-fastapi",
     "writeSystem": "legacy-supabase",
     "writableSystems": [
       "legacy-supabase"
@@ -118,9 +128,9 @@
   },
   "freeze": {
     "read": {
-      "system": "migration-fastapi",
-      "condition": "The migration feature reader stays disconnected from business screens.",
-      "releaseCondition": "The owning Phase 7 implementation part proves every declared reader and receives owner approval.",
+      "system": "legacy-supabase",
+      "condition": "Migration employee consumers do not import or invoke the legacy list, detail, self, direct-report, or job-history readers.",
+      "releaseCondition": "The phase owner invokes the tested rollback after a failed employee read cutover check.",
       "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-7/cutover-records/employee-directory.json"
     },
     "write": {
@@ -134,17 +144,17 @@
     "mode": "synthetic-only",
     "source": {
       "kind": "tracked-fixture",
-      "locator": "tests/fixtures/phase-6d/synthetic-users.json",
-      "digest": "sha256:1ebfc4d976b2763da0ea319f387c78c69d98d16c05d03708f3515012640e04be"
+      "locator": "tests/fixtures/phase-7d/employee-directory.json",
+      "digest": "sha256:763c12d773e596990aea01e87acc3f6fc051f6129becdbee93cc085b6b39a806"
     },
-    "command": "node -e \"const f=require('node:fs');const s=JSON.parse(f.readFileSync('tests/fixtures/phase-6d/synthetic-users.json'));const r=JSON.parse(f.readFileSync('docs/migration/phase-7/cutover-records/employee-directory.json'));if(s.length!==r.identityMapping.mappings.length)process.exit(1)\"",
+    "command": "python scripts/verify-phase-7d-employees.py && node scripts/verify-phase-3g-browser.mjs",
     "lastRefresh": {
-      "timestamp": "2026-09-09T15:35:28Z",
-      "command": "node -e \"const f=require('node:fs');const s=JSON.parse(f.readFileSync('tests/fixtures/phase-6d/synthetic-users.json'));const r=JSON.parse(f.readFileSync('docs/migration/phase-7/cutover-records/employee-directory.json'));if(s.length!==r.identityMapping.mappings.length)process.exit(1)\"",
-      "sourceDigest": "sha256:1ebfc4d976b2763da0ea319f387c78c69d98d16c05d03708f3515012640e04be",
+      "timestamp": "2026-09-10T17:03:00Z",
+      "command": "python scripts/verify-phase-7d-employees.py && node scripts/verify-phase-3g-browser.mjs",
+      "sourceDigest": "sha256:763c12d773e596990aea01e87acc3f6fc051f6129becdbee93cc085b6b39a806",
       "evidence": {
         "path": "docs/migration/phase-7/cutover-records/evidence/employee-directory-synthetic-refresh.json",
-        "sha256": "sha256:8ad78980636d3736f95fc4b988553e91763e0a05c1ee9c951158be5314a1b20e"
+        "sha256": "sha256:a9b320d05228c2b6eaed942d91f86a6d35b6ccaac573083cc34b62f4af4da090"
       }
     }
   },
@@ -170,7 +180,7 @@
     ]
   },
   "rollback": {
-    "trigger": "Use this plan if a later synthetic cutover check fails after migration writes are enabled.",
+    "trigger": "Use this plan if a migration employee reader or consumer fails after read authority changes.",
     "owner": "phase-owner",
     "targetAuthority": {
       "readSystem": "legacy-supabase",
@@ -182,7 +192,7 @@
     "steps": [
       {
         "id": "freeze-migration-writes",
-        "action": "Disable the migration write path before changing either reader.",
+        "action": "Confirm that Phase 7D has no migration employee write path before changing readers.",
         "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-7/cutover-records/employee-directory.json"
       },
       {
@@ -192,7 +202,7 @@
       },
       {
         "id": "restore-legacy-reads",
-        "action": "Route every consumer in this cutover unit back to the legacy reader.",
+        "action": "Disconnect the migration employee directory and route every reader in this cutover unit back to the legacy employee storage modules.",
         "verificationCommand": "node scripts/frontend-build-isolation.mjs"
       },
       {
@@ -202,13 +212,13 @@
       },
       {
         "id": "verify-data",
-        "action": "Compare the synthetic identity source with this record's complete mapping.",
-        "verificationCommand": "node -e \"const f=require('node:fs');const s=JSON.parse(f.readFileSync('tests/fixtures/phase-6d/synthetic-users.json'));const r=JSON.parse(f.readFileSync('docs/migration/phase-7/cutover-records/employee-directory.json'));if(s.length!==r.identityMapping.mappings.length)process.exit(1)\""
+        "action": "Run the synthetic employee reader proof and confirm that denied reads leave employee and job-history data unchanged.",
+        "verificationCommand": "python scripts/verify-phase-7d-employees.py"
       }
     ]
   },
   "validation": {
-    "asOf": "2026-09-09T15:36:00Z",
+    "asOf": "2026-09-10T17:03:00Z",
     "refreshMaxAgeHours": 24
   }
 }

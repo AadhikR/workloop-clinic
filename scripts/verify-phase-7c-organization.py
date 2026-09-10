@@ -30,7 +30,7 @@ from app.services.execution import AuthorizedServiceExecutor
 from app.services.idempotency import IdempotencyCommand, IdempotencyCoordinator, IdempotentResponse
 from app.services.organization import BranchCursorCodec, OrganizationService
 
-EXPECTED_HEAD = "31d7b4c8e2f0"
+EXPECTED_HEAD = os.environ.get("WORKLOOP_EXPECTED_ALEMBIC_HEAD", "7d4a9c2e6b10")
 CREATED_BRANCH_ID = uuid.UUID("7c000000-0000-4000-8000-000000000001")
 FIRST_KEY = uuid.UUID("7c000000-0000-4000-8000-000000000002")
 ROLLBACK_KEY = uuid.UUID("7c000000-0000-4000-8000-000000000004")

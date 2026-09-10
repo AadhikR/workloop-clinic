@@ -1,0 +1,47 @@
+{
+  "featureId": "phase7-employee-directory",
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/api/v1/employees",
+      "roles": ["admin"],
+      "projection": "admin-list"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/employees/{employeeId}",
+      "roles": ["admin"],
+      "projection": "admin-detail"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/employees/self",
+      "roles": ["manager", "employee"],
+      "projection": "employee-self"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/employees/direct-reports",
+      "roles": ["manager"],
+      "projection": "current-direct-reports"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/employees/{employeeId}/job-history",
+      "roles": ["admin"],
+      "projection": "employee-job-history"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/employee-job-history",
+      "roles": ["admin"],
+      "projection": "branch-job-history"
+    }
+  ],
+  "syntheticPrincipals": [
+    "hr.admin@horizon.test",
+    "aisha.manager@horizon.test",
+    "ravi.employee@horizon.test",
+    "hr.admin@cedar.test"
+  ]
+}

@@ -1,8 +1,55 @@
 {
-  "command": "node -e \"const f=require('node:fs');const s=JSON.parse(f.readFileSync('tests/fixtures/phase-6d/synthetic-users.json'));const r=JSON.parse(f.readFileSync('docs/migration/phase-7/cutover-records/employee-directory.json'));if(s.length!==r.identityMapping.mappings.length)process.exit(1)\"",
+  "command": "python scripts/verify-phase-7d-employees.py && node scripts/verify-phase-3g-browser.mjs",
   "featureId": "phase7-employee-directory",
-  "refreshedAt": "2026-09-09T15:35:28Z",
-  "sourceDigest": "sha256:1ebfc4d976b2763da0ea319f387c78c69d98d16c05d03708f3515012640e04be",
-  "sourceRecordCount": 2,
-  "targetRecordCount": 2
+  "refreshedAt": "2026-09-10T17:03:00Z",
+  "sourceDigest": "sha256:763c12d773e596990aea01e87acc3f6fc051f6129becdbee93cc085b6b39a806",
+  "sourceRecordCount": 6,
+  "targetRecordCount": 6,
+  "alembicHead": "7d4a9c2e6b10",
+  "routes": [
+    "GET /api/v1/employees",
+    "GET /api/v1/employees/{employeeId}",
+    "GET /api/v1/employees/self",
+    "GET /api/v1/employees/direct-reports",
+    "GET /api/v1/employees/{employeeId}/job-history",
+    "GET /api/v1/employee-job-history"
+  ],
+  "readProof": {
+    "adminBranchEmployees": 6,
+    "directReports": 4,
+    "jobHistoryRows": 2,
+    "crossTenantDenied": true,
+    "crossBranchDenied": true,
+    "staffAdminReadsDenied": true,
+    "ineligibleAccountsDenied": true,
+    "exactProjectionsPassed": true,
+    "cursorBindingPassed": true,
+    "nullableDateOrdering": "nulls-last-both-directions",
+    "reportingManagerReader": "employee-context-only",
+    "syntheticState": "6c56844915ac08f120947e5a7744675dbce008ef966fd8141b55f113db0fd05e"
+  },
+  "frontendProof": {
+    "strictCamelCasePassed": true,
+    "snakeCaseRejected": true,
+    "silentProjectionDriftRejected": true,
+    "serverQueryBindingPassed": true,
+    "legacyReadsAbsent": true,
+    "supabaseImportsAbsent": true
+  },
+  "finalGateProof": {
+    "backendTests": 416,
+    "frontendTests": 96,
+    "legacyBuildModules": 449,
+    "migrationBuildModules": 32,
+    "catalogFingerprint": "1b703ceacf8b11604027646ec2ae6efc",
+    "keycloakSigningKeyCount": 2,
+    "backendImage": "sha256:a4b95b16e2c6b9fabdc1ac8d69a55499d7357e768a270ddc4f2a380618fbe5b6",
+    "restartPersistencePassed": true,
+    "authenticationPassed": true,
+    "browserPassed": true,
+    "logSafetyPassed": true,
+    "syntheticCleanupPassed": true,
+    "temporaryResourcesRemoved": true,
+    "preservedVolumeUntouched": true
+  }
 }

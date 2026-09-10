@@ -3,10 +3,11 @@
 ## Status
 
 The project owner authorized Phase 7C and approved idempotency decisions `7C-IDEM-D1` and
-`7C-IDEM-D2` on 2026-09-10. The implementation and complete local gate are finished. The required
-GitHub result remains the final phase check and will be reported in the task handoff.
+`7C-IDEM-D2` on 2026-09-10. The implementation, complete local gate, and required GitHub check are
+finished. [Migration foundation run #74](https://github.com/AadhikR/workloop-clinic/actions/runs/34482700210)
+passed for closeout commit `98c51af98e3d0d5a751558a44a7eca995a73584c`.
 
-Phase 7D has not started and remains unauthorized.
+Phase 7D started later under separate authorization.
 
 ## Organization write boundary
 
@@ -128,5 +129,5 @@ deleted. It remains present.
 
 ## Stop condition
 
-Phase 7C closes when the commits containing this record pass the path-routed `Migration foundation`
-workflow. Stop before Phase 7D and require separate project-owner authorization.
+Phase 7C is closed. Its implementation passed the path-routed `Migration foundation` workflow in
+run #74. Later phases still require their own project-owner authorization.

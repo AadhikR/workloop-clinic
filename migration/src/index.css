@@ -223,6 +223,48 @@ button:focus-visible {
   outline-offset: 3px;
 }
 
+.employee-directory {
+  border-top: 1px solid #dbe3ea;
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+}
+
+.employee-search-row {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.4rem 0 1rem;
+}
+
+.employee-search-row input {
+  flex: 1;
+}
+
+.employee-list {
+  display: grid;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.employee-list button {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.employee-list span {
+  font-size: 0.8rem;
+  opacity: 0.75;
+}
+
+.employee-detail,
+.direct-reports,
+.employee-history-summary {
+  margin-top: 1rem;
+}
+
 .boundary {
   margin: 2.5rem 0 0;
   color: #65736b;
