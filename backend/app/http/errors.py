@@ -41,6 +41,7 @@ ERROR_REGISTRY: dict[str, ErrorSpec] = {
     "not_acceptable": ErrorSpec(406, "Requested response type is not available"),
     "state_conflict": ErrorSpec(409, "Resource state changed"),
     "branch_conflict": ErrorSpec(409, "Branch state prevents this operation"),
+    "employee_conflict": ErrorSpec(409, "Employee state prevents this operation"),
     "department_conflict": ErrorSpec(409, "Department state prevents this operation"),
     "staffing_rule_conflict": ErrorSpec(409, "Staffing rule state prevents this operation"),
     "idempotency_conflict": ErrorSpec(409, "Idempotency key already used"),

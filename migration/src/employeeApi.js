@@ -1,4 +1,5 @@
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+const uuid4Pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 const datePattern = /^\d{4}-\d{2}-\d{2}$/
 const instantPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
 const moneyPattern = /^(?:0|[1-9]\d*)\.\d{2}$/
@@ -12,6 +13,7 @@ const visaTypes = new Set([
   null, 'employment_visa', 'investor_visa', 'dependent_visa', 'tourist_temp', 'exempt',
 ])
 const workLocationTypes = new Set(['mainland', 'free_zone'])
+const initialStatuses = new Set(['active', 'probation', 'on_leave'])
 
 const adminListKeys = [
   'id', 'empNo', 'name', 'photoUrl', 'workEmail', 'jobTitle', 'department',
@@ -44,6 +46,32 @@ const historyKeys = [
   'id', 'employeeId', 'changedAt', 'changedByAppUserId', 'changeType', 'oldValue',
   'newValue', 'reason',
 ]
+const createKeys = [
+  'empNo', 'name', 'photoUrl', 'workEmail', 'jobTitle', 'department',
+  'reportingManagerId', 'employmentStartDate', 'probationEndDate', 'employmentStatus',
+  'basicSalary', 'housingAllowance', 'transportAllowance', 'otherAllowances', 'bankName',
+  'molId', 'bankRoutingCode', 'iban', 'allowance', 'personalEmail', 'phone', 'dateOfBirth',
+  'gender', 'maritalStatus', 'homeCountryAddress', 'emergencyContactName',
+  'emergencyContactRelationship', 'emergencyContactPhone', 'probationExtended',
+  'otherAllowancesLabel', 'bankAccountHolder', 'nationality', 'visaType', 'visaNumber',
+  'visaExpiry', 'passportNumber', 'passportExpiry', 'emiratesId', 'emiratesIdExpiry',
+  'labourCardNumber', 'labourCardExpiry', 'sponsoringEntity', 'workLocationType',
+  'freeZoneName', 'nafisRegistrationNo', 'licenceAuthority', 'licenceNumber', 'licenceExpiry',
+]
+const updateKeys = [
+  'expectedUpdatedAt', 'empNo', 'name', 'photoUrl', 'molId', 'bankName',
+  'bankRoutingCode', 'bankAccountHolder', 'iban', 'personalEmail', 'phone', 'dateOfBirth',
+  'gender', 'maritalStatus', 'homeCountryAddress', 'emergencyContactName',
+  'emergencyContactRelationship', 'emergencyContactPhone', 'employmentStartDate',
+  'nationality', 'visaType', 'visaNumber', 'visaExpiry', 'passportNumber', 'passportExpiry',
+  'emiratesId', 'emiratesIdExpiry', 'labourCardNumber', 'labourCardExpiry',
+  'sponsoringEntity', 'workLocationType', 'freeZoneName', 'nafisRegistrationNo',
+  'licenceAuthority', 'licenceNumber', 'licenceExpiry',
+]
+const importKeys = [
+  'rowNumber', 'empNo', 'name', 'molId', 'bankName', 'bankRoutingCode', 'iban',
+  'basicSalary', 'allowance',
+]
 
 function isRecord(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -74,6 +102,10 @@ function isDate(value) {
 
 function invalidEmployeeResponse() {
   return new Error('Invalid employee response')
+}
+
+function invalidEmployeeMutation() {
+  return new TypeError('Invalid employee mutation')
 }
 
 function validListFields(data) {
@@ -249,6 +281,157 @@ function collection(response, parser) {
   })
 }
 
+function requireMutation(value, allowed, required) {
+  if (
+    !isRecord(value)
+    || Object.keys(value).some((key) => !allowed.includes(key))
+    || required.some((key) => !Object.hasOwn(value, key))
+  ) throw invalidEmployeeMutation()
+}
+
+function validateTextField(value, { empty = true, maximum = 200 } = {}) {
+  return typeof value === 'string'
+    && value.trim().length <= maximum
+    && (empty || Boolean(value.trim()))
+}
+
+const mutationTextLimits = new Map([
+  ['photoUrl', 2048],
+  ['workEmail', 254],
+  ['personalEmail', 254],
+  ['phone', 100],
+  ['homeCountryAddress', 2000],
+  ['emergencyContactPhone', 100],
+])
+
+const mutationNonTextKeys = new Set([
+  'reportingManagerId', 'employmentStartDate', 'probationEndDate', 'employmentStatus',
+  'basicSalary', 'housingAllowance', 'transportAllowance', 'otherAllowances', 'allowance',
+  'dateOfBirth', 'gender', 'maritalStatus', 'probationExtended', 'visaType', 'visaExpiry',
+  'passportExpiry', 'emiratesIdExpiry', 'labourCardExpiry', 'workLocationType',
+  'licenceExpiry',
+])
+
+function validateMutationText(value, keys, requiredNonempty = new Set()) {
+  for (const key of keys) {
+    if (!Object.hasOwn(value, key) || mutationNonTextKeys.has(key)) continue
+    if (!validateTextField(value[key], {
+      empty: !requiredNonempty.has(key),
+      maximum: mutationTextLimits.get(key) ?? 200,
+    })) throw invalidEmployeeMutation()
+  }
+}
+
+function validateMutationFormats(value) {
+  if (Object.hasOwn(value, 'molId') && !/^\d{10,15}$/.test(value.molId.trim())) {
+    throw invalidEmployeeMutation()
+  }
+  if (Object.hasOwn(value, 'bankRoutingCode')
+    && value.bankRoutingCode.trim() && !/^\d{9}$/.test(value.bankRoutingCode.trim())) {
+    throw invalidEmployeeMutation()
+  }
+  if (Object.hasOwn(value, 'iban')
+    && value.iban.trim() && !/^AE\d{21}$/.test(value.iban.trim())) {
+    throw invalidEmployeeMutation()
+  }
+  for (const key of ['workEmail', 'personalEmail']) {
+    if (Object.hasOwn(value, key)
+      && value[key].trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value[key].trim())) {
+      throw invalidEmployeeMutation()
+    }
+  }
+}
+
+function validateCreateMutation(value) {
+  requireMutation(value, createKeys, ['name', 'molId', 'department'])
+  validateMutationText(value, createKeys, new Set(['name', 'molId', 'department']))
+  validateMutationFormats(value)
+  if (Object.hasOwn(value, 'reportingManagerId')
+    && value.reportingManagerId !== null && !isUuid(value.reportingManagerId)) {
+    throw invalidEmployeeMutation()
+  }
+  if (Object.hasOwn(value, 'employmentStatus') && !initialStatuses.has(value.employmentStatus)) {
+    throw invalidEmployeeMutation()
+  }
+  for (const key of ['basicSalary', 'housingAllowance', 'transportAllowance', 'otherAllowances', 'allowance']) {
+    if (Object.hasOwn(value, key) && !moneyPattern.test(value[key])) throw invalidEmployeeMutation()
+  }
+  for (const key of [
+    'employmentStartDate', 'probationEndDate', 'dateOfBirth', 'visaExpiry', 'passportExpiry',
+    'emiratesIdExpiry', 'labourCardExpiry', 'licenceExpiry',
+  ]) {
+    if (Object.hasOwn(value, key) && !isDate(value[key])) throw invalidEmployeeMutation()
+  }
+  if (Object.hasOwn(value, 'gender') && !genders.has(value.gender)) throw invalidEmployeeMutation()
+  if (Object.hasOwn(value, 'maritalStatus') && !maritalStatuses.has(value.maritalStatus)) {
+    throw invalidEmployeeMutation()
+  }
+  if (Object.hasOwn(value, 'visaType') && !visaTypes.has(value.visaType)) {
+    throw invalidEmployeeMutation()
+  }
+  if (Object.hasOwn(value, 'workLocationType') && !workLocationTypes.has(value.workLocationType)) {
+    throw invalidEmployeeMutation()
+  }
+  if (Object.hasOwn(value, 'probationExtended') && typeof value.probationExtended !== 'boolean') {
+    throw invalidEmployeeMutation()
+  }
+}
+
+function validateUpdateMutation(value) {
+  requireMutation(value, updateKeys, ['expectedUpdatedAt'])
+  if (!instantPattern.test(value.expectedUpdatedAt) || Object.keys(value).length < 2) {
+    throw invalidEmployeeMutation()
+  }
+  validateMutationText(value, updateKeys, new Set(['name', 'molId']))
+  validateMutationFormats(value)
+  for (const key of [
+    'dateOfBirth', 'employmentStartDate', 'visaExpiry', 'passportExpiry', 'emiratesIdExpiry',
+    'labourCardExpiry', 'licenceExpiry',
+  ]) {
+    if (Object.hasOwn(value, key) && !isDate(value[key])) throw invalidEmployeeMutation()
+  }
+  if (Object.hasOwn(value, 'gender') && !genders.has(value.gender)) throw invalidEmployeeMutation()
+  if (Object.hasOwn(value, 'maritalStatus') && !maritalStatuses.has(value.maritalStatus)) {
+    throw invalidEmployeeMutation()
+  }
+  if (Object.hasOwn(value, 'visaType') && !visaTypes.has(value.visaType)) {
+    throw invalidEmployeeMutation()
+  }
+  if (Object.hasOwn(value, 'workLocationType') && !workLocationTypes.has(value.workLocationType)) {
+    throw invalidEmployeeMutation()
+  }
+}
+
+function validateImportRow(value) {
+  if (!exactKeys(value, importKeys)
+    || !Number.isInteger(value.rowNumber) || value.rowNumber < 1
+    || !validateTextField(value.empNo, { empty: false })
+    || !validateTextField(value.name, { empty: false })
+    || !/^\d{10,15}$/.test(value.molId)
+    || !validateTextField(value.bankName)
+    || !/^(?:|\d{9})$/.test(value.bankRoutingCode)
+    || !/^(?:|AE\d{21})$/.test(value.iban)
+    || !moneyPattern.test(value.basicSalary)
+    || !moneyPattern.test(value.allowance)
+  ) throw invalidEmployeeMutation()
+}
+
+function parseImportResponse(value, inputRows) {
+  if (!exactKeys(value, ['createdCount', 'rows'])
+    || !Number.isInteger(value.createdCount)
+    || value.createdCount !== inputRows.length
+    || !Array.isArray(value.rows)
+    || value.rows.length !== inputRows.length) throw invalidEmployeeResponse()
+  const expectedRows = new Set(inputRows.map((row) => row.rowNumber))
+  const rows = value.rows.map((row) => {
+    if (!exactKeys(row, ['rowNumber', 'employeeId'])
+      || !expectedRows.delete(row.rowNumber)
+      || !isUuid(row.employeeId)) throw invalidEmployeeResponse()
+    return Object.freeze({ ...row })
+  })
+  return Object.freeze({ createdCount: value.createdCount, rows: Object.freeze(rows) })
+}
+
 const employeeQueryKeys = new Set([
   'limit', 'cursor', 'search', 'employmentStatus', 'department', 'active',
   'reportingManagerId', 'sort',
@@ -362,4 +545,78 @@ export async function readEmployeeJobHistory(
     throw invalidEmployeeResponse()
   }
   return parsed
+}
+
+export async function createEmployee(
+  authentication,
+  branchId,
+  values,
+  { idempotencyKey, signal } = {},
+) {
+  if (!isUuid(branchId) || !uuid4Pattern.test(idempotencyKey)) throw invalidEmployeeMutation()
+  validateCreateMutation(values)
+  const response = await authentication.request('/api/v1/employees', {
+    access: 'protected',
+    method: 'POST',
+    headers: {
+      'X-Workloop-Branch-ID': branchId,
+      'Idempotency-Key': idempotencyKey,
+    },
+    json: values,
+    signal,
+  })
+  const employee = parseAdminDetail(response.data)
+  if (response.status !== 201 || response.location !== `/api/v1/employees/${employee.id}`) {
+    throw invalidEmployeeResponse()
+  }
+  return employee
+}
+
+export async function updateEmployee(
+  authentication,
+  branchId,
+  employeeId,
+  values,
+  { signal } = {},
+) {
+  if (!isUuid(branchId) || !isUuid(employeeId)) throw invalidEmployeeMutation()
+  validateUpdateMutation(values)
+  const response = await authentication.request(`/api/v1/employees/${employeeId}`, {
+    access: 'protected',
+    method: 'PATCH',
+    headers: { 'X-Workloop-Branch-ID': branchId },
+    json: values,
+    signal,
+  })
+  const employee = parseAdminDetail(response.data)
+  if (response.status !== 200 || employee.id !== employeeId) throw invalidEmployeeResponse()
+  return employee
+}
+
+export async function importEmployees(
+  authentication,
+  branchId,
+  rows,
+  { idempotencyKey, signal } = {},
+) {
+  if (
+    !isUuid(branchId)
+    || !uuid4Pattern.test(idempotencyKey)
+    || !Array.isArray(rows)
+    || rows.length < 1
+    || rows.length > 500
+  ) throw invalidEmployeeMutation()
+  rows.forEach(validateImportRow)
+  const response = await authentication.request('/api/v1/employee-imports', {
+    access: 'protected',
+    method: 'POST',
+    headers: {
+      'X-Workloop-Branch-ID': branchId,
+      'Idempotency-Key': idempotencyKey,
+    },
+    json: { rows },
+    signal,
+  })
+  if (response.status !== 201 || response.location !== null) throw invalidEmployeeResponse()
+  return parseImportResponse(response.data, rows)
 }

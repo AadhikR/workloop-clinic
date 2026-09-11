@@ -6,10 +6,11 @@ Phase 6 and its temporary Phase 6G DigitalOcean proof are complete. The proof re
 credentials were removed on 2026-09-09; the retained empty FRA1 default VPC is non-billable and is
 not managed by this repository.
 
-Phase 7A through Phase 7D are complete. GitHub Migration foundation run #75 passed Phase 7D on
-2026-09-10. The project owner authorized Phase 7E on 2026-09-11. Its implementation and local
-completion gate are finished; the required GitHub result remains pending. Phase 7F and later work
-remain unauthorized. No cloud spending or production-data work is authorized by this document.
+Phase 7A through Phase 7E are complete. GitHub Migration foundation run #75 passed Phase 7D on
+2026-09-10, and run 34583619822 passed Phase 7E on 2026-09-11. The project owner authorized Phase 7F
+on 2026-09-11. Its implementation and local completion gate are finished; the required GitHub result
+remains pending. Phase 7G and later work remain unauthorized. No cloud spending or production-data
+work is authorized by this document.
 
 Phase 7 is split into eight parts, 7A through 7H. The original scope combines organization settings,
 branch administration, employee data, departments, staffing rules, job history, and portal roles.
@@ -22,8 +23,8 @@ Phase 8 remains separately gated.
 
 ## Starting point
 
-- Phase 7E started from synchronized branch `migration/fastapi-keycloak` at Phase 7D closeout commit
-  `92efd639d919648a75b9f26b31b97266d567ef77`.
+- Phase 7F started from synchronized branch `migration/fastapi-keycloak` at Phase 7E closeout commit
+  `04989c7038429bfc8ad0b7bcb4a02666a859abf3`.
 - Alembic head is `7d4a9c2e6b10`. It adds the approved employee-context reporting-manager reader
   without changing a table, RLS policy, or existing Phase 7 organization behavior.
 - Phase 3 supplies Keycloak login and trusted application-user resolution.
@@ -46,8 +47,8 @@ Phase 8 remains separately gated.
 | 7B | Company and branch read foundation | Complete |
 | 7C | Company and branch administration | Complete |
 | 7D | Employee directory, self, and manager read projections | Complete |
-| 7E | Departments, hierarchy, and staffing rules | Local gate complete; GitHub pending |
-| 7F | Employee onboarding, editing, and CSV import | Not authorized |
+| 7E | Departments, hierarchy, and staffing rules | Complete |
+| 7F | Employee onboarding, editing, and CSV import | Local gate complete; GitHub pending |
 | 7G | Employee lifecycle, job history, and portal-role workflows | Not authorized |
 | 7H | Independent review, cutover proof, and completion gate | Not authorized |
 

@@ -21,6 +21,19 @@ function New-LocalSecret {
     [Convert]::ToBase64String($bytes).TrimEnd("=").Replace("+", "-").Replace("/", "_")
 }
 
+function New-LocalKeyId {
+    $bytes = New-Object byte[] 4
+    $generator = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    try {
+        $generator.GetBytes($bytes)
+    }
+    finally {
+        $generator.Dispose()
+    }
+
+    return -join ($bytes | ForEach-Object { $_.ToString("x2") })
+}
+
 if (Test-Path -LiteralPath $postgresPath) {
     $runtimeLine = [System.IO.File]::ReadLines($postgresPath) | Where-Object {
         $_.StartsWith("WORKLOOP_RUNTIME_PASSWORD=")
@@ -98,6 +111,9 @@ $apiLines = @(
     "OIDC_JWKS_CACHE_TTL_SECONDS=300"
     "OIDC_JWKS_REFRESH_COOLDOWN_SECONDS=1"
     "CURSOR_SIGNING_KEY=$(New-LocalSecret)"
+    "IDEMPOTENCY_RECOVERY_CURRENT_KEY_ID=$(New-LocalKeyId)"
+    "IDEMPOTENCY_RECOVERY_CURRENT_KEY=$(New-LocalSecret)"
+    "IDEMPOTENCY_RECOVERY_PREVIOUS_KEYS=[]"
     "DATABASE_URL=postgresql+psycopg://workloop_runtime:${runtimePassword}@postgres:5432/workloop"
 )
 

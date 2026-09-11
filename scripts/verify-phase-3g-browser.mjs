@@ -65,6 +65,7 @@ const createdRows = {
   staffingRules: [],
 }
 const browserHistoryId = '00000000-0000-4000-8000-000000000075'
+const browserDepartmentId = '00000000-0000-4000-8000-000000000076'
 const createdIdentityIds = []
 let activeStage = 'startup'
 
@@ -171,6 +172,12 @@ function createFixtures() {
     ),
     '0',
   )
+  assert.equal(
+    psql("SELECT count(*) FROM departments WHERE id = :'department_id'", {
+      department_id: browserDepartmentId,
+    }),
+    '0',
+  )
 
   for (const persona of personas) {
     stage(`synthetic ${persona.role} identity creation`)
@@ -206,6 +213,12 @@ function createFixtures() {
     )
     createdRows.branches.push(createdBranchId)
   }
+  psql(
+    "INSERT INTO departments (id, company_id, branch_id, name) "
+      + "VALUES (:'department_id', :'company_id', :'branch_id', 'Clinical')",
+    { department_id: browserDepartmentId, company_id: companyId, branch_id: branchId },
+  )
+  createdRows.departments.push(browserDepartmentId)
   for (const persona of personas.filter(({ employeeId }) => employeeId)) {
     stage(`synthetic ${persona.role} employee creation`)
     psql(
@@ -526,6 +539,87 @@ async function assertEmployeeApi(page, persona) {
     assert.equal(result.headerOnSelf.error.code, 'operation_not_permitted')
     await page.getByRole('button', { name: /Phase employee/ }).click()
     await page.getByRole('heading', { name: 'Phase employee' }).waitFor()
+
+    stage('admin employee creation')
+    const employeeForm = page.locator('[data-employee-create-form]')
+    await employeeForm.getByLabel('Employee number').fill('E-7F-BROWSER')
+    await employeeForm.getByLabel('Name', { exact: true }).fill('Phase 7F browser employee')
+    await employeeForm.getByLabel('MOL ID').fill('10003048635715')
+    await employeeForm.getByLabel('Work email').fill('PHASE7F-BROWSER@EXAMPLE.TEST')
+    await employeeForm.getByLabel('Job title').fill('Browser verifier')
+    await employeeForm.getByLabel('Department').selectOption({ label: 'Clinical' })
+    await employeeForm.getByLabel('Reporting manager').selectOption(personas[1].employeeId)
+    await employeeForm.getByLabel('Basic salary').fill('9000.00')
+    const createPromise = page.waitForResponse((response) => {
+      const request = response.request()
+      return request.method() === 'POST' && new URL(response.url()).pathname === '/api/v1/employees'
+    })
+    await employeeForm.getByRole('button', { name: 'Create employee' }).click()
+    const createResponse = await createPromise
+    const createBody = await createResponse.json()
+    assert.equal(createResponse.status(), 201)
+    assert.equal(createBody.data.workEmail, 'phase7f-browser@example.test')
+    assert.equal(createBody.data.reportingManagerId, personas[1].employeeId)
+    createdRows.employees.push(createBody.data.id)
+    await page.locator('[data-employee-create-status="saved"]').waitFor()
+    await page.getByRole('heading', { name: 'Phase 7F browser employee' }).waitFor()
+
+    stage('admin ordinary employee edit')
+    const editForm = page.locator('[data-employee-edit-form]')
+    await editForm.getByLabel('Name', { exact: true }).fill('Phase 7F browser employee edited')
+    await editForm.getByLabel('Personal email').fill('browser-edit@example.test')
+    const editPromise = page.waitForResponse((response) => {
+      const request = response.request()
+      return request.method() === 'PATCH'
+        && new URL(response.url()).pathname === `/api/v1/employees/${createBody.data.id}`
+    })
+    await editForm.getByRole('button', { name: 'Save details' }).click()
+    const editResponse = await editPromise
+    const editBody = await editResponse.json()
+    assert.equal(editResponse.status(), 200)
+    assert.equal(editBody.data.name, 'Phase 7F browser employee edited')
+    assert.equal(editBody.data.personalEmail, 'browser-edit@example.test')
+    await page.locator('[data-employee-edit-status="saved"]').waitFor()
+
+    stage('admin employee CSV import')
+    const csv = [
+      'Emp No,Name,MOL ID,Bank Name,Bank Routing Code,IBAN,Basic Salary,Allowance',
+      'E-7F-I-1,Phase 7F imported one,10003048635714,Synthetic Bank,123456789,AE000000000000000000001,5000,250',
+      'E-7F-I-2,Phase 7F imported two,10003048635713,Synthetic Bank,,,0,0',
+    ].join('\n')
+    await page.getByLabel('CSV file').setInputFiles({
+      name: 'phase-7f-employees.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from(csv),
+    })
+    await page.getByText('2 rows ready for review.').waitFor()
+    const importPromise = page.waitForResponse((response) => {
+      const request = response.request()
+      return request.method() === 'POST'
+        && new URL(response.url()).pathname === '/api/v1/employee-imports'
+    })
+    await page.getByRole('button', { name: 'Import employees' }).click()
+    const importResponse = await importPromise
+    const importBody = await importResponse.json()
+    assert.equal(importResponse.status(), 201)
+    assert.equal(importBody.data.createdCount, 2)
+    assert.deepEqual(importBody.data.rows.map(({ rowNumber }) => rowNumber), [2, 3])
+    createdRows.employees.push(...importBody.data.rows.map(({ employeeId }) => employeeId))
+    await page.locator('[data-employee-import-status="saved"]').waitFor()
+
+    stage('admin employee mutation cleanup')
+    psql("DELETE FROM idempotency_records WHERE company_id = :'company_id'", {
+      company_id: companyId,
+    })
+    for (const employeeId of [
+      createBody.data.id,
+      ...importBody.data.rows.map(({ employeeId }) => employeeId),
+    ]) {
+      psql("DELETE FROM employees WHERE id = :'employee_id'", { employee_id: employeeId })
+    }
+    psql("DELETE FROM departments WHERE id = :'department_id'", {
+      department_id: browserDepartmentId,
+    })
     await page.getByRole('button', { name: 'Change branch' }).click()
     await page.locator('.branch-chooser').waitFor()
     assert.equal(await page.evaluate(() => sessionStorage.getItem('workloop.branchId')), null)

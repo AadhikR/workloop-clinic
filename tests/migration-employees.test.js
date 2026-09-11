@@ -2,18 +2,22 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  createEmployee,
+  importEmployees,
   readBranchJobHistory,
   readDirectReports,
   readEmployee,
   readEmployeeJobHistory,
   readEmployees,
   readEmployeeSelf,
+  updateEmployee,
 } from '../migration/src/employeeApi.js'
 
 const branchId = 'de0fb0c1-2d7a-438a-b19a-98e5bc3698c2'
 const employeeId = 'de0fb0c1-2d7a-438a-b19a-98e5bc3698c3'
 const managerId = 'de0fb0c1-2d7a-438a-b19a-98e5bc3698c4'
 const historyId = 'de0fb0c1-2d7a-438a-b19a-98e5bc3698c5'
+const idempotencyKey = '7f000000-0000-4000-8000-000000000002'
 
 const listEmployee = {
   id: employeeId,
@@ -240,4 +244,85 @@ test('rejects a detail or job-history response for a different employee', async 
     ),
     /invalid employee response/i,
   )
+})
+
+test('sends strict employee create, edit, and import mutations', async () => {
+  const created = client({
+    data: detail,
+    status: 201,
+    location: `/api/v1/employees/${employeeId}`,
+  })
+  await createEmployee(created, branchId, {
+    name: 'Synthetic Employee',
+    molId: '10003048635715',
+    department: 'Clinical',
+    workEmail: 'employee@example.test',
+    basicSalary: '10000.00',
+  }, { idempotencyKey })
+  assert.deepEqual(created.requests[0][1].headers, {
+    'X-Workloop-Branch-ID': branchId,
+    'Idempotency-Key': idempotencyKey,
+  })
+
+  const updated = client({ data: detail, status: 200, location: null })
+  await updateEmployee(updated, branchId, employeeId, {
+    expectedUpdatedAt: detail.updatedAt,
+    name: 'Synthetic Employee',
+  })
+  assert.equal(updated.requests[0][1].method, 'PATCH')
+
+  const rows = [{
+    rowNumber: 2,
+    empNo: 'E-001',
+    name: 'Synthetic Employee',
+    molId: '10003048635715',
+    bankName: 'Synthetic Bank',
+    bankRoutingCode: '123456789',
+    iban: 'AE000000000000000000001',
+    basicSalary: '10000.00',
+    allowance: '250.00',
+  }]
+  const imported = client({
+    data: { createdCount: 1, rows: [{ rowNumber: 2, employeeId }] },
+    status: 201,
+    location: null,
+  })
+  assert.deepEqual(await importEmployees(imported, branchId, rows, { idempotencyKey }), {
+    createdCount: 1,
+    rows: [{ rowNumber: 2, employeeId }],
+  })
+})
+
+test('rejects unsupported employee writes before transport', async () => {
+  const authentication = client({ data: detail, status: 200, location: null })
+  await assert.rejects(
+    createEmployee(authentication, branchId, {
+      name: 'Synthetic Employee', molId: '10003048635715', department: 'Clinical', active: true,
+    }, { idempotencyKey }),
+    /invalid employee mutation/i,
+  )
+  await assert.rejects(
+    createEmployee(authentication, branchId, {
+      name: 'Synthetic Employee', molId: 'not-a-mol-id', department: 'Clinical',
+      bankRoutingCode: '12',
+    }, { idempotencyKey }),
+    /invalid employee mutation/i,
+  )
+  await assert.rejects(
+    updateEmployee(authentication, branchId, employeeId, {
+      expectedUpdatedAt: detail.updatedAt, jobTitle: 'Director',
+    }),
+    /invalid employee mutation/i,
+  )
+  await assert.rejects(
+    updateEmployee(authentication, branchId, employeeId, {
+      expectedUpdatedAt: detail.updatedAt, personalEmail: 'invalid',
+    }),
+    /invalid employee mutation/i,
+  )
+  await assert.rejects(
+    importEmployees(authentication, branchId, [], { idempotencyKey }),
+    /invalid employee mutation/i,
+  )
+  assert.deepEqual(authentication.requests, [])
 })

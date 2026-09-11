@@ -21,10 +21,6 @@ async function getSessionUser() {
   return session?.user ?? null;
 }
 
-function getUserId() {
-  return supabase.auth.getSession().then(({ data }) => data?.session?.user?.id);
-}
-
 // ─── COMPANY ────────────────────────────────────────────────────────────────
 
 /**
@@ -142,62 +138,16 @@ export async function getEmployees(companyId) {
  * Returns the saved employee with its DB id.
  */
 export async function saveEmployee(employee) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-
-  const row = employeeToDb(employee, user.id);
-
-  if (employee.id && employee.id.includes('-')) {
-    // UUID — update existing
-    const { data, error } = await supabase
-      .from('employees')
-      .update(row)
-      .eq('id', employee.id)
-      .select()
-      .single();
-    if (error) throw error;
-    return dbToEmployee(data);
-  } else {
-    // New employee — insert
-    const { id: _drop, ...insertRow } = row;
-    const { data, error } = await supabase
-      .from('employees')
-      .insert({ ...insertRow, user_id: user.id })
-      .select()
-      .single();
-    if (error) throw error;
-    return dbToEmployee(data);
-  }
+  void employee;
+  throw new Error('Employee administration has moved to the migration employee directory.');
 }
 
 /**
  * Saves the full employees array (used by CSV import which replaces/merges many at once).
  */
 export async function saveEmployees(employees) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-
-  const existing = employees.filter(e => e.id && e.id.includes('-'));
-  const newEmps  = employees.filter(e => !e.id || !e.id.includes('-'));
-
-  if (existing.length) {
-    const rows = existing.map(e => employeeToDb(e, user.id));
-    const { error } = await supabase
-      .from('employees')
-      .upsert(rows, { onConflict: 'id' });
-    if (error) throw error;
-  }
-
-  if (newEmps.length) {
-    const rows = newEmps.map(e => {
-      const { id: _drop, ...row } = employeeToDb(e, user.id);
-      return row;
-    });
-    const { error } = await supabase
-      .from('employees')
-      .insert(rows);
-    if (error) throw error;
-  }
+  void employees;
+  throw new Error('Employee administration has moved to the migration employee directory.');
 }
 
 /**
@@ -1354,80 +1304,6 @@ function dbToEmployee(row) {
     licenceAuthority:       row.licence_authority ?? 'None',
     licenceNumber:          row.licence_number ?? '',
     licenceExpiry:          row.licence_expiry ?? '',
-  };
-}
-
-function employeeToDb(emp, userId) {
-  return {
-    id:                 emp.id,
-    user_id:            userId,
-    emp_no:             emp.empNo ?? '',
-    name:               emp.name ?? '',
-    mol_id:             emp.molId ?? '',
-    bank_name:          emp.bankName ?? '',
-    bank_routing_code:  emp.bankRoutingCode ?? '',
-    iban:               emp.iban ?? '',
-    basic_salary:       parseFloat(emp.basicSalary) || 0,
-    allowance:          parseFloat(emp.allowance) || 0,
-    active:             emp.active ?? true,
-    company_id:         emp.companyId ?? null,   // Feature 21: branch scoping
-
-    // Personal info
-    personal_email:     emp.personalEmail ?? '',
-    work_email:         (emp.workEmail ?? '').toLowerCase().trim(),
-    phone:              emp.phone ?? '',
-    date_of_birth:      emp.dateOfBirth || null,
-    gender:             emp.gender ?? '',
-    marital_status:     emp.maritalStatus ?? '',
-    home_country_address: emp.homeCountryAddress ?? '',
-    photo_url:          emp.photoUrl ?? '',
-
-    // Emergency contact
-    emergency_contact_name:         emp.emergencyContactName ?? '',
-    emergency_contact_relationship: emp.emergencyContactRelationship ?? '',
-    emergency_contact_phone:        emp.emergencyContactPhone ?? '',
-
-    // Job info
-    job_title:          emp.jobTitle ?? '',
-    department:         emp.department ?? '',
-    reporting_manager_id: emp.reportingManagerId || null,
-
-    // Employment
-    employment_start_date: emp.startDate || emp.employmentStartDate || null,
-    probation_end_date:    emp.probationEndDate || null,
-    probation_extended:    emp.probationExtended ?? false,
-    contract_type:         emp.contractType ?? 'Unlimited',
-    contract_end_date:     emp.contractEndDate || null,
-    employment_status:     emp.employmentStatus ?? 'Active',
-    termination_date:      emp.terminationDate || null,
-    termination_reason:    emp.terminationReason ?? '',
-
-    // Salary breakdown
-    housing_allowance:     parseFloat(emp.housingAllowance) || 0,
-    transport_allowance:   parseFloat(emp.transportAllowance) || 0,
-    other_allowances:      parseFloat(emp.otherAllowances) || 0,
-    other_allowances_label: emp.otherAllowancesLabel ?? '',
-    bank_account_holder:   emp.bankAccountHolder ?? '',
-
-    // UAE compliance
-    nationality:           emp.nationality ?? '',
-    visa_type:             emp.visaType ?? '',
-    visa_number:           emp.visaNumber ?? '',
-    visa_expiry:           emp.visaExpiry || null,
-    passport_number:       emp.passportNumber ?? '',
-    passport_expiry:       emp.passportExpiry || null,
-    emirates_id:           emp.emiratesId ?? '',
-    emirates_id_expiry:    emp.emiratesIdExpiry || null,
-    labour_card_number:    emp.labourCardNumber ?? '',
-    labour_card_expiry:    emp.labourCardExpiry || null,
-    sponsoring_entity:     emp.sponsoringEntity ?? '',
-    work_location_type:    emp.workLocationType ?? 'Mainland',
-    free_zone_name:        emp.freeZoneName ?? '',
-    nafis_registration_no: emp.nafisRegistrationNo ?? '',
-    // Professional licence (Feature 7.1)
-    licence_authority:  emp.licenceAuthority ?? 'None',
-    licence_number:     emp.licenceNumber ?? '',
-    licence_expiry:     emp.licenceExpiry || null,
   };
 }
 

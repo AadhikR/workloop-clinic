@@ -16,6 +16,7 @@ from typing import Any, Literal, cast
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from sqlalchemy.engine import RowMapping
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.auth.application_user import AuthorizationPrincipal
@@ -26,10 +27,16 @@ from app.schemas.employees import (
     DirectReportResponse,
     EmployeeAdminDetailResponse,
     EmployeeAdminListResponse,
+    EmployeeCreateRequest,
+    EmployeeImportRequest,
+    EmployeeImportResponse,
+    EmployeeImportResult,
     EmployeeJobHistoryResponse,
     EmployeeSelfResponse,
+    EmployeeUpdateRequest,
     ReportingManagerResponse,
 )
+from app.schemas.mutations import PROTECTED_FIELDS_BY_TABLE, MutationFieldGuard
 from app.services.execution import ServiceExecutionError
 
 
@@ -227,6 +234,36 @@ _MARITAL_STATUS = {
 }
 _WORK_LOCATION = {"Mainland": "mainland", "Free Zone": "free_zone"}
 
+_EMPLOYEE_PROTECTED_FIELDS = PROTECTED_FIELDS_BY_TABLE["employees"]
+_CREATE_INPUT_FIELDS = frozenset(EmployeeCreateRequest.model_fields)
+_CREATE_GUARD = MutationFieldGuard(
+    allowed_input_fields=_CREATE_INPUT_FIELDS,
+    approved_protected_fields=_CREATE_INPUT_FIELDS & _EMPLOYEE_PROTECTED_FIELDS,
+    server_derived_fields=frozenset({"id", "company_id", "branch_id", "active"}),
+)
+_UPDATE_INPUT_FIELDS = frozenset(EmployeeUpdateRequest.model_fields) - {"expected_updated_at"}
+_UPDATE_GUARD = MutationFieldGuard(
+    allowed_input_fields=_UPDATE_INPUT_FIELDS,
+    approved_protected_fields=_UPDATE_INPUT_FIELDS & _EMPLOYEE_PROTECTED_FIELDS,
+)
+_IMPORT_INPUT_FIELDS = frozenset(
+    {
+        "emp_no",
+        "name",
+        "mol_id",
+        "bank_name",
+        "bank_routing_code",
+        "iban",
+        "basic_salary",
+        "allowance",
+    }
+)
+_IMPORT_GUARD = MutationFieldGuard(
+    allowed_input_fields=_IMPORT_INPUT_FIELDS,
+    approved_protected_fields=_IMPORT_INPUT_FIELDS & _EMPLOYEE_PROTECTED_FIELDS,
+    server_derived_fields=frozenset({"id", "company_id", "branch_id", "active"}),
+)
+
 
 def database_employment_status(value: str | None) -> str | None:
     reverse = {api: stored for stored, api in _EMPLOYMENT_STATUS.items()}
@@ -329,9 +366,16 @@ def _direct_report(row: RowMapping) -> DirectReportResponse:
 
 
 class EmployeeService:
-    def __init__(self, connection: AsyncConnection, cursor_codec: EmployeeCursorCodec) -> None:
+    def __init__(
+        self,
+        connection: AsyncConnection,
+        cursor_codec: EmployeeCursorCodec,
+        *,
+        id_factory: Callable[[], uuid.UUID] = uuid.uuid4,
+    ) -> None:
         self._repository = EmployeeRepository(connection)
         self._cursor_codec = cursor_codec
+        self._id_factory = id_factory
 
     def _decode(
         self,
@@ -435,6 +479,144 @@ class EmployeeService:
         except ResourceNotFoundError:
             raise ServiceExecutionError("resource_not_found") from None
         return EmployeeAdminDetailResponse(**_detail_values(row))
+
+    @staticmethod
+    def _require_admin(principal: AuthorizationPrincipal) -> None:
+        if principal.role is not AppRole.ADMIN or principal.branch_id is not None:
+            raise ServiceExecutionError("operation_not_permitted")
+
+    async def _validate_manager(
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        manager_id: uuid.UUID | None,
+    ) -> None:
+        if manager_id is None:
+            return
+        try:
+            eligible = await self._repository.manager_is_eligible(
+                company_id=principal.company_id,
+                branch_id=branch_id,
+                employee_id=manager_id,
+            )
+        except ResourceNotFoundError:
+            raise ServiceExecutionError("resource_not_found") from None
+        if not eligible:
+            raise ServiceExecutionError("employee_conflict")
+
+    async def create_employee(
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        request: EmployeeCreateRequest,
+    ) -> EmployeeAdminDetailResponse:
+        self._require_admin(principal)
+        try:
+            await self._repository.lock_department(
+                company_id=principal.company_id,
+                branch_id=branch_id,
+                name=request.department,
+            )
+        except ResourceNotFoundError:
+            raise ServiceExecutionError("resource_not_found") from None
+        await self._validate_manager(principal, branch_id, request.reporting_manager_id)
+        values = _CREATE_GUARD.prepare(
+            request.values(),
+            derived_values={
+                "id": self._id_factory(),
+                "company_id": principal.company_id,
+                "branch_id": branch_id,
+                "active": True,
+            },
+        )
+        try:
+            row = await self._repository.create_employee(values)
+        except IntegrityError:
+            raise ServiceExecutionError("employee_conflict") from None
+        return EmployeeAdminDetailResponse(**_detail_values(row))
+
+    async def authorize_employee_replay(
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        kind: str,
+        resource_id: uuid.UUID | None,
+    ) -> None:
+        self._require_admin(principal)
+        if kind != "employee" or resource_id is None:
+            raise ServiceExecutionError("operation_not_permitted")
+        try:
+            await self._repository.assert_employee_exists(
+                company_id=principal.company_id,
+                branch_id=branch_id,
+                employee_id=resource_id,
+            )
+        except ResourceNotFoundError:
+            raise ServiceExecutionError("resource_not_found") from None
+
+    async def update_employee(
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        employee_id: uuid.UUID,
+        request: EmployeeUpdateRequest,
+    ) -> EmployeeAdminDetailResponse:
+        self._require_admin(principal)
+        values = _UPDATE_GUARD.prepare(request.changes())
+        try:
+            row = await self._repository.update_employee(
+                company_id=principal.company_id,
+                branch_id=branch_id,
+                employee_id=employee_id,
+                expected_updated_at=request.expected_updated_at,
+                values=values,
+            )
+        except ResourceNotFoundError:
+            raise ServiceExecutionError("resource_not_found") from None
+        except ValueError:
+            raise ServiceExecutionError("state_conflict") from None
+        except IntegrityError:
+            raise ServiceExecutionError("employee_conflict") from None
+        return EmployeeAdminDetailResponse(**_detail_values(row))
+
+    async def import_employees(
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        request: EmployeeImportRequest,
+    ) -> EmployeeImportResponse:
+        self._require_admin(principal)
+        results: list[EmployeeImportResult] = []
+        try:
+            for item in request.rows:
+                employee_id = self._id_factory()
+                values = _IMPORT_GUARD.prepare(
+                    item.values(),
+                    derived_values={
+                        "id": employee_id,
+                        "company_id": principal.company_id,
+                        "branch_id": branch_id,
+                        "active": True,
+                    },
+                )
+                created_id = await self._repository.create_imported_employee(values)
+                results.append(
+                    EmployeeImportResult(row_number=item.row_number, employee_id=created_id)
+                )
+        except IntegrityError:
+            raise ServiceExecutionError("employee_conflict") from None
+        return EmployeeImportResponse(created_count=len(results), rows=results)
+
+    async def authorize_import_replay(
+        self,
+        principal: AuthorizationPrincipal,
+        _branch_id: uuid.UUID,
+        kind: str,
+        resource_id: uuid.UUID | None,
+    ) -> None:
+        self._require_admin(principal)
+        if kind != "tenant" or resource_id is not None:
+            raise ServiceExecutionError("operation_not_permitted")
 
     async def get_self(self, principal: AuthorizationPrincipal) -> EmployeeSelfResponse:
         if (

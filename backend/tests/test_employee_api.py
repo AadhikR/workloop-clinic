@@ -17,9 +17,12 @@ from app.schemas.employees import (
     DirectReportResponse,
     EmployeeAdminDetailResponse,
     EmployeeAdminListResponse,
+    EmployeeImportResponse,
+    EmployeeImportResult,
     EmployeeJobHistoryResponse,
     EmployeeSelfResponse,
 )
+from app.services.idempotency import IdempotentResponse
 from tests.test_http_boundary import make_settings
 
 COMPANY_ID = uuid.UUID("3afbf0a0-9642-4d44-9884-e9654983eb9b")
@@ -159,6 +162,51 @@ class StubService:
         self.calls.append(("detail", (active, branch_id, employee_id)))
         return employee_detail()
 
+    async def create_employee(
+        self, active: AuthorizationPrincipal, branch_id: uuid.UUID, request: object
+    ) -> EmployeeAdminDetailResponse:
+        self.calls.append(("create", (active, branch_id, request)))
+        return employee_detail()
+
+    async def authorize_employee_replay(
+        self,
+        active: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        kind: str,
+        resource_id: uuid.UUID | None,
+    ) -> None:
+        assert active.role is AppRole.ADMIN
+        assert (branch_id, kind, resource_id) == (BRANCH_ID, "employee", EMPLOYEE_ID)
+
+    async def update_employee(
+        self,
+        active: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        employee_id: uuid.UUID,
+        request: object,
+    ) -> EmployeeAdminDetailResponse:
+        self.calls.append(("update", (active, branch_id, employee_id, request)))
+        return employee_detail()
+
+    async def import_employees(
+        self, active: AuthorizationPrincipal, branch_id: uuid.UUID, request: object
+    ) -> EmployeeImportResponse:
+        self.calls.append(("import", (active, branch_id, request)))
+        return EmployeeImportResponse(
+            created_count=1,
+            rows=[EmployeeImportResult(row_number=2, employee_id=EMPLOYEE_ID)],
+        )
+
+    async def authorize_import_replay(
+        self,
+        active: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        kind: str,
+        resource_id: uuid.UUID | None,
+    ) -> None:
+        assert active.role is AppRole.ADMIN
+        assert (branch_id, kind, resource_id) == (BRANCH_ID, "tenant", None)
+
     async def get_self(self, active: AuthorizationPrincipal) -> EmployeeSelfResponse:
         self.calls.append(("self", active))
         return employee_self()
@@ -211,6 +259,12 @@ class RecordingExecutor:
         return await operation(cast(AsyncConnection, object()))
 
 
+class ImmediateIdempotency:
+    async def execute(self, **values: object) -> IdempotentResponse:
+        mutation = cast(Callable[[], Awaitable[IdempotentResponse]], values["mutation"])
+        return await mutation()
+
+
 @asynccontextmanager
 async def client_for(
     role: AppRole,
@@ -227,6 +281,11 @@ async def client_for(
         return service
 
     application.state.employee_service_factory = service_factory
+
+    def idempotency_factory(_connection: AsyncConnection) -> ImmediateIdempotency:
+        return ImmediateIdempotency()
+
+    application.state.idempotency_coordinator_factory = idempotency_factory
 
     async def verified_claims() -> AccessTokenClaims:
         return claims()
@@ -344,7 +403,129 @@ async def test_employee_queries_reject_unknown_duplicates_and_invalid_values() -
     assert all(response.json()["error"]["code"] == "validation_failed" for response in responses)
 
 
-def test_openapi_publishes_only_the_authorized_phase_7d_reads() -> None:
+@pytest.mark.asyncio
+async def test_admin_can_create_edit_and_import_employees() -> None:
+    header = {
+        "X-Workloop-Branch-ID": str(BRANCH_ID),
+        "Idempotency-Key": "7f000000-0000-4000-8000-000000000002",
+    }
+    create_body = {
+        "name": "Synthetic Employee",
+        "molId": "10003048635715",
+        "department": "Clinical",
+    }
+    import_row = {
+        "rowNumber": 2,
+        "empNo": "E-001",
+        "name": "Synthetic Employee",
+        "molId": "10003048635715",
+        "bankName": "Synthetic Bank",
+        "bankRoutingCode": "123456789",
+        "iban": "AE000000000000000000001",
+        "basicSalary": "10000.00",
+        "allowance": "250.00",
+    }
+    async with client_for(AppRole.ADMIN) as (client, _app, service, executor):
+        created = await client.post("/api/v1/employees", headers=header, json=create_body)
+        updated = await client.patch(
+            f"/api/v1/employees/{EMPLOYEE_ID}",
+            headers={"X-Workloop-Branch-ID": str(BRANCH_ID)},
+            json={"name": "Edited Employee", "expectedUpdatedAt": "2026-09-10T12:30:45.123Z"},
+        )
+        imported = await client.post(
+            "/api/v1/employee-imports", headers=header, json={"rows": [import_row]}
+        )
+
+    assert created.status_code == imported.status_code == 201
+    assert created.headers["location"] == f"/api/v1/employees/{EMPLOYEE_ID}"
+    assert updated.status_code == 200
+    assert imported.json()["data"] == {
+        "createdCount": 1,
+        "rows": [{"rowNumber": 2, "employeeId": str(EMPLOYEE_ID)}],
+    }
+    assert [name for name, _value in service.calls if name in {"create", "update", "import"}] == [
+        "create",
+        "update",
+        "import",
+    ]
+    assert executor.selected == [BRANCH_ID, BRANCH_ID, BRANCH_ID]
+
+
+@pytest.mark.asyncio
+async def test_employee_mutations_reject_missing_keys_unknown_fields_and_large_batches() -> None:
+    header = {"X-Workloop-Branch-ID": str(BRANCH_ID)}
+    row = {
+        "rowNumber": 2,
+        "empNo": "E-001",
+        "name": "Synthetic Employee",
+        "molId": "10003048635715",
+        "bankName": "",
+        "bankRoutingCode": "",
+        "iban": "",
+        "basicSalary": "0.00",
+        "allowance": "0.00",
+    }
+    async with client_for(AppRole.ADMIN) as (client, _app, _service, executor):
+        missing_key = await client.post(
+            "/api/v1/employees",
+            headers=header,
+            json={
+                "name": "Synthetic Employee",
+                "molId": "10003048635715",
+                "department": "Clinical",
+            },
+        )
+        forbidden_edit = await client.patch(
+            f"/api/v1/employees/{EMPLOYEE_ID}",
+            headers=header,
+            json={"jobTitle": "Director", "expectedUpdatedAt": "2026-09-10T12:30:45.123Z"},
+        )
+        too_many = await client.post(
+            "/api/v1/employee-imports",
+            headers={**header, "Idempotency-Key": "7f000000-0000-4000-8000-000000000005"},
+            json={"rows": [{**row, "rowNumber": index + 1} for index in range(501)]},
+        )
+        invalid_row = await client.post(
+            "/api/v1/employee-imports",
+            headers={**header, "Idempotency-Key": "7f000000-0000-4000-8000-000000000006"},
+            json={"rows": [{**row, "molId": "invalid"}]},
+        )
+        oversized = await client.post(
+            "/api/v1/employee-imports",
+            headers={
+                **header,
+                "Idempotency-Key": "7f000000-0000-4000-8000-000000000007",
+                "Content-Type": "application/json",
+                "Content-Length": "1048577",
+            },
+            content=b"{}",
+        )
+
+    assert (missing_key.status_code, missing_key.json()["error"]["code"]) == (
+        400,
+        "idempotency_key_required",
+    )
+    assert forbidden_edit.status_code == too_many.status_code == 422
+    assert all(
+        response.json()["error"]["code"] == "validation_failed"
+        for response in (forbidden_edit, too_many)
+    )
+    assert invalid_row.status_code == 422
+    assert invalid_row.json()["error"]["details"] == [
+        {
+            "path": "body.rows[0].molId",
+            "code": "invalid_format",
+            "message": "Value has an invalid format",
+        }
+    ]
+    assert (oversized.status_code, oversized.json()["error"]["code"]) == (
+        413,
+        "request_too_large",
+    )
+    assert executor.selected == []
+
+
+def test_openapi_publishes_the_authorized_employee_routes() -> None:
     from app.main import create_app
 
     schema = create_app(settings=make_settings()).openapi()
@@ -357,5 +538,11 @@ def test_openapi_publishes_only_the_authorized_phase_7d_reads() -> None:
         "/api/v1/employee-job-history",
     }
     assert expected <= set(schema["paths"])
-    for path in expected:
+    assert set(schema["paths"]["/api/v1/employees"]) == {"get", "post"}
+    assert set(schema["paths"]["/api/v1/employees/{employee_id}"]) == {"get", "patch"}
+    for path in expected - {
+        "/api/v1/employees",
+        "/api/v1/employees/{employee_id}",
+    }:
         assert set(schema["paths"][path]) == {"get"}
+    assert set(schema["paths"]["/api/v1/employee-imports"]) == {"post"}

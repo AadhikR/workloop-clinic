@@ -5,26 +5,35 @@ import uuid
 from datetime import UTC, datetime
 from typing import Annotated, Literal, cast
 
-from fastapi import APIRouter, Depends, Path, Request
+from fastapi import APIRouter, Depends, Path, Request, Response, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.auth.application_user import AuthorizationPrincipal
 from app.auth.dependencies import (
     AdminSelectedBranch,
     AuthenticatedReadPrincipal,
+    AuthenticatedWritePrincipal,
     VerifiedAccessToken,
     operation_not_permitted_error,
 )
 from app.http.errors import api_error, error_response_documentation, success_response_documentation
+from app.http.idempotency import parse_idempotency_key
+from app.http.idempotency_fingerprint import request_fingerprint
 from app.http.schemas import CollectionResponse, DataResponse, Page
 from app.http.validation import parse_pagination, parse_sort, validate_query_parameters
 from app.models.identity import AppRole
+from app.repositories.idempotency import IdempotencyRepository
 from app.schemas.employees import (
     DirectReportResponse,
     EmployeeAdminDetailResponse,
     EmployeeAdminListResponse,
+    EmployeeCreateRequest,
+    EmployeeImportRequest,
+    EmployeeImportResponse,
     EmployeeJobHistoryResponse,
     EmployeeSelfResponse,
+    EmployeeUpdateRequest,
 )
 from app.services.employees import (
     DirectReportQuery,
@@ -36,6 +45,7 @@ from app.services.employees import (
     normalize_search,
 )
 from app.services.execution import AuthorizedServiceExecutor
+from app.services.idempotency import IdempotencyCommand, IdempotencyCoordinator, IdempotentResponse
 
 router = APIRouter(prefix="/api/v1", tags=["employees"])
 CANONICAL_UUID_PATTERN = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
@@ -57,6 +67,12 @@ EMPLOYEE_ERRORS = error_response_documentation(
     "branch_required",
     "invalid_branch",
     "invalid_cursor",
+    "state_conflict",
+    "employee_conflict",
+    "idempotency_key_required",
+    "invalid_idempotency_key",
+    "idempotency_conflict",
+    "idempotency_in_progress",
     "rate_limit_exceeded",
     "application_account_lookup_unavailable",
     "request_timeout",
@@ -69,6 +85,13 @@ def _service(request: Request, connection: AsyncConnection) -> EmployeeService:
     if factory is not None:
         return cast(EmployeeService, factory(connection))
     return EmployeeService(connection, request.app.state.employee_cursor_codec)
+
+
+def _idempotency(request: Request, connection: AsyncConnection) -> IdempotencyCoordinator:
+    factory = getattr(request.app.state, "idempotency_coordinator_factory", None)
+    if factory is not None:
+        return cast(IdempotencyCoordinator, factory(connection))
+    return IdempotencyCoordinator(IdempotencyRepository(connection))
 
 
 def _reject_branch_header(request: Request) -> None:
@@ -258,6 +281,188 @@ EmployeeId = Annotated[
     str,
     Path(pattern=CANONICAL_UUID_PATTERN, description="Canonical lowercase employee UUID"),
 ]
+
+
+@router.post(
+    "/employees",
+    status_code=status.HTTP_201_CREATED,
+    response_model=DataResponse[EmployeeAdminDetailResponse],
+    operation_id="create_employee",
+    responses={
+        **success_response_documentation(201, "Created employee", cache_control="no-store"),
+        **EMPLOYEE_ERRORS,
+    },
+)
+async def create_employee(
+    request: Request,
+    body: EmployeeCreateRequest,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedWritePrincipal,
+    selected_branch_id: AdminSelectedBranch,
+) -> Response:
+    validate_query_parameters(request, allowed=set())
+    _require_role(principal, AppRole.ADMIN)
+    key = parse_idempotency_key(request, required=True)
+    assert key is not None
+    body_values = body.model_dump(mode="json", by_alias=True)
+    command = IdempotencyCommand(
+        key=key,
+        operation_id="create_employee",
+        method="POST",
+        route_parameters={},
+        fingerprint=request_fingerprint(
+            operation_id="create_employee",
+            method="POST",
+            route_parameters={},
+            effective_query_parameters={},
+            body=body_values,
+        ),
+        branch_id=selected_branch_id,
+    )
+    executor: AuthorizedServiceExecutor = request.app.state.authorized_service_executor
+
+    async def operation(connection: AsyncConnection) -> IdempotentResponse:
+        service = _service(request, connection)
+
+        async def mutate() -> IdempotentResponse:
+            employee = await service.create_employee(principal, selected_branch_id, body)
+            return IdempotentResponse(
+                status=201,
+                body=DataResponse(data=employee).model_dump(mode="json", by_alias=True),
+                location=f"/api/v1/employees/{employee.id}",
+                resource_kind="employee",
+                resource_id=employee.id,
+            )
+
+        return await _idempotency(request, connection).execute(
+            principal=principal,
+            command=command,
+            authorize_replay=lambda kind, resource_id: service.authorize_employee_replay(
+                principal, selected_branch_id, kind, resource_id
+            ),
+            mutation=mutate,
+        )
+
+    outcome = await executor.execute(
+        claims=claims,
+        principal=principal,
+        operation=operation,
+        selected_admin_branch_id=selected_branch_id,
+    )
+    headers = {"Cache-Control": "no-store"}
+    if outcome.location is not None:
+        headers["Location"] = outcome.location
+    if outcome.replayed:
+        headers["Idempotency-Replayed"] = "true"
+    return JSONResponse(status_code=outcome.status, content=outcome.body, headers=headers)
+
+
+@router.patch(
+    "/employees/{employee_id}",
+    response_model=DataResponse[EmployeeAdminDetailResponse],
+    operation_id="update_employee",
+    responses={
+        **success_response_documentation(200, "Updated employee", cache_control="no-store"),
+        **EMPLOYEE_ERRORS,
+    },
+)
+async def update_employee(
+    request: Request,
+    body: EmployeeUpdateRequest,
+    employee_id: EmployeeId,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedWritePrincipal,
+    selected_branch_id: AdminSelectedBranch,
+) -> DataResponse[EmployeeAdminDetailResponse]:
+    validate_query_parameters(request, allowed=set())
+    _require_role(principal, AppRole.ADMIN)
+    parsed_employee_id = uuid.UUID(employee_id)
+    executor: AuthorizedServiceExecutor = request.app.state.authorized_service_executor
+
+    async def operation(connection: AsyncConnection) -> EmployeeAdminDetailResponse:
+        return await _service(request, connection).update_employee(
+            principal, selected_branch_id, parsed_employee_id, body
+        )
+
+    item = await executor.execute(
+        claims=claims,
+        principal=principal,
+        operation=operation,
+        selected_admin_branch_id=selected_branch_id,
+    )
+    return DataResponse(data=item)
+
+
+@router.post(
+    "/employee-imports",
+    status_code=status.HTTP_201_CREATED,
+    response_model=DataResponse[EmployeeImportResponse],
+    operation_id="create_employee_import",
+    responses={
+        **success_response_documentation(201, "Created employee import", cache_control="no-store"),
+        **EMPLOYEE_ERRORS,
+    },
+)
+async def create_employee_import(
+    request: Request,
+    body: EmployeeImportRequest,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedWritePrincipal,
+    selected_branch_id: AdminSelectedBranch,
+) -> Response:
+    validate_query_parameters(request, allowed=set())
+    _require_role(principal, AppRole.ADMIN)
+    key = parse_idempotency_key(request, required=True)
+    assert key is not None
+    body_values = body.model_dump(mode="json", by_alias=True)
+    command = IdempotencyCommand(
+        key=key,
+        operation_id="create_employee_import",
+        method="POST",
+        route_parameters={},
+        fingerprint=request_fingerprint(
+            operation_id="create_employee_import",
+            method="POST",
+            route_parameters={},
+            effective_query_parameters={},
+            body=body_values,
+        ),
+        branch_id=selected_branch_id,
+    )
+    executor: AuthorizedServiceExecutor = request.app.state.authorized_service_executor
+
+    async def operation(connection: AsyncConnection) -> IdempotentResponse:
+        service = _service(request, connection)
+
+        async def mutate() -> IdempotentResponse:
+            result = await service.import_employees(principal, selected_branch_id, body)
+            return IdempotentResponse(
+                status=201,
+                body=DataResponse(data=result).model_dump(mode="json", by_alias=True),
+                location=None,
+                resource_kind="tenant",
+                resource_id=None,
+            )
+
+        return await _idempotency(request, connection).execute(
+            principal=principal,
+            command=command,
+            authorize_replay=lambda kind, resource_id: service.authorize_import_replay(
+                principal, selected_branch_id, kind, resource_id
+            ),
+            mutation=mutate,
+        )
+
+    outcome = await executor.execute(
+        claims=claims,
+        principal=principal,
+        operation=operation,
+        selected_admin_branch_id=selected_branch_id,
+    )
+    headers = {"Cache-Control": "no-store"}
+    if outcome.replayed:
+        headers["Idempotency-Replayed"] = "true"
+    return JSONResponse(status_code=outcome.status, content=outcome.body, headers=headers)
 
 
 @router.get(

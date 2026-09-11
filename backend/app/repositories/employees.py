@@ -1,16 +1,17 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Any, Literal
 
-from sqlalchemy import Select, and_, asc, desc, func, literal, or_, select, text
+from sqlalchemy import Select, and_, asc, desc, func, insert, literal, or_, select, text, update
 from sqlalchemy.engine import RowMapping
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.models.identity import Employee
-from app.models.people import EmployeeJobHistory
+from app.models.people import Department, EmployeeJobHistory
 from app.repositories.scoped import ResourceNotFoundError
+from app.schemas.mutations import GuardedMutationValues
 
 EMPLOYEE_LIST_COLUMNS = (
     Employee.id,
@@ -72,6 +73,15 @@ EMPLOYEE_DETAIL_COLUMNS = (
     Employee.licence_expiry,
     Employee.created_at,
 )
+
+
+def _same_version(actual: datetime, expected: datetime) -> bool:
+    def milliseconds(value: datetime) -> datetime:
+        utc_value = value.astimezone(UTC)
+        return utc_value.replace(microsecond=utc_value.microsecond // 1000 * 1000)
+
+    return milliseconds(actual) == milliseconds(expected)
+
 
 DIRECT_REPORT_COLUMNS = (
     Employee.id,
@@ -259,6 +269,104 @@ class EmployeeRepository:
         if row is None:
             raise ResourceNotFoundError
         return row
+
+    async def lock_department(
+        self, *, company_id: uuid.UUID, branch_id: uuid.UUID, name: str
+    ) -> None:
+        statement = (
+            select(Department.id)
+            .where(
+                Department.company_id == company_id,
+                Department.branch_id == branch_id,
+                Department.name == name,
+            )
+            .with_for_update(read=True)
+            .limit(1)
+        )
+        if (await self._connection.execute(statement)).scalar_one_or_none() is None:
+            raise ResourceNotFoundError
+
+    async def lock_manager(
+        self, *, company_id: uuid.UUID, branch_id: uuid.UUID, employee_id: uuid.UUID
+    ) -> RowMapping:
+        statement = (
+            select(Employee.id, Employee.active, Employee.employment_status)
+            .select_from(Employee)
+            .where(
+                Employee.id == employee_id,
+                Employee.company_id == company_id,
+                Employee.branch_id == branch_id,
+            )
+            .with_for_update(read=True, of=Employee)
+            .limit(1)
+        )
+        row = (await self._connection.execute(statement)).mappings().one_or_none()
+        if row is None:
+            raise ResourceNotFoundError
+        return row
+
+    async def create_employee(self, values: GuardedMutationValues) -> RowMapping:
+        result = await self._connection.execute(
+            insert(Employee).values(**dict(values)).returning(*EMPLOYEE_DETAIL_COLUMNS)
+        )
+        return result.mappings().one()
+
+    async def create_imported_employee(self, values: GuardedMutationValues) -> uuid.UUID:
+        result = await self._connection.execute(
+            insert(Employee).values(**dict(values)).returning(Employee.id)
+        )
+        return result.scalar_one()
+
+    async def update_employee(
+        self,
+        *,
+        company_id: uuid.UUID,
+        branch_id: uuid.UUID,
+        employee_id: uuid.UUID,
+        expected_updated_at: datetime,
+        values: GuardedMutationValues,
+    ) -> RowMapping:
+        current = await self._connection.execute(
+            select(Employee.updated_at)
+            .where(
+                Employee.id == employee_id,
+                Employee.company_id == company_id,
+                Employee.branch_id == branch_id,
+            )
+            .with_for_update()
+            .limit(1)
+        )
+        updated_at = current.scalar_one_or_none()
+        if updated_at is None:
+            raise ResourceNotFoundError
+        if not _same_version(updated_at, expected_updated_at):
+            raise ValueError("state conflict")
+        result = await self._connection.execute(
+            update(Employee)
+            .where(
+                Employee.id == employee_id,
+                Employee.company_id == company_id,
+                Employee.branch_id == branch_id,
+            )
+            .values(**dict(values))
+            .returning(*EMPLOYEE_DETAIL_COLUMNS)
+        )
+        row = result.mappings().one_or_none()
+        if row is None:
+            raise ResourceNotFoundError
+        return row
+
+    async def manager_is_eligible(
+        self, *, company_id: uuid.UUID, branch_id: uuid.UUID, employee_id: uuid.UUID
+    ) -> bool:
+        row = await self.lock_manager(
+            company_id=company_id, branch_id=branch_id, employee_id=employee_id
+        )
+        return row["active"] is True and row["employment_status"] in {
+            "Active",
+            "Probation",
+            "On Leave",
+        }
 
     async def fetch_self(
         self, *, company_id: uuid.UUID, branch_id: uuid.UUID, employee_id: uuid.UUID

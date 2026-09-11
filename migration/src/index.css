@@ -303,6 +303,66 @@ button:focus-visible {
   margin-top: 1rem;
 }
 
+.employee-admin-form,
+.employee-import {
+  display: grid;
+  gap: 0.75rem;
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid #c7d0c9;
+}
+
+.employee-admin-form h4,
+.employee-admin-form h5,
+.employee-import h4,
+.employee-import p {
+  margin: 0;
+}
+
+.employee-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.employee-form-grid label,
+.employee-import label {
+  display: grid;
+  gap: 0.3rem;
+  color: #425149;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.employee-form-grid input,
+.employee-form-grid select,
+.employee-import input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.55rem;
+  border: 1px solid #9aaa9f;
+  background: #fff;
+  color: #14261f;
+  font: inherit;
+}
+
+.employee-import-preview {
+  overflow-x: auto;
+}
+
+.employee-import-preview table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.employee-import-preview th,
+.employee-import-preview td {
+  padding: 0.4rem;
+  border-bottom: 1px solid #dbe1dc;
+  text-align: start;
+}
+
 .boundary {
   margin: 2.5rem 0 0;
   color: #65736b;
@@ -319,7 +379,8 @@ button:focus-visible {
   }
 
   .department-layout,
-  .staffing-editor {
+  .staffing-editor,
+  .employee-form-grid {
     grid-template-columns: 1fr;
   }
 }

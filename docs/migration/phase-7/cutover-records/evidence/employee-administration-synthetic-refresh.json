@@ -1,8 +1,54 @@
 {
-  "command": "node -e \"const f=require('node:fs');const s=JSON.parse(f.readFileSync('tests/fixtures/phase-6d/synthetic-users.json'));const r=JSON.parse(f.readFileSync('docs/migration/phase-7/cutover-records/employee-administration.json'));if(s.length!==r.identityMapping.mappings.length)process.exit(1)\"",
+  "command": "python scripts/verify-phase-7f-employees.py && node scripts/verify-phase-3g-browser.mjs",
   "featureId": "phase7-employee-administration",
-  "refreshedAt": "2026-09-09T15:35:28Z",
-  "sourceDigest": "sha256:1ebfc4d976b2763da0ea319f387c78c69d98d16c05d03708f3515012640e04be",
-  "sourceRecordCount": 2,
-  "targetRecordCount": 2
+  "refreshedAt": "2026-09-11T15:07:19Z",
+  "sourceDigest": "sha256:869972a57c60010632cd9886a8e98e59179dd2e2c3d0ca0dd203be503efb663b",
+  "sourceRecordCount": 3,
+  "targetRecordCount": 3,
+  "alembicHead": "7d4a9c2e6b10",
+  "routes": [
+    "POST /api/v1/employees",
+    "PATCH /api/v1/employees/{employeeId}",
+    "POST /api/v1/employee-imports"
+  ],
+  "employeeProof": {
+    "adminBranchScopePassed": true,
+    "roleDenialPassed": true,
+    "relationshipValidationPassed": true,
+    "normalizedWorkEmailPassed": true,
+    "workEmailConflictRejected": true,
+    "staleWriteRejected": true,
+    "createReplayPassed": true,
+    "importReplayPassed": true,
+    "importCount": 2,
+    "importRollbackCount": 0,
+    "ordinaryMutationAuditRows": 0,
+    "syntheticState": "055e65fbf6b5509f52fdc6d0f1f08f3125c674a8b3c7736c5c56bfb5c276ed34"
+  },
+  "frontendProof": {
+    "strictCamelCasePassed": true,
+    "projectionDriftRejected": true,
+    "createEditAndPreviewPassed": true,
+    "deterministicRowDiagnosticsPassed": true,
+    "legacyWritersFrozen": true,
+    "supabaseImportsAbsent": true
+  },
+  "finalGateProof": {
+    "backendTests": 429,
+    "frontendTests": 114,
+    "legacyBuildModules": 449,
+    "migrationBuildModules": 36,
+    "catalogFingerprint": "1b703ceacf8b11604027646ec2ae6efc",
+    "keycloakSigningKeyCount": 2,
+    "postgresImage": "sha256:051f7b7b3abdd564d5d1bd1e8c4b9c1b6e77087d1dd22020ede611c096a272e0",
+    "backendImage": "sha256:bb306a4005e5d8a8c8217efa87a079c94dcda914cb0866ca65629c2811d2785e",
+    "keycloakImage": "sha256:9d1f1b2b7261ff53c66cb1092dfcdc34a5fb77e81f9e6a6e75b8b6a795de8067",
+    "restartPersistencePassed": true,
+    "authenticationPassed": true,
+    "browserPassed": true,
+    "logSafetyPassed": true,
+    "syntheticCleanupPassed": true,
+    "temporaryResourcesRemoved": true,
+    "preservedVolumeUntouched": true
+  }
 }
