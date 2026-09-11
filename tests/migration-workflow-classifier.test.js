@@ -13,6 +13,7 @@ function classify(...paths) {
     {
       cwd: process.cwd(),
       encoding: 'utf8',
+      env: { ...process.env, GITHUB_OUTPUT: '' },
       input: `${paths.join('\n')}\n`,
     },
   )
