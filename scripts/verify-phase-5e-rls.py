@@ -809,7 +809,12 @@ def verify_human_scope(runtime: psycopg.Connection[Any], engine: Any) -> None:
                 "UPDATE user_profiles SET role = 'manager' WHERE app_user_id = %s",
                 (employee.app_user_id,),
             )
-            assert cursor.rowcount == 0
+            assert cursor.rowcount == 1
+            cursor.execute(
+                "UPDATE user_profiles SET role = 'employee' WHERE app_user_id = %s",
+                (employee.app_user_id,),
+            )
+            assert cursor.rowcount == 1
     finally:
         from sqlalchemy import text
 

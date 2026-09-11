@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import re
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
-from typing import Annotated, Literal, cast
+from typing import Annotated, Any, Literal, cast
 
 from fastapi import APIRouter, Depends, Path, Request, Response, status
 from fastapi.responses import JSONResponse
@@ -28,11 +29,23 @@ from app.schemas.employees import (
     DirectReportResponse,
     EmployeeAdminDetailResponse,
     EmployeeAdminListResponse,
+    EmployeeArchiveRequest,
     EmployeeCreateRequest,
+    EmployeeDepartmentChangeRequest,
     EmployeeImportRequest,
     EmployeeImportResponse,
     EmployeeJobHistoryResponse,
+    EmployeeManagerChangeRequest,
+    EmployeePortalRoleResponse,
+    EmployeePortalRoleUpdateRequest,
+    EmployeeProbationConfirmationRequest,
+    EmployeeProbationExtensionRequest,
+    EmployeeProbationTerminationRequest,
+    EmployeeSalaryChangeRequest,
+    EmployeeSelfContactRequest,
     EmployeeSelfResponse,
+    EmployeeStatusChangeRequest,
+    EmployeeTitleChangeRequest,
     EmployeeUpdateRequest,
 )
 from app.services.employees import (
@@ -69,6 +82,9 @@ EMPLOYEE_ERRORS = error_response_documentation(
     "invalid_cursor",
     "state_conflict",
     "employee_conflict",
+    "employment_transition_conflict",
+    "manager_reassignment_conflict",
+    "portal_role_conflict",
     "idempotency_key_required",
     "invalid_idempotency_key",
     "idempotency_conflict",
@@ -283,6 +299,73 @@ EmployeeId = Annotated[
 ]
 
 
+async def _employee_workflow_response(
+    *,
+    request: Request,
+    claims: VerifiedAccessToken,
+    principal: AuthorizationPrincipal,
+    selected_branch_id: uuid.UUID,
+    employee_id: uuid.UUID,
+    operation_id: str,
+    body: Any,
+    mutation: Callable[[EmployeeService], Awaitable[Any]],
+) -> Response:
+    validate_query_parameters(request, allowed=set())
+    _require_role(principal, AppRole.ADMIN)
+    key = parse_idempotency_key(request, required=True)
+    assert key is not None
+    route_parameters: dict[str, object] = {"employeeId": str(employee_id)}
+    body_values = body.model_dump(mode="json", by_alias=True)
+    command = IdempotencyCommand(
+        key=key,
+        operation_id=operation_id,
+        method="POST" if operation_id != "set_employee_portal_role" else "PUT",
+        route_parameters=route_parameters,
+        fingerprint=request_fingerprint(
+            operation_id=operation_id,
+            method="POST" if operation_id != "set_employee_portal_role" else "PUT",
+            route_parameters=route_parameters,
+            effective_query_parameters={},
+            body=body_values,
+        ),
+        branch_id=selected_branch_id,
+    )
+    executor: AuthorizedServiceExecutor = request.app.state.authorized_service_executor
+
+    async def operation(connection: AsyncConnection) -> IdempotentResponse:
+        service = _service(request, connection)
+
+        async def mutate() -> IdempotentResponse:
+            result = await mutation(service)
+            return IdempotentResponse(
+                status=200,
+                body=DataResponse(data=result).model_dump(mode="json", by_alias=True),
+                location=None,
+                resource_kind="employee",
+                resource_id=employee_id,
+            )
+
+        return await _idempotency(request, connection).execute(
+            principal=principal,
+            command=command,
+            authorize_replay=lambda kind, resource_id: service.authorize_employee_replay(
+                principal, selected_branch_id, kind, resource_id
+            ),
+            mutation=mutate,
+        )
+
+    outcome = await executor.execute(
+        claims=claims,
+        principal=principal,
+        operation=operation,
+        selected_admin_branch_id=selected_branch_id,
+    )
+    headers = {"Cache-Control": "no-store"}
+    if outcome.replayed:
+        headers["Idempotency-Replayed"] = "true"
+    return JSONResponse(status_code=outcome.status, content=outcome.body, headers=headers)
+
+
 @router.post(
     "/employees",
     status_code=status.HTTP_201_CREATED,
@@ -463,6 +546,375 @@ async def create_employee_import(
     if outcome.replayed:
         headers["Idempotency-Replayed"] = "true"
     return JSONResponse(status_code=outcome.status, content=outcome.body, headers=headers)
+
+
+@router.post(
+    "/employees/{employee_id}/title-change",
+    response_model=DataResponse[EmployeeAdminDetailResponse],
+    operation_id="change_employee_title",
+    responses={**success_response_documentation(200, "Changed employee title"), **EMPLOYEE_ERRORS},
+)
+async def change_employee_title(
+    request: Request,
+    body: EmployeeTitleChangeRequest,
+    employee_id: EmployeeId,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedWritePrincipal,
+    selected_branch_id: AdminSelectedBranch,
+) -> Response:
+    parsed_id = uuid.UUID(employee_id)
+    return await _employee_workflow_response(
+        request=request,
+        claims=claims,
+        principal=principal,
+        selected_branch_id=selected_branch_id,
+        employee_id=parsed_id,
+        operation_id="change_employee_title",
+        body=body,
+        mutation=lambda service: service.change_title(
+            principal, selected_branch_id, parsed_id, body
+        ),
+    )
+
+
+@router.post(
+    "/employees/{employee_id}/department-change",
+    response_model=DataResponse[EmployeeAdminDetailResponse],
+    operation_id="change_employee_department",
+    responses={
+        **success_response_documentation(200, "Changed employee department"),
+        **EMPLOYEE_ERRORS,
+    },
+)
+async def change_employee_department(
+    request: Request,
+    body: EmployeeDepartmentChangeRequest,
+    employee_id: EmployeeId,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedWritePrincipal,
+    selected_branch_id: AdminSelectedBranch,
+) -> Response:
+    parsed_id = uuid.UUID(employee_id)
+    return await _employee_workflow_response(
+        request=request,
+        claims=claims,
+        principal=principal,
+        selected_branch_id=selected_branch_id,
+        employee_id=parsed_id,
+        operation_id="change_employee_department",
+        body=body,
+        mutation=lambda service: service.change_department(
+            principal, selected_branch_id, parsed_id, body
+        ),
+    )
+
+
+@router.post(
+    "/employees/{employee_id}/salary-change",
+    response_model=DataResponse[EmployeeAdminDetailResponse],
+    operation_id="change_employee_salary",
+    responses={**success_response_documentation(200, "Changed employee salary"), **EMPLOYEE_ERRORS},
+)
+async def change_employee_salary(
+    request: Request,
+    body: EmployeeSalaryChangeRequest,
+    employee_id: EmployeeId,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedWritePrincipal,
+    selected_branch_id: AdminSelectedBranch,
+) -> Response:
+    parsed_id = uuid.UUID(employee_id)
+    return await _employee_workflow_response(
+        request=request,
+        claims=claims,
+        principal=principal,
+        selected_branch_id=selected_branch_id,
+        employee_id=parsed_id,
+        operation_id="change_employee_salary",
+        body=body,
+        mutation=lambda service: service.change_salary(
+            principal, selected_branch_id, parsed_id, body
+        ),
+    )
+
+
+@router.post(
+    "/employees/{employee_id}/status-change",
+    response_model=DataResponse[EmployeeAdminDetailResponse],
+    operation_id="change_employee_status",
+    responses={**success_response_documentation(200, "Changed employee status"), **EMPLOYEE_ERRORS},
+)
+async def change_employee_status(
+    request: Request,
+    body: EmployeeStatusChangeRequest,
+    employee_id: EmployeeId,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedWritePrincipal,
+    selected_branch_id: AdminSelectedBranch,
+) -> Response:
+    parsed_id = uuid.UUID(employee_id)
+    return await _employee_workflow_response(
+        request=request,
+        claims=claims,
+        principal=principal,
+        selected_branch_id=selected_branch_id,
+        employee_id=parsed_id,
+        operation_id="change_employee_status",
+        body=body,
+        mutation=lambda service: service.change_status(
+            principal, selected_branch_id, parsed_id, body
+        ),
+    )
+
+
+@router.post(
+    "/employees/{employee_id}/manager-change",
+    response_model=DataResponse[EmployeeAdminDetailResponse],
+    operation_id="change_employee_manager",
+    responses={
+        **success_response_documentation(200, "Changed employee manager"),
+        **EMPLOYEE_ERRORS,
+    },
+)
+async def change_employee_manager(
+    request: Request,
+    body: EmployeeManagerChangeRequest,
+    employee_id: EmployeeId,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedWritePrincipal,
+    selected_branch_id: AdminSelectedBranch,
+) -> Response:
+    parsed_id = uuid.UUID(employee_id)
+    return await _employee_workflow_response(
+        request=request,
+        claims=claims,
+        principal=principal,
+        selected_branch_id=selected_branch_id,
+        employee_id=parsed_id,
+        operation_id="change_employee_manager",
+        body=body,
+        mutation=lambda service: service.change_manager(
+            principal, selected_branch_id, parsed_id, body
+        ),
+    )
+
+
+@router.post(
+    "/employees/{employee_id}/probation-confirmation",
+    response_model=DataResponse[EmployeeAdminDetailResponse],
+    operation_id="confirm_employee_probation",
+    responses={
+        **success_response_documentation(200, "Confirmed employee probation"),
+        **EMPLOYEE_ERRORS,
+    },
+)
+async def confirm_employee_probation(
+    request: Request,
+    body: EmployeeProbationConfirmationRequest,
+    employee_id: EmployeeId,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedWritePrincipal,
+    selected_branch_id: AdminSelectedBranch,
+) -> Response:
+    parsed_id = uuid.UUID(employee_id)
+    return await _employee_workflow_response(
+        request=request,
+        claims=claims,
+        principal=principal,
+        selected_branch_id=selected_branch_id,
+        employee_id=parsed_id,
+        operation_id="confirm_employee_probation",
+        body=body,
+        mutation=lambda service: service.confirm_probation(
+            principal, selected_branch_id, parsed_id, body
+        ),
+    )
+
+
+@router.post(
+    "/employees/{employee_id}/probation-extension",
+    response_model=DataResponse[EmployeeAdminDetailResponse],
+    operation_id="extend_employee_probation",
+    responses={
+        **success_response_documentation(200, "Extended employee probation"),
+        **EMPLOYEE_ERRORS,
+    },
+)
+async def extend_employee_probation(
+    request: Request,
+    body: EmployeeProbationExtensionRequest,
+    employee_id: EmployeeId,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedWritePrincipal,
+    selected_branch_id: AdminSelectedBranch,
+) -> Response:
+    parsed_id = uuid.UUID(employee_id)
+    return await _employee_workflow_response(
+        request=request,
+        claims=claims,
+        principal=principal,
+        selected_branch_id=selected_branch_id,
+        employee_id=parsed_id,
+        operation_id="extend_employee_probation",
+        body=body,
+        mutation=lambda service: service.extend_probation(
+            principal, selected_branch_id, parsed_id, body
+        ),
+    )
+
+
+@router.post(
+    "/employees/{employee_id}/probation-termination",
+    response_model=DataResponse[EmployeeAdminDetailResponse],
+    operation_id="terminate_employee_probation",
+    responses={
+        **success_response_documentation(200, "Terminated employee probation"),
+        **EMPLOYEE_ERRORS,
+    },
+)
+async def terminate_employee_probation(
+    request: Request,
+    body: EmployeeProbationTerminationRequest,
+    employee_id: EmployeeId,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedWritePrincipal,
+    selected_branch_id: AdminSelectedBranch,
+) -> Response:
+    parsed_id = uuid.UUID(employee_id)
+    return await _employee_workflow_response(
+        request=request,
+        claims=claims,
+        principal=principal,
+        selected_branch_id=selected_branch_id,
+        employee_id=parsed_id,
+        operation_id="terminate_employee_probation",
+        body=body,
+        mutation=lambda service: service.terminate_probation(
+            principal, selected_branch_id, parsed_id, body
+        ),
+    )
+
+
+@router.post(
+    "/employees/{employee_id}/archive",
+    response_model=DataResponse[EmployeeAdminDetailResponse],
+    operation_id="archive_employee",
+    responses={**success_response_documentation(200, "Archived employee"), **EMPLOYEE_ERRORS},
+)
+async def archive_employee(
+    request: Request,
+    body: EmployeeArchiveRequest,
+    employee_id: EmployeeId,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedWritePrincipal,
+    selected_branch_id: AdminSelectedBranch,
+) -> Response:
+    parsed_id = uuid.UUID(employee_id)
+    return await _employee_workflow_response(
+        request=request,
+        claims=claims,
+        principal=principal,
+        selected_branch_id=selected_branch_id,
+        employee_id=parsed_id,
+        operation_id="archive_employee",
+        body=body,
+        mutation=lambda service: service.archive_employee(
+            principal, selected_branch_id, parsed_id, body
+        ),
+    )
+
+
+@router.patch(
+    "/employees/self/contact",
+    response_model=DataResponse[EmployeeSelfResponse],
+    operation_id="update_employee_self_contact",
+    responses={
+        **success_response_documentation(200, "Updated employee contact"),
+        **EMPLOYEE_ERRORS,
+    },
+)
+async def update_employee_self_contact(
+    request: Request,
+    body: EmployeeSelfContactRequest,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedWritePrincipal,
+) -> DataResponse[EmployeeSelfResponse]:
+    validate_query_parameters(request, allowed=set())
+    _reject_branch_header(request)
+    _require_role(principal, AppRole.MANAGER, AppRole.EMPLOYEE)
+    executor: AuthorizedServiceExecutor = request.app.state.authorized_service_executor
+
+    async def operation(connection: AsyncConnection) -> EmployeeSelfResponse:
+        return await _service(request, connection).update_self_contact(principal, body)
+
+    return DataResponse(
+        data=await executor.execute(claims=claims, principal=principal, operation=operation)
+    )
+
+
+@router.get(
+    "/employees/{employee_id}/portal-role",
+    response_model=DataResponse[EmployeePortalRoleResponse],
+    operation_id="get_employee_portal_role",
+    responses={**success_response_documentation(200, "Employee portal role"), **EMPLOYEE_ERRORS},
+)
+async def get_employee_portal_role(
+    request: Request,
+    employee_id: EmployeeId,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedReadPrincipal,
+    selected_branch_id: AdminSelectedBranch,
+) -> DataResponse[EmployeePortalRoleResponse]:
+    validate_query_parameters(request, allowed=set())
+    _require_role(principal, AppRole.ADMIN)
+    parsed_id = uuid.UUID(employee_id)
+    executor: AuthorizedServiceExecutor = request.app.state.authorized_service_executor
+
+    async def operation(connection: AsyncConnection) -> EmployeePortalRoleResponse:
+        return await _service(request, connection).get_portal_role(
+            principal, selected_branch_id, parsed_id
+        )
+
+    return DataResponse(
+        data=await executor.execute(
+            claims=claims,
+            principal=principal,
+            operation=operation,
+            selected_admin_branch_id=selected_branch_id,
+        )
+    )
+
+
+@router.put(
+    "/employees/{employee_id}/portal-role",
+    response_model=DataResponse[EmployeePortalRoleResponse],
+    operation_id="set_employee_portal_role",
+    responses={
+        **success_response_documentation(200, "Changed employee portal role"),
+        **EMPLOYEE_ERRORS,
+    },
+)
+async def set_employee_portal_role(
+    request: Request,
+    body: EmployeePortalRoleUpdateRequest,
+    employee_id: EmployeeId,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedWritePrincipal,
+    selected_branch_id: AdminSelectedBranch,
+) -> Response:
+    parsed_id = uuid.UUID(employee_id)
+    return await _employee_workflow_response(
+        request=request,
+        claims=claims,
+        principal=principal,
+        selected_branch_id=selected_branch_id,
+        employee_id=parsed_id,
+        operation_id="set_employee_portal_role",
+        body=body,
+        mutation=lambda service: service.set_portal_role(
+            principal, selected_branch_id, parsed_id, body
+        ),
+    )
 
 
 @router.get(

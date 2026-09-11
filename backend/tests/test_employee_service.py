@@ -225,7 +225,8 @@ async def test_service_maps_exact_admin_self_and_manager_projections() -> None:
     self_projection = await self_service.get_self(principal(AppRole.EMPLOYEE))
     self_fields = set(self_projection.model_dump(by_alias=True))
     assert {"basicSalary", "iban", "emiratesId", "reportingManager"} <= self_fields
-    assert not {"active", "reportingManagerId", "createdAt", "updatedAt"} & self_fields
+    assert "updatedAt" in self_fields
+    assert not {"active", "reportingManagerId", "createdAt"} & self_fields
     assert self_projection.reporting_manager is not None
     assert self_projection.reporting_manager.id == MANAGER_ID
 

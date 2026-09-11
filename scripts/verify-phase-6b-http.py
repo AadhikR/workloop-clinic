@@ -77,7 +77,7 @@ def main() -> None:
     assert status == 200 and body == b""
     assert correlation_id(headers)
     assert headers["Access-Control-Allow-Origin"] == ALLOWED_ORIGIN
-    assert headers["Access-Control-Allow-Methods"] == "GET, POST, PATCH, DELETE, OPTIONS"
+    assert headers["Access-Control-Allow-Methods"] == "GET, POST, PUT, PATCH, DELETE, OPTIONS"
     assert headers["Access-Control-Max-Age"] == "600"
     assert headers.get("Access-Control-Allow-Credentials") is None
 

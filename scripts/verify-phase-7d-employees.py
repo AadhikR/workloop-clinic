@@ -32,7 +32,7 @@ from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.engine import URL
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
-EXPECTED_HEAD = "7d4a9c2e6b10"
+EXPECTED_HEAD = "8f6b2d1a4c70"
 ADMIN_SUBJECT = "hr.admin@horizon.test"
 MANAGER_SUBJECT = "aisha.manager@horizon.test"
 EMPLOYEE_SUBJECT = "ravi.employee@horizon.test"
@@ -277,7 +277,8 @@ async def verify_services(engine: Engine) -> dict[str, object]:
         assert self_projection.iban == detail.iban
         assert self_projection.reporting_manager is not None
         assert self_projection.reporting_manager.id == MANAGER_ID
-        assert not {"active", "reportingManagerId", "createdAt", "updatedAt"} & set(
+        assert "updatedAt" in self_projection.model_dump(by_alias=True)
+        assert not {"active", "reportingManagerId", "createdAt"} & set(
             self_projection.model_dump(by_alias=True)
         )
         employee_manager = await executor.execute(

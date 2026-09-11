@@ -20,6 +20,7 @@ from app.schemas.employees import (
     EmployeeImportResponse,
     EmployeeImportResult,
     EmployeeJobHistoryResponse,
+    EmployeePortalRoleResponse,
     EmployeeSelfResponse,
 )
 from app.services.idempotency import IdempotentResponse
@@ -123,7 +124,7 @@ def employee_detail() -> EmployeeAdminDetailResponse:
 
 def employee_self() -> EmployeeSelfResponse:
     values = employee_detail().model_dump(by_alias=False)
-    for field in ("reporting_manager_id", "active", "created_at", "updated_at"):
+    for field in ("reporting_manager_id", "active", "created_at"):
         values.pop(field)
     values["reporting_manager"] = {
         "id": MANAGER_ID,
@@ -187,6 +188,41 @@ class StubService:
     ) -> EmployeeAdminDetailResponse:
         self.calls.append(("update", (active, branch_id, employee_id, request)))
         return employee_detail()
+
+    async def change_title(
+        self,
+        active: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        employee_id: uuid.UUID,
+        request: object,
+    ) -> EmployeeAdminDetailResponse:
+        self.calls.append(("title", (active, branch_id, employee_id, request)))
+        return employee_detail()
+
+    async def update_self_contact(
+        self, active: AuthorizationPrincipal, request: object
+    ) -> EmployeeSelfResponse:
+        self.calls.append(("self-contact", (active, request)))
+        return employee_self()
+
+    async def get_portal_role(
+        self,
+        active: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        employee_id: uuid.UUID,
+    ) -> EmployeePortalRoleResponse:
+        self.calls.append(("portal-read", (active, branch_id, employee_id)))
+        return EmployeePortalRoleResponse(employee_id=employee_id, activated=True, role="employee")
+
+    async def set_portal_role(
+        self,
+        active: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        employee_id: uuid.UUID,
+        request: object,
+    ) -> EmployeePortalRoleResponse:
+        self.calls.append(("portal-write", (active, branch_id, employee_id, request)))
+        return EmployeePortalRoleResponse(employee_id=employee_id, activated=True, role="manager")
 
     async def import_employees(
         self, active: AuthorizationPrincipal, branch_id: uuid.UUID, request: object
@@ -525,6 +561,86 @@ async def test_employee_mutations_reject_missing_keys_unknown_fields_and_large_b
     assert executor.selected == []
 
 
+@pytest.mark.asyncio
+async def test_lifecycle_self_contact_and_portal_role_routes_use_exact_scope() -> None:
+    idempotent = {
+        "X-Workloop-Branch-ID": str(BRANCH_ID),
+        "Idempotency-Key": "7c700002-0000-4000-8000-000000000001",
+    }
+    expected = "2026-09-10T12:30:45.123Z"
+    async with client_for(AppRole.ADMIN) as (client, _app, service, executor):
+        title = await client.post(
+            f"/api/v1/employees/{EMPLOYEE_ID}/title-change",
+            headers=idempotent,
+            json={
+                "expectedUpdatedAt": expected,
+                "jobTitle": "Senior Nurse",
+                "reason": "Approved promotion",
+            },
+        )
+        portal = await client.get(
+            f"/api/v1/employees/{EMPLOYEE_ID}/portal-role",
+            headers={"X-Workloop-Branch-ID": str(BRANCH_ID)},
+        )
+        portal_update = await client.put(
+            f"/api/v1/employees/{EMPLOYEE_ID}/portal-role",
+            headers={**idempotent, "Idempotency-Key": "7c700002-0000-4000-8000-000000000002"},
+            json={"role": "manager", "expectedRole": "employee"},
+        )
+
+    assert title.status_code == portal.status_code == portal_update.status_code == 200
+    assert portal.json()["data"] == {
+        "employeeId": str(EMPLOYEE_ID),
+        "activated": True,
+        "role": "employee",
+    }
+    assert portal_update.json()["data"]["role"] == "manager"
+    assert [name for name, _value in service.calls] == [
+        "title",
+        "portal-read",
+        "portal-write",
+    ]
+    assert executor.selected == [BRANCH_ID, BRANCH_ID, BRANCH_ID]
+
+    async with client_for(AppRole.EMPLOYEE) as (client, _app, service, executor):
+        contact = await client.patch(
+            "/api/v1/employees/self/contact",
+            json={"expectedUpdatedAt": expected, "phone": "+971500000009"},
+        )
+    assert contact.status_code == 200
+    assert contact.json()["data"]["updatedAt"] == expected
+    assert [name for name, _value in service.calls] == ["self-contact"]
+    assert executor.selected == [None]
+
+
+@pytest.mark.asyncio
+async def test_lifecycle_routes_reject_missing_idempotency_and_extra_fields() -> None:
+    branch = {"X-Workloop-Branch-ID": str(BRANCH_ID)}
+    async with client_for(AppRole.ADMIN) as (client, _app, _service, executor):
+        missing_key = await client.post(
+            f"/api/v1/employees/{EMPLOYEE_ID}/archive",
+            headers=branch,
+            json={
+                "expectedUpdatedAt": "2026-09-10T12:30:45.123Z",
+                "reason": "Approved archive",
+            },
+        )
+        extra = await client.put(
+            f"/api/v1/employees/{EMPLOYEE_ID}/portal-role",
+            headers={
+                **branch,
+                "Idempotency-Key": "7c700002-0000-4000-8000-000000000003",
+            },
+            json={"role": "manager", "expectedRole": "employee", "actorId": str(EMPLOYEE_ID)},
+        )
+    assert (missing_key.status_code, missing_key.json()["error"]["code"]) == (
+        400,
+        "idempotency_key_required",
+    )
+    assert (extra.status_code, extra.json()["error"]["code"]) == (422, "validation_failed")
+    assert executor.selected == []
+
+
 def test_openapi_publishes_the_authorized_employee_routes() -> None:
     from app.main import create_app
 
@@ -536,13 +652,31 @@ def test_openapi_publishes_the_authorized_employee_routes() -> None:
         "/api/v1/employees/direct-reports",
         "/api/v1/employees/{employee_id}/job-history",
         "/api/v1/employee-job-history",
+        "/api/v1/employees/{employee_id}/title-change",
+        "/api/v1/employees/{employee_id}/department-change",
+        "/api/v1/employees/{employee_id}/salary-change",
+        "/api/v1/employees/{employee_id}/status-change",
+        "/api/v1/employees/{employee_id}/manager-change",
+        "/api/v1/employees/{employee_id}/probation-confirmation",
+        "/api/v1/employees/{employee_id}/probation-extension",
+        "/api/v1/employees/{employee_id}/probation-termination",
+        "/api/v1/employees/{employee_id}/archive",
+        "/api/v1/employees/self/contact",
+        "/api/v1/employees/{employee_id}/portal-role",
     }
     assert expected <= set(schema["paths"])
     assert set(schema["paths"]["/api/v1/employees"]) == {"get", "post"}
     assert set(schema["paths"]["/api/v1/employees/{employee_id}"]) == {"get", "patch"}
-    for path in expected - {
-        "/api/v1/employees",
-        "/api/v1/employees/{employee_id}",
+    for path in {
+        "/api/v1/employees/self",
+        "/api/v1/employees/direct-reports",
+        "/api/v1/employees/{employee_id}/job-history",
+        "/api/v1/employee-job-history",
     }:
         assert set(schema["paths"][path]) == {"get"}
     assert set(schema["paths"]["/api/v1/employee-imports"]) == {"post"}
+    assert set(schema["paths"]["/api/v1/employees/{employee_id}/portal-role"]) == {
+        "get",
+        "put",
+    }
+    assert set(schema["paths"]["/api/v1/employees/self/contact"]) == {"patch"}

@@ -151,10 +151,24 @@ def verify_database() -> None:
         assert "profile_app_user_id=caller.app_user_id" in audit_function.replace(
             " ", ""
         )
-        assert "branch_created" in audit_function and "branch_deleted" in audit_function
-        assert "employee_branch_corrected" in audit_function
+        assert "_append_audit_event_phase7g_prior" in audit_function
+        assert "employee_portal_role_changed" in audit_function
         assert "raise exception 'audit event denied'" in audit_function
+        audit_predecessor = (
+            connection.execute(
+                text(
+                    "SELECT pg_catalog.pg_get_functiondef("
+                    "'public._append_audit_event_phase7g_prior"
+                    "(text,text,uuid,text[],text,jsonb)'::regprocedure)"
+                )
+            )
+            .scalar_one()
+            .lower()
+        )
+        assert "branch_created" in audit_predecessor and "branch_deleted" in audit_predecessor
+        assert "employee_branch_corrected" in audit_predecessor
         for signature in (
+            "public._append_audit_event_phase7g_prior(text,text,uuid,text[],text,jsonb)",
             "public._append_audit_event_phase5g(text,text,uuid,text[],text,jsonb)",
             "public._create_workflow_notification_phase5g(text,text)",
             "public._admin_execute_shift_swap_phase5g(uuid,uuid)",

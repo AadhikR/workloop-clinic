@@ -48,7 +48,7 @@ from sqlalchemy import Engine, create_engine, select, text
 from sqlalchemy.engine import URL
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
-EXPECTED_HEAD = "7d4a9c2e6b10"
+EXPECTED_HEAD = "8f6b2d1a4c70"
 ADMIN_SUBJECT = "hr.admin@horizon.test"
 MANAGER_SUBJECT = "aisha.manager@horizon.test"
 FOREIGN_DEPARTMENT_ID = uuid.UUID("7e000000-0000-4000-8000-000000000001")

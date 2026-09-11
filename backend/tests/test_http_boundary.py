@@ -181,7 +181,7 @@ async def test_cors_uses_exact_contract_and_runs_before_routing() -> None:
             "/api/v1/not-yet-routed",
             headers={
                 "Origin": allowed_origin,
-                "Access-Control-Request-Method": "PATCH",
+                "Access-Control-Request-Method": "PUT",
                 "Access-Control-Request-Headers": "Authorization,Idempotency-Key",
             },
         )
@@ -192,7 +192,9 @@ async def test_cors_uses_exact_contract_and_runs_before_routing() -> None:
 
     assert allowed.status_code == 200
     assert allowed.headers["access-control-allow-origin"] == allowed_origin
-    assert allowed.headers["access-control-allow-methods"] == "GET, POST, PATCH, DELETE, OPTIONS"
+    assert allowed.headers["access-control-allow-methods"] == (
+        "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+    )
     assert allowed.headers["access-control-max-age"] == "600"
     assert "access-control-allow-credentials" not in allowed.headers
     assert "idempotency-key" in allowed.headers["access-control-allow-headers"].lower()

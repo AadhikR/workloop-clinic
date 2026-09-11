@@ -4,10 +4,9 @@ import {
   FileDown, Info, Download, History, AlertTriangle, Calculator,
   UserCheck, CalendarClock, ClipboardList, UserX
 } from 'lucide-react';
-import { getEmployees, saveEmployee, saveEmployees, archiveEmployee, getJobHistory, addJobHistoryEntry, getAllEmployeeDocuments } from '../utils/storage';
+import { getEmployees, saveEmployee, saveEmployees, getJobHistory, getAllEmployeeDocuments } from '../utils/storage';
 import { parseCSV, readFileAsText } from '../utils/csvImport';
-import { formatDateUAE, formatAED, daysUntil, expiryBadgeClass } from '../utils/uaeValidators';
-import { calculateGratuity } from '../utils/gratuityCalculator';
+import { formatDateUAE, daysUntil, expiryBadgeClass } from '../utils/uaeValidators';
 import { useCompany } from '../context/CompanyContext';
 import EmployeeModal, { CLINICAL_DOC_TYPES } from './EmployeeModal';
 import EndOfServiceScreen from './EndOfServiceScreen';
@@ -507,27 +506,9 @@ function EmployeeManagerInner() {
 
   const handleSaveEmployee = async (emp) => {
     try {
-      const old = emp.id ? employees.find(e => e.id === emp.id) : null;
       // Assign to the active branch when creating a new employee
       const empWithCompany = emp.companyId ? emp : { ...emp, companyId: activeCompanyId };
       const saved = await saveEmployee(empWithCompany);
-
-      if (old) {
-        const checks = [
-          { field: 'basicSalary',      type: 'salary_change' },
-          { field: 'jobTitle',         type: 'title_change' },
-          { field: 'department',       type: 'department_change' },
-          { field: 'employmentStatus', type: 'status_change' },
-        ];
-        const changed = checks.filter(c => String(old[c.field] ?? '') !== String(emp[c.field] ?? ''));
-        if (changed.length > 0) {
-          try {
-            await Promise.all(changed.map(c => addJobHistoryEntry(emp.id, c.type, old[c.field], emp[c.field])));
-          } catch (histErr) {
-            console.warn('Job history not saved (table may need RLS policy):', histErr.message);
-          }
-        }
-      }
 
       setEmployees(prev =>
         emp.id
@@ -544,11 +525,8 @@ function EmployeeManagerInner() {
   const handleDelete = async (id) => {
     setDeleting(true);
     try {
-      await archiveEmployee(id);
-      setEmployees(prev => prev.map(e => e.id === id
-        ? { ...e, active: false, employmentStatus: 'Terminated' }
-        : e
-      ));
+      void id;
+      alert('Employee lifecycle changes have moved to the migration employee directory.');
       setDeleteConfirm(null);
     } catch (err) {
       console.error('Archive employee failed:', err);
@@ -986,23 +964,16 @@ function EmployeeManagerInner() {
           employee={probationEmp}
           onClose={() => setProbationEmp(null)}
           onConfirm={async () => {
-            const updated = { ...probationEmp, employmentStatus: 'Active', probationEndDate: '' };
-            await saveEmployee(updated);
-            await addJobHistoryEntry(probationEmp.id, 'probation_confirmed', 'Probation', 'Active', 'Probation period confirmed — employee moved to Active');
-            setEmployees(prev => prev.map(e => e.id === probationEmp.id ? updated : e));
+            alert('Probation workflows have moved to the migration employee directory.');
             setProbationEmp(null);
           }}
           onExtend={async (newEndDate) => {
-            const updated = { ...probationEmp, probationEndDate: newEndDate, probationExtended: true };
-            await saveEmployee(updated);
-            await addJobHistoryEntry(probationEmp.id, 'probation_extended', probationEmp.probationEndDate || '—', newEndDate, 'Probation period extended');
-            setEmployees(prev => prev.map(e => e.id === probationEmp.id ? updated : e));
+            void newEndDate;
+            alert('Probation workflows have moved to the migration employee directory.');
             setProbationEmp(null);
           }}
           onTerminate={async () => {
-            await archiveEmployee(probationEmp.id);
-            await addJobHistoryEntry(probationEmp.id, 'probation_terminated', 'Probation', 'Terminated', 'Probation not passed — employment terminated');
-            setEmployees(prev => prev.map(e => e.id === probationEmp.id ? { ...e, active: false, employmentStatus: 'Terminated' } : e));
+            alert('Probation workflows have moved to the migration employee directory.');
             setProbationEmp(null);
           }}
         />

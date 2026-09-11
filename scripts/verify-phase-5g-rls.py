@@ -271,6 +271,10 @@ WHERE table_schema='public' AND grantee='workloop_expiry_processing'
 SELECT count(*) FROM pg_catalog.pg_policies
 WHERE schemaname='public' AND policyname NOT LIKE 'phase5%'
   AND tablename <> 'idempotency_records'
+  AND policyname NOT IN (
+    'phase7g_user_profiles_select_branch_runtime',
+    'phase7g_user_profiles_update_role_branch_runtime'
+  )
 """
             )
         ).scalar_one()

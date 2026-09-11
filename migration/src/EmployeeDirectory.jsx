@@ -2,7 +2,15 @@ import { useEffect, useState } from 'react'
 
 import { HttpClientError } from './http.js'
 import {
+  archiveEmployee,
+  changeEmployeeDepartment,
+  changeEmployeeManager,
+  changeEmployeeSalary,
+  changeEmployeeStatus,
+  changeEmployeeTitle,
+  confirmEmployeeProbation,
   createEmployee,
+  extendEmployeeProbation,
   importEmployees,
   readBranchJobHistory,
   readDirectReports,
@@ -11,7 +19,11 @@ import {
   readAllEmployees,
   readEmployees,
   readEmployeeSelf,
+  readEmployeePortalRole,
+  setEmployeePortalRole,
+  terminateEmployeeProbation,
   updateEmployee,
+  updateEmployeeSelfContact,
 } from './employeeApi.js'
 import { parseEmployeeCsv } from './employeeCsv.js'
 import { readAllDepartments } from './departmentApi.js'
@@ -201,6 +213,286 @@ function EmployeeEditor({ authentication, branchId, employee, onSaved }) {
   )
 }
 
+function ReportReassignments({ reports, managers, replacements, onChange }) {
+  if (!reports.length) return null
+  return (
+    <fieldset>
+      <legend>Reassign every direct report</legend>
+      {reports.map((report) => (
+        <label key={report.id}>
+          {report.name}
+          <select
+            required
+            value={replacements[report.id] ?? ''}
+            onChange={(event) => onChange(report.id, event.target.value)}
+          >
+            <option value="">Choose a new manager</option>
+            {managers
+              .filter((manager) => manager.id !== report.id)
+              .map((manager) => (
+                <option key={manager.id} value={manager.id}>{manager.name}</option>
+              ))}
+          </select>
+        </label>
+      ))}
+    </fieldset>
+  )
+}
+
+function reassignmentBody(reports, replacements) {
+  return reports.map((report) => {
+    const newManagerId = replacements[report.id]
+    if (!newManagerId) throw new Error('Every direct report requires a replacement manager')
+    return {
+      employeeId: report.id,
+      newManagerId,
+      expectedUpdatedAt: report.updatedAt,
+    }
+  })
+}
+
+function EmployeeLifecyclePanel({
+  authentication,
+  branchId,
+  employee,
+  employees,
+  departments,
+  onSaved,
+}) {
+  const [action, setAction] = useState('title')
+  const [reason, setReason] = useState('')
+  const [value, setValue] = useState('')
+  const [replacements, setReplacements] = useState({})
+  const [status, setStatus] = useState('idle')
+  const reports = employees.filter((item) => item.reportingManagerId === employee.id)
+  const eligibleManagers = employees.filter((item) => (
+    item.id !== employee.id
+    && item.active
+    && item.employmentStatus !== 'terminated'
+  ))
+  const needsReassignments = action === 'archive'
+    || action === 'probation-termination'
+    || action === 'status' && value === 'terminated'
+  const replace = (reportId, managerId) => setReplacements((current) => ({
+    ...current,
+    [reportId]: managerId,
+  }))
+  const submit = async (event) => {
+    event.preventDefault()
+    setStatus('saving')
+    const shared = { expectedUpdatedAt: employee.updatedAt, reason: reason.trim() }
+    const options = { idempotencyKey: crypto.randomUUID() }
+    try {
+      let updated
+      if (action === 'title') {
+        updated = await changeEmployeeTitle(
+          authentication, branchId, employee.id, { ...shared, jobTitle: value }, options,
+        )
+      } else if (action === 'department') {
+        updated = await changeEmployeeDepartment(
+          authentication, branchId, employee.id, { ...shared, department: value }, options,
+        )
+      } else if (action === 'salary') {
+        updated = await changeEmployeeSalary(authentication, branchId, employee.id, {
+          ...shared,
+          allowance: employee.allowance,
+          housingAllowance: employee.housingAllowance,
+          transportAllowance: employee.transportAllowance,
+          otherAllowances: employee.otherAllowances,
+          otherAllowancesLabel: employee.otherAllowancesLabel,
+          basicSalary: value,
+        }, options)
+      } else if (action === 'status') {
+        updated = await changeEmployeeStatus(authentication, branchId, employee.id, {
+          ...shared,
+          employmentStatus: value,
+          ...(value === 'terminated' ? {
+            reportReassignments: reassignmentBody(reports, replacements),
+          } : {}),
+        }, options)
+      } else if (action === 'manager') {
+        updated = await changeEmployeeManager(authentication, branchId, employee.id, {
+          ...shared, reportingManagerId: value || null,
+        }, options)
+      } else if (action === 'probation-confirmation') {
+        updated = await confirmEmployeeProbation(
+          authentication, branchId, employee.id, shared, options,
+        )
+      } else if (action === 'probation-extension') {
+        updated = await extendEmployeeProbation(authentication, branchId, employee.id, {
+          ...shared, probationEndDate: value,
+        }, options)
+      } else if (action === 'probation-termination') {
+        updated = await terminateEmployeeProbation(authentication, branchId, employee.id, {
+          ...shared, reportReassignments: reassignmentBody(reports, replacements),
+        }, options)
+      } else {
+        updated = await archiveEmployee(authentication, branchId, employee.id, {
+          ...shared, reportReassignments: reassignmentBody(reports, replacements),
+        }, options)
+      }
+      setReason('')
+      setValue('')
+      setReplacements({})
+      setStatus('saved')
+      onSaved(updated)
+    } catch {
+      setStatus('error')
+    }
+  }
+  return (
+    <form className="employee-admin-form" onSubmit={submit} data-employee-lifecycle-form>
+      <h5>Employee lifecycle</h5>
+      <label>
+        Workflow
+        <select value={action} onChange={(event) => { setAction(event.target.value); setValue('') }}>
+          <option value="title">Change title</option>
+          <option value="department">Change department</option>
+          <option value="salary">Change basic salary</option>
+          <option value="status">Change employment status</option>
+          <option value="manager">Change reporting manager</option>
+          <option value="probation-confirmation">Confirm probation</option>
+          <option value="probation-extension">Extend probation</option>
+          <option value="probation-termination">Terminate during probation</option>
+          <option value="archive">Archive employee</option>
+        </select>
+      </label>
+      {action === 'department' && (
+        <label>
+          New department
+          <select required value={value} onChange={(event) => setValue(event.target.value)}>
+            <option value="">Choose department</option>
+            {departments.map((department) => (
+              <option key={department.id} value={department.name}>{department.name}</option>
+            ))}
+          </select>
+        </label>
+      )}
+      {action === 'manager' && (
+        <label>
+          New manager
+          <select value={value} onChange={(event) => setValue(event.target.value)}>
+            <option value="">No manager</option>
+            {eligibleManagers.map((manager) => (
+              <option key={manager.id} value={manager.id}>{manager.name}</option>
+            ))}
+          </select>
+        </label>
+      )}
+      {action === 'status' && (
+        <label>
+          New status
+          <select required value={value} onChange={(event) => setValue(event.target.value)}>
+            <option value="">Choose status</option>
+            <option value="active">Active</option>
+            <option value="probation">Probation</option>
+            <option value="on_leave">On leave</option>
+            <option value="terminated">Terminated</option>
+          </select>
+        </label>
+      )}
+      {['title', 'salary'].includes(action) && (
+        <label>
+          {action === 'title' ? 'New title' : 'New basic salary'}
+          <input
+            required
+            inputMode={action === 'salary' ? 'decimal' : undefined}
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+          />
+        </label>
+      )}
+      {action === 'probation-extension' && (
+        <label>
+          New probation end date
+          <input required type="date" value={value} onChange={(event) => setValue(event.target.value)} />
+        </label>
+      )}
+      <label>
+        Reason
+        <textarea required maxLength={1000} value={reason} onChange={(event) => setReason(event.target.value)} />
+      </label>
+      {needsReassignments && (
+        <ReportReassignments
+          reports={reports}
+          managers={eligibleManagers}
+          replacements={replacements}
+          onChange={replace}
+        />
+      )}
+      <button type="submit" disabled={status === 'saving'}>Run workflow</button>
+      <p role="status" data-employee-lifecycle-status={status}>
+        {status === 'error' ? 'The workflow could not be completed.' : status === 'saved' ? 'Employee workflow completed.' : ''}
+      </p>
+    </form>
+  )
+}
+
+function EmployeePortalRolePanel({ authentication, branchId, employee, employees, onSaved }) {
+  const [revision, setRevision] = useState(0)
+  const [status, setStatus] = useState('idle')
+  const [replacements, setReplacements] = useState({})
+  const portal = useLoad(
+    (signal) => readEmployeePortalRole(authentication, branchId, employee.id, { signal }),
+    [authentication, branchId, employee.id, revision],
+  )
+  const reports = employees.filter((item) => item.reportingManagerId === employee.id)
+  const managers = employees.filter((item) => (
+    item.id !== employee.id && item.active && item.employmentStatus !== 'terminated'
+  ))
+  const changeRole = async () => {
+    if (portal.status !== 'ready' || !portal.data.activated) return
+    setStatus('saving')
+    const role = portal.data.role === 'manager' ? 'employee' : 'manager'
+    try {
+      await setEmployeePortalRole(authentication, branchId, employee.id, {
+        role,
+        expectedRole: portal.data.role,
+        ...(role === 'employee' ? {
+          reportReassignments: reassignmentBody(reports, replacements),
+        } : {}),
+      }, { idempotencyKey: crypto.randomUUID() })
+      setStatus('saved')
+      setReplacements({})
+      setRevision((value) => value + 1)
+      onSaved()
+    } catch {
+      setStatus('error')
+    }
+  }
+  return (
+    <section className="employee-portal-role" aria-label="Employee portal role">
+      <h5>Portal role</h5>
+      {portal.status === 'loading' && <p>Loading portal role...</p>}
+      {portal.status === 'error' && <p role="status">Portal role is unavailable.</p>}
+      {portal.status === 'ready' && !portal.data.activated && (
+        <p>This employee has no eligible activated portal account.</p>
+      )}
+      {portal.status === 'ready' && portal.data.activated && (
+        <>
+          <p>Current role: {portal.data.role}</p>
+          {portal.data.role === 'manager' && (
+            <ReportReassignments
+              reports={reports}
+              managers={managers}
+              replacements={replacements}
+              onChange={(reportId, managerId) => setReplacements((current) => ({
+                ...current, [reportId]: managerId,
+              }))}
+            />
+          )}
+          <button type="button" onClick={changeRole} disabled={status === 'saving'}>
+            Change to {portal.data.role === 'manager' ? 'employee' : 'manager'}
+          </button>
+        </>
+      )}
+      <p role="status" data-employee-portal-role-status={status}>
+        {status === 'error' ? 'Portal role could not be changed.' : status === 'saved' ? 'Portal role changed.' : ''}
+      </p>
+    </section>
+  )
+}
+
 function EmployeeImportPanel({ authentication, branchId, onSaved }) {
   const [preview, setPreview] = useState({ rows: [], diagnostics: [] })
   const [status, setStatus] = useState('idle')
@@ -342,6 +634,27 @@ function AdminDirectory({ authentication, branchId, clearBranch }) {
             employee={detail.data[0]}
             onSaved={saved}
           />
+          {choices.status === 'ready' && (
+            <>
+              <EmployeeLifecyclePanel
+                key={`lifecycle-${detail.data[0].id}-${detail.data[0].updatedAt}`}
+                authentication={authentication}
+                branchId={branchId}
+                employee={detail.data[0]}
+                employees={choices.data[1]}
+                departments={choices.data[0]}
+                onSaved={saved}
+              />
+              <EmployeePortalRolePanel
+                key={`portal-${detail.data[0].id}`}
+                authentication={authentication}
+                branchId={branchId}
+                employee={detail.data[0]}
+                employees={choices.data[1]}
+                onSaved={saved}
+              />
+            </>
+          )}
         </section>
       )}
       <div className="employee-history-summary">
@@ -356,10 +669,52 @@ function AdminDirectory({ authentication, branchId, clearBranch }) {
   )
 }
 
+function EmployeeSelfContactForm({ authentication, employee, onSaved }) {
+  const [form, setForm] = useState({
+    phone: employee.phone,
+    personalEmail: employee.personalEmail,
+    emergencyContactName: employee.emergencyContactName,
+    emergencyContactPhone: employee.emergencyContactPhone,
+  })
+  const [status, setStatus] = useState('idle')
+  const change = (field) => (event) => setForm((current) => ({
+    ...current, [field]: event.target.value,
+  }))
+  const submit = async (event) => {
+    event.preventDefault()
+    setStatus('saving')
+    try {
+      const updated = await updateEmployeeSelfContact(authentication, {
+        ...form, expectedUpdatedAt: employee.updatedAt,
+      })
+      setStatus('saved')
+      onSaved(updated)
+    } catch {
+      setStatus('error')
+    }
+  }
+  return (
+    <form className="employee-admin-form" onSubmit={submit} data-employee-self-contact-form>
+      <h4>Contact details</h4>
+      <div className="employee-form-grid">
+        <label>Phone<input value={form.phone} onChange={change('phone')} /></label>
+        <label>Personal email<input type="email" value={form.personalEmail} onChange={change('personalEmail')} /></label>
+        <label>Emergency contact<input value={form.emergencyContactName} onChange={change('emergencyContactName')} /></label>
+        <label>Emergency phone<input value={form.emergencyContactPhone} onChange={change('emergencyContactPhone')} /></label>
+      </div>
+      <button type="submit" disabled={status === 'saving'}>Save contact details</button>
+      <p role="status" data-employee-self-contact-status={status}>
+        {status === 'error' ? 'Contact details could not be saved.' : status === 'saved' ? 'Contact details saved.' : ''}
+      </p>
+    </form>
+  )
+}
+
 function StaffDirectory({ account, authentication }) {
+  const [revision, setRevision] = useState(0)
   const self = useLoad(
     (signal) => readEmployeeSelf(authentication, { signal }),
-    [authentication],
+    [authentication, revision],
   )
   const reports = useLoad(
     (signal) => account.role === 'manager'
@@ -373,12 +728,20 @@ function StaffDirectory({ account, authentication }) {
       {self.status === 'loading' && <p>Loading employee profile...</p>}
       {self.status === 'error' && <p role="status">Employee profile is unavailable.</p>}
       {self.status === 'ready' && (
-        <dl className="employee-self">
-          <div><dt>Name</dt><dd>{self.data.name}</dd></div>
-          <div><dt>Job title</dt><dd>{self.data.jobTitle || 'Not assigned'}</dd></div>
-          <div><dt>Department</dt><dd>{self.data.department || 'Not assigned'}</dd></div>
-          <div><dt>Manager</dt><dd>{self.data.reportingManager?.name ?? 'Not assigned'}</dd></div>
-        </dl>
+        <>
+          <dl className="employee-self">
+            <div><dt>Name</dt><dd>{self.data.name}</dd></div>
+            <div><dt>Job title</dt><dd>{self.data.jobTitle || 'Not assigned'}</dd></div>
+            <div><dt>Department</dt><dd>{self.data.department || 'Not assigned'}</dd></div>
+            <div><dt>Manager</dt><dd>{self.data.reportingManager?.name ?? 'Not assigned'}</dd></div>
+          </dl>
+          <EmployeeSelfContactForm
+            key={self.data.updatedAt}
+            authentication={authentication}
+            employee={self.data}
+            onSaved={() => setRevision((value) => value + 1)}
+          />
+        </>
       )}
       {account.role === 'manager' && (
         <section className="direct-reports">

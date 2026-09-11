@@ -162,15 +162,11 @@ export async function deleteEmployee(id) {
 }
 
 /**
- * Archives (soft-deletes) an employee by marking them as Terminated.
- * The record is retained for payroll history and audit purposes.
+ * Retained as a hard-fail guard after lifecycle writes moved to the migration app.
  */
 export async function archiveEmployee(id) {
-  const { error } = await supabase
-    .from('employees')
-    .update({ active: false, employment_status: 'Terminated', termination_date: new Date().toISOString().slice(0, 10) })
-    .eq('id', id);
-  if (error) throw error;
+  void id;
+  throw new Error('Employee lifecycle changes have moved to the migration employee directory.');
 }
 
 // ─── EMPLOYEE JOB HISTORY ───────────────────────────────────────────────────
@@ -199,24 +195,15 @@ export async function getJobHistory(employeeId) {
 }
 
 /**
- * Appends a job history entry for an employee.
+ * Retained as a hard-fail guard after job-history writes moved to the migration app.
  */
 export async function addJobHistoryEntry(employeeId, changeType, oldValue, newValue, reason = '') {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-
-  const { error } = await supabase
-    .from('employee_job_history')
-    .insert({
-      user_id:     user.id,
-      employee_id: employeeId,
-      changed_by:  user.email || user.id,
-      change_type: changeType,
-      old_value:   String(oldValue ?? ''),
-      new_value:   String(newValue ?? ''),
-      reason:      reason || '',
-    });
-  if (error) throw error;
+  void employeeId;
+  void changeType;
+  void oldValue;
+  void newValue;
+  void reason;
+  throw new Error('Employee job history is written only by migration employee workflows.');
 }
 
 // ─── PAYROLL RUNS ───────────────────────────────────────────────────────────

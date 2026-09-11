@@ -31,7 +31,7 @@ from app.services.employees import EmployeeCursorCodec, EmployeeService
 from app.services.execution import AuthorizedServiceExecutor, ServiceExecutionError
 from app.services.idempotency import IdempotencyCommand, IdempotencyCoordinator, IdempotentResponse
 
-EXPECTED_HEAD = "7d4a9c2e6b10"
+EXPECTED_HEAD = "8f6b2d1a4c70"
 COMPOSE_PROJECT = "workloop-phase7f-final"
 POSTGRES_PORT = 25432
 API_PORT = 28000

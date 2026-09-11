@@ -27,16 +27,34 @@ from app.schemas.employees import (
     DirectReportResponse,
     EmployeeAdminDetailResponse,
     EmployeeAdminListResponse,
+    EmployeeArchiveRequest,
     EmployeeCreateRequest,
+    EmployeeDepartmentChangeRequest,
     EmployeeImportRequest,
     EmployeeImportResponse,
     EmployeeImportResult,
     EmployeeJobHistoryResponse,
+    EmployeeManagerChangeRequest,
+    EmployeePortalRoleResponse,
+    EmployeePortalRoleUpdateRequest,
+    EmployeeProbationConfirmationRequest,
+    EmployeeProbationExtensionRequest,
+    EmployeeProbationTerminationRequest,
+    EmployeeSalaryChangeRequest,
+    EmployeeSelfContactRequest,
     EmployeeSelfResponse,
+    EmployeeStatusChangeRequest,
+    EmployeeTitleChangeRequest,
     EmployeeUpdateRequest,
+    EmployeeWorkflowRequest,
     ReportingManagerResponse,
+    ReportReassignment,
 )
-from app.schemas.mutations import PROTECTED_FIELDS_BY_TABLE, MutationFieldGuard
+from app.schemas.mutations import (
+    PROTECTED_FIELDS_BY_TABLE,
+    GuardedMutationValues,
+    MutationFieldGuard,
+)
 from app.services.execution import ServiceExecutionError
 
 
@@ -263,6 +281,44 @@ _IMPORT_GUARD = MutationFieldGuard(
     approved_protected_fields=_IMPORT_INPUT_FIELDS & _EMPLOYEE_PROTECTED_FIELDS,
     server_derived_fields=frozenset({"id", "company_id", "branch_id", "active"}),
 )
+_TITLE_GUARD = MutationFieldGuard(allowed_input_fields=frozenset({"job_title"}))
+_DEPARTMENT_GUARD = MutationFieldGuard(allowed_input_fields=frozenset({"department"}))
+_SALARY_FIELDS = frozenset(
+    {
+        "basic_salary",
+        "allowance",
+        "housing_allowance",
+        "transport_allowance",
+        "other_allowances",
+        "other_allowances_label",
+    }
+)
+_SALARY_GUARD = MutationFieldGuard(
+    allowed_input_fields=_SALARY_FIELDS,
+    approved_protected_fields=_SALARY_FIELDS & _EMPLOYEE_PROTECTED_FIELDS,
+)
+_STATUS_FIELDS = frozenset(
+    {"active", "employment_status", "termination_date", "termination_reason"}
+)
+_STATUS_GUARD = MutationFieldGuard(
+    allowed_input_fields=_STATUS_FIELDS,
+    approved_protected_fields=_STATUS_FIELDS & _EMPLOYEE_PROTECTED_FIELDS,
+)
+_MANAGER_GUARD = MutationFieldGuard(
+    allowed_input_fields=frozenset({"reporting_manager_id"}),
+    approved_protected_fields=frozenset({"reporting_manager_id"}),
+)
+_PROBATION_CONFIRM_GUARD = MutationFieldGuard(
+    allowed_input_fields=frozenset({"employment_status", "probation_end_date"}),
+    approved_protected_fields=frozenset({"employment_status"}),
+)
+_PROBATION_EXTENSION_GUARD = MutationFieldGuard(
+    allowed_input_fields=frozenset({"probation_end_date", "probation_extended"})
+)
+_CONTACT_FIELDS = frozenset(
+    {"phone", "personal_email", "emergency_contact_name", "emergency_contact_phone"}
+)
+_CONTACT_GUARD = MutationFieldGuard(allowed_input_fields=_CONTACT_FIELDS)
 
 
 def database_employment_status(value: str | None) -> str | None:
@@ -363,6 +419,32 @@ def _direct_report(row: RowMapping) -> DirectReportResponse:
         probation_end_date=row["probation_end_date"],
         employment_status=_mapped(_EMPLOYMENT_STATUS, row["employment_status"], "status"),
     )
+
+
+def _same_version(actual: datetime, expected: datetime) -> bool:
+    def milliseconds(value: datetime) -> datetime:
+        utc_value = value.astimezone(UTC)
+        return utc_value.replace(microsecond=utc_value.microsecond // 1000 * 1000)
+
+    return milliseconds(actual) == milliseconds(expected)
+
+
+def _salary_snapshot(row: RowMapping | EmployeeSalaryChangeRequest) -> str:
+    names = {
+        "basicSalary": "basic_salary",
+        "allowance": "allowance",
+        "housingAllowance": "housing_allowance",
+        "transportAllowance": "transport_allowance",
+        "otherAllowances": "other_allowances",
+    }
+    values = {
+        output: f"{(row[source] if isinstance(row, RowMapping) else getattr(row, source)):.2f}"
+        for output, source in names.items()
+    }
+    values["otherAllowancesLabel"] = (
+        row["other_allowances_label"] if isinstance(row, RowMapping) else row.other_allowances_label
+    )
+    return json.dumps(values, separators=(",", ":"), sort_keys=True)
 
 
 class EmployeeService:
@@ -634,7 +716,7 @@ class EmployeeService:
         except ResourceNotFoundError:
             raise ServiceExecutionError("resource_not_found") from None
         values = _detail_values(row)
-        for field in ("reporting_manager_id", "active", "updated_at", "created_at"):
+        for field in ("reporting_manager_id", "active", "created_at"):
             values.pop(field)
         values["reporting_manager"] = (
             None
@@ -761,3 +843,606 @@ class EmployeeService:
             for row in visible
         ]
         return items, cursor
+
+    async def _locked_employee(
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        employee_id: uuid.UUID,
+        expected_updated_at: datetime,
+    ) -> RowMapping:
+        self._require_admin(principal)
+        try:
+            row = await self._repository.lock_employee(
+                company_id=principal.company_id,
+                branch_id=branch_id,
+                employee_id=employee_id,
+            )
+        except ResourceNotFoundError:
+            raise ServiceExecutionError("resource_not_found") from None
+        if not _same_version(row["updated_at"], expected_updated_at):
+            raise ServiceExecutionError("state_conflict")
+        return row
+
+    async def _history_change(
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        employee_id: uuid.UUID,
+        request: EmployeeWorkflowRequest,
+        *,
+        change_type: str,
+        old_value: str,
+        new_value: str,
+        values: GuardedMutationValues,
+    ) -> EmployeeAdminDetailResponse:
+        await self._repository.append_job_history(
+            company_id=principal.company_id,
+            branch_id=branch_id,
+            employee_id=employee_id,
+            actor_id=principal.app_user_id,
+            change_type=change_type,
+            old_value=old_value,
+            new_value=new_value,
+            reason=request.reason,
+        )
+        row = await self._repository.update_workflow_employee(
+            company_id=principal.company_id,
+            branch_id=branch_id,
+            employee_id=employee_id,
+            values=values,
+        )
+        return EmployeeAdminDetailResponse(**_detail_values(row))
+
+    async def change_title(
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        employee_id: uuid.UUID,
+        request: EmployeeTitleChangeRequest,
+    ) -> EmployeeAdminDetailResponse:
+        row = await self._locked_employee(
+            principal, branch_id, employee_id, request.expected_updated_at
+        )
+        if row["job_title"] == request.job_title:
+            raise ServiceExecutionError("employee_conflict")
+        return await self._history_change(
+            principal,
+            branch_id,
+            employee_id,
+            request,
+            change_type="title_change",
+            old_value=row["job_title"],
+            new_value=request.job_title,
+            values=_TITLE_GUARD.prepare({"job_title": request.job_title}),
+        )
+
+    async def change_department(
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        employee_id: uuid.UUID,
+        request: EmployeeDepartmentChangeRequest,
+    ) -> EmployeeAdminDetailResponse:
+        row = await self._locked_employee(
+            principal, branch_id, employee_id, request.expected_updated_at
+        )
+        if row["department"] == request.department:
+            raise ServiceExecutionError("employee_conflict")
+        try:
+            await self._repository.lock_department(
+                company_id=principal.company_id,
+                branch_id=branch_id,
+                name=request.department,
+            )
+        except ResourceNotFoundError:
+            raise ServiceExecutionError("resource_not_found") from None
+        return await self._history_change(
+            principal,
+            branch_id,
+            employee_id,
+            request,
+            change_type="department_change",
+            old_value=row["department"],
+            new_value=request.department,
+            values=_DEPARTMENT_GUARD.prepare({"department": request.department}),
+        )
+
+    async def change_salary(
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        employee_id: uuid.UUID,
+        request: EmployeeSalaryChangeRequest,
+    ) -> EmployeeAdminDetailResponse:
+        row = await self._locked_employee(
+            principal, branch_id, employee_id, request.expected_updated_at
+        )
+        old_value = _salary_snapshot(row)
+        new_value = _salary_snapshot(request)
+        if old_value == new_value:
+            raise ServiceExecutionError("employee_conflict")
+        values = {name: getattr(request, name) for name in _SALARY_FIELDS}
+        return await self._history_change(
+            principal,
+            branch_id,
+            employee_id,
+            request,
+            change_type="salary_change",
+            old_value=old_value,
+            new_value=new_value,
+            values=_SALARY_GUARD.prepare(values),
+        )
+
+    async def _apply_report_reassignments(
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        manager_id: uuid.UUID,
+        manager_expected_updated_at: datetime,
+        reassignments: list[ReportReassignment],
+    ) -> RowMapping:
+        if len({item.employee_id for item in reassignments}) != len(reassignments):
+            raise ServiceExecutionError("manager_reassignment_conflict")
+        preliminary = await self._repository.fetch_report_ids(
+            company_id=principal.company_id, branch_id=branch_id, manager_id=manager_id
+        )
+        ids = {
+            manager_id,
+            *preliminary,
+            *(item.employee_id for item in reassignments),
+            *(item.new_manager_id for item in reassignments),
+        }
+        await self._repository.acquire_relationship_locks(ids)
+        locked = await self._repository.lock_employee_set(
+            company_id=principal.company_id, branch_id=branch_id, employee_ids=ids
+        )
+        if set(locked) != ids or manager_id not in locked:
+            raise ServiceExecutionError("resource_not_found")
+        current_reports = await self._repository.fetch_report_ids(
+            company_id=principal.company_id, branch_id=branch_id, manager_id=manager_id
+        )
+        if set(current_reports) != {item.employee_id for item in reassignments}:
+            raise ServiceExecutionError("manager_reassignment_conflict")
+        manager = locked[manager_id]
+        if not _same_version(manager["updated_at"], manager_expected_updated_at):
+            raise ServiceExecutionError("state_conflict")
+        for item in sorted(reassignments, key=lambda value: value.employee_id):
+            report = locked[item.employee_id]
+            replacement = locked[item.new_manager_id]
+            if (
+                report["reporting_manager_id"] != manager_id
+                or not _same_version(report["updated_at"], item.expected_updated_at)
+                or item.new_manager_id == manager_id
+                or replacement["active"] is not True
+                or replacement["employment_status"] not in {"Active", "Probation", "On Leave"}
+                or await self._repository.would_create_manager_cycle(
+                    company_id=principal.company_id,
+                    branch_id=branch_id,
+                    employee_id=item.employee_id,
+                    new_manager_id=item.new_manager_id,
+                )
+            ):
+                raise ServiceExecutionError("manager_reassignment_conflict")
+        for item in sorted(reassignments, key=lambda value: value.employee_id):
+            await self._repository.update_workflow_employee(
+                company_id=principal.company_id,
+                branch_id=branch_id,
+                employee_id=item.employee_id,
+                values=_MANAGER_GUARD.prepare({"reporting_manager_id": item.new_manager_id}),
+            )
+            await self._repository.append_employee_audit(
+                action="employee_manager_changed",
+                entity_type="employee",
+                entity_id=item.employee_id,
+                changed_fields=["reporting_manager_id"],
+                reason="Reporting manager reassigned",
+                metadata={
+                    "previous_manager_id": str(manager_id),
+                    "new_manager_id": str(item.new_manager_id),
+                },
+            )
+        return manager
+
+    async def change_manager(
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        employee_id: uuid.UUID,
+        request: EmployeeManagerChangeRequest,
+    ) -> EmployeeAdminDetailResponse:
+        self._require_admin(principal)
+        ids = {employee_id}
+        if request.reporting_manager_id is not None:
+            ids.add(request.reporting_manager_id)
+        await self._repository.acquire_relationship_locks(ids)
+        locked = await self._repository.lock_employee_set(
+            company_id=principal.company_id, branch_id=branch_id, employee_ids=ids
+        )
+        if employee_id not in locked:
+            raise ServiceExecutionError("resource_not_found")
+        row = locked[employee_id]
+        if not _same_version(row["updated_at"], request.expected_updated_at):
+            raise ServiceExecutionError("state_conflict")
+        new_manager_id = request.reporting_manager_id
+        old_manager_id = row["reporting_manager_id"]
+        if old_manager_id == new_manager_id or new_manager_id == employee_id:
+            raise ServiceExecutionError("manager_reassignment_conflict")
+        if new_manager_id is not None:
+            manager = locked.get(new_manager_id)
+            if (
+                manager is None
+                or manager["active"] is not True
+                or manager["employment_status"] not in {"Active", "Probation", "On Leave"}
+                or await self._repository.would_create_manager_cycle(
+                    company_id=principal.company_id,
+                    branch_id=branch_id,
+                    employee_id=employee_id,
+                    new_manager_id=new_manager_id,
+                )
+            ):
+                raise ServiceExecutionError("manager_reassignment_conflict")
+        updated = await self._repository.update_workflow_employee(
+            company_id=principal.company_id,
+            branch_id=branch_id,
+            employee_id=employee_id,
+            values=_MANAGER_GUARD.prepare({"reporting_manager_id": new_manager_id}),
+        )
+        await self._repository.append_employee_audit(
+            action="employee_manager_changed",
+            entity_type="employee",
+            entity_id=employee_id,
+            changed_fields=["reporting_manager_id"],
+            reason=request.reason,
+            metadata={
+                "previous_manager_id": None if old_manager_id is None else str(old_manager_id),
+                "new_manager_id": None if new_manager_id is None else str(new_manager_id),
+            },
+        )
+        return EmployeeAdminDetailResponse(**_detail_values(updated))
+
+    async def change_status(
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        employee_id: uuid.UUID,
+        request: EmployeeStatusChangeRequest,
+    ) -> EmployeeAdminDetailResponse:
+        new_status = database_employment_status(request.employment_status)
+        assert new_status is not None
+        preliminary = await self._repository.fetch_report_ids(
+            company_id=principal.company_id, branch_id=branch_id, manager_id=employee_id
+        )
+        if new_status == "Terminated" and preliminary:
+            row = await self._apply_report_reassignments(
+                principal,
+                branch_id,
+                employee_id,
+                request.expected_updated_at,
+                request.report_reassignments,
+            )
+        else:
+            if request.report_reassignments:
+                raise ServiceExecutionError("manager_reassignment_conflict")
+            row = await self._locked_employee(
+                principal, branch_id, employee_id, request.expected_updated_at
+            )
+        old_status = row["employment_status"]
+        if old_status == "Terminated" or old_status == new_status:
+            raise ServiceExecutionError("employment_transition_conflict")
+        if old_status == "Probation" and new_status in {"Active", "Terminated"}:
+            raise ServiceExecutionError("employment_transition_conflict")
+        business_date = await self._repository.business_date()
+        values = {
+            "active": new_status != "Terminated",
+            "employment_status": new_status,
+            "termination_date": business_date if new_status == "Terminated" else None,
+            "termination_reason": request.reason if new_status == "Terminated" else "",
+        }
+        await self._repository.append_job_history(
+            company_id=principal.company_id,
+            branch_id=branch_id,
+            employee_id=employee_id,
+            actor_id=principal.app_user_id,
+            change_type="status_change",
+            old_value=old_status,
+            new_value=new_status,
+            reason=request.reason,
+        )
+        updated = await self._repository.update_workflow_employee(
+            company_id=principal.company_id,
+            branch_id=branch_id,
+            employee_id=employee_id,
+            values=_STATUS_GUARD.prepare(values),
+        )
+        return EmployeeAdminDetailResponse(**_detail_values(updated))
+
+    async def confirm_probation(
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        employee_id: uuid.UUID,
+        request: EmployeeProbationConfirmationRequest,
+    ) -> EmployeeAdminDetailResponse:
+        row = await self._locked_employee(
+            principal, branch_id, employee_id, request.expected_updated_at
+        )
+        if row["employment_status"] != "Probation" or row["active"] is not True:
+            raise ServiceExecutionError("employment_transition_conflict")
+        await self._repository.append_job_history(
+            company_id=principal.company_id,
+            branch_id=branch_id,
+            employee_id=employee_id,
+            actor_id=principal.app_user_id,
+            change_type="status_change",
+            old_value="Probation",
+            new_value="Active",
+            reason=request.reason,
+        )
+        updated = await self._repository.update_workflow_employee(
+            company_id=principal.company_id,
+            branch_id=branch_id,
+            employee_id=employee_id,
+            values=_PROBATION_CONFIRM_GUARD.prepare(
+                {"employment_status": "Active", "probation_end_date": None}
+            ),
+        )
+        await self._repository.append_employee_audit(
+            action="employee_probation_confirmed",
+            entity_type="employee",
+            entity_id=employee_id,
+            changed_fields=["employment_status", "probation_end_date"],
+            reason=request.reason,
+            metadata={"transition": "probation_to_active"},
+        )
+        return EmployeeAdminDetailResponse(**_detail_values(updated))
+
+    async def extend_probation(
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        employee_id: uuid.UUID,
+        request: EmployeeProbationExtensionRequest,
+    ) -> EmployeeAdminDetailResponse:
+        row = await self._locked_employee(
+            principal, branch_id, employee_id, request.expected_updated_at
+        )
+        previous = row["probation_end_date"]
+        if (
+            row["employment_status"] != "Probation"
+            or row["active"] is not True
+            or previous is None
+            or request.probation_end_date <= previous
+        ):
+            raise ServiceExecutionError("employment_transition_conflict")
+        updated = await self._repository.update_workflow_employee(
+            company_id=principal.company_id,
+            branch_id=branch_id,
+            employee_id=employee_id,
+            values=_PROBATION_EXTENSION_GUARD.prepare(
+                {"probation_end_date": request.probation_end_date, "probation_extended": True}
+            ),
+        )
+        await self._repository.append_employee_audit(
+            action="employee_probation_extended",
+            entity_type="employee",
+            entity_id=employee_id,
+            changed_fields=["probation_end_date", "probation_extended"],
+            reason=request.reason,
+            metadata={
+                "previous_probation_end_date": previous.isoformat(),
+                "new_probation_end_date": request.probation_end_date.isoformat(),
+            },
+        )
+        return EmployeeAdminDetailResponse(**_detail_values(updated))
+
+    async def _terminate(
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        employee_id: uuid.UUID,
+        request: EmployeeProbationTerminationRequest | EmployeeArchiveRequest,
+        *,
+        probation: bool,
+    ) -> EmployeeAdminDetailResponse:
+        preliminary = await self._repository.fetch_report_ids(
+            company_id=principal.company_id, branch_id=branch_id, manager_id=employee_id
+        )
+        if preliminary:
+            row = await self._apply_report_reassignments(
+                principal,
+                branch_id,
+                employee_id,
+                request.expected_updated_at,
+                request.report_reassignments,
+            )
+        else:
+            if request.report_reassignments:
+                raise ServiceExecutionError("manager_reassignment_conflict")
+            row = await self._locked_employee(
+                principal, branch_id, employee_id, request.expected_updated_at
+            )
+        allowed = {"Probation"} if probation else {"Active", "On Leave"}
+        if row["employment_status"] not in allowed or row["active"] is not True:
+            raise ServiceExecutionError("employment_transition_conflict")
+        business_date = await self._repository.business_date()
+        await self._repository.append_job_history(
+            company_id=principal.company_id,
+            branch_id=branch_id,
+            employee_id=employee_id,
+            actor_id=principal.app_user_id,
+            change_type="status_change",
+            old_value=row["employment_status"],
+            new_value="Terminated",
+            reason=request.reason,
+        )
+        updated = await self._repository.update_workflow_employee(
+            company_id=principal.company_id,
+            branch_id=branch_id,
+            employee_id=employee_id,
+            values=_STATUS_GUARD.prepare(
+                {
+                    "active": False,
+                    "employment_status": "Terminated",
+                    "termination_date": business_date,
+                    "termination_reason": request.reason,
+                }
+            ),
+        )
+        action = "employee_probation_terminated" if probation else "employee_archived"
+        transition = (
+            "probation_to_terminated"
+            if probation
+            else f"{_EMPLOYMENT_STATUS[row['employment_status']]}_to_terminated"
+        )
+        await self._repository.append_employee_audit(
+            action=action,
+            entity_type="employee",
+            entity_id=employee_id,
+            changed_fields=[
+                "active",
+                "employment_status",
+                "termination_date",
+                "termination_reason",
+            ],
+            reason=request.reason,
+            metadata={"transition": transition},
+        )
+        return EmployeeAdminDetailResponse(**_detail_values(updated))
+
+    async def terminate_probation(
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        employee_id: uuid.UUID,
+        request: EmployeeProbationTerminationRequest,
+    ) -> EmployeeAdminDetailResponse:
+        return await self._terminate(principal, branch_id, employee_id, request, probation=True)
+
+    async def archive_employee(
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        employee_id: uuid.UUID,
+        request: EmployeeArchiveRequest,
+    ) -> EmployeeAdminDetailResponse:
+        return await self._terminate(principal, branch_id, employee_id, request, probation=False)
+
+    async def update_self_contact(
+        self, principal: AuthorizationPrincipal, request: EmployeeSelfContactRequest
+    ) -> EmployeeSelfResponse:
+        if principal.employee_id is None or principal.branch_id is None:
+            raise ServiceExecutionError("operation_not_permitted")
+        try:
+            row = await self._repository.lock_employee(
+                company_id=principal.company_id,
+                branch_id=principal.branch_id,
+                employee_id=principal.employee_id,
+            )
+        except ResourceNotFoundError:
+            raise ServiceExecutionError("resource_not_found") from None
+        if not _same_version(row["updated_at"], request.expected_updated_at):
+            raise ServiceExecutionError("state_conflict")
+        await self._repository.update_workflow_employee(
+            company_id=principal.company_id,
+            branch_id=principal.branch_id,
+            employee_id=principal.employee_id,
+            values=_CONTACT_GUARD.prepare(request.changes()),
+        )
+        return await self.get_self(principal)
+
+    async def get_portal_role(
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        employee_id: uuid.UUID,
+    ) -> EmployeePortalRoleResponse:
+        self._require_admin(principal)
+        try:
+            await self._repository.assert_employee_exists(
+                company_id=principal.company_id,
+                branch_id=branch_id,
+                employee_id=employee_id,
+            )
+        except ResourceNotFoundError:
+            raise ServiceExecutionError("resource_not_found") from None
+        profile = await self._repository.fetch_portal_role(
+            company_id=principal.company_id,
+            branch_id=branch_id,
+            employee_id=employee_id,
+        )
+        if profile is None or profile["eligible"] is not True:
+            return EmployeePortalRoleResponse(employee_id=employee_id, activated=False, role=None)
+        return EmployeePortalRoleResponse(
+            employee_id=employee_id, activated=True, role=profile["role"]
+        )
+
+    async def set_portal_role(
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        employee_id: uuid.UUID,
+        request: EmployeePortalRoleUpdateRequest,
+    ) -> EmployeePortalRoleResponse:
+        self._require_admin(principal)
+        profile = await self._repository.fetch_portal_role(
+            company_id=principal.company_id,
+            branch_id=branch_id,
+            employee_id=employee_id,
+            lock=True,
+        )
+        if (
+            profile is None
+            or profile["eligible"] is not True
+            or profile["app_user_id"] == principal.app_user_id
+            or profile["role"] != request.expected_role
+            or request.role == request.expected_role
+        ):
+            raise ServiceExecutionError("portal_role_conflict")
+        if request.expected_role == "manager" and request.role == "employee":
+            employee = await self._repository.fetch_employee(
+                company_id=principal.company_id,
+                branch_id=branch_id,
+                employee_id=employee_id,
+            )
+            await self._apply_report_reassignments(
+                principal,
+                branch_id,
+                employee_id,
+                employee["updated_at"],
+                request.report_reassignments,
+            )
+        elif request.report_reassignments:
+            raise ServiceExecutionError("manager_reassignment_conflict")
+        else:
+            try:
+                employee = await self._repository.lock_employee(
+                    company_id=principal.company_id,
+                    branch_id=branch_id,
+                    employee_id=employee_id,
+                )
+            except ResourceNotFoundError:
+                raise ServiceExecutionError("portal_role_conflict") from None
+            if employee["active"] is not True or employee["employment_status"] not in {
+                "Active",
+                "Probation",
+                "On Leave",
+            }:
+                raise ServiceExecutionError("portal_role_conflict")
+        try:
+            await self._repository.update_portal_role(
+                app_user_id=profile["app_user_id"], employee_id=employee_id, role=request.role
+            )
+        except ResourceNotFoundError:
+            raise ServiceExecutionError("portal_role_conflict") from None
+        await self._repository.append_employee_audit(
+            action="employee_portal_role_changed",
+            entity_type="user_profile",
+            entity_id=profile["app_user_id"],
+            changed_fields=["role"],
+            reason="Portal role changed",
+            metadata={"transition": f"{request.expected_role}_to_{request.role}"},
+        )
+        return EmployeePortalRoleResponse(
+            employee_id=employee_id, activated=True, role=request.role
+        )

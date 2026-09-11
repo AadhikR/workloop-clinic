@@ -12,9 +12,8 @@ import {
   verifyEmployeeDocument, rejectEmployeeDocument,
   getInsurancePolicies, getEmployeeInsurance, saveEmployeeInsurance,
   getInsuranceDependants, saveInsuranceDependant, deleteInsuranceDependant,
-  saveEmployee, getEmployeeContracts, saveEmployeeContract, addJobHistoryEntry,
+  saveEmployee, getEmployeeContracts, saveEmployeeContract,
 } from '../utils/storage';
-import { getEmployeePortalRole, setEmployeePortalRole } from '../utils/profileStorage';
 import { getDepartments } from '../utils/departmentStorage';
 import { safePrint } from '../utils/safePrint';
 
@@ -118,11 +117,6 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
   const [depSaving, setDepSaving]         = useState(false);
 
   // Portal role (Feature 6) — only relevant for existing employees with activated portal
-  const [portalRole, setPortalRole]         = useState(null);  // null = not loaded yet
-  const [portalRoleSaving, setPortalRoleSaving] = useState(false);
-  const [portalRoleErr, setPortalRoleErr]   = useState('');
-  const [portalRoleOk, setPortalRoleOk]     = useState('');
-
   // Contract history (Feature 12)
   const [contracts, setContracts]                   = useState([]);
   const [contractsLoading, setContractsLoading]     = useState(false);
@@ -146,16 +140,6 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
         .finally(() => setDocsLoading(false));
     }
   }, [tab, employee?.id]);
-
-  // Load portal role when the Job tab opens (only for existing activated employees)
-  useEffect(() => {
-    if (tab === 'job' && employee?.id && employee?.authUserId) {
-      setPortalRole(null);
-      getEmployeePortalRole(employee.id)
-        .then(r => setPortalRole(r || 'employee'))
-        .catch(() => setPortalRole('employee'));
-    }
-  }, [tab, employee?.id, employee?.authUserId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load insurance data whenever the Insurance tab becomes active
   useEffect(() => {
@@ -332,13 +316,6 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
         transportAllowance: parseFloat(form.transportAllowance)|| 0,
         otherAllowances:    parseFloat(form.otherAllowances)   || 0,
       });
-      addJobHistoryEntry(
-        employee.id,
-        isFromUnlimited ? 'contract_converted' : 'contract_renewed',
-        form.contractEndDate || form.contractType,
-        `Limited to ${formatDateUAE(renewForm.endDate)}`,
-        renewForm.notes,
-      ).catch(() => {});
       setForm(prev => ({ ...prev, contractType:'Limited', contractEndDate:renewForm.endDate }));
       setContracts(prev => [saved, ...prev]);
       setContractAction(null);
@@ -375,7 +352,6 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
         transportAllowance: parseFloat(form.transportAllowance)|| 0,
         otherAllowances:    parseFloat(form.otherAllowances)   || 0,
       });
-      addJobHistoryEntry(employee.id, 'contract_converted', 'Limited', 'Unlimited', renewForm.notes).catch(() => {});
       setForm(prev => ({ ...prev, contractType:'Unlimited', contractEndDate:'' }));
       setContracts(prev => [saved, ...prev]);
       setContractAction(null);
@@ -400,7 +376,6 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
         action:       'not_renewed',
         notes:        renewForm.notes,
       });
-      addJobHistoryEntry(employee.id, 'contract_not_renewed', form.contractEndDate, 'Not Renewing', renewForm.notes).catch(() => {});
       setContracts(prev => [saved, ...prev]);
       setContractAction(null);
       setContractActionMsg('Non-renewal recorded. Notify the employee and initiate offboarding when ready. UAE law requires 30 days notice.');
@@ -798,43 +773,14 @@ export default function EmployeeModal({ employee, allEmployees, onSave, onClose 
                     ))}
                 </select>
               </div>
-              {/* Portal Role — only visible when employee has an activated portal account */}
+              {/* Portal roles are managed by the migration employee directory. */}
               {employee?.id && employee?.authUserId && (
                 <div className="form-group">
                   <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <ShieldCheck size={14} style={{ color: '#2563eb' }} /> Portal Role
                   </label>
-                  <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                    <select
-                      className="form-control"
-                      value={portalRole || 'employee'}
-                      disabled={portalRole === null || portalRoleSaving}
-                      onChange={async (e) => {
-                        const newRole = e.target.value;
-                        setPortalRoleErr('');
-                        setPortalRoleOk('');
-                        setPortalRoleSaving(true);
-                        try {
-                          await setEmployeePortalRole(employee.id, newRole);
-                          setPortalRole(newRole);
-                          setPortalRoleOk(`Role updated to ${newRole}.`);
-                          setTimeout(() => setPortalRoleOk(''), 3000);
-                        } catch (err) {
-                          setPortalRoleErr(err.message || 'Failed to update role.');
-                        } finally {
-                          setPortalRoleSaving(false);
-                        }
-                      }}
-                    >
-                      <option value="employee">Employee</option>
-                      <option value="manager">Manager</option>
-                    </select>
-                    {portalRoleSaving && <span style={{ fontSize: 12, color: '#64748b' }}>Saving…</span>}
-                  </div>
-                  {portalRoleErr && <span className="hint" style={{ color: '#ef4444' }}>{portalRoleErr}</span>}
-                  {portalRoleOk  && <span className="hint" style={{ color: '#22c55e' }}>{portalRoleOk}</span>}
                   <span className="hint">
-                    Manager role gives access to the Leave Approval Queue for their direct reports.
+                    Portal roles have moved to the migration employee directory.
                   </span>
                 </div>
               )}

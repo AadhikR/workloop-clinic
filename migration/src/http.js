@@ -4,7 +4,7 @@ const approvedLocalApiOrigins = new Set([
   'http://127.0.0.1:28000',
 ])
 
-const allowedMethods = new Set(['GET', 'POST', 'PATCH', 'DELETE'])
+const allowedMethods = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE'])
 const callerHeaderNames = new Set([
   'idempotency-key',
   'x-workloop-branch-id',
@@ -29,6 +29,9 @@ const errorContract = new Map([
   ['employee_conflict', [409, 'conflict']],
   ['department_conflict', [409, 'conflict']],
   ['staffing_rule_conflict', [409, 'conflict']],
+  ['employment_transition_conflict', [409, 'conflict']],
+  ['manager_reassignment_conflict', [409, 'conflict']],
+  ['portal_role_conflict', [409, 'conflict']],
   ['idempotency_conflict', [409, 'conflict']],
   ['idempotency_in_progress', [409, 'conflict']],
   ['request_too_large', [413, 'validation']],

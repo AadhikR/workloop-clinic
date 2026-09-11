@@ -1,8 +1,74 @@
 {
-  "command": "node -e \"const f=require('node:fs');const s=JSON.parse(f.readFileSync('tests/fixtures/phase-6d/synthetic-users.json'));const r=JSON.parse(f.readFileSync('docs/migration/phase-7/cutover-records/employee-lifecycle.json'));if(s.length!==r.identityMapping.mappings.length)process.exit(1)\"",
+  "command": "python scripts/verify-phase-7g-employee-lifecycle.py && node scripts/verify-phase-3g-browser.mjs",
   "featureId": "phase7-employee-lifecycle",
-  "refreshedAt": "2026-09-09T15:35:28Z",
-  "sourceDigest": "sha256:1ebfc4d976b2763da0ea319f387c78c69d98d16c05d03708f3515012640e04be",
-  "sourceRecordCount": 2,
-  "targetRecordCount": 2
+  "refreshedAt": "2026-09-11T17:59:48Z",
+  "sourceDigest": "sha256:96411aca07c50666eeddd54e34d08f4d357c4458c8d6f907cc90519f233e5e1f",
+  "sourceRecordCount": 3,
+  "targetRecordCount": 3,
+  "alembicHead": "8f6b2d1a4c70",
+  "routes": [
+    "POST /api/v1/employees/{employeeId}/title-change",
+    "POST /api/v1/employees/{employeeId}/department-change",
+    "POST /api/v1/employees/{employeeId}/salary-change",
+    "POST /api/v1/employees/{employeeId}/status-change",
+    "POST /api/v1/employees/{employeeId}/manager-change",
+    "POST /api/v1/employees/{employeeId}/probation-confirmation",
+    "POST /api/v1/employees/{employeeId}/probation-extension",
+    "POST /api/v1/employees/{employeeId}/probation-termination",
+    "POST /api/v1/employees/{employeeId}/archive",
+    "PATCH /api/v1/employees/self/contact",
+    "GET /api/v1/employees/{employeeId}/portal-role",
+    "PUT /api/v1/employees/{employeeId}/portal-role"
+  ],
+  "workflowProof": {
+    "titleReplayPassed": true,
+    "managerReassignmentAtomic": true,
+    "portalRoleRoundTrip": true,
+    "selfContactStaleWriteRejected": true,
+    "protectedAuditDenials": 39,
+    "historyRows": {
+      "department_change": 1,
+      "salary_change": 1,
+      "status_change": 4,
+      "title_change": 1
+    },
+    "auditRows": {
+      "employee_archived": 1,
+      "employee_manager_changed": 2,
+      "employee_portal_role_changed": 2,
+      "employee_probation_confirmed": 1,
+      "employee_probation_extended": 1,
+      "employee_probation_terminated": 1
+    },
+    "syntheticState": "3936a6ed48373e102be656033bab15924cb4dc16c363885a72ec07d5346f2740"
+  },
+  "frontendProof": {
+    "strictCamelCasePassed": true,
+    "projectionDriftRejected": true,
+    "adminLifecyclePassed": true,
+    "portalRoleRoundTripPassed": true,
+    "selfContactPassed": true,
+    "legacyLifecycleWritersFrozen": true,
+    "legacyPortalRoleAccessFrozen": true,
+    "supabaseImportsAbsent": true
+  },
+  "finalGateProof": {
+    "backendTests": 432,
+    "frontendTests": 117,
+    "legacyBuildModules": 449,
+    "migrationBuildModules": 36,
+    "catalogFingerprint": "3dcb949149dcb3078cd841a51bf9e6ff",
+    "exactPredecessorState": "ba257198f905a96014a8268ffd3da90197cdbc762e954ee69150860b3a9254db",
+    "keycloakSigningKeyCount": 2,
+    "postgresImage": "sha256:051f7b7b3abdd564d5d1bd1e8c4b9c1b6e77087d1dd22020ede611c096a272e0",
+    "backendImage": "sha256:48283d2c28016e7a1f7d139b816119034a277c4105c7ff77dc730a81555fa7ad",
+    "keycloakImage": "sha256:9d1f1b2b7261ff53c66cb1092dfcdc34a5fb77e81f9e6a6e75b8b6a795de8067",
+    "restartPersistencePassed": true,
+    "authenticationPassed": true,
+    "browserPassed": true,
+    "logSafetyPassed": true,
+    "syntheticCleanupPassed": true,
+    "temporaryResourcesRemoved": true,
+    "preservedVolumeUntouched": true
+  }
 }

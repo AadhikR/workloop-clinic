@@ -32,7 +32,7 @@ from app.services.organization import (
 )
 
 TABLES = ("companies", "branches", "app_users", "user_profiles", "employees")
-EXPECTED_HEAD = os.environ.get("WORKLOOP_EXPECTED_ALEMBIC_HEAD", "2c4d6e8f0a1b")
+EXPECTED_HEAD = os.environ.get("WORKLOOP_EXPECTED_ALEMBIC_HEAD", "8f6b2d1a4c70")
 CURSOR_CODEC = BranchCursorCodec(b"phase-7b-synthetic-cursor-key!!!")
 
 

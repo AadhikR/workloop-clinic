@@ -3,6 +3,7 @@ import test from 'node:test'
 
 import {
   createEmployee,
+  changeEmployeeTitle,
   importEmployees,
   readBranchJobHistory,
   readDirectReports,
@@ -10,6 +11,9 @@ import {
   readEmployeeJobHistory,
   readEmployees,
   readEmployeeSelf,
+  readEmployeePortalRole,
+  setEmployeePortalRole,
+  updateEmployeeSelfContact,
   updateEmployee,
 } from '../migration/src/employeeApi.js'
 
@@ -86,7 +90,6 @@ const self = {
 }
 delete self.reportingManagerId
 delete self.active
-delete self.updatedAt
 delete self.createdAt
 
 const report = {
@@ -180,6 +183,7 @@ test('rejects snake case, leaked fields, missing fields, and silently altered ty
     Object.fromEntries(Object.entries(listEmployee).filter(([key]) => key !== 'bankName')),
     { ...listEmployee, basicSalary: 10000 },
     { ...listEmployee, employmentStatus: 'Active' },
+    { ...self, updatedAt: 'not-a-timestamp' },
     { ...report, phone: '+971500000001' },
     { ...history, changed_by: 'admin@example.test' },
   ]
@@ -200,11 +204,15 @@ test('rejects snake case, leaked fields, missing fields, and silently altered ty
     /invalid employee response/i,
   )
   await assert.rejects(
-    readDirectReports(client({ data: [invalid[4]], page })),
+    readEmployeeSelf(client({ data: invalid[4] })),
     /invalid employee response/i,
   )
   await assert.rejects(
-    readBranchJobHistory(client({ data: [invalid[5]], page }), branchId),
+    readDirectReports(client({ data: [invalid[5]], page })),
+    /invalid employee response/i,
+  )
+  await assert.rejects(
+    readBranchJobHistory(client({ data: [invalid[6]], page }), branchId),
     /invalid employee response/i,
   )
 })
@@ -291,6 +299,87 @@ test('sends strict employee create, edit, and import mutations', async () => {
     createdCount: 1,
     rows: [{ rowNumber: 2, employeeId }],
   })
+})
+
+test('sends strict lifecycle, self-contact, and portal-role mutations', async () => {
+  const changed = client({ data: { ...detail, jobTitle: 'Senior Nurse' }, status: 200, location: null })
+  await changeEmployeeTitle(changed, branchId, employeeId, {
+    expectedUpdatedAt: detail.updatedAt,
+    jobTitle: 'Senior Nurse',
+    reason: 'Approved promotion',
+  }, { idempotencyKey })
+  assert.deepEqual(changed.requests[0], [
+    `/api/v1/employees/${employeeId}/title-change`,
+    {
+      access: 'protected',
+      method: 'POST',
+      headers: {
+        'X-Workloop-Branch-ID': branchId,
+        'Idempotency-Key': idempotencyKey,
+      },
+      json: {
+        expectedUpdatedAt: detail.updatedAt,
+        jobTitle: 'Senior Nurse',
+        reason: 'Approved promotion',
+      },
+      signal: undefined,
+    },
+  ])
+
+  const contact = client({ data: { ...self, phone: '+971500000009' }, status: 200, location: null })
+  await updateEmployeeSelfContact(contact, {
+    expectedUpdatedAt: self.updatedAt,
+    phone: '+971500000009',
+  })
+  assert.equal(contact.requests[0][1].headers, undefined)
+  assert.equal(contact.requests[0][1].method, 'PATCH')
+
+  const portal = { employeeId, activated: true, role: 'employee' }
+  const portalRead = client({ data: portal, status: 200, location: null })
+  assert.deepEqual(await readEmployeePortalRole(portalRead, branchId, employeeId), portal)
+  const portalWrite = client({
+    data: { ...portal, role: 'manager' }, status: 200, location: null,
+  })
+  assert.deepEqual(await setEmployeePortalRole(portalWrite, branchId, employeeId, {
+    role: 'manager', expectedRole: 'employee',
+  }, { idempotencyKey }), { ...portal, role: 'manager' })
+  assert.equal(portalWrite.requests[0][1].method, 'PUT')
+})
+
+test('rejects malformed lifecycle and portal-role requests before transport', async () => {
+  const authentication = client({ data: detail, status: 200, location: null })
+  await assert.rejects(
+    changeEmployeeTitle(authentication, branchId, employeeId, {
+      expectedUpdatedAt: detail.updatedAt,
+      jobTitle: 'Senior Nurse',
+      reason: ' untrimmed ',
+    }, { idempotencyKey }),
+    /invalid employee mutation/i,
+  )
+  await assert.rejects(
+    updateEmployeeSelfContact(authentication, {
+      expectedUpdatedAt: detail.updatedAt,
+      jobTitle: 'Forbidden',
+    }),
+    /invalid employee mutation/i,
+  )
+  await assert.rejects(
+    setEmployeePortalRole(authentication, branchId, employeeId, {
+      role: 'admin', expectedRole: 'employee',
+    }, { idempotencyKey }),
+    /invalid employee mutation/i,
+  )
+  await assert.rejects(
+    setEmployeePortalRole(authentication, branchId, employeeId, {
+      role: 'employee', expectedRole: 'manager', reportReassignments: [{
+        employeeId,
+        newManagerId: employeeId,
+        expectedUpdatedAt: detail.updatedAt,
+      }],
+    }, { idempotencyKey }),
+    /invalid employee mutation/i,
+  )
+  assert.deepEqual(authentication.requests, [])
 })
 
 test('rejects unsupported employee writes before transport', async () => {

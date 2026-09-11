@@ -34,7 +34,7 @@ const adminDetailKeys = [
 ]
 const selfKeys = [
   ...adminDetailKeys.filter((key) => ![
-    'reportingManagerId', 'active', 'updatedAt', 'createdAt',
+    'reportingManagerId', 'active', 'createdAt',
   ].includes(key)),
   'reportingManager',
 ]
@@ -72,6 +72,9 @@ const importKeys = [
   'rowNumber', 'empNo', 'name', 'molId', 'bankName', 'bankRoutingCode', 'iban',
   'basicSalary', 'allowance',
 ]
+const reportReassignmentKeys = ['employeeId', 'newManagerId', 'expectedUpdatedAt']
+const portalRoleKeys = ['employeeId', 'activated', 'role']
+const portalRoles = new Set(['employee', 'manager'])
 
 function isRecord(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -168,7 +171,6 @@ function selfAsDetail(data) {
     ...data,
     reportingManagerId: null,
     active: true,
-    updatedAt: '2000-01-01T00:00:00.000Z',
     createdAt: '2000-01-01T00:00:00.000Z',
   }
 }
@@ -432,6 +434,119 @@ function parseImportResponse(value, inputRows) {
   return Object.freeze({ createdCount: value.createdCount, rows: Object.freeze(rows) })
 }
 
+function parsePortalRole(value, employeeId) {
+  if (
+    !exactKeys(value, portalRoleKeys)
+    || value.employeeId !== employeeId
+    || typeof value.activated !== 'boolean'
+    || value.role !== null && !portalRoles.has(value.role)
+    || value.activated !== (value.role !== null)
+  ) throw invalidEmployeeResponse()
+  return Object.freeze({ ...value })
+}
+
+function validReason(value) {
+  return typeof value === 'string'
+    && value === value.trim()
+    && value.length >= 1
+    && value.length <= 1000
+}
+
+function validateWorkflowBase(value, allowed, required) {
+  requireMutation(value, allowed, required)
+  if (
+    typeof value.expectedUpdatedAt !== 'string'
+    || !instantPattern.test(value.expectedUpdatedAt)
+    || !validReason(value.reason)
+  ) throw invalidEmployeeMutation()
+}
+
+function validateReportReassignments(value) {
+  if (!Array.isArray(value) || value.length > 500) throw invalidEmployeeMutation()
+  const reports = new Set()
+  for (const item of value) {
+    if (
+      !exactKeys(item, reportReassignmentKeys)
+      || !isUuid(item.employeeId)
+      || !isUuid(item.newManagerId)
+      || item.employeeId === item.newManagerId
+      || reports.has(item.employeeId)
+      || typeof item.expectedUpdatedAt !== 'string'
+      || !instantPattern.test(item.expectedUpdatedAt)
+    ) throw invalidEmployeeMutation()
+    reports.add(item.employeeId)
+  }
+}
+
+function validateLifecycleMutation(kind, value) {
+  const shared = ['expectedUpdatedAt', 'reason']
+  if (kind === 'title-change') {
+    validateWorkflowBase(value, [...shared, 'jobTitle'], [...shared, 'jobTitle'])
+    if (!validateTextField(value.jobTitle, { empty: false })) throw invalidEmployeeMutation()
+    return
+  }
+  if (kind === 'department-change') {
+    validateWorkflowBase(value, [...shared, 'department'], [...shared, 'department'])
+    if (!validateTextField(value.department, { empty: false })) throw invalidEmployeeMutation()
+    return
+  }
+  if (kind === 'salary-change') {
+    const compensation = [
+      'basicSalary', 'allowance', 'housingAllowance', 'transportAllowance',
+      'otherAllowances', 'otherAllowancesLabel',
+    ]
+    validateWorkflowBase(value, [...shared, ...compensation], [...shared, ...compensation])
+    if (
+      compensation.slice(0, 5).some((field) => !moneyPattern.test(value[field]))
+      || !validateTextField(value.otherAllowancesLabel)
+    ) throw invalidEmployeeMutation()
+    return
+  }
+  if (kind === 'status-change') {
+    const allowed = [...shared, 'employmentStatus', 'reportReassignments']
+    validateWorkflowBase(value, allowed, [...shared, 'employmentStatus'])
+    if (!statuses.has(value.employmentStatus)) throw invalidEmployeeMutation()
+    if (Object.hasOwn(value, 'reportReassignments')) {
+      validateReportReassignments(value.reportReassignments)
+    }
+    return
+  }
+  if (kind === 'manager-change') {
+    validateWorkflowBase(
+      value,
+      [...shared, 'reportingManagerId'],
+      [...shared, 'reportingManagerId'],
+    )
+    if (value.reportingManagerId !== null && !isUuid(value.reportingManagerId)) {
+      throw invalidEmployeeMutation()
+    }
+    return
+  }
+  if (kind === 'probation-confirmation') {
+    validateWorkflowBase(value, shared, shared)
+    return
+  }
+  if (kind === 'probation-extension') {
+    validateWorkflowBase(
+      value,
+      [...shared, 'probationEndDate'],
+      [...shared, 'probationEndDate'],
+    )
+    if (!isDate(value.probationEndDate) || value.probationEndDate === null) {
+      throw invalidEmployeeMutation()
+    }
+    return
+  }
+  if (kind === 'probation-termination' || kind === 'archive') {
+    validateWorkflowBase(value, [...shared, 'reportReassignments'], shared)
+    if (Object.hasOwn(value, 'reportReassignments')) {
+      validateReportReassignments(value.reportReassignments)
+    }
+    return
+  }
+  throw invalidEmployeeMutation()
+}
+
 const employeeQueryKeys = new Set([
   'limit', 'cursor', 'search', 'employmentStatus', 'department', 'active',
   'reportingManagerId', 'sort',
@@ -619,4 +734,175 @@ export async function importEmployees(
   })
   if (response.status !== 201 || response.location !== null) throw invalidEmployeeResponse()
   return parseImportResponse(response.data, rows)
+}
+
+async function employeeLifecycleMutation(
+  authentication,
+  branchId,
+  employeeId,
+  kind,
+  values,
+  { idempotencyKey, signal } = {},
+) {
+  if (
+    !isUuid(branchId)
+    || !isUuid(employeeId)
+    || !uuid4Pattern.test(idempotencyKey)
+  ) throw invalidEmployeeMutation()
+  validateLifecycleMutation(kind, values)
+  const response = await authentication.request(`/api/v1/employees/${employeeId}/${kind}`, {
+    access: 'protected',
+    method: 'POST',
+    headers: {
+      'X-Workloop-Branch-ID': branchId,
+      'Idempotency-Key': idempotencyKey,
+    },
+    json: values,
+    signal,
+  })
+  const employee = parseAdminDetail(response.data)
+  if (response.status !== 200 || response.location !== null || employee.id !== employeeId) {
+    throw invalidEmployeeResponse()
+  }
+  return employee
+}
+
+export function changeEmployeeTitle(authentication, branchId, employeeId, values, options) {
+  return employeeLifecycleMutation(
+    authentication, branchId, employeeId, 'title-change', values, options,
+  )
+}
+
+export function changeEmployeeDepartment(authentication, branchId, employeeId, values, options) {
+  return employeeLifecycleMutation(
+    authentication, branchId, employeeId, 'department-change', values, options,
+  )
+}
+
+export function changeEmployeeSalary(authentication, branchId, employeeId, values, options) {
+  return employeeLifecycleMutation(
+    authentication, branchId, employeeId, 'salary-change', values, options,
+  )
+}
+
+export function changeEmployeeStatus(authentication, branchId, employeeId, values, options) {
+  return employeeLifecycleMutation(
+    authentication, branchId, employeeId, 'status-change', values, options,
+  )
+}
+
+export function changeEmployeeManager(authentication, branchId, employeeId, values, options) {
+  return employeeLifecycleMutation(
+    authentication, branchId, employeeId, 'manager-change', values, options,
+  )
+}
+
+export function confirmEmployeeProbation(authentication, branchId, employeeId, values, options) {
+  return employeeLifecycleMutation(
+    authentication, branchId, employeeId, 'probation-confirmation', values, options,
+  )
+}
+
+export function extendEmployeeProbation(authentication, branchId, employeeId, values, options) {
+  return employeeLifecycleMutation(
+    authentication, branchId, employeeId, 'probation-extension', values, options,
+  )
+}
+
+export function terminateEmployeeProbation(authentication, branchId, employeeId, values, options) {
+  return employeeLifecycleMutation(
+    authentication, branchId, employeeId, 'probation-termination', values, options,
+  )
+}
+
+export function archiveEmployee(authentication, branchId, employeeId, values, options) {
+  return employeeLifecycleMutation(
+    authentication, branchId, employeeId, 'archive', values, options,
+  )
+}
+
+export async function updateEmployeeSelfContact(authentication, values, { signal } = {}) {
+  const allowed = [
+    'expectedUpdatedAt', 'phone', 'personalEmail', 'emergencyContactName',
+    'emergencyContactPhone',
+  ]
+  requireMutation(values, allowed, ['expectedUpdatedAt'])
+  if (
+    typeof values.expectedUpdatedAt !== 'string'
+    || !instantPattern.test(values.expectedUpdatedAt)
+    || Object.keys(values).length < 2
+  ) throw invalidEmployeeMutation()
+  for (const field of allowed.slice(1)) {
+    if (Object.hasOwn(values, field) && !validateTextField(values[field], {
+      maximum: mutationTextLimits.get(field) ?? 200,
+    })) throw invalidEmployeeMutation()
+  }
+  validateMutationFormats(values)
+  const response = await authentication.request('/api/v1/employees/self/contact', {
+    access: 'protected', method: 'PATCH', json: values, signal,
+  })
+  const employee = parseSelf(response.data)
+  if (response.status !== 200 || response.location !== null) throw invalidEmployeeResponse()
+  return employee
+}
+
+export async function readEmployeePortalRole(
+  authentication,
+  branchId,
+  employeeId,
+  { signal } = {},
+) {
+  if (!isUuid(branchId) || !isUuid(employeeId)) throw invalidEmployeeMutation()
+  const response = await authentication.request(
+    `/api/v1/employees/${employeeId}/portal-role`,
+    {
+      access: 'protected',
+      headers: { 'X-Workloop-Branch-ID': branchId },
+      signal,
+    },
+  )
+  if (response.status !== 200) throw invalidEmployeeResponse()
+  return parsePortalRole(response.data, employeeId)
+}
+
+export async function setEmployeePortalRole(
+  authentication,
+  branchId,
+  employeeId,
+  values,
+  { idempotencyKey, signal } = {},
+) {
+  if (
+    !isUuid(branchId)
+    || !isUuid(employeeId)
+    || !uuid4Pattern.test(idempotencyKey)
+  ) throw invalidEmployeeMutation()
+  requireMutation(
+    values,
+    ['role', 'expectedRole', 'reportReassignments'],
+    ['role', 'expectedRole'],
+  )
+  if (
+    !portalRoles.has(values.role)
+    || !portalRoles.has(values.expectedRole)
+    || values.role === values.expectedRole
+  ) throw invalidEmployeeMutation()
+  if (Object.hasOwn(values, 'reportReassignments')) {
+    validateReportReassignments(values.reportReassignments)
+  }
+  const response = await authentication.request(
+    `/api/v1/employees/${employeeId}/portal-role`,
+    {
+      access: 'protected',
+      method: 'PUT',
+      headers: {
+        'X-Workloop-Branch-ID': branchId,
+        'Idempotency-Key': idempotencyKey,
+      },
+      json: values,
+      signal,
+    },
+  )
+  if (response.status !== 200 || response.location !== null) throw invalidEmployeeResponse()
+  return parsePortalRole(response.data, employeeId)
 }

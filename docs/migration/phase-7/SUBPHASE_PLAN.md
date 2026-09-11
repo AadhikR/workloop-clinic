@@ -6,11 +6,11 @@ Phase 6 and its temporary Phase 6G DigitalOcean proof are complete. The proof re
 credentials were removed on 2026-09-09; the retained empty FRA1 default VPC is non-billable and is
 not managed by this repository.
 
-Phase 7A through Phase 7E are complete. GitHub Migration foundation run #75 passed Phase 7D on
-2026-09-10, and run 34583619822 passed Phase 7E on 2026-09-11. The project owner authorized Phase 7F
-on 2026-09-11. Its implementation and local completion gate are finished; the required GitHub result
-remains pending. Phase 7G and later work remain unauthorized. No cloud spending or production-data
-work is authorized by this document.
+Phase 7A through Phase 7F are complete. GitHub Migration foundation run 34614904388 passed Phase 7F
+on 2026-09-11. The project owner authorized Phase 7G and its database amendment on 2026-09-11. Its
+implementation and local completion gate are finished; the required GitHub result remains pending.
+Phase 7H remains unauthorized. No cloud spending or production-data work is authorized by this
+document.
 
 Phase 7 is split into eight parts, 7A through 7H. The original scope combines organization settings,
 branch administration, employee data, departments, staffing rules, job history, and portal roles.
@@ -23,10 +23,10 @@ Phase 8 remains separately gated.
 
 ## Starting point
 
-- Phase 7F started from synchronized branch `migration/fastapi-keycloak` at Phase 7E closeout commit
-  `04989c7038429bfc8ad0b7bcb4a02666a859abf3`.
-- Alembic head is `7d4a9c2e6b10`. It adds the approved employee-context reporting-manager reader
-  without changing a table, RLS policy, or existing Phase 7 organization behavior.
+- Phase 7G started from synchronized branch `migration/fastapi-keycloak` at Phase 7F closeout commit
+  `784c0710a3886a3cbafde398731acc7360d2c477`.
+- Alembic head is `8f6b2d1a4c70`. It adds the approved employee audit actions and branch-scoped
+  portal-role update policies without changing a table or history enum.
 - Phase 3 supplies Keycloak login and trusted application-user resolution.
 - Phase 5 supplies trusted principals, branch-scoped repositories, PostgreSQL RLS, protected
   workflows, and append-only audit controls.
@@ -48,8 +48,8 @@ Phase 8 remains separately gated.
 | 7C | Company and branch administration | Complete |
 | 7D | Employee directory, self, and manager read projections | Complete |
 | 7E | Departments, hierarchy, and staffing rules | Complete |
-| 7F | Employee onboarding, editing, and CSV import | Local gate complete; GitHub pending |
-| 7G | Employee lifecycle, job history, and portal-role workflows | Not authorized |
+| 7F | Employee onboarding, editing, and CSV import | Complete |
+| 7G | Employee lifecycle, job history, and portal-role workflows | Local gate complete; GitHub pending |
 | 7H | Independent review, cutover proof, and completion gate | Not authorized |
 
 ## Rules shared by every part

@@ -162,7 +162,12 @@ class EmployeeSelfResponse(ApiSchema):
     licence_authority: str
     licence_number: str
     licence_expiry: date | None
+    updated_at: datetime
     reporting_manager: ReportingManagerResponse | None
+
+    @field_serializer("updated_at")
+    def serialize_updated_at(self, value: datetime) -> str:
+        return _instant(value)
 
 
 class DirectReportResponse(ApiSchema):
@@ -547,3 +552,185 @@ class EmployeeImportResult(ApiSchema):
 class EmployeeImportResponse(ApiSchema):
     created_count: int
     rows: list[EmployeeImportResult]
+
+
+class ReportReassignment(StrictRequestSchema):
+    employee_id: uuid.UUID
+    new_manager_id: uuid.UUID
+    expected_updated_at: datetime
+
+    @field_validator("expected_updated_at", mode="before")
+    @classmethod
+    def validate_expected_updated_at(cls, value: object) -> object:
+        if isinstance(value, str) and re.fullmatch(INSTANT_PATTERN, value) is None:
+            raise ValueError("invalid instant")
+        return value
+
+    @model_validator(mode="after")
+    def validate_ids(self) -> Self:
+        if self.employee_id == self.new_manager_id:
+            raise ValueError("a report cannot manage itself")
+        return self
+
+
+def empty_report_reassignments() -> list[ReportReassignment]:
+    return []
+
+
+class EmployeeWorkflowRequest(StrictRequestSchema):
+    expected_updated_at: datetime
+    reason: str = Field(min_length=1, max_length=1_000)
+
+    @field_validator("expected_updated_at", mode="before")
+    @classmethod
+    def validate_expected_updated_at(cls, value: object) -> object:
+        if isinstance(value, str) and re.fullmatch(INSTANT_PATTERN, value) is None:
+            raise ValueError("invalid instant")
+        return value
+
+    @field_validator("reason")
+    @classmethod
+    def normalize_reason(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("reason must not be blank")
+        return value
+
+
+class EmployeeTitleChangeRequest(EmployeeWorkflowRequest):
+    job_title: str = Field(min_length=1, max_length=200)
+
+    @field_validator("job_title")
+    @classmethod
+    def normalize_title(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("job title must not be blank")
+        return value
+
+
+class EmployeeDepartmentChangeRequest(EmployeeWorkflowRequest):
+    department: str = Field(min_length=1, max_length=200)
+
+    @field_validator("department")
+    @classmethod
+    def normalize_department(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("department must not be blank")
+        return value
+
+
+class EmployeeSalaryChangeRequest(EmployeeWorkflowRequest):
+    basic_salary: Decimal = Field(ge=0, le=Decimal("9999999999.99"))
+    allowance: Decimal = Field(ge=0, le=Decimal("9999999999.99"))
+    housing_allowance: Decimal = Field(ge=0, le=Decimal("9999999999.99"))
+    transport_allowance: Decimal = Field(ge=0, le=Decimal("9999999999.99"))
+    other_allowances: Decimal = Field(ge=0, le=Decimal("9999999999.99"))
+    other_allowances_label: str = Field(max_length=200)
+
+    @field_validator(
+        "basic_salary",
+        "allowance",
+        "housing_allowance",
+        "transport_allowance",
+        "other_allowances",
+        mode="before",
+    )
+    @classmethod
+    def validate_money(cls, value: object) -> object:
+        if not isinstance(value, str) or re.fullmatch(MONEY_PATTERN, value) is None:
+            raise ValueError("invalid money")
+        return value
+
+    @field_validator("other_allowances_label")
+    @classmethod
+    def normalize_label(cls, value: str) -> str:
+        return value.strip()
+
+
+class EmployeeStatusChangeRequest(EmployeeWorkflowRequest):
+    employment_status: EmploymentStatus
+    report_reassignments: list[ReportReassignment] = Field(
+        default_factory=empty_report_reassignments, max_length=500
+    )
+
+
+class EmployeeManagerChangeRequest(EmployeeWorkflowRequest):
+    reporting_manager_id: uuid.UUID | None
+
+
+class EmployeeProbationConfirmationRequest(EmployeeWorkflowRequest):
+    pass
+
+
+class EmployeeProbationTerminationRequest(EmployeeWorkflowRequest):
+    report_reassignments: list[ReportReassignment] = Field(
+        default_factory=empty_report_reassignments, max_length=500
+    )
+
+
+class EmployeeProbationExtensionRequest(EmployeeWorkflowRequest):
+    probation_end_date: date
+
+
+class EmployeeArchiveRequest(EmployeeWorkflowRequest):
+    report_reassignments: list[ReportReassignment] = Field(
+        default_factory=empty_report_reassignments, max_length=500
+    )
+
+
+class EmployeeSelfContactRequest(StrictRequestSchema):
+    expected_updated_at: datetime
+    phone: str | None = Field(default=None, max_length=100)
+    personal_email: str | None = Field(default=None, max_length=254)
+    emergency_contact_name: str | None = Field(default=None, max_length=200)
+    emergency_contact_phone: str | None = Field(default=None, max_length=100)
+
+    @field_validator("expected_updated_at", mode="before")
+    @classmethod
+    def validate_expected_updated_at(cls, value: object) -> object:
+        if isinstance(value, str) and re.fullmatch(INSTANT_PATTERN, value) is None:
+            raise ValueError("invalid instant")
+        return value
+
+    @field_validator("phone", "personal_email", "emergency_contact_name", "emergency_contact_phone")
+    @classmethod
+    def normalize_text(cls, value: str | None) -> str | None:
+        return None if value is None else value.strip()
+
+    @field_validator("personal_email")
+    @classmethod
+    def validate_email(cls, value: str | None) -> str | None:
+        if value and EMAIL_PATTERN.fullmatch(value) is None:
+            raise ValueError("invalid email")
+        return value
+
+    @model_validator(mode="after")
+    def validate_patch(self) -> Self:
+        supplied = self.model_fields_set - {"expected_updated_at"}
+        if not supplied or any(getattr(self, field) is None for field in supplied):
+            raise ValueError("contact patch requires non-null writable fields")
+        return self
+
+    def changes(self) -> dict[str, object]:
+        return {
+            field: getattr(self, field) for field in self.model_fields_set - {"expected_updated_at"}
+        }
+
+
+PortalRole = Literal["employee", "manager"]
+
+
+class EmployeePortalRoleResponse(ApiSchema):
+    employee_id: uuid.UUID
+    activated: bool
+    role: PortalRole | None
+
+
+class EmployeePortalRoleUpdateRequest(StrictRequestSchema):
+    role: PortalRole
+    expected_role: PortalRole
+    report_reassignments: list[ReportReassignment] = Field(
+        default_factory=empty_report_reassignments, max_length=500
+    )

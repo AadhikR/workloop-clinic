@@ -32,7 +32,21 @@
   },
   "functions": {
     "create_workflow_notification(text,text)": {"owner": "workloop_migration", "security_definer": true, "execute": ["workloop_runtime"]},
-    "append_audit_event(text,text,uuid,text[],text,jsonb)": {"owner": "workloop_migration", "security_definer": true, "execute": ["workloop_runtime"]},
+    "append_audit_event(text,text,uuid,text[],text,jsonb)": {
+      "owner": "workloop_migration",
+      "security_definer": true,
+      "execute": ["workloop_runtime"],
+      "phase7g_revision": "8f6b2d1a4c70",
+      "phase7g_predecessor": "_append_audit_event_phase7g_prior(text,text,uuid,text[],text,jsonb)",
+      "phase7g_actions": {
+        "employee_manager_changed": {"entity_type": "employee", "changed_fields": ["reporting_manager_id"], "metadata": ["previous_manager_id", "new_manager_id"], "state_checks": ["employee_scope", "current_manager_matches", "previous_manager_in_branch", "new_manager_eligible"]},
+        "employee_probation_confirmed": {"entity_type": "employee", "changed_fields": ["employment_status", "probation_end_date"], "metadata": ["transition"], "state_checks": ["active_employee", "active_status", "probation_end_cleared"]},
+        "employee_probation_extended": {"entity_type": "employee", "changed_fields": ["probation_end_date", "probation_extended"], "metadata": ["previous_probation_end_date", "new_probation_end_date"], "state_checks": ["canonical_dates", "later_end_date", "active_probation", "stored_end_matches"]},
+        "employee_probation_terminated": {"entity_type": "employee", "changed_fields": ["active", "employment_status", "termination_date", "termination_reason"], "metadata": ["transition"], "state_checks": ["inactive_terminated", "trusted_business_date", "stored_reason_matches"]},
+        "employee_archived": {"entity_type": "employee", "changed_fields": ["active", "employment_status", "termination_date", "termination_reason"], "metadata": ["transition"], "state_checks": ["inactive_terminated", "trusted_business_date", "stored_reason_matches"]},
+        "employee_portal_role_changed": {"entity_type": "user_profile", "changed_fields": ["role"], "metadata": ["transition"], "state_checks": ["linked_profile_in_branch", "active_account", "eligible_employee", "not_caller", "current_role_matches_target"]}
+      }
+    },
     "lock_authorized_employee_relationships(uuid[])": {"owner": "workloop_migration", "security_definer": true, "execute": ["workloop_runtime"]}
   },
   "legacy_policies_must_be_absent": [

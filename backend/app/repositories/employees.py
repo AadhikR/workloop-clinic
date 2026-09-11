@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import UTC, date, datetime
 from typing import Any, Literal
@@ -8,7 +9,7 @@ from sqlalchemy import Select, and_, asc, desc, func, insert, literal, or_, sele
 from sqlalchemy.engine import RowMapping
 from sqlalchemy.ext.asyncio import AsyncConnection
 
-from app.models.identity import Employee
+from app.models.identity import Employee, UserProfile
 from app.models.people import Department, EmployeeJobHistory
 from app.repositories.scoped import ResourceNotFoundError
 from app.schemas.mutations import GuardedMutationValues
@@ -557,3 +558,229 @@ class EmployeeRepository:
         if row is None:
             raise ResourceNotFoundError
         return row[0], row[1]
+
+    async def lock_employee(
+        self, *, company_id: uuid.UUID, branch_id: uuid.UUID, employee_id: uuid.UUID
+    ) -> RowMapping:
+        row = (
+            (
+                await self._connection.execute(
+                    select(*EMPLOYEE_DETAIL_COLUMNS)
+                    .where(
+                        Employee.id == employee_id,
+                        Employee.company_id == company_id,
+                        Employee.branch_id == branch_id,
+                    )
+                    .with_for_update()
+                    .limit(1)
+                )
+            )
+            .mappings()
+            .one_or_none()
+        )
+        if row is None:
+            raise ResourceNotFoundError
+        return row
+
+    async def lock_employee_set(
+        self, *, company_id: uuid.UUID, branch_id: uuid.UUID, employee_ids: set[uuid.UUID]
+    ) -> dict[uuid.UUID, RowMapping]:
+        if not employee_ids:
+            return {}
+        rows = (
+            (
+                await self._connection.execute(
+                    select(*EMPLOYEE_DETAIL_COLUMNS)
+                    .where(
+                        Employee.company_id == company_id,
+                        Employee.branch_id == branch_id,
+                        Employee.id.in_(employee_ids),
+                    )
+                    .order_by(Employee.id)
+                    .with_for_update()
+                )
+            )
+            .mappings()
+            .all()
+        )
+        return {row["id"]: row for row in rows}
+
+    async def acquire_relationship_locks(self, employee_ids: set[uuid.UUID]) -> None:
+        if employee_ids:
+            await self._connection.exec_driver_sql(
+                "SELECT public.lock_authorized_employee_relationships(%s::uuid[])",
+                ([str(value) for value in sorted(employee_ids)],),
+            )
+
+    async def fetch_report_ids(
+        self, *, company_id: uuid.UUID, branch_id: uuid.UUID, manager_id: uuid.UUID
+    ) -> list[uuid.UUID]:
+        result = await self._connection.execute(
+            select(Employee.id)
+            .where(
+                Employee.company_id == company_id,
+                Employee.branch_id == branch_id,
+                Employee.reporting_manager_id == manager_id,
+            )
+            .order_by(Employee.id)
+        )
+        return list(result.scalars().all())
+
+    async def update_workflow_employee(
+        self,
+        *,
+        company_id: uuid.UUID,
+        branch_id: uuid.UUID,
+        employee_id: uuid.UUID,
+        values: GuardedMutationValues,
+    ) -> RowMapping:
+        row = (
+            (
+                await self._connection.execute(
+                    update(Employee)
+                    .where(
+                        Employee.id == employee_id,
+                        Employee.company_id == company_id,
+                        Employee.branch_id == branch_id,
+                    )
+                    .values(**dict(values))
+                    .returning(*EMPLOYEE_DETAIL_COLUMNS)
+                )
+            )
+            .mappings()
+            .one_or_none()
+        )
+        if row is None:
+            raise ResourceNotFoundError
+        return row
+
+    async def append_job_history(
+        self,
+        *,
+        company_id: uuid.UUID,
+        branch_id: uuid.UUID,
+        employee_id: uuid.UUID,
+        actor_id: uuid.UUID,
+        change_type: str,
+        old_value: str,
+        new_value: str,
+        reason: str,
+    ) -> None:
+        await self._connection.execute(
+            insert(EmployeeJobHistory).values(
+                company_id=company_id,
+                branch_id=branch_id,
+                employee_id=employee_id,
+                changed_by_app_user_id=actor_id,
+                change_type=change_type,
+                old_value=old_value,
+                new_value=new_value,
+                reason=reason,
+            )
+        )
+
+    async def append_employee_audit(
+        self,
+        *,
+        action: str,
+        entity_type: str,
+        entity_id: uuid.UUID,
+        changed_fields: list[str],
+        reason: str,
+        metadata: dict[str, object],
+    ) -> None:
+        await self._connection.exec_driver_sql(
+            "SELECT public.append_audit_event(%s,%s,%s,%s::text[],%s,%s::jsonb)",
+            (action, entity_type, entity_id, changed_fields, reason, json.dumps(metadata)),
+        )
+
+    async def would_create_manager_cycle(
+        self,
+        *,
+        company_id: uuid.UUID,
+        branch_id: uuid.UUID,
+        employee_id: uuid.UUID,
+        new_manager_id: uuid.UUID,
+    ) -> bool:
+        return bool(
+            (
+                await self._connection.execute(
+                    text(
+                        """
+WITH RECURSIVE manager_chain(id,reporting_manager_id) AS (
+  SELECT id,reporting_manager_id FROM employees
+  WHERE id=:new_manager_id AND company_id=:company_id AND branch_id=:branch_id
+  UNION
+  SELECT employee.id,employee.reporting_manager_id
+  FROM employees AS employee
+  JOIN manager_chain AS current ON employee.id=current.reporting_manager_id
+  WHERE employee.company_id=:company_id AND employee.branch_id=:branch_id
+)
+SELECT EXISTS(SELECT 1 FROM manager_chain WHERE id=:employee_id)
+"""
+                    ),
+                    {
+                        "company_id": company_id,
+                        "branch_id": branch_id,
+                        "employee_id": employee_id,
+                        "new_manager_id": new_manager_id,
+                    },
+                )
+            ).scalar_one()
+        )
+
+    async def fetch_portal_role(
+        self,
+        *,
+        company_id: uuid.UUID,
+        branch_id: uuid.UUID,
+        employee_id: uuid.UUID,
+        lock: bool = False,
+    ) -> RowMapping | None:
+        suffix = " FOR UPDATE OF profile" if lock else ""
+        return (
+            (
+                await self._connection.execute(
+                    text(
+                        f"""
+SELECT profile.app_user_id,profile.employee_id,profile.role::text AS role,
+  public.is_scoped_active_app_user(profile.app_user_id) AS eligible
+FROM user_profiles AS profile
+JOIN employees AS employee ON employee.id=profile.employee_id
+  AND employee.company_id=profile.company_id
+WHERE profile.company_id=:company_id AND employee.branch_id=:branch_id
+  AND profile.employee_id=:employee_id
+LIMIT 1
+{suffix}
+"""
+                    ),
+                    {
+                        "company_id": company_id,
+                        "branch_id": branch_id,
+                        "employee_id": employee_id,
+                    },
+                )
+            )
+            .mappings()
+            .one_or_none()
+        )
+
+    async def update_portal_role(
+        self, *, app_user_id: uuid.UUID, employee_id: uuid.UUID, role: str
+    ) -> None:
+        result = await self._connection.execute(
+            update(UserProfile)
+            .where(
+                UserProfile.app_user_id == app_user_id,
+                UserProfile.employee_id == employee_id,
+            )
+            .values(role=role)
+            .returning(UserProfile.app_user_id)
+        )
+        if result.scalar_one_or_none() is None:
+            raise ResourceNotFoundError
+
+    async def business_date(self) -> date:
+        return (
+            await self._connection.execute(text("SELECT public.workloop_business_date()"))
+        ).scalar_one()

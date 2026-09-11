@@ -301,6 +301,10 @@ function cleanupFixtures() {
         "DELETE FROM audit_events WHERE company_id = :'company_id'",
         { company_id: companyId },
       ))
+      cleanup(() => psql(
+        "DELETE FROM employee_job_history WHERE company_id = :'company_id'",
+        { company_id: companyId },
+      ))
     }
     for (const staffingRuleId of createdRows.staffingRules) {
       cleanup(() => psql(
@@ -607,9 +611,53 @@ async function assertEmployeeApi(page, persona) {
     createdRows.employees.push(...importBody.data.rows.map(({ employeeId }) => employeeId))
     await page.locator('[data-employee-import-status="saved"]').waitFor()
 
+    stage('admin employee lifecycle title change')
+    const lifecycleForm = page.locator('[data-employee-lifecycle-form]')
+    await lifecycleForm.getByLabel('New title').fill('Senior browser verifier')
+    await lifecycleForm.getByLabel('Reason').fill('Approved browser lifecycle proof')
+    const lifecyclePromise = page.waitForResponse((response) => {
+      const request = response.request()
+      return request.method() === 'POST'
+        && new URL(response.url()).pathname === `/api/v1/employees/${createBody.data.id}/title-change`
+    })
+    await lifecycleForm.getByRole('button', { name: 'Run workflow' }).click()
+    const lifecycleResponse = await lifecyclePromise
+    assert.equal(lifecycleResponse.status(), 200)
+    assert.equal((await lifecycleResponse.json()).data.jobTitle, 'Senior browser verifier')
+    await page.getByRole('heading', { name: 'Phase 7F browser employee edited' }).waitFor()
+
+    stage('admin employee portal role round trip')
+    await page.getByRole('button', { name: /Phase employee/ }).click()
+    const portalPanel = page.locator('.employee-portal-role')
+    await portalPanel.getByText('Current role: employee').waitFor()
+    const promotePromise = page.waitForResponse((response) => {
+      const request = response.request()
+      return request.method() === 'PUT'
+        && new URL(response.url()).pathname === `/api/v1/employees/${personas[2].employeeId}/portal-role`
+    })
+    await portalPanel.getByRole('button', { name: 'Change to manager' }).click()
+    const promoteResponse = await promotePromise
+    assert.equal(promoteResponse.status(), 200)
+    assert.equal((await promoteResponse.json()).data.role, 'manager')
+    await portalPanel.getByText('Current role: manager').waitFor()
+    const demotePromise = page.waitForResponse((response) => {
+      const request = response.request()
+      return request.method() === 'PUT'
+        && new URL(response.url()).pathname === `/api/v1/employees/${personas[2].employeeId}/portal-role`
+    })
+    await portalPanel.getByRole('button', { name: 'Change to employee' }).click()
+    const demoteResponse = await demotePromise
+    assert.equal(demoteResponse.status(), 200)
+    assert.equal((await demoteResponse.json()).data.role, 'employee')
+    await portalPanel.getByText('Current role: employee').waitFor()
+
     stage('admin employee mutation cleanup')
     psql("DELETE FROM idempotency_records WHERE company_id = :'company_id'", {
       company_id: companyId,
+    })
+    psql("DELETE FROM audit_events WHERE company_id = :'company_id'", { company_id: companyId })
+    psql("DELETE FROM employee_job_history WHERE employee_id = :'employee_id'", {
+      employee_id: createBody.data.id,
     })
     for (const employeeId of [
       createBody.data.id,
@@ -631,6 +679,7 @@ async function assertEmployeeApi(page, persona) {
     assert.equal(result.headerOnSelf.error.code, 'operation_not_permitted')
     assert.equal(result.self.response.data.id, persona.employeeId)
     assert.equal(result.self.response.data.basicSalary, '10000.00')
+    assert.match(result.self.response.data.updatedAt, /^\d{4}-\d{2}-\d{2}T/)
     if (persona.role === 'manager') {
       assert.equal(result.reports.response.data.length, 1)
       assert.deepEqual(Object.keys(result.reports.response.data[0]).sort(), [
@@ -642,6 +691,17 @@ async function assertEmployeeApi(page, persona) {
       assert.equal(result.reports.error.code, 'operation_not_permitted')
       assert.equal(await page.locator('.direct-reports').count(), 0)
     }
+    stage(`${persona.role} self-contact update`)
+    const contactForm = page.locator('[data-employee-self-contact-form]')
+    const contactPhone = persona.role === 'manager' ? '+971500000072' : '+971500000073'
+    await contactForm.getByLabel('Phone', { exact: true }).fill(contactPhone)
+    const contactPromise = page.waitForResponse((response) => (
+      response.request().method() === 'PATCH'
+      && new URL(response.url()).pathname === '/api/v1/employees/self/contact'
+    ))
+    await contactForm.getByRole('button', { name: 'Save contact details' }).click()
+    assert.equal((await contactPromise).status(), 200)
+    await page.locator('[data-employee-self-contact-form]').getByLabel('Phone', { exact: true }).waitFor()
   }
 }
 
@@ -973,9 +1033,11 @@ async function browserChecks(viteServer) {
       await assertSampleApi(page, persona)
       const beforeOrganizationReads = businessFingerprint()
       await assertOrganizationApi(page, persona)
-      await assertEmployeeApi(page, persona)
-      await assertDepartmentApi(page, persona)
       assert.equal(businessFingerprint(), beforeOrganizationReads)
+      await assertEmployeeApi(page, persona)
+      const afterEmployeeWorkflows = businessFingerprint()
+      await assertDepartmentApi(page, persona)
+      assert.equal(businessFingerprint(), afterEmployeeWorkflows)
       assert.equal(accountRequestCount, 1)
       assert.ok(publicStatusRequestCount >= 1)
       assert.ok(currentAccountRequestCount >= 1)
