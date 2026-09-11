@@ -1,8 +1,52 @@
 {
-  "command": "node -e \"const f=require('node:fs');const s=JSON.parse(f.readFileSync('tests/fixtures/phase-6d/synthetic-users.json'));const r=JSON.parse(f.readFileSync('docs/migration/phase-7/cutover-records/departments.json'));if(s.length!==r.identityMapping.mappings.length)process.exit(1)\"",
+  "command": "python scripts/verify-phase-7e-departments.py && node scripts/verify-phase-3g-browser.mjs",
   "featureId": "phase7-departments",
-  "refreshedAt": "2026-09-09T15:35:28Z",
-  "sourceDigest": "sha256:1ebfc4d976b2763da0ea319f387c78c69d98d16c05d03708f3515012640e04be",
-  "sourceRecordCount": 2,
-  "targetRecordCount": 2
+  "refreshedAt": "2026-09-11T09:07:01Z",
+  "sourceDigest": "sha256:c051959b2f23b5ec1b5cd2f2154a6f19be941be45b04df3f6f303fa353155598",
+  "sourceRecordCount": 4,
+  "targetRecordCount": 4,
+  "alembicHead": "7d4a9c2e6b10",
+  "routes": [
+    "GET /api/v1/departments",
+    "POST /api/v1/departments",
+    "PATCH /api/v1/departments/{departmentId}",
+    "DELETE /api/v1/departments/{departmentId}"
+  ],
+  "departmentProof": {
+    "adminBranchScopePassed": true,
+    "staffDenied": true,
+    "crossBranchReferencesDenied": true,
+    "exactSnapshotPassed": true,
+    "cycleAndDepthGuardsPassed": true,
+    "guardedDeletePassed": true,
+    "failedStateUnchanged": true,
+    "employeeRenameCount": 1,
+    "historyRenameCount": 1,
+    "staffingRenameCount": 2,
+    "idempotentRenameReplayPassed": true,
+    "syntheticState": "b11a8f30f2c6ee84a361ece4d993d67c506a402b84c04df8350c5ea2f2b78e23"
+  },
+  "frontendProof": {
+    "strictCamelCasePassed": true,
+    "projectionDriftRejected": true,
+    "hierarchyAndHeadSelectionPassed": true,
+    "legacyReadsAndWritesAbsent": true,
+    "supabaseImportsAbsent": true
+  },
+  "finalGateProof": {
+    "backendTests": 427,
+    "frontendTests": 109,
+    "legacyBuildModules": 449,
+    "migrationBuildModules": 34,
+    "catalogFingerprint": "1b703ceacf8b11604027646ec2ae6efc",
+    "keycloakSigningKeyCount": 2,
+    "backendImage": "sha256:4603c8cd1a6463f09af07477c70d1861585b7a6fba3ddaf5c5a14c92d225190c",
+    "restartPersistencePassed": true,
+    "authenticationPassed": true,
+    "browserPassed": true,
+    "logSafetyPassed": true,
+    "syntheticCleanupPassed": true,
+    "temporaryResourcesRemoved": true,
+    "preservedVolumeUntouched": true
+  }
 }

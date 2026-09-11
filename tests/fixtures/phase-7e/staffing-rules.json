@@ -1,0 +1,15 @@
+{
+  "featureId": "phase7-staffing-rules",
+  "routes": [
+    { "method": "GET", "path": "/api/v1/department-staffing-rules" },
+    { "method": "POST", "path": "/api/v1/department-staffing-rules" },
+    { "method": "PATCH", "path": "/api/v1/department-staffing-rules/{ruleId}" },
+    { "method": "DELETE", "path": "/api/v1/department-staffing-rules/{ruleId}" }
+  ],
+  "syntheticPrincipals": [
+    "hr.admin@horizon.test",
+    "aisha.manager@horizon.test",
+    "ravi.employee@horizon.test",
+    "hr.admin@cedar.test"
+  ]
+}

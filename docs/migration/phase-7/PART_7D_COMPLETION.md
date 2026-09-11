@@ -4,11 +4,11 @@
 
 The project owner authorized Phase 7D on 2026-09-10. During implementation, the employee self read
 could not obtain its manager through the existing employee RLS policy. Work stopped at that schema
-boundary. The owner then approved a narrow protected reporting-manager function. The implementation
-and complete local gate are finished. The required GitHub result remains the final Phase 7D check and
-will be reported in the task handoff.
+boundary. The owner then approved a narrow protected reporting-manager function. The implementation,
+complete local gate, and required GitHub result are finished. Migration foundation run
+[#75](https://github.com/AadhikR/workloop-clinic/actions/runs/34506565933) passed on 2026-09-10.
 
-Phase 7E has not started and remains unauthorized.
+The project owner authorized Phase 7E separately on 2026-09-11.
 
 ## Employee read boundary
 
@@ -111,5 +111,5 @@ or deleted. It remains present. The retained empty FRA1 default VPC was not chan
 
 ## Stop condition
 
-Phase 7D closes when the pushed commit containing this record passes the path-routed `Migration
-foundation` workflow. Stop before Phase 7E and require separate project-owner authorization.
+Phase 7D is closed. Its path-routed `Migration foundation` workflow passed, and Phase 7E required
+separate project-owner authorization before work began.

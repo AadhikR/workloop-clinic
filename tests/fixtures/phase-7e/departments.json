@@ -1,0 +1,15 @@
+{
+  "featureId": "phase7-departments",
+  "routes": [
+    { "method": "GET", "path": "/api/v1/departments" },
+    { "method": "POST", "path": "/api/v1/departments" },
+    { "method": "PATCH", "path": "/api/v1/departments/{departmentId}" },
+    { "method": "DELETE", "path": "/api/v1/departments/{departmentId}" }
+  ],
+  "syntheticPrincipals": [
+    "hr.admin@horizon.test",
+    "aisha.manager@horizon.test",
+    "ravi.employee@horizon.test",
+    "hr.admin@cedar.test"
+  ]
+}
