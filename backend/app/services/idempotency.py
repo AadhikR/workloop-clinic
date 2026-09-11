@@ -24,6 +24,7 @@ class IdempotencyCommand:
     method: str
     route_parameters: dict[str, object]
     fingerprint: str
+    branch_id: uuid.UUID | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,7 +81,7 @@ class IdempotencyCoordinator:
         if existing is not None:
             scope_matches = (
                 existing["company_id"] == principal.company_id
-                and existing["branch_id"] == principal.branch_id
+                and existing["branch_id"] == command.branch_id
                 and existing["operation_id"] == command.operation_id
                 and existing["http_method"] == command.method
                 and cast(dict[str, object], existing["route_parameters"])
@@ -107,7 +108,7 @@ class IdempotencyCoordinator:
             app_user_id=principal.app_user_id,
             key=command.key,
             company_id=principal.company_id,
-            branch_id=principal.branch_id,
+            branch_id=command.branch_id,
             operation_id=command.operation_id,
             method=command.method,
             route_parameters=command.route_parameters,

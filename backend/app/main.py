@@ -17,6 +17,7 @@ from app.core.config import Settings
 from app.core.logging import configure_logging
 from app.db.authorization_context import AuthorizationTransactionFactory
 from app.db.engine import create_database_engine, probe_database
+from app.department_api import router as department_router
 from app.employee_api import router as employee_router
 from app.http.errors import (
     api_error,
@@ -126,6 +127,9 @@ def create_app(
         application.state.employee_cursor_codec = EmployeeCursorCodec.from_base64url(
             resolved_settings.cursor_signing_key.get_secret_value()
         )
+        application.state.department_cursor_codec = EmployeeCursorCodec.from_base64url(
+            resolved_settings.cursor_signing_key.get_secret_value()
+        )
         application.state.idempotency_recovery_namespaces = RecoveryNamespaces(
             RecoveryKey(
                 key_id=resolved_settings.idempotency_recovery_current_key_id,
@@ -174,6 +178,7 @@ def create_app(
     )
     application.include_router(organization_router)
     application.include_router(employee_router)
+    application.include_router(department_router)
     application.include_router(idempotency_router)
 
     application.add_api_route(
