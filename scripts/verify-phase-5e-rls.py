@@ -688,6 +688,16 @@ def verify_human_scope(runtime: psycopg.Connection[Any], engine: Any) -> None:
     manager = principal_for("aisha.manager@horizon.test")
     employee = principal_for("ravi.employee@horizon.test")
     other_branch_employee = principal_for("leila.employee@horizon.test")
+    branch_profile_role_updates = bool(
+        owner_scalar(
+            engine,
+            "SELECT EXISTS ("
+            "SELECT 1 FROM pg_catalog.pg_policies "
+            "WHERE schemaname = 'public' AND tablename = 'user_profiles' "
+            "AND policyname = 'phase7g_user_profiles_update_role_branch_runtime'"
+            ")",
+        )
+    )
 
     assert tenant_authorization_scope(admin).company_id == admin.company_id
     assert (
@@ -809,12 +819,13 @@ def verify_human_scope(runtime: psycopg.Connection[Any], engine: Any) -> None:
                 "UPDATE user_profiles SET role = 'manager' WHERE app_user_id = %s",
                 (employee.app_user_id,),
             )
-            assert cursor.rowcount == 1
-            cursor.execute(
-                "UPDATE user_profiles SET role = 'employee' WHERE app_user_id = %s",
-                (employee.app_user_id,),
-            )
-            assert cursor.rowcount == 1
+            assert cursor.rowcount == int(branch_profile_role_updates)
+            if branch_profile_role_updates:
+                cursor.execute(
+                    "UPDATE user_profiles SET role = 'employee' WHERE app_user_id = %s",
+                    (employee.app_user_id,),
+                )
+                assert cursor.rowcount == 1
     finally:
         from sqlalchemy import text
 
