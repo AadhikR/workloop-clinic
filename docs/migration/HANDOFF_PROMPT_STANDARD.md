@@ -99,7 +99,8 @@ Use this default order unless the phase plan requires something else:
 3. Implement one bounded unit, such as one migration or service boundary.
 4. Run focused checks for that unit.
 5. Repeat for the remaining units.
-6. After phase code settles, run one complete local gate in a fresh isolated environment.
+6. After phase code settles, run one boundary-matched local gate. Use a fresh isolated full-stack
+   environment only when the verification workflow or phase plan requires it.
 7. If the final gate fails, reproduce and fix the failure with focused checks, then rerun the final
    gate once.
 8. Update the completion record after the implementation and evidence are stable.
@@ -134,8 +135,8 @@ Use these rules to control token and execution cost:
 - Do not repeat unchanged security rules in several sections.
 - Prefer one exact catalogue over prose lists repeated in design, implementation, and verification.
 - Keep routine successful command output quiet. Preserve full failure output.
-- Run focused checks while editing and one complete local gate after the code settles.
-- Treat that complete gate as the phase-code completion gate. Do not repeat it for later
+- Run focused checks while editing and one boundary-matched local gate after the code settles.
+- Treat that gate as the phase-code completion gate. Do not repeat it for later
   documentation-only commits.
 - Do not rerun frontend, browser, cloud, or full-stack checks locally when the changed files cannot
   affect them, unless the phase plan requires the run.
@@ -219,9 +220,9 @@ Checks that require consumers not added in this phase are deferred to [phase].
 ## Execution order
 
 Perform a read-only preflight. Build the verifier skeleton first. Implement and test each bounded
-unit. Run one complete local gate after the code settles. Fix failures with focused checks, then
-repeat the final gate once. Update the completion record, commit, push once, and report the final
-workflow URL.
+unit. Run one boundary-matched local gate after the code settles. Fix failures with focused checks,
+then repeat the final gate once. Update the completion record, commit, push once, and report the
+final workflow URL.
 
 ## Resource and data boundaries
 

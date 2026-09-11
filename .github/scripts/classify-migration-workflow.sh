@@ -6,12 +6,22 @@ backend=false
 frontend=false
 full_stack=false
 database_deep=false
+database_history=false
 auth_deep=false
 seen=false
 carriage_return=$(printf '\r')
+tab=$(printf '\t')
 
-while IFS= read -r path; do
-  path=${path%"$carriage_return"}
+while IFS= read -r line; do
+  line=${line%"$carriage_return"}
+  status=
+  path=$line
+  case "$line" in
+    *"$tab"*)
+      status=${line%%"$tab"*}
+      path=${line##*"$tab"}
+      ;;
+  esac
   [ -n "$path" ] || continue
   seen=true
 
@@ -43,7 +53,18 @@ while IFS= read -r path; do
   esac
 
   case "$path" in
-    docker-compose*.yml|infra/*|keycloak/*|migration/*|scripts/configure-phase-*)
+    .github/workflows/migration-foundation.yml|.github/scripts/classify-migration-workflow.sh|backend/alembic/env.py|backend/alembic/script.py.mako|scripts/verify-phase-4d-grants.*|scripts/verify-phase-4d-function*|scripts/verify-phase-4d-shift-swap-concurrency.*|scripts/verify-phase-5d-downgrade.*|scripts/verify-phase-5e-downgrade.*|scripts/verify-phase-5e-rls.*|scripts/verify-phase-5f-revision.*|scripts/verify-phase-5g-chain.*|scripts/verify-phase-5g-revision.*)
+      database_history=true
+      ;;
+    backend/alembic/versions/*)
+      if [ "$status" != "" ] && [ "$status" != "A" ]; then
+        database_history=true
+      fi
+      ;;
+  esac
+
+  case "$path" in
+    .github/workflows/migration-foundation.yml|docker-compose*.yml|infra/*|keycloak/*|migration/*|scripts/configure-phase-*)
       auth_deep=true
       ;;
   esac
@@ -56,6 +77,10 @@ fi
 
 if [ "$docs_only" = false ] && [ "$backend" = false ] && [ "$frontend" = false ]; then
   full_stack=true
+fi
+
+if [ "$database_history" = true ]; then
+  database_deep=true
 fi
 
 if [ "$database_deep" = true ] || [ "$auth_deep" = true ]; then
@@ -72,6 +97,7 @@ if [ "$seen" = true ] && [ "$docs_only" = true ]; then
   frontend=false
   full_stack=false
   database_deep=false
+  database_history=false
   auth_deep=false
 fi
 
@@ -81,6 +107,7 @@ write_outputs() {
   echo "frontend=$frontend"
   echo "full_stack=$full_stack"
   echo "database_deep=$database_deep"
+  echo "database_history=$database_history"
   echo "auth_deep=$auth_deep"
 }
 

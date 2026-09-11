@@ -27,6 +27,7 @@ jobs:
       frontend: ${{ steps.classify.outputs.frontend }}
       full_stack: ${{ steps.classify.outputs.full_stack }}
       database_deep: ${{ steps.classify.outputs.database_deep }}
+      database_history: ${{ steps.classify.outputs.database_history }}
       auth_deep: ${{ steps.classify.outputs.auth_deep }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
@@ -47,6 +48,7 @@ jobs:
               echo "frontend=true"
               echo "full_stack=true"
               echo "database_deep=true"
+              echo "database_history=true"
               echo "auth_deep=true"
             } >> "$GITHUB_OUTPUT"
             git show --check --format= "$HEAD_SHA"
@@ -60,10 +62,10 @@ jobs:
           fi
 
           if [ -z "$base_sha" ] || [ "$base_sha" = "0000000000000000000000000000000000000000" ]; then
-            git ls-files > /tmp/workloop-changed-files
+            git ls-files | awk '{ print "A\t" $0 }' > /tmp/workloop-changed-files
             git show --check --format= "$HEAD_SHA"
           else
-            git diff --name-only --diff-filter=ACMRD "$base_sha" "$HEAD_SHA" > /tmp/workloop-changed-files
+            git diff --name-status --diff-filter=ACMRD "$base_sha" "$HEAD_SHA" > /tmp/workloop-changed-files
             git diff --check "$base_sha" "$HEAD_SHA"
           fi
 
@@ -121,15 +123,8 @@ jobs:
 
   full-stack-smoke:
     name: Full stack smoke
-    needs:
-      - changes
-      - backend-quality
-      - frontend-regression
-    if: >-
-      always() &&
-      needs.changes.outputs.full_stack == 'true' &&
-      needs.backend-quality.result == 'success' &&
-      needs.frontend-regression.result == 'success'
+    needs: changes
+    if: needs.changes.outputs.full_stack == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
@@ -161,20 +156,20 @@ jobs:
           docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini downgrade base
           docker compose --profile tools run --rm migrate
       - name: Verify Phase 5D exact downgrade
-        if: needs.changes.outputs.database_deep == 'true'
+        if: needs.changes.outputs.database_history == 'true'
         run: |
           docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini downgrade d307b9c1f25e
           sh scripts/verify-phase-5d-downgrade.sh
           docker compose --profile tools run --rm migrate
       - name: Verify Phase 5E exact downgrade
-        if: needs.changes.outputs.database_deep == 'true'
+        if: needs.changes.outputs.database_history == 'true'
         run: |
           docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini downgrade e418c0d7a6b3
           sh scripts/verify-phase-5e-downgrade.sh
           sh scripts/verify-phase-4d-grants.sh
           docker compose --profile tools run --rm migrate
       - name: Verify Phase 5F revision chain
-        if: needs.changes.outputs.database_deep == 'true'
+        if: needs.changes.outputs.database_history == 'true'
         run: |
           docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini downgrade d85a6f0c3b42
           sh scripts/verify-phase-5f-revision.sh d85a6f0c3b42
@@ -195,7 +190,7 @@ jobs:
           docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini upgrade d85a6f0c3b42
           sh scripts/verify-phase-5f-revision.sh d85a6f0c3b42
       - name: Verify Phase 5G revision chain
-        if: needs.changes.outputs.database_deep == 'true'
+        if: needs.changes.outputs.database_history == 'true'
         run: |
           sh scripts/verify-phase-5g-chain.sh
           docker compose --profile tools run --rm migrate
@@ -225,12 +220,6 @@ jobs:
           sh scripts/verify-phase-5g-rls.sh
           sh scripts/verify-phase-5h-security.sh
           sh scripts/verify-phase-4f-boundaries.sh
-      - name: Verify context isolation after restart
-        if: needs.changes.outputs.database_deep == 'true'
-        run: |
-          docker compose restart postgres backend
-          docker compose up --detach --wait postgres backend
-          sh scripts/verify-phase-5d-context.sh
       - name: Verify service health
         run: |
           curl --fail --silent --show-error http://127.0.0.1:8000/health | jq --exit-status '.status == "ok" and .database == "ok"'
@@ -244,10 +233,6 @@ jobs:
         run: python scripts/configure-phase-3d-keycloak.py
       - name: Verify Keycloak realm boundary
         run: test "$(docker compose exec -T postgres psql --username postgres --dbname keycloak --tuples-only --no-align --command "SELECT count(*) FROM realm;")" = "2"
-      - name: Verify Keycloak and FastAPI authentication
-        run: python scripts/verify-phase-3c-keycloak.py
-      - name: Verify migration browser authentication
-        run: npm run test:migration-auth
       - name: Verify initial service log safety
         run: sh scripts/verify-phase-3h-logs.sh
       - name: Record persisted state
@@ -255,6 +240,8 @@ jobs:
           sh scripts/database-persistence-fingerprint.sh > /tmp/workloop-database-fingerprint
           curl --fail --silent --show-error http://127.0.0.1:8080/realms/workloop-dev/protocol/openid-connect/certs | jq -r '.keys[].kid' | sort > /tmp/workloop-signing-key-ids
       - name: Recreate local stack without removing data
+        env:
+          DATABASE_DEEP: ${{ needs.changes.outputs.database_deep }}
         run: |
           docker compose down
           docker volume inspect workloop-clinic_postgres_data >/dev/null
@@ -264,6 +251,9 @@ jobs:
           diff /tmp/workloop-database-fingerprint /tmp/workloop-restarted-database-fingerprint
           curl --fail --silent --show-error http://127.0.0.1:8080/realms/workloop-dev/protocol/openid-connect/certs | jq -r '.keys[].kid' | sort > /tmp/workloop-restarted-signing-key-ids
           diff /tmp/workloop-signing-key-ids /tmp/workloop-restarted-signing-key-ids
+          if [ "$DATABASE_DEEP" = "true" ]; then
+            sh scripts/verify-phase-5d-context.sh
+          fi
           python scripts/verify-phase-3c-keycloak.py
           npm run test:migration-auth
       - name: Verify cleanup and backend log safety
