@@ -58,9 +58,11 @@ const createdRows = {
   appUsers: [],
   branches: [],
   company: false,
+  departments: [],
   employees: [],
   jobHistory: [],
   profiles: [],
+  staffingRules: [],
 }
 const browserHistoryId = '00000000-0000-4000-8000-000000000075'
 const createdIdentityIds = []
@@ -285,6 +287,18 @@ function cleanupFixtures() {
       cleanup(() => psql(
         "DELETE FROM audit_events WHERE company_id = :'company_id'",
         { company_id: companyId },
+      ))
+    }
+    for (const staffingRuleId of createdRows.staffingRules) {
+      cleanup(() => psql(
+        "DELETE FROM department_staffing_rules WHERE id = :'staffing_rule_id'",
+        { staffing_rule_id: staffingRuleId },
+      ))
+    }
+    for (const departmentId of createdRows.departments) {
+      cleanup(() => psql(
+        "DELETE FROM departments WHERE id = :'department_id'",
+        { department_id: departmentId },
       ))
     }
     for (const historyId of createdRows.jobHistory) {
@@ -614,7 +628,7 @@ async function assertOrganizationApi(page, persona) {
     const chosenName = (await chosen.textContent()).trim()
     await chosen.click()
     await page.locator('.organization-summary').waitFor()
-    assert.equal((await page.locator('.organization-summary > p').textContent()).trim(), chosenName)
+    assert.equal((await page.locator('[data-selected-branch-name]').textContent()).trim(), chosenName)
     assert.match(
       await page.evaluate(() => sessionStorage.getItem('workloop.branchId')),
       /^[0-9a-f-]{36}$/,
@@ -667,7 +681,7 @@ async function assertOrganizationApi(page, persona) {
     stage(`admin create branch ${createMessage}`)
     assert.equal(createMessage, 'Branch created.')
     assert.equal(
-      (await page.locator('.organization-summary > p').textContent()).trim(),
+      (await page.locator('[data-selected-branch-name]').textContent()).trim(),
       'Phase 7C browser branch',
     )
 
@@ -692,6 +706,93 @@ async function assertOrganizationApi(page, persona) {
   }
   assert.equal(result.unknown.error.code, 'validation_failed')
   assert.equal(result.unknown.error.status, 422)
+}
+
+async function assertDepartmentApi(page, persona) {
+  if (persona.role !== 'admin') {
+    assert.equal(await page.locator('.department-manager').count(), 0)
+    const result = await page.evaluate(async ({ branchId }) => {
+      const { authenticationSession } = await import('/src/authSession.js')
+      try {
+        await authenticationSession().request('/api/v1/departments', {
+          access: 'protected',
+          headers: { 'X-Workloop-Branch-ID': branchId },
+        })
+        return null
+      } catch (error) {
+        return { code: error.code, status: error.status }
+      }
+    }, { branchId })
+    assert.deepEqual(result, { code: 'operation_not_permitted', status: 403 })
+    return
+  }
+
+  if (await page.locator('.branch-chooser').count()) {
+    await page.getByRole('button', { name: 'Phase 3G main', exact: true }).click()
+  }
+  await page.locator('.department-manager').waitFor({ timeout: 20_000 })
+  const departmentForm = page.locator('.department-editor')
+  await departmentForm.getByLabel('Name').fill('Phase 7E browser department')
+  const departmentCreatePromise = page.waitForResponse((response) => {
+    const request = response.request()
+    return request.method() === 'POST' && new URL(response.url()).pathname === '/api/v1/departments'
+  })
+  await departmentForm.getByRole('button', { name: 'Save department' }).click()
+  const departmentCreate = await departmentCreatePromise
+  const departmentBody = await departmentCreate.json()
+  assert.equal(departmentCreate.status(), 201)
+  assert.equal(departmentBody.data.name, 'Phase 7E browser department')
+  createdRows.departments.push(departmentBody.data.id)
+  await page.getByText('Department created.', { exact: true }).waitFor()
+
+  await page.getByRole('button', { name: 'Phase 7E browser department', exact: true }).click()
+  await departmentForm.getByLabel('Department head').selectOption(personas[1].employeeId)
+  await departmentForm.getByRole('button', { name: 'Save department' }).click()
+  await page.getByText('Department saved.', { exact: true }).waitFor()
+
+  const staffingForm = page.locator('.staffing-editor .settings-form')
+  await staffingForm.getByLabel('Shift category').selectOption('night')
+  await staffingForm.getByLabel('Minimum staff').fill('3')
+  const staffingCreatePromise = page.waitForResponse((response) => {
+    const request = response.request()
+    return request.method() === 'POST'
+      && new URL(response.url()).pathname === '/api/v1/department-staffing-rules'
+  })
+  await staffingForm.getByRole('button', { name: 'Save rule' }).click()
+  const staffingCreate = await staffingCreatePromise
+  const staffingBody = await staffingCreate.json()
+  assert.equal(staffingCreate.status(), 201)
+  assert.equal(staffingBody.data.minStaff, 3)
+  createdRows.staffingRules.push(staffingBody.data.id)
+  await page.getByText('Staffing rule created.', { exact: true }).waitFor()
+
+  await page.getByRole('button', {
+    name: 'Phase 7E browser department: night, minimum 3',
+  }).click()
+  await staffingForm.getByLabel('Minimum staff').fill('4')
+  await staffingForm.getByRole('button', { name: 'Save rule' }).click()
+  await page.getByText('Staffing rule saved.', { exact: true }).waitFor()
+  await page.getByRole('button', {
+    name: 'Phase 7E browser department: night, minimum 4',
+  }).click()
+  await staffingForm.getByRole('button', { name: 'Delete' }).click()
+  await page.getByRole('button', {
+    name: 'Phase 7E browser department: night, minimum 4',
+  }).waitFor({ state: 'detached' })
+
+  await page.getByRole('button', { name: 'Phase 7E browser department', exact: true }).click()
+  await departmentForm.getByLabel('Department head').selectOption('')
+  await departmentForm.getByRole('button', { name: 'Save department' }).click()
+  await page.getByText('Department saved.', { exact: true }).waitFor()
+  await page.getByRole('button', { name: 'Phase 7E browser department', exact: true }).click()
+  await departmentForm.getByRole('button', { name: 'Delete' }).click()
+  await page.getByRole('button', {
+    name: 'Phase 7E browser department',
+    exact: true,
+  }).waitFor({ state: 'detached' })
+  await page.getByRole('button', { name: 'Change branch' }).click()
+  await page.locator('.branch-chooser').waitFor()
+  assert.equal(await page.evaluate(() => sessionStorage.getItem('workloop.branchId')), null)
 }
 
 async function browserChecks(viteServer) {
@@ -779,6 +880,7 @@ async function browserChecks(viteServer) {
       const beforeOrganizationReads = businessFingerprint()
       await assertOrganizationApi(page, persona)
       await assertEmployeeApi(page, persona)
+      await assertDepartmentApi(page, persona)
       assert.equal(businessFingerprint(), beforeOrganizationReads)
       assert.equal(accountRequestCount, 1)
       assert.ok(publicStatusRequestCount >= 1)

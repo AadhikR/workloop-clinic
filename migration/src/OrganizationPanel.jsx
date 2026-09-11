@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import BranchChooser from './BranchChooser.jsx'
 import { CompanyProvider } from './CompanyContext.jsx'
 import { useCompanyContext } from './companyContextState.js'
+import DepartmentManager from './DepartmentManager.jsx'
 import EmployeeDirectory from './EmployeeDirectory.jsx'
 import { readCurrentAccount } from './sampleApi.js'
 import OrganizationSettings from './OrganizationSettings.jsx'
@@ -17,7 +18,7 @@ function OrganizationSummary({ account, authentication }) {
   return (
     <div className="organization-summary">
       <h2>{organization.company?.name ?? organization.employer?.companyName}</h2>
-      <p>{organization.selectedBranch.name}</p>
+      <p data-selected-branch-name>{organization.selectedBranch.name}</p>
       {organization.company && (
         <>
           <button type="button" className="secondary" onClick={organization.clearBranch}>
@@ -32,6 +33,13 @@ function OrganizationSummary({ account, authentication }) {
         branchId={organization.selectedBranch.id}
         clearBranch={organization.clearBranch}
       />
+      {account.role === 'admin' && (
+        <DepartmentManager
+          authentication={authentication}
+          branchId={organization.selectedBranch.id}
+          clearBranch={organization.clearBranch}
+        />
+      )}
     </div>
   )
 }

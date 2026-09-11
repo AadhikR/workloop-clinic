@@ -275,6 +275,30 @@ export async function readEmployees(authentication, branchId, options = {}) {
   return collection(response, parseAdminList)
 }
 
+export async function readAllEmployees(authentication, branchId, options = {}) {
+  if (Object.keys(options).some((key) => !['search', 'signal', 'sort'].includes(key))) {
+    throw new TypeError('Invalid employee query')
+  }
+  const employees = []
+  const identifiers = new Set()
+  const cursors = new Set()
+  let cursor
+  do {
+    const page = await readEmployees(authentication, branchId, { ...options, cursor, limit: 100 })
+    for (const employee of page.data) {
+      if (identifiers.has(employee.id)) throw invalidEmployeeResponse()
+      identifiers.add(employee.id)
+      employees.push(employee)
+    }
+    cursor = page.page.nextCursor ?? undefined
+    if (cursor !== undefined) {
+      if (cursors.has(cursor)) throw invalidEmployeeResponse()
+      cursors.add(cursor)
+    }
+  } while (cursor !== undefined)
+  return Object.freeze(employees)
+}
+
 export async function readEmployee(authentication, branchId, employeeId, { signal } = {}) {
   if (!isUuid(branchId) || !isUuid(employeeId)) throw new TypeError('Invalid employee ID')
   const { data } = await authentication.request(`/api/v1/employees/${employeeId}`, {

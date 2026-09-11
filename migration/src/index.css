@@ -229,6 +229,44 @@ button:focus-visible {
   padding-top: 1.25rem;
 }
 
+.department-manager {
+  border-top: 1px solid #dbe3ea;
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+}
+
+.department-layout,
+.staffing-editor {
+  display: grid;
+  grid-template-columns: minmax(10rem, 0.8fr) minmax(16rem, 1.2fr);
+  gap: 1rem;
+}
+
+.department-tree,
+.staffing-list {
+  display: grid;
+  align-content: start;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.department-tree button,
+.staffing-list button {
+  width: 100%;
+  text-align: start;
+}
+
+.department-swatch {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-inline-end: 0.5rem;
+  border: 1px solid currentColor;
+  vertical-align: middle;
+}
+
 .employee-search-row {
   display: flex;
   gap: 0.5rem;
@@ -278,5 +316,10 @@ button:focus-visible {
 
   .auth-panel {
     box-shadow: 0.5rem 0.5rem 0 #1a4d3a;
+  }
+
+  .department-layout,
+  .staffing-editor {
+    grid-template-columns: 1fr;
   }
 }

@@ -26,6 +26,8 @@ const errorContract = new Map([
   ['not_acceptable', [406, 'validation']],
   ['state_conflict', [409, 'conflict']],
   ['branch_conflict', [409, 'conflict']],
+  ['department_conflict', [409, 'conflict']],
+  ['staffing_rule_conflict', [409, 'conflict']],
   ['idempotency_conflict', [409, 'conflict']],
   ['idempotency_in_progress', [409, 'conflict']],
   ['request_too_large', [413, 'validation']],
