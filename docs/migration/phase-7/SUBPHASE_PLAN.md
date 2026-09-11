@@ -6,11 +6,9 @@ Phase 6 and its temporary Phase 6G DigitalOcean proof are complete. The proof re
 credentials were removed on 2026-09-09; the retained empty FRA1 default VPC is non-billable and is
 not managed by this repository.
 
-Phase 7A through Phase 7F are complete. GitHub Migration foundation run 34614904388 passed Phase 7F
-on 2026-09-11. The project owner authorized Phase 7G and its database amendment on 2026-09-11. Its
-implementation and local completion gate are finished; the required GitHub result remains pending.
-Phase 7H remains unauthorized. No cloud spending or production-data work is authorized by this
-document.
+Phase 7A through Phase 7G are complete. GitHub Migration foundation run 34614904388 passed Phase 7F
+on 2026-09-11, and run 34640300429 passed Phase 7G on the same date. Phase 7H remains unauthorized.
+No cloud spending or production-data work is authorized by this document.
 
 Phase 7 is split into eight parts, 7A through 7H. The original scope combines organization settings,
 branch administration, employee data, departments, staffing rules, job history, and portal roles.
@@ -49,7 +47,7 @@ Phase 8 remains separately gated.
 | 7D | Employee directory, self, and manager read projections | Complete |
 | 7E | Departments, hierarchy, and staffing rules | Complete |
 | 7F | Employee onboarding, editing, and CSV import | Complete |
-| 7G | Employee lifecycle, job history, and portal-role workflows | Local gate complete; GitHub pending |
+| 7G | Employee lifecycle, job history, and portal-role workflows | Complete |
 | 7H | Independent review, cutover proof, and completion gate | Not authorized |
 
 ## Rules shared by every part

@@ -4,8 +4,8 @@
 
 The project owner authorized Phase 7G on 2026-09-11 and approved database amendment decisions
 `7G-DB-D1` and `7G-DB-D2`. Employee lifecycle, job-history, self-contact, and portal-role workflows,
-their cutover evidence, and the complete local gate are finished. The required GitHub result remains
-the final Phase 7G check and will be reported in the task handoff.
+their cutover evidence, and the complete local gate are finished. GitHub Migration foundation run
+`34640300429` passed for corrective commit `aed225913d74d4f341490dea86bf41a17574ded7` on 2026-09-11.
 
 Phase 7H has not started and remains unauthorized.
 
@@ -77,6 +77,12 @@ The settled complete local gate passed:
   authentication, and the complete administrator, manager, and employee browser journey; and
 - restart persistence, service log safety, and complete synthetic-data cleanup.
 
+The first pushed run exposed a revision-sensitive expectation in the shared Phase 5E verifier. The
+corrective commit makes that verifier expect branch-scoped portal-role updates only while the Phase
+7G policy is installed. The exact Phase 5F downgrade and upgrade chain passed locally after the
+correction, as did the Phase 5E verifier at the Phase 7G head. GitHub run `34640300429` then passed
+classification, backend quality, frontend regression, and the complete full-stack smoke job.
+
 The final gate used Compose project `workloop-phase7g-final` on PostgreSQL port 25432, API port
 28000, and Keycloak ports 28080 and 29000. It used a fresh temporary PostgreSQL volume, applied the
 migrations twice, and proved the Phase 7G audit wrapper and exact predecessor. The database
@@ -103,5 +109,4 @@ or deleted. It remains present. The retained empty FRA1 default VPC was not chan
 
 ## Stop condition
 
-Phase 7G closes when the pushed commit containing this record passes the path-routed `Migration
-foundation` workflow. Stop before Phase 7H and require separate project-owner authorization.
+Phase 7G is closed. Stop before Phase 7H and require separate project-owner authorization.
