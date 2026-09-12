@@ -150,15 +150,10 @@ export async function saveEmployees(employees) {
   throw new Error('Employee administration has moved to the migration employee directory.');
 }
 
-/**
- * Deletes a single employee by id.
- */
+/** Employee hard deletion is unavailable under the approved Phase 7 contract. */
 export async function deleteEmployee(id) {
-  const { error } = await supabase
-    .from('employees')
-    .delete()
-    .eq('id', id);
-  if (error) throw error;
+  void id;
+  throw new Error('Employee hard deletion is not supported.');
 }
 
 /**

@@ -143,7 +143,7 @@
     },
     "write": {
       "system": "legacy-supabase",
-      "condition": "The legacy saveEmployee and saveEmployees functions fail before reaching Supabase.",
+      "condition": "The legacy saveEmployee, saveEmployees, and deleteEmployee functions fail before reaching Supabase.",
       "releaseCondition": "Disable every FastAPI employee create, edit, and import mutation before restoring either legacy writer.",
       "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-7/cutover-records/employee-administration.json"
     }
@@ -157,12 +157,12 @@
     },
     "command": "python scripts/verify-phase-7f-employees.py && node scripts/verify-phase-3g-browser.mjs",
     "lastRefresh": {
-      "timestamp": "2026-09-11T15:07:19Z",
+      "timestamp": "2026-09-12T17:05:40Z",
       "command": "python scripts/verify-phase-7f-employees.py && node scripts/verify-phase-3g-browser.mjs",
       "sourceDigest": "sha256:869972a57c60010632cd9886a8e98e59179dd2e2c3d0ca0dd203be503efb663b",
       "evidence": {
         "path": "docs/migration/phase-7/cutover-records/evidence/employee-administration-synthetic-refresh.json",
-        "sha256": "sha256:71a284d3fce1326f953cfbd2bb84c4582b9460f3fbe878ec4e198f0b15b7b4e4"
+        "sha256": "sha256:35cb23be834ca578201ce16ea8a0434f29a63d3cfb8487bb962743175225eba7"
       }
     }
   },
@@ -226,7 +226,7 @@
     ]
   },
   "validation": {
-    "asOf": "2026-09-11T15:07:19Z",
+    "asOf": "2026-09-12T17:05:40Z",
     "refreshMaxAgeHours": 24
   }
 }

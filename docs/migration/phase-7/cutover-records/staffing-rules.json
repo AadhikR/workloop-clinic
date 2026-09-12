@@ -141,12 +141,12 @@
     },
     "command": "python scripts/verify-phase-7e-departments.py && node scripts/verify-phase-3g-browser.mjs",
     "lastRefresh": {
-      "timestamp": "2026-09-11T09:07:01Z",
+      "timestamp": "2026-09-12T17:05:40Z",
       "command": "python scripts/verify-phase-7e-departments.py && node scripts/verify-phase-3g-browser.mjs",
       "sourceDigest": "sha256:fc8b04a8bad46eab993581526b86af29891a9c0b6f8f3ec7c43fb9eca8ea9360",
       "evidence": {
         "path": "docs/migration/phase-7/cutover-records/evidence/staffing-rules-synthetic-refresh.json",
-        "sha256": "sha256:fc4f5217167f0810989dacf28d6c397a02a88318de73193aad61edfd7a4ec568"
+        "sha256": "sha256:73ee9d7f71c57b13336328eb8d142ec948d1c11cc5ff8df2e913c415968449a5"
       }
     }
   },
@@ -210,7 +210,7 @@
     ]
   },
   "validation": {
-    "asOf": "2026-09-11T09:07:01Z",
+    "asOf": "2026-09-12T17:05:40Z",
     "refreshMaxAgeHours": 24
   }
 }

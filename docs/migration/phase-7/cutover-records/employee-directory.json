@@ -149,12 +149,12 @@
     },
     "command": "python scripts/verify-phase-7d-employees.py && node scripts/verify-phase-3g-browser.mjs",
     "lastRefresh": {
-      "timestamp": "2026-09-10T17:03:00Z",
+      "timestamp": "2026-09-12T17:05:40Z",
       "command": "python scripts/verify-phase-7d-employees.py && node scripts/verify-phase-3g-browser.mjs",
       "sourceDigest": "sha256:763c12d773e596990aea01e87acc3f6fc051f6129becdbee93cc085b6b39a806",
       "evidence": {
         "path": "docs/migration/phase-7/cutover-records/evidence/employee-directory-synthetic-refresh.json",
-        "sha256": "sha256:a9b320d05228c2b6eaed942d91f86a6d35b6ccaac573083cc34b62f4af4da090"
+        "sha256": "sha256:63f8884815a4e3efbdca03d6e89cd331f39cc6ac79b2eb8004f1f63884496134"
       }
     }
   },
@@ -218,7 +218,7 @@
     ]
   },
   "validation": {
-    "asOf": "2026-09-10T17:03:00Z",
+    "asOf": "2026-09-12T17:05:40Z",
     "refreshMaxAgeHours": 24
   }
 }

@@ -1,11 +1,11 @@
 {
   "command": "python scripts/verify-phase-7e-departments.py && node scripts/verify-phase-3g-browser.mjs",
   "featureId": "phase7-staffing-rules",
-  "refreshedAt": "2026-09-11T09:07:01Z",
+  "refreshedAt": "2026-09-12T17:05:40Z",
   "sourceDigest": "sha256:fc8b04a8bad46eab993581526b86af29891a9c0b6f8f3ec7c43fb9eca8ea9360",
   "sourceRecordCount": 4,
   "targetRecordCount": 4,
-  "alembicHead": "7d4a9c2e6b10",
+  "alembicHead": "8f6b2d1a4c70",
   "routes": [
     "GET /api/v1/department-staffing-rules",
     "POST /api/v1/department-staffing-rules",
@@ -24,7 +24,7 @@
     "exactSnapshotPassed": true,
     "failedStateUnchanged": true,
     "departmentRenameCascadePassed": true,
-    "syntheticState": "b11a8f30f2c6ee84a361ece4d993d67c506a402b84c04df8350c5ea2f2b78e23"
+    "syntheticState": "48bd1478157986dfe2a009b9f70ec9e39836c0f7d20d61069447cc4d6e8efb16"
   },
   "frontendProof": {
     "strictCamelCasePassed": true,
@@ -34,13 +34,16 @@
     "supabaseImportsAbsent": true
   },
   "finalGateProof": {
-    "backendTests": 427,
-    "frontendTests": 109,
+    "backendTests": 432,
+    "frontendTests": 119,
     "legacyBuildModules": 449,
-    "migrationBuildModules": 34,
-    "catalogFingerprint": "1b703ceacf8b11604027646ec2ae6efc",
+    "migrationBuildModules": 36,
+    "catalogFingerprint": "3dcb949149dcb3078cd841a51bf9e6ff",
+    "exactPredecessorState": "ba257198f905a96014a8268ffd3da90197cdbc762e954ee69150860b3a9254db",
     "keycloakSigningKeyCount": 2,
-    "backendImage": "sha256:4603c8cd1a6463f09af07477c70d1861585b7a6fba3ddaf5c5a14c92d225190c",
+    "postgresImage": "sha256:051f7b7b3abdd564d5d1bd1e8c4b9c1b6e77087d1dd22020ede611c096a272e0",
+    "backendImage": "sha256:335a557808c085464a158a0477f9af2d9628f877fa7a56a64545e807126860d0",
+    "keycloakImage": "sha256:9d1f1b2b7261ff53c66cb1092dfcdc34a5fb77e81f9e6a6e75b8b6a795de8067",
     "restartPersistencePassed": true,
     "authenticationPassed": true,
     "browserPassed": true,

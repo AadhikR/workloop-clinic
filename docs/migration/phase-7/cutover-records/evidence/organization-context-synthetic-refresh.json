@@ -1,11 +1,11 @@
 {
   "command": "python scripts/verify-phase-7b-organization.py && node scripts/verify-phase-3g-browser.mjs",
   "featureId": "phase7-organization-context",
-  "refreshedAt": "2026-09-10T08:04:06Z",
+  "refreshedAt": "2026-09-12T17:05:40Z",
   "sourceDigest": "sha256:64cc78954fa5086aa421a02aa5bbc4fe47b3865f17bcd9e5a803e2d7111a34b7",
   "sourceRecordCount": 4,
   "targetRecordCount": 4,
-  "alembicHead": "2c4d6e8f0a1b",
+  "alembicHead": "8f6b2d1a4c70",
   "databaseFingerprint": "4a0731e2e75bb0a0e534227af6500ebe64dc2ed9ad19ffe0fb8d315311fc18e3",
   "readStateUnchanged": true,
   "routes": [
@@ -29,8 +29,16 @@
     "supabaseImportsAbsent": true
   },
   "finalGateProof": {
-    "catalogFingerprint": "eeb158a9d2fcda117c6d603498d048b2",
+    "backendTests": 432,
+    "frontendTests": 119,
+    "legacyBuildModules": 449,
+    "migrationBuildModules": 36,
+    "catalogFingerprint": "3dcb949149dcb3078cd841a51bf9e6ff",
+    "exactPredecessorState": "ba257198f905a96014a8268ffd3da90197cdbc762e954ee69150860b3a9254db",
     "keycloakSigningKeyCount": 2,
+    "postgresImage": "sha256:051f7b7b3abdd564d5d1bd1e8c4b9c1b6e77087d1dd22020ede611c096a272e0",
+    "backendImage": "sha256:335a557808c085464a158a0477f9af2d9628f877fa7a56a64545e807126860d0",
+    "keycloakImage": "sha256:9d1f1b2b7261ff53c66cb1092dfcdc34a5fb77e81f9e6a6e75b8b6a795de8067",
     "restartPersistencePassed": true,
     "authenticationPassed": true,
     "browserPassed": true,

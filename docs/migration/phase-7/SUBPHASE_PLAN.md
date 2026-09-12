@@ -7,8 +7,10 @@ credentials were removed on 2026-09-09; the retained empty FRA1 default VPC is n
 not managed by this repository.
 
 Phase 7A through Phase 7G are complete. GitHub Migration foundation run 34614904388 passed Phase 7F
-on 2026-09-11, and run 34640300429 passed Phase 7G on the same date. Phase 7H remains unauthorized.
-No cloud spending or production-data work is authorized by this document.
+on 2026-09-11, and run 34640300429 passed Phase 7G on the same date. The Phase 7H independent review,
+correction, evidence refresh, and complete local gate finished on 2026-09-12. At commit preparation,
+the matching GitHub result and explicit project-owner Phase 7 signoff remain pending. No cloud
+spending or production-data work is authorized by this document.
 
 Phase 7 is split into eight parts, 7A through 7H. The original scope combines organization settings,
 branch administration, employee data, departments, staffing rules, job history, and portal roles.
@@ -48,7 +50,7 @@ Phase 8 remains separately gated.
 | 7E | Departments, hierarchy, and staffing rules | Complete |
 | 7F | Employee onboarding, editing, and CSV import | Complete |
 | 7G | Employee lifecycle, job history, and portal-role workflows | Complete |
-| 7H | Independent review, cutover proof, and completion gate | Not authorized |
+| 7H | Independent review, cutover proof, and completion gate | Local gate complete; GitHub and owner signoff pending at commit preparation |
 
 ## Rules shared by every part
 
