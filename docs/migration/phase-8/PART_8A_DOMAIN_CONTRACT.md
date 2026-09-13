@@ -1,6 +1,6 @@
 # Phase 8A leave domain contract
 
-Status: preparation, authorized by the project owner on 2026-09-13. This document fixes the contract for later implementation. It does not add routes, services, repositories, frontend screens, storage behavior, migrations, or cutover authority.
+Status: complete, authorized by the project owner on 2026-09-13. This document fixes the contract used by Phase 8B and the later Phase 8 parts. Phase 8A itself added no routes, services, repositories, frontend screens, storage behavior, migrations, or cutover authority.
 
 ## Authority and common rules
 
@@ -29,6 +29,16 @@ The following fields are the only fields each projection exposes. `id`, `company
 | leaveAuditEntry | `id`, `leaveRequestId`, `action`, `reason`, `oldStatus`, `newStatus`, `createdAt`; only the request owner, authorized approver, or administrator receives the permitted projection; no direct audit-table endpoint |
 
 `leave_type_code` is not a request or balance field. The server resolves `leaveTypeId` to the branch-scoped type. The legacy `Info Requested` label is unsupported. The canonical status set is `Pending`, `ManagerApproved`, `ManagerRejected`, `Approved`, `Rejected`, and `Cancelled`. If the old screen needs that display, it maps a safe warning or action prompt without writing a new status.
+
+## Phase 8B configuration operations
+
+Administrators use `X-Workloop-Branch-ID` for every configuration operation. They may read and update `GET|PUT /api/v1/leave/settings`, list, create, update, and seed through `/api/v1/leave/types`, and list, create, update, delete, and seed through `/api/v1/leave/holidays`. Employees and managers may call only `GET /api/v1/leave/types`; the service ignores any selected-branch header for staff and returns active types from the trusted principal branch. Staff cannot read settings or holidays and cannot mutate configuration.
+
+Leave-type and holiday collections accept only `limit` and `cursor`; holiday lists also accept `year`. The limit defaults to 50 and cannot exceed 100. Type order is `sortOrder`, `name`, `id`; holiday order is `date`, `id`. Cursors bind the principal, company, branch, role, operation, and filters. Unknown query fields, malformed cursors, and out-of-range years fail through the Phase 6 error envelope.
+
+A settings `PUT` carries every mutable setting. `expectedUpdatedAt` must match the locked row when one exists; it is absent only when creating the first branch row. Each successful versioned update advances `updatedAt` by at least one millisecond. A leave-type `PATCH` requires `expectedUpdatedAt` and at least one changed field. A type cannot be hard-deleted. Changing an active type to inactive is rejected while a `Pending` or `ManagerApproved` request references it. The transaction blocks concurrent request writes while it checks that rule. The eight canonical defaults are the Phase 4 `ANNUAL`, `SICK`, `MATERNITY`, `PATERNITY`, `BEREAVEMENT`, `STUDY`, `HAJJ`, and `UNPAID` fixtures. Seeding uses the existing branch-and-code unique key and never overwrites an existing type.
+
+A holiday update body includes the expected `date`, `name`, and `type` snapshot. A holiday deletion carries the same snapshot in `expectedDate`, `expectedName`, and `expectedType` query fields. Snapshot mismatches return `state_conflict`. A holiday on or before the trusted business date is immutable. A holiday referenced by any leave request or attendance row is immutable, regardless of request status. Update and deletion transactions block concurrent leave and attendance writes while checking that invariant. A future unused date may change only if both its old and new dates satisfy those rules. Named-year seeding rejects dates outside the named year and uses the existing branch-and-date unique key without overwriting rows.
 
 ## Server-owned leave rules
 
@@ -67,21 +77,21 @@ No amendment is approved for execution. Review items are proposals only:
 
 | ID | Possible gap | Phase 8A action |
 |---|---|---|
-| 8a-amend-attachment-metadata | `leave_requests.attachment_url` cannot represent approved metadata or operation state | Owner review before 8D. Prepare a later revision only if metadata is approved |
-| 8a-amend-protected-audit | protected audit action may need explicit attachment and balance actions | Compare 8E/8F transaction calls with Phase 5 protected function contract; do not change it here |
-| 8a-amend-balance-concurrency | existing unique key does not itself define recalculation locking | 8C must use row locks and deterministic order; propose an index or constraint only if focused checks prove it necessary |
-| 8a-amend-rpc-contract | legacy leave RPCs accept browser-controlled inputs | Replace them with FastAPI transactions in 8E/8F; do not alter legacy functions in 8A |
+| phase8a-amend-attachment-metadata | `leave_requests.attachment_url` cannot represent approved metadata or operation state | Owner review before 8D. Prepare a later revision only if metadata is approved |
+| phase8a-amend-protected-audit | protected audit action may need explicit attachment and balance actions | Compare 8E/8F transaction calls with Phase 5 protected function contract; do not change it here |
+| phase8a-amend-balance-concurrency | existing unique key does not itself define recalculation locking | 8C must use row locks and deterministic order; propose an index or constraint only if focused checks prove it necessary |
+| phase8a-amend-rpc-contract | legacy leave RPCs accept browser-controlled inputs | Replace them with FastAPI transactions in 8E/8F; do not alter legacy functions in 8A |
 
 The existing leave notification producer remains unused by migration workflows until Phase 12. Any change to a protected function, role, grant, RLS policy, schema, constraint, index, or legal policy stops for project-owner review.
 
 ## Cutover and rollback
 
-The five preparation records in `cutover/` cover configuration, balances and reads, attachments, submission, and approval workflows. Each record names one authority, frozen opposite path, synthetic refresh, and reverse-dependency rollback. Dual writes are forbidden. Migration writes remain disabled in preparation.
+The five records in `cutover/` cover configuration, balances and reads, attachments, submission, and approval workflows. Each record names one authority, frozen opposite path, synthetic refresh, and reverse-dependency rollback. Dual writes are forbidden. Phase 8B completed the configuration record; migration writes remain disabled for every record still in preparation.
 
 Configuration rolls back before dependent balances. Approval decisions roll back before submission, balances, attachments, or configuration. Attachment rollback preserves metadata for committed requests and reconciles only objects proven orphaned by an operation record. No data, storage bucket, volume, or cloud resource changes in 8A.
 
 ## Verification boundary
 
-The focused verifier is `scripts/verify-phase-8a-contract.py`. It checks seven-table coverage, unique inventory IDs, Phase 9–12 ownership, documentation-only exclusions, five preparation records, and preparation rollback structure. The cutover records are then validated with `node scripts/cutover-record-validator.mjs <record>`.
+The focused verifier is `scripts/verify-phase-8a-contract.py`. It checks seven-table coverage, unique inventory IDs, Phase 9–12 ownership, documentation-only exclusions, all five records, and rollback structure. The cutover records are then validated with `node scripts/cutover-record-validator.mjs <record>`.
 
 The Phase 8A gate is documentation formatting, JSON validation, the focused verifier, and `git diff --check`. Backend, frontend, browser, Docker, migration, authentication, storage, and full-stack checks are deferred to the phase that adds each consumer. Alembic revisions are unchanged.

@@ -1,13 +1,13 @@
 # Phase 8A completion record
 
-Status: prepared for project-owner review. Phase 8A remains documentation-only and stops before Phase 8B.
+Status: complete. The project owner authorized Phase 8B after reviewing the Phase 8A package. Phase 8A itself remained documentation-only.
 
 ## Scope completed
 
 - Mapped all seven canonical leave tables, legacy readers and writers, leave RPCs, converters, calculations, object paths, callers, protected-function dependencies, and downstream consumers.
 - Defined camelCase projections, decimal/date/null rules, server-owned authority, trusted UAE business date, calendar-year derivation, status transitions, balance effects, attachment binding, transaction ownership, idempotency, and rollback order.
 - Assigned payroll, attendance, roster, storage and offboarding, notifications, tasks, dashboards, reports, and exports to Phases 9 through 12.
-- Created five preparation-state cutover records under `cutover/`.
+- Created five cutover records under `cutover/`. The configuration record is complete; the four records for later subphases remain in preparation.
 - Added the focused structural verifier at `scripts/verify-phase-8a-contract.py`.
 - Recorded amendment proposals without changing schema, RLS, grants, roles, protected functions, storage, or Alembic history.
 
@@ -17,12 +17,12 @@ The contract adopts `public.workloop_business_date()` and calendar-year leave de
 
 ## Verification evidence
 
-- `python scripts/verify-phase-8a-contract.py` passed with five preparation records and 42 unique inventory IDs.
-- The five records are intended for `node scripts/cutover-record-validator.mjs` validation. Their evidence digests must be refreshed if the contract or evidence files change.
+- `python scripts/verify-phase-8a-contract.py` passed with five records and 42 unique `phase8a-*` inventory IDs.
+- All five records passed `node scripts/cutover-record-validator.mjs` after their source and evidence digests were refreshed.
 - `git diff --check` passed.
 - Alembic head remains `8f6b2d1a4c70`; no revision was created or modified.
-- No backend, frontend, browser, Docker, migration, authentication, storage, cloud, or full-stack gate was run because the phase changed documentation and a structural verifier only.
+- The 8A verifier now proves that every cutover dependency ID matches the inventory or amendment register.
 
 ## Source control and stop condition
 
-The starting commit was `e9295e9a818a4b062be6c0451d77a82316d5a916` on `migration/fastapi-keycloak`, with the working tree clean and one local commit ahead of origin. This record does not claim a commit, push, or GitHub result. Commit and push require the project-owner decision that the contract and amendment proposals are settled. Do not begin Phase 8B, create an Alembic revision, change runtime behavior, touch `workloop-clinic_postgres_data`, or change the retained empty FRA1 default VPC from this phase.
+The settled commit, branch synchronization, and GitHub result are reported in the Phase 8B handoff after its single push. Phase 8C remains unauthorized. Do not create an Alembic revision, change schema or database security, touch `workloop-clinic_postgres_data`, or change the retained empty FRA1 default VPC without separate authorization.

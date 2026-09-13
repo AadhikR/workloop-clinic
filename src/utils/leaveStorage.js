@@ -9,7 +9,7 @@
  */
 
 import { supabase } from '../lib/supabase';
-import { DEFAULT_LEAVE_TYPES, UAE_PUBLIC_HOLIDAYS_2025, UAE_PUBLIC_HOLIDAYS_2026, calculateAnnualLeaveAccrual } from './leaveEngine';
+import { calculateAnnualLeaveAccrual } from './leaveEngine';
 
 async function getSessionUser() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -19,220 +19,29 @@ async function getSessionUser() {
 // ── LEAVE SETTINGS ────────────────────────────────────────────────────────────
 
 export async function getLeaveSettings() {
-  const { data, error } = await supabase
-    .from('leave_settings')
-    .select('*')
-    .limit(1)
-    .maybeSingle();
-  if (error) { console.error('getLeaveSettings:', error); return null; }
-  if (!data) return null;
-  return {
-    id:                  data.id,
-    leaveYearType:       data.leave_year_type,
-    weekendDefinition:   data.weekend_definition,
-    carryForwardEnabled: data.carry_forward_enabled,
-    carryForwardMaxDays: data.carry_forward_max_days,
-    approvalChain:       data.approval_chain,
-    ramadanActive:       data.ramadan_active,
-    ramadanStart:        data.ramadan_start,
-    ramadanEnd:          data.ramadan_end,
-  };
+  throw new Error('Leave configuration has moved to the migration settings screen.');
 }
 
-export async function saveLeaveSettings(settings) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-  const row = {
-    user_id:               user.id,
-    leave_year_type:       settings.leaveYearType || 'calendar',
-    weekend_definition:    settings.weekendDefinition || 'fri-sat',
-    carry_forward_enabled: settings.carryForwardEnabled ?? true,
-    carry_forward_max_days: settings.carryForwardMaxDays ?? 15,
-    approval_chain:        settings.approvalChain || '1-level',
-    ramadan_active:        settings.ramadanActive ?? false,
-    ramadan_start:         settings.ramadanStart || null,
-    ramadan_end:           settings.ramadanEnd || null,
-  };
-  if (settings.id) {
-    const { error } = await supabase.from('leave_settings').update(row).eq('id', settings.id);
-    if (error) throw error;
-  } else {
-    const { data, error } = await supabase.from('leave_settings')
-      .upsert(row, { onConflict: 'user_id' }).select().single();
-    if (error) throw error;
-    return data ? { ...settings, id: data.id } : settings;
-  }
+export async function saveLeaveSettings() {
+  throw new Error('Leave configuration has moved to the migration settings screen.');
 }
 
 // ── LEAVE TYPES ───────────────────────────────────────────────────────────────
 
 export async function getLeaveTypes() {
-  const { data, error } = await supabase
-    .from('leave_types')
-    .select('*')
-    .eq('is_active', true)
-    .order('sort_order', { ascending: true });
-  if (error) { console.error('getLeaveTypes:', error); return []; }
-  const types = (data || []).map(dbToLeaveType);
-  // Deduplicate by code — guards against race-condition double-seeding
-  const seen = new Set();
-  return types.filter(t => { if (seen.has(t.code)) return false; seen.add(t.code); return true; });
+  throw new Error('Leave configuration has moved to the migration settings screen.');
 }
 
-let _seedingTypes = false;
 export async function seedDefaultLeaveTypes() {
-  if (_seedingTypes) return; // prevent concurrent seeding in React 18 strict mode
-  _seedingTypes = true;
-  try {
-  const user = await getSessionUser();
-  if (!user) { _seedingTypes = false; return; }
-
-  // Check if already seeded
-  const { data: existing } = await supabase
-    .from('leave_types')
-    .select('id')
-    .eq('user_id', user.id)
-    .limit(1);
-  if (existing?.length) return; // already seeded
-
-  const rows = DEFAULT_LEAVE_TYPES.map((lt, i) => ({
-    user_id:                 user.id,
-    code:                    lt.code,
-    name:                    lt.name,
-    color:                   lt.color,
-    is_paid:                 lt.isPaid,
-    is_unlimited:            lt.isUnlimited,
-    requires_approval:       lt.requiresApproval,
-    requires_attachment:     lt.requiresAttachment,
-    requires_reason:         lt.requiresReason,
-    min_notice_days:         lt.minNoticeDays,
-    annual_entitlement_days: lt.annualEntitlementDays,
-    accrual_type:            lt.accrualType,
-    day_count_type:          lt.dayCountType,
-    auto_approve:            lt.autoApprove,
-    carry_forward_allowed:   lt.carryForwardAllowed,
-    carry_forward_max_days:  lt.carryForwardMaxDays,
-    gender_restriction:      lt.genderRestriction || null,
-    min_service_months:      lt.minServiceMonths || 0,
-    once_per_career:         lt.oncePerCareer || false,
-    not_deducted_from_annual: lt.notDeductedFromAnnual || false,
-    affects_payroll:         lt.affectsPayroll || false,
-    law_reference:           lt.lawReference,
-    is_active:               true,
-    sort_order:              i,
-    probation_eligible:      lt.probationEligible ?? true,
-  }));
-
-  const { error } = await supabase.from('leave_types').insert(rows);
-  if (error) throw error;
-  } finally {
-    _seedingTypes = false;
-  }
+  throw new Error('Leave configuration has moved to the migration settings screen.');
 }
 
-function dbToLeaveType(row) {
-  return {
-    id:                    row.id,
-    code:                  row.code,
-    name:                  row.name,
-    color:                 row.color,
-    isPaid:                row.is_paid,
-    isUnlimited:           row.is_unlimited,
-    requiresApproval:      row.requires_approval,
-    requiresAttachment:    row.requires_attachment,
-    requiresReason:        row.requires_reason,
-    minNoticeDays:         row.min_notice_days,
-    annualEntitlementDays: parseFloat(row.annual_entitlement_days) || 0,
-    accrualType:           row.accrual_type,
-    dayCountType:          row.day_count_type,
-    autoApprove:           row.auto_approve,
-    carryForwardAllowed:   row.carry_forward_allowed,
-    carryForwardMaxDays:   row.carry_forward_max_days,
-    genderRestriction:     row.gender_restriction,
-    minServiceMonths:      row.min_service_months,
-    oncePerCareer:         row.once_per_career,
-    notDeductedFromAnnual: row.not_deducted_from_annual,
-    affectsPayroll:        row.affects_payroll,
-    lawReference:          row.law_reference,
-    isActive:              row.is_active,
-    sortOrder:             row.sort_order,
-    probationEligible:     row.probation_eligible ?? true,
-  };
+export async function saveLeaveType() {
+  throw new Error('Leave configuration has moved to the migration settings screen.');
 }
 
-export async function saveLeaveType(leaveType) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-
-  if (leaveType.id) {
-    const { data, error } = await supabase
-      .from('leave_types')
-      .update({
-        name:                    leaveType.name,
-        color:                   leaveType.color,
-        is_paid:                 leaveType.isPaid,
-        is_unlimited:            leaveType.isUnlimited,
-        annual_entitlement_days: leaveType.annualEntitlementDays,
-        requires_attachment:     leaveType.requiresAttachment ?? false,
-        probation_eligible:      leaveType.probationEligible ?? true,
-      })
-      .eq('id', leaveType.id)
-      .eq('user_id', user.id)
-      .select()
-      .single();
-    if (error) throw error;
-    return dbToLeaveType(data);
-  } else {
-    let baseCode = (leaveType.name || 'CUSTOM')
-      .toUpperCase().replace(/[^A-Z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
-    // Ensure code is unique for this user — append counter if collision exists
-    let code = baseCode;
-    let counter = 1;
-    while (true) {
-      const { data: existing } = await supabase
-        .from('leave_types').select('id').eq('user_id', user.id).eq('code', code).limit(1);
-      if (!existing?.length) break;
-      code = `${baseCode}_${counter++}`;
-    }
-    const { data, error } = await supabase
-      .from('leave_types')
-      .insert({
-        user_id:                  user.id,
-        code,
-        name:                     leaveType.name,
-        color:                    leaveType.color || '#6366f1',
-        is_paid:                  leaveType.isPaid ?? true,
-        is_unlimited:             leaveType.isUnlimited ?? false,
-        annual_entitlement_days:  leaveType.annualEntitlementDays || 0,
-        requires_approval:        true,
-        requires_attachment:      leaveType.requiresAttachment ?? false,
-        requires_reason:          false,
-        min_notice_days:          0,
-        accrual_type:             'fixed',
-        day_count_type:           'calendar',
-        auto_approve:             false,
-        carry_forward_allowed:    false,
-        carry_forward_max_days:   0,
-        is_active:                true,
-        sort_order:               99,
-        probation_eligible:       leaveType.probationEligible ?? true,
-      })
-      .select()
-      .single();
-    if (error) throw error;
-    return dbToLeaveType(data);
-  }
-}
-
-export async function deleteLeaveType(id) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-  const { error } = await supabase
-    .from('leave_types')
-    .update({ is_active: false })
-    .eq('id', id)
-    .eq('user_id', user.id);
-  if (error) throw error;
+export async function deleteLeaveType() {
+  throw new Error('Leave configuration has moved to the migration settings screen.');
 }
 
 /**
@@ -255,101 +64,28 @@ export async function uploadLeaveAttachment(adminUserId, employeeId, file) {
 
 // ── PUBLIC HOLIDAYS ───────────────────────────────────────────────────────────
 
-export async function getPublicHolidays(year) {
-  const query = supabase.from('public_holidays').select('*').order('date', { ascending: true });
-  if (year) query.eq('year', year);
-  const { data, error } = await query;
-  if (error) { console.error('getPublicHolidays:', error); return []; }
-  return (data || []).map(row => ({
-    id:   row.id,
-    date: row.date,
-    name: row.name,
-    type: row.type,
-    year: row.year,
-  }));
+export async function getPublicHolidays() {
+  throw new Error('Leave configuration has moved to the migration settings screen.');
 }
 
 export async function seedPublicHolidays() {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-
-  // Check if already seeded for 2025
-  const { data: existing } = await supabase
-    .from('public_holidays')
-    .select('id')
-    .eq('user_id', user.id)
-    .eq('year', 2025)
-    .limit(1);
-  if (existing?.length) return;
-
-  const allHolidays = [
-    ...UAE_PUBLIC_HOLIDAYS_2025.map(h => ({ ...h, year: 2025 })),
-    ...UAE_PUBLIC_HOLIDAYS_2026.map(h => ({ ...h, year: 2026 })),
-  ];
-
-  const rows = allHolidays.map(h => ({
-    user_id: user.id,
-    date:    h.date,
-    name:    h.name,
-    type:    h.type,
-    year:    h.year,
-  }));
-
-  const { error } = await supabase.from('public_holidays').insert(rows);
-  if (error) throw error;
+  throw new Error('Leave configuration has moved to the migration settings screen.');
 }
 
 /**
  * Seeds UAE public holidays for a specific year if not already present.
  * Returns true if any rows were inserted.
  */
-export async function seedPublicHolidaysForYear(year, holidays) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-
-  const { data: existing } = await supabase
-    .from('public_holidays')
-    .select('id')
-    .eq('user_id', user.id)
-    .eq('year', year)
-    .limit(1);
-  if (existing?.length) return false;
-
-  const rows = holidays.map(h => ({
-    user_id: user.id,
-    date:    h.date,
-    name:    h.name,
-    type:    h.type,
-    year,
-  }));
-  const { error } = await supabase.from('public_holidays').insert(rows);
-  if (error) throw error;
-  return true;
+export async function seedPublicHolidaysForYear() {
+  throw new Error('Leave configuration has moved to the migration settings screen.');
 }
 
-export async function savePublicHoliday(holiday) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-  const row = {
-    user_id: user.id,
-    date:    holiday.date,
-    name:    holiday.name,
-    type:    holiday.type || 'company',
-    year:    new Date(holiday.date).getFullYear(),
-  };
-  if (holiday.id) {
-    const { error } = await supabase.from('public_holidays').update(row).eq('id', holiday.id);
-    if (error) throw error;
-  } else {
-    const { data, error } = await supabase.from('public_holidays').insert(row).select().single();
-    if (error) throw error;
-    return { ...holiday, id: data.id };
-  }
+export async function savePublicHoliday() {
+  throw new Error('Leave configuration has moved to the migration settings screen.');
 }
 
-export async function deletePublicHoliday(id) {
-  const { error } = await supabase.from('public_holidays').delete().eq('id', id);
-  if (error) throw error;
+export async function deletePublicHoliday() {
+  throw new Error('Leave configuration has moved to the migration settings screen.');
 }
 
 // ── LEAVE REQUESTS ────────────────────────────────────────────────────────────

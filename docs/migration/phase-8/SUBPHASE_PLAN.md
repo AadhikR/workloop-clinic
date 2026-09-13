@@ -6,9 +6,8 @@ Phase 7 code and verification are complete at commit
 `9edb754675240656b23c279d8b7be765182c1930`. GitHub Migration foundation run `34742244623`
 passed on 2026-09-13. The project owner has not yet recorded explicit Phase 7 signoff.
 
-This document prepares the Phase 8 split only. It does not authorize Phase 8A or any leave runtime,
-database, storage, cutover, cloud, or production-data change. Phase 8 work starts only after the
-project owner signs off Phase 7 and separately authorizes the named Phase 8 part.
+This document defines the Phase 8 split. The project owner authorized and completed 8A and 8B.
+Phase 8C and every later part still require separate authorization.
 
 ## Why Phase 8 needs subphases
 
@@ -33,8 +32,9 @@ Phase 8 is therefore split into seven parts, 8A through 8G.
   records, and a provider-neutral object-storage interface.
 - Phase 7 supplies trusted company, branch, department, employee, reporting-manager, self-contact,
   lifecycle, and portal-role behavior.
-- No FastAPI leave route, leave repository, leave service, leave schema, migration-build leave page,
-  or Phase 8 cutover record exists yet.
+- Phase 8A established the leave contract, dependency inventory, and five cutover records. Phase 8B
+  added branch-scoped settings, leave types, and public holidays through FastAPI and the migration
+  frontend. The legacy configuration entry points are frozen.
 - The current object-storage adapter proved a small private synthetic object in Phase 6G. It does
   not yet provide the complete leave upload, signing, content validation, or orphan-recovery
   contract.

@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Sequence
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import asc, delete, exists, func, select, update
+from sqlalchemy import and_, asc, delete, exists, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.engine import RowMapping
 from sqlalchemy.ext.asyncio import AsyncConnection
@@ -113,28 +113,75 @@ class LeaveConfigurationRepository:
                 .returning(*SETTINGS_COLUMNS)
             )
             return result.mappings().one()
-        if expected is not None and not _same_version(row.updated_at, expected):
+        if expected is None or not _same_version(row.updated_at, expected):
             raise ValueError("state conflict")
         result = await self._connection.execute(
             update(LeaveSettings)
             .where(LeaveSettings.id == row.id)
-            .values(**values, updated_at=func.now())
+            .values(
+                **values,
+                updated_at=func.greatest(
+                    func.clock_timestamp(), row.updated_at + timedelta(milliseconds=1)
+                ),
+            )
             .returning(*SETTINGS_COLUMNS)
         )
         return result.mappings().one()
 
     async def list_types(
-        self, company_id: uuid.UUID, branch_id: uuid.UUID, *, active_only: bool
+        self,
+        company_id: uuid.UUID,
+        branch_id: uuid.UUID,
+        *,
+        active_only: bool,
+        after: tuple[int, str, uuid.UUID] | None = None,
+        limit: int | None = None,
     ) -> Sequence[RowMapping]:
         statement = select(*TYPE_COLUMNS).where(
             LeaveType.company_id == company_id, LeaveType.branch_id == branch_id
         )
         if active_only:
             statement = statement.where(LeaveType.is_active.is_(True))
-        result = await self._connection.execute(
-            statement.order_by(asc(LeaveType.sort_order), asc(LeaveType.name), asc(LeaveType.id))
+        if after is not None:
+            sort_order, name, type_id = after
+            statement = statement.where(
+                or_(
+                    LeaveType.sort_order > sort_order,
+                    and_(LeaveType.sort_order == sort_order, LeaveType.name > name),
+                    and_(
+                        LeaveType.sort_order == sort_order,
+                        LeaveType.name == name,
+                        LeaveType.id > type_id,
+                    ),
+                )
+            )
+        statement = statement.order_by(
+            asc(LeaveType.sort_order), asc(LeaveType.name), asc(LeaveType.id)
         )
+        if limit is not None:
+            statement = statement.limit(limit + 1)
+        result = await self._connection.execute(statement)
         return result.mappings().all()
+
+    async def fetch_type_position(
+        self,
+        company_id: uuid.UUID,
+        branch_id: uuid.UUID,
+        type_id: uuid.UUID,
+        *,
+        active_only: bool,
+    ) -> tuple[int, str, uuid.UUID]:
+        statement = select(LeaveType.sort_order, LeaveType.name, LeaveType.id).where(
+            LeaveType.company_id == company_id,
+            LeaveType.branch_id == branch_id,
+            LeaveType.id == type_id,
+        )
+        if active_only:
+            statement = statement.where(LeaveType.is_active.is_(True))
+        row = (await self._connection.execute(statement.limit(1))).tuples().one_or_none()
+        if row is None:
+            raise ResourceNotFoundError
+        return row[0], row[1], row[2]
 
     async def get_type(
         self, company_id: uuid.UUID, branch_id: uuid.UUID, type_id: uuid.UUID
@@ -184,12 +231,41 @@ class LeaveConfigurationRepository:
         row = current.scalar_one_or_none()
         if row is None:
             raise ResourceNotFoundError
-        if expected is not None and not _same_version(row.updated_at, expected):
+        if expected is None or not _same_version(row.updated_at, expected):
             raise ValueError("state conflict")
+        carry_forward_allowed = values.get("carry_forward_allowed", row.carry_forward_allowed)
+        carry_forward_max_days = values.get("carry_forward_max_days", row.carry_forward_max_days)
+        once_per_career = values.get("once_per_career", row.once_per_career)
+        accrual_type = values.get("accrual_type", row.accrual_type)
+        if carry_forward_allowed and carry_forward_max_days == 0:
+            raise ValueError("invalid leave type")
+        if once_per_career and accrual_type != "once_per_career":
+            raise ValueError("invalid leave type")
+        if values.get("is_active") is False and row.is_active:
+            await self._connection.exec_driver_sql(
+                "LOCK TABLE public.leave_requests IN SHARE UPDATE EXCLUSIVE MODE"
+            )
+            open_request = await self._connection.execute(
+                select(
+                    exists().where(
+                        LeaveRequest.company_id == company_id,
+                        LeaveRequest.branch_id == branch_id,
+                        LeaveRequest.leave_type_id == type_id,
+                        LeaveRequest.status.in_(("Pending", "ManagerApproved")),
+                    )
+                )
+            )
+            if open_request.scalar():
+                raise ValueError("unsafe deactivation")
         result = await self._connection.execute(
             update(LeaveType)
             .where(LeaveType.id == type_id)
-            .values(**values, updated_at=func.now())
+            .values(
+                **values,
+                updated_at=func.greatest(
+                    func.clock_timestamp(), row.updated_at + timedelta(milliseconds=1)
+                ),
+            )
             .returning(*TYPE_COLUMNS)
         )
         return result.mappings().one()
@@ -206,17 +282,51 @@ class LeaveConfigurationRepository:
         return await self.list_types(company_id, branch_id, active_only=False)
 
     async def list_holidays(
-        self, company_id: uuid.UUID, branch_id: uuid.UUID, year: int | None
+        self,
+        company_id: uuid.UUID,
+        branch_id: uuid.UUID,
+        year: int | None,
+        *,
+        after: tuple[date, uuid.UUID] | None = None,
+        limit: int | None = None,
     ) -> Sequence[RowMapping]:
         statement = select(*HOLIDAY_COLUMNS).where(
             PublicHoliday.company_id == company_id, PublicHoliday.branch_id == branch_id
         )
         if year is not None:
             statement = statement.where(PublicHoliday.year == year)
-        result = await self._connection.execute(
-            statement.order_by(asc(PublicHoliday.date), asc(PublicHoliday.id))
-        )
+        if after is not None:
+            holiday_date, holiday_id = after
+            statement = statement.where(
+                or_(
+                    PublicHoliday.date > holiday_date,
+                    and_(PublicHoliday.date == holiday_date, PublicHoliday.id > holiday_id),
+                )
+            )
+        statement = statement.order_by(asc(PublicHoliday.date), asc(PublicHoliday.id))
+        if limit is not None:
+            statement = statement.limit(limit + 1)
+        result = await self._connection.execute(statement)
         return result.mappings().all()
+
+    async def fetch_holiday_position(
+        self,
+        company_id: uuid.UUID,
+        branch_id: uuid.UUID,
+        holiday_id: uuid.UUID,
+        year: int | None,
+    ) -> tuple[date, uuid.UUID]:
+        statement = select(PublicHoliday.date, PublicHoliday.id).where(
+            PublicHoliday.company_id == company_id,
+            PublicHoliday.branch_id == branch_id,
+            PublicHoliday.id == holiday_id,
+        )
+        if year is not None:
+            statement = statement.where(PublicHoliday.year == year)
+        row = (await self._connection.execute(statement.limit(1))).tuples().one_or_none()
+        if row is None:
+            raise ResourceNotFoundError
+        return row[0], row[1]
 
     async def get_holiday(
         self, company_id: uuid.UUID, branch_id: uuid.UUID, holiday_id: uuid.UUID
@@ -245,7 +355,6 @@ class LeaveConfigurationRepository:
                     LeaveRequest.branch_id == branch_id,
                     LeaveRequest.start_date <= holiday_date,
                     LeaveRequest.end_date >= holiday_date,
-                    LeaveRequest.status.not_in(("Rejected", "Cancelled")),
                 )
             )
         )
@@ -278,6 +387,7 @@ class LeaveConfigurationRepository:
         company_id: uuid.UUID,
         branch_id: uuid.UUID,
         holiday_id: uuid.UUID,
+        expected: dict[str, Any],
         values: dict[str, Any],
     ) -> RowMapping:
         current = await self._connection.execute(
@@ -292,6 +402,12 @@ class LeaveConfigurationRepository:
         row = current.scalar_one_or_none()
         if row is None:
             raise ResourceNotFoundError
+        if any(getattr(row, field) != value for field, value in expected.items()):
+            raise ValueError("state conflict")
+        await self._connection.exec_driver_sql(
+            "LOCK TABLE public.leave_requests, public.attendance_records "
+            "IN SHARE UPDATE EXCLUSIVE MODE"
+        )
         business_date = (
             await self._connection.exec_driver_sql("SELECT public.workloop_business_date()")
         ).scalar_one()
@@ -306,10 +422,18 @@ class LeaveConfigurationRepository:
             .values(**values, year=new_date.year)
             .returning(*HOLIDAY_COLUMNS)
         )
-        return result.mappings().one()
+        updated = result.mappings().one_or_none()
+        if updated is None:
+            raise ValueError("holiday is immutable")
+        return updated
 
     async def delete_holiday(
-        self, *, company_id: uuid.UUID, branch_id: uuid.UUID, holiday_id: uuid.UUID
+        self,
+        *,
+        company_id: uuid.UUID,
+        branch_id: uuid.UUID,
+        holiday_id: uuid.UUID,
+        expected: dict[str, Any],
     ) -> None:
         current = await self._connection.execute(
             select(PublicHoliday)
@@ -323,6 +447,12 @@ class LeaveConfigurationRepository:
         row = current.scalar_one_or_none()
         if row is None:
             raise ResourceNotFoundError
+        if any(getattr(row, field) != value for field, value in expected.items()):
+            raise ValueError("state conflict")
+        await self._connection.exec_driver_sql(
+            "LOCK TABLE public.leave_requests, public.attendance_records "
+            "IN SHARE UPDATE EXCLUSIVE MODE"
+        )
         business_date = (
             await self._connection.exec_driver_sql("SELECT public.workloop_business_date()")
         ).scalar_one()

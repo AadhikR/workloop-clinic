@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, Query, Request, Response, status
+from fastapi import APIRouter, Depends, Header, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.auth.application_user import AuthorizationPrincipal
@@ -15,18 +15,26 @@ from app.auth.dependencies import (
 )
 from app.http.errors import api_error, error_response_documentation, success_response_documentation
 from app.http.schemas import CollectionResponse, DataResponse, Page
+from app.http.validation import parse_pagination, validate_query_parameters
 from app.models.identity import AppRole
 from app.schemas.leave_configuration import (
     LeaveSettingsRequest,
     LeaveSettingsResponse,
-    LeaveTypeRequest,
+    LeaveTypeCreateRequest,
     LeaveTypeResponse,
-    PublicHolidayRequest,
+    LeaveTypeUpdateRequest,
+    PublicHolidayCreateRequest,
     PublicHolidayResponse,
+    PublicHolidaySnapshot,
+    PublicHolidayUpdateRequest,
     SeedHolidaysRequest,
 )
 from app.services.execution import AuthorizedServiceExecutor
-from app.services.leave_configuration import LeaveConfigurationService
+from app.services.leave_configuration import (
+    HolidayListQuery,
+    LeaveConfigurationService,
+    LeaveTypeListQuery,
+)
 
 router = APIRouter(prefix="/api/v1/leave", tags=["leave-configuration"])
 ERRORS = error_response_documentation(
@@ -52,7 +60,7 @@ ERRORS = error_response_documentation(
 
 
 def _service(request: Request, connection: AsyncConnection) -> LeaveConfigurationService:
-    return LeaveConfigurationService(connection)
+    return LeaveConfigurationService(connection, request.app.state.employee_cursor_codec)
 
 
 def _branch(principal: AuthorizationPrincipal, selected: uuid.UUID | None) -> uuid.UUID:
@@ -87,6 +95,57 @@ def _executor(request: Request) -> AuthorizedServiceExecutor:
     return request.app.state.authorized_service_executor
 
 
+def _leave_type_query(request: Request) -> LeaveTypeListQuery:
+    validate_query_parameters(request, allowed={"limit", "cursor"})
+    try:
+        pagination = parse_pagination(
+            limit=request.query_params.get("limit"), cursor=request.query_params.get("cursor")
+        )
+    except ValueError:
+        raise api_error("validation_failed") from None
+    return LeaveTypeListQuery(limit=pagination.limit, cursor=pagination.cursor)
+
+
+def _holiday_query(request: Request) -> HolidayListQuery:
+    validate_query_parameters(request, allowed={"limit", "cursor", "year"})
+    try:
+        pagination = parse_pagination(
+            limit=request.query_params.get("limit"), cursor=request.query_params.get("cursor")
+        )
+        raw_year = request.query_params.get("year")
+        if raw_year is None:
+            year = None
+        else:
+            if not raw_year.isascii() or len(raw_year) != 4 or not raw_year.isdigit():
+                raise ValueError("invalid year")
+            year = int(raw_year)
+            if not 2000 <= year <= 2100:
+                raise ValueError("invalid year")
+    except ValueError:
+        raise api_error("validation_failed") from None
+    return HolidayListQuery(limit=pagination.limit, year=year, cursor=pagination.cursor)
+
+
+def _holiday_snapshot(request: Request) -> PublicHolidaySnapshot:
+    validate_query_parameters(request, allowed={"expectedDate", "expectedName", "expectedType"})
+    values = {
+        "date": request.query_params.get("expectedDate"),
+        "name": request.query_params.get("expectedName"),
+        "type": request.query_params.get("expectedType"),
+    }
+    try:
+        if any(value is None for value in values.values()):
+            raise ValueError("missing snapshot")
+        return PublicHolidaySnapshot.model_validate(values)
+    except ValueError:
+        raise api_error("validation_failed") from None
+
+
+LeaveTypeQuery = Annotated[LeaveTypeListQuery, Depends(_leave_type_query)]
+HolidayQuery = Annotated[HolidayListQuery, Depends(_holiday_query)]
+HolidaySnapshot = Annotated[PublicHolidaySnapshot, Depends(_holiday_snapshot)]
+
+
 @router.get(
     "/settings",
     response_model=DataResponse[LeaveSettingsResponse],
@@ -97,15 +156,14 @@ async def get_settings(
     request: Request,
     claims: VerifiedAccessToken,
     principal: AuthenticatedReadPrincipal,
-    selected: Annotated[uuid.UUID | None, Depends(_selected_branch)],
+    selected: AdminSelectedBranch,
 ) -> DataResponse[LeaveSettingsResponse]:
-    branch_id = _branch(principal, selected)
     data = await _executor(request).execute(
         claims=claims,
         principal=principal,
-        selected_admin_branch_id=selected if principal.role is AppRole.ADMIN else None,
+        selected_admin_branch_id=selected,
         operation=lambda connection: _service(request, connection).get_settings(
-            principal, branch_id
+            principal, selected
         ),
     )
     return DataResponse(data=data)
@@ -146,18 +204,26 @@ async def list_types(
     claims: VerifiedAccessToken,
     principal: AuthenticatedReadPrincipal,
     selected: Annotated[uuid.UUID | None, Depends(_selected_branch)],
+    query: LeaveTypeQuery,
 ) -> CollectionResponse[LeaveTypeResponse]:
     branch_id = _branch(principal, selected)
     active_only = principal.role is not AppRole.ADMIN
-    data = await _executor(request).execute(
+    data, next_cursor = await _executor(request).execute(
         claims=claims,
         principal=principal,
         selected_admin_branch_id=selected if principal.role is AppRole.ADMIN else None,
         operation=lambda connection: _service(request, connection).list_types(
-            principal, branch_id, active_only=active_only
+            principal, branch_id, query, active_only=active_only
         ),
     )
-    return CollectionResponse(data=data, page=Page(limit=100, next_cursor=None, has_more=False))
+    return CollectionResponse(
+        data=data,
+        page=Page(
+            limit=query.limit,
+            next_cursor=next_cursor,
+            has_more=next_cursor is not None,
+        ),
+    )
 
 
 @router.post(
@@ -169,7 +235,7 @@ async def list_types(
 )
 async def create_type(
     request: Request,
-    body: LeaveTypeRequest,
+    body: LeaveTypeCreateRequest,
     claims: VerifiedAccessToken,
     principal: AuthenticatedWritePrincipal,
     selected: AdminSelectedBranch,
@@ -193,7 +259,7 @@ async def create_type(
 )
 async def update_type(
     request: Request,
-    body: LeaveTypeRequest,
+    body: LeaveTypeUpdateRequest,
     type_id: uuid.UUID,
     claims: VerifiedAccessToken,
     principal: AuthenticatedWritePrincipal,
@@ -241,19 +307,25 @@ async def list_holidays(
     request: Request,
     claims: VerifiedAccessToken,
     principal: AuthenticatedReadPrincipal,
-    selected: Annotated[uuid.UUID | None, Depends(_selected_branch)],
-    year: int | None = Query(default=None, ge=2000, le=2100),
+    selected: AdminSelectedBranch,
+    query: HolidayQuery,
 ) -> CollectionResponse[PublicHolidayResponse]:
-    branch_id = _branch(principal, selected)
-    data = await _executor(request).execute(
+    data, next_cursor = await _executor(request).execute(
         claims=claims,
         principal=principal,
-        selected_admin_branch_id=selected if principal.role is AppRole.ADMIN else None,
+        selected_admin_branch_id=selected,
         operation=lambda connection: _service(request, connection).list_holidays(
-            principal, branch_id, year
+            principal, selected, query
         ),
     )
-    return CollectionResponse(data=data, page=Page(limit=100, next_cursor=None, has_more=False))
+    return CollectionResponse(
+        data=data,
+        page=Page(
+            limit=query.limit,
+            next_cursor=next_cursor,
+            has_more=next_cursor is not None,
+        ),
+    )
 
 
 @router.post(
@@ -265,7 +337,7 @@ async def list_holidays(
 )
 async def create_holiday(
     request: Request,
-    body: PublicHolidayRequest,
+    body: PublicHolidayCreateRequest,
     claims: VerifiedAccessToken,
     principal: AuthenticatedWritePrincipal,
     selected: AdminSelectedBranch,
@@ -289,7 +361,7 @@ async def create_holiday(
 )
 async def update_holiday(
     request: Request,
-    body: PublicHolidayRequest,
+    body: PublicHolidayUpdateRequest,
     holiday_id: uuid.UUID,
     claims: VerifiedAccessToken,
     principal: AuthenticatedWritePrincipal,
@@ -319,13 +391,14 @@ async def delete_holiday(
     claims: VerifiedAccessToken,
     principal: AuthenticatedWritePrincipal,
     selected: AdminSelectedBranch,
+    expected: HolidaySnapshot,
 ) -> Response:
     await _executor(request).execute(
         claims=claims,
         principal=principal,
         selected_admin_branch_id=selected,
         operation=lambda connection: _service(request, connection).delete_holiday(
-            principal, selected, holiday_id
+            principal, selected, holiday_id, expected
         ),
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)

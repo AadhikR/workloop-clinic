@@ -6,7 +6,6 @@ import json
 import re
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 PHASE = ROOT / "docs/migration/phase-8"
 CONTRACT = PHASE / "PART_8A_DOMAIN_CONTRACT.md"
@@ -39,16 +38,22 @@ def main() -> None:
         if f"`{table}`" not in contract or f"`{table}`" not in inventory:
             fail(f"table {table} is not accounted for in both documents")
 
-    ids = re.findall(r"\b8a-[a-z0-9-]+\b", inventory)
+    ids = re.findall(r"\bphase8a-[a-z0-9-]+\b", inventory)
     if len(ids) < 20 or len(ids) != len(set(ids)):
-        fail("inventory IDs must contain at least 20 unique 8a-* identifiers")
+        fail("inventory IDs must contain at least 20 unique phase8a-* identifiers")
     for owner in ("Phase 9", "Phase 10", "Phase 11", "Phase 12"):
         if owner not in inventory:
             fail(f"inventory has no assignment for {owner}")
 
     if "Alembic revisions are unchanged" not in contract:
         fail("contract does not state the Alembic no-change assertion")
-    forbidden = ("backend/app/", "src/", "alembic revision", "CREATE TABLE", "CREATE POLICY")
+    forbidden = (
+        "backend/app/",
+        "src/",
+        "alembic revision",
+        "CREATE TABLE",
+        "CREATE POLICY",
+    )
     if any(marker in contract for marker in forbidden):
         fail("contract contains implementation or amendment SQL instead of a proposal")
 
@@ -80,8 +85,15 @@ def main() -> None:
             fail(f"{path.name} lacks the five rollback controls")
         if len(record["dependencies"]["requiredIds"]) < 1:
             fail(f"{path.name} has no dependency IDs")
+        inventory_ids = set(ids) | set(re.findall(r"\bphase8a-[a-z0-9-]+\b", contract))
+        required_ids = set(record["dependencies"]["requiredIds"])
+        declared_ids = {item["id"] for item in record["dependencies"]["declared"]}
+        if required_ids != declared_ids or not required_ids.issubset(inventory_ids):
+            fail(f"{path.name} dependency IDs do not match the Phase 8A sources")
 
-    print(f"Phase 8A structural contract check passed: {len(record_names)} records, {len(ids)} inventory IDs")
+    print(
+        f"Phase 8A structural contract check passed: {len(record_names)} records, {len(ids)} inventory IDs"
+    )
 
 
 if __name__ == "__main__":
