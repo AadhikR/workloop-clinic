@@ -256,7 +256,7 @@ class LeaveConfigurationRepository:
                 exists().where(
                     AttendanceRecord.company_id == company_id,
                     AttendanceRecord.branch_id == branch_id,
-                    AttendanceRecord.attendance_date == holiday_date,
+                    AttendanceRecord.date == holiday_date,
                 )
             )
         )
