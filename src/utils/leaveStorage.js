@@ -1,15 +1,12 @@
 /**
  * leaveStorage.js — Supabase data layer for the Leave Management module
- * Includes recalculateAllBalances() which computes leave balances from
- * approved requests + employee accrual and saves them to leave_balances.
- *
  * All functions are async and scoped to the current user via RLS.
  * Covers: leave settings, leave types, public holidays, leave requests,
- *         leave balances, and audit log.
+ *         approval workflows, and audit log. Balance reads and writes have
+ *         moved to the migration application.
  */
 
 import { supabase } from '../lib/supabase';
-import { calculateAnnualLeaveAccrual } from './leaveEngine';
 
 async function getSessionUser() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -399,74 +396,19 @@ export async function deleteLeaveApprovalDelegate(id) {
 // ── LEAVE BALANCES ────────────────────────────────────────────────────────────
 
 export async function getLeaveBalances(employeeId, year) {
-  const currentYear = year || new Date().getFullYear();
-  const { data, error } = await supabase
-    .from('leave_balances')
-    .select('*')
-    .eq('employee_id', employeeId)
-    .eq('leave_year', currentYear);
-  if (error) { console.error('getLeaveBalances:', error); return []; }
-  return (data || []).map(dbToLeaveBalance);
+  void employeeId;
+  void year;
+  throw new Error('Leave balance reads have moved to the migration leave view.');
 }
 
 export async function getAllLeaveBalances(year) {
-  const currentYear = year || new Date().getFullYear();
-  const { data, error } = await supabase
-    .from('leave_balances')
-    .select('*')
-    .eq('leave_year', currentYear)
-    .order('employee_id');
-  if (error) { console.error('getAllLeaveBalances:', error); return []; }
-  return (data || []).map(dbToLeaveBalance);
+  void year;
+  throw new Error('Leave balance reads have moved to the migration leave view.');
 }
 
 export async function upsertLeaveBalance(balance) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-
-  const row = {
-    user_id:            user.id,
-    employee_id:        balance.employeeId,
-    leave_type_id:      balance.leaveTypeId,
-    leave_type_code:    balance.leaveTypeCode,
-    leave_year:         balance.leaveYear,
-    entitled_days:      balance.entitledDays || 0,
-    accrued_days:       balance.accruedDays || 0,
-    used_days:          balance.usedDays || 0,
-    pending_days:       balance.pendingDays || 0,
-    carried_forward:    balance.carriedForward || 0,
-    remaining_days:     balance.remainingDays || 0,
-    sick_full_pay_used: balance.sickFullPayUsed || 0,
-    sick_half_pay_used: balance.sickHalfPayUsed || 0,
-    sick_unpaid_used:   balance.sickUnpaidUsed || 0,
-    hajj_taken:         balance.hajjTaken || false,
-  };
-
-  const { error } = await supabase
-    .from('leave_balances')
-    .upsert(row, { onConflict: 'user_id,employee_id,leave_type_code,leave_year' });
-  if (error) throw error;
-}
-
-function dbToLeaveBalance(row) {
-  return {
-    id:              row.id,
-    employeeId:      row.employee_id,
-    leaveTypeId:     row.leave_type_id,
-    leaveTypeCode:   row.leave_type_code,
-    leaveYear:       row.leave_year,
-    entitledDays:    parseFloat(row.entitled_days) || 0,
-    accruedDays:     parseFloat(row.accrued_days) || 0,
-    usedDays:        parseFloat(row.used_days) || 0,
-    pendingDays:     parseFloat(row.pending_days) || 0,
-    carriedForward:  parseFloat(row.carried_forward) || 0,
-    remaining:       parseFloat(row.remaining_days) || 0,
-    sickFullPayUsed: parseFloat(row.sick_full_pay_used) || 0,
-    sickHalfPayUsed: parseFloat(row.sick_half_pay_used) || 0,
-    sickUnpaidUsed:  parseFloat(row.sick_unpaid_used) || 0,
-    hajjTaken:       row.hajj_taken || false,
-    updatedAt:       row.updated_at,
-  };
+  void balance;
+  throw new Error('Leave balance writes have moved to the migration leave view.');
 }
 
 // ── INITIALISE LEAVE MODULE ───────────────────────────────────────────────────
@@ -504,87 +446,12 @@ export async function initialiseLeaveModule() {
  * @param {string} leaveYearType — 'calendar' | 'anniversary'
  */
 export async function recalculateAllBalances(employees, leaveTypes, allRequests, year, leaveYearType = 'calendar') {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-
-  const currentYear = year || new Date().getFullYear();
-
-  const rows = [];
-
-  for (const emp of employees) {
-    if (!emp.id) continue;
-
-    for (const lt of leaveTypes) {
-      if (!lt.id) continue;
-
-      // Filter requests for this employee + type + year
-      const empRequests = allRequests.filter(r =>
-        r.employeeId === emp.id &&
-        r.leaveTypeCode === lt.code &&
-        r.startDate?.startsWith(String(currentYear))
-      );
-
-      const usedDays    = empRequests.filter(r => r.status === 'Approved').reduce((s, r) => s + (parseFloat(r.daysRequested) || 0), 0);
-      const pendingDays = empRequests.filter(r => r.status === 'Pending').reduce((s, r) => s + (parseFloat(r.daysRequested) || 0), 0);
-
-      // Sick leave tier tracking
-      const sickFullPayUsed  = empRequests.filter(r => r.status === 'Approved').reduce((s, r) => {
-        const days = parseFloat(r.daysRequested) || 0;
-        const prev = s;
-        if (prev < 15) return Math.min(prev + days, 15);
-        return prev;
-      }, 0);
-      const sickHalfPayUsed  = Math.max(0, Math.min(usedDays - 15, 30));
-      const sickUnpaidUsed   = Math.max(0, usedDays - 45);
-
-      // Hajj: check if ever taken
-      const hajjTaken = lt.code === 'HAJJ' && allRequests.some(r =>
-        r.employeeId === emp.id && r.leaveTypeCode === 'HAJJ' && r.status === 'Approved'
-      );
-
-      // Accrued days
-      let accruedDays    = lt.annualEntitlementDays;
-      let entitledDays   = lt.annualEntitlementDays;
-
-      if (lt.code === 'ANNUAL' && (emp.startDate || emp.employmentStartDate)) {
-        const accrual = calculateAnnualLeaveAccrual(
-          emp.startDate || emp.employmentStartDate,
-          new Date(),
-          leaveYearType
-        );
-        accruedDays  = accrual.totalAccrued;
-        entitledDays = accrual.entitlementPerYear;
-      }
-
-      const remainingDays = Math.max(0, accruedDays - usedDays);
-
-      rows.push({
-        user_id:            user.id,
-        employee_id:        emp.id,
-        leave_type_id:      lt.id,
-        leave_type_code:    lt.code,
-        leave_year:         currentYear,
-        entitled_days:      entitledDays,
-        accrued_days:       accruedDays,
-        used_days:          usedDays,
-        pending_days:       pendingDays,
-        carried_forward:    0,
-        remaining_days:     remainingDays,
-        sick_full_pay_used: lt.code === 'SICK' ? sickFullPayUsed : 0,
-        sick_half_pay_used: lt.code === 'SICK' ? sickHalfPayUsed : 0,
-        sick_unpaid_used:   lt.code === 'SICK' ? sickUnpaidUsed : 0,
-        hajj_taken:         hajjTaken,
-      });
-    }
-  }
-
-  if (rows.length === 0) return;
-
-  // Upsert all balances in one call
-  const { error } = await supabase
-    .from('leave_balances')
-    .upsert(rows, { onConflict: 'user_id,employee_id,leave_type_code,leave_year' });
-  if (error) throw error;
+  void employees;
+  void leaveTypes;
+  void allRequests;
+  void year;
+  void leaveYearType;
+  throw new Error('Leave balance recalculation has moved to the migration leave view.');
 }
 
 // ── CALENDAR DATA ─────────────────────────────────────────────────────────────

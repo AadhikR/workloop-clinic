@@ -4,13 +4,23 @@
   "featureId": "leave-balances-and-reads",
   "dataClassification": "synthetic",
   "status": {
-    "current": "preparation",
-    "changedAt": "2026-09-13T08:00:00Z",
+    "current": "completed",
+    "changedAt": "2026-09-13T18:02:45Z",
     "history": [
       {
         "state": "preparation",
         "at": "2026-09-13T08:00:00Z",
         "reason": "Phase 8A balance contract prepared; legacy reads and writes remain authoritative."
+      },
+      {
+        "state": "active-cutover",
+        "at": "2026-09-13T18:00:00Z",
+        "reason": "Phase 8C balance routes, arithmetic, and scoped reads passed on synthetic data."
+      },
+      {
+        "state": "completed",
+        "at": "2026-09-13T18:02:45Z",
+        "reason": "Phase 8C balance authority and leave-read verification completed."
       }
     ]
   },
@@ -27,7 +37,7 @@
         "system": "legacy-supabase",
         "kind": "module",
         "locator": "src/utils/leaveStorage.js:665-864",
-        "cutoverDisposition": "retain"
+        "cutoverDisposition": "replace"
       },
       {
         "id": "phase8a-day-count",
@@ -46,23 +56,23 @@
     ]
   },
   "authority": {
-    "readSystem": "legacy-supabase",
-    "writeSystem": "legacy-supabase",
+    "readSystem": "migration-fastapi",
+    "writeSystem": "migration-fastapi",
     "writableSystems": [
-      "legacy-supabase"
+      "migration-fastapi"
     ]
   },
   "freeze": {
     "read": {
-      "system": "migration-fastapi",
-      "condition": "Migration balance and request readers remain disconnected.",
-      "releaseCondition": "Phase 8C proves scoped projections and balance arithmetic.",
-      "verificationCommand": "python scripts/verify-phase-8a-contract.py"
+      "system": "legacy-supabase",
+      "condition": "Legacy balance reads are frozen after the migration reader is active.",
+      "releaseCondition": "Rollback restores legacy balance reads after migration reads are disabled.",
+      "verificationCommand": "python scripts/verify-phase-8c-balance.py"
     },
     "write": {
-      "system": "migration-fastapi",
-      "condition": "No migration balance mutation exists.",
-      "releaseCondition": "Phase 8C proves locked recalculation and request dependency rollback.",
+      "system": "legacy-supabase",
+      "condition": "Legacy balance writes are frozen after the migration writer is active.",
+      "releaseCondition": "Rollback restores legacy balance writes after migration writes are disabled.",
       "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-8/cutover/leave-balances-and-reads.json"
     }
   },
@@ -73,14 +83,14 @@
       "locator": "docs/migration/phase-8/PART_8A_DOMAIN_CONTRACT.md",
       "digest": "sha256:9de8058d41693f4297f721324d7d947b0ee00b673dd5bae030400ef1ee245819"
     },
-    "command": "python scripts/verify-phase-8a-contract.py",
+    "command": "python scripts/verify-phase-8c-balance.py",
     "lastRefresh": {
-      "timestamp": "2026-09-13T16:24:36Z",
-      "command": "python scripts/verify-phase-8a-contract.py",
+      "timestamp": "2026-09-13T18:02:45Z",
+      "command": "python scripts/verify-phase-8c-balance.py",
       "sourceDigest": "sha256:9de8058d41693f4297f721324d7d947b0ee00b673dd5bae030400ef1ee245819",
       "evidence": {
         "path": "docs/migration/phase-8/cutover/evidence-leave-balances-and-reads.json",
-        "sha256": "sha256:b73fec1940f3560de0bc98da97f22e0b1f6ddb7494f11638058fd979215817e4"
+        "sha256": "sha256:16a7c59f700c06f8a10c3c8a52b58d8b87939d960443ace7b774c0a783793008"
       }
     }
   },
@@ -113,7 +123,7 @@
       {
         "id": "freeze-migration-writes",
         "action": "Disable migration balance and request-dependent writes.",
-        "verificationCommand": "python scripts/verify-phase-8a-contract.py"
+        "verificationCommand": "python scripts/verify-phase-8c-balance.py"
       },
       {
         "id": "restore-legacy-writes",
@@ -128,17 +138,17 @@
       {
         "id": "verify-authority",
         "action": "Recheck branch and employee scope.",
-        "verificationCommand": "python scripts/verify-phase-8a-contract.py"
+        "verificationCommand": "python scripts/verify-phase-8c-balance.py"
       },
       {
         "id": "verify-data",
         "action": "Compare synthetic balance rows and Decimal values.",
-        "verificationCommand": "python scripts/verify-phase-8a-contract.py"
+        "verificationCommand": "python scripts/verify-phase-8c-balance.py"
       }
     ]
   },
   "validation": {
-    "asOf": "2026-09-13T16:24:36Z",
+    "asOf": "2026-09-13T18:02:45Z",
     "refreshMaxAgeHours": 24
   }
 }

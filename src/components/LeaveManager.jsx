@@ -131,7 +131,7 @@ export default function LeaveManager() {
         getEmployees(),
         getLeaveTypes(),
         getLeaveRequests(),
-        getAllLeaveBalances(),
+        getAllLeaveBalances().catch(() => []),
         getPublicHolidays(),
         getLeaveSettings(),
         getLeaveApprovalDelegates().catch(() => []),

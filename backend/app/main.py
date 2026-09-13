@@ -30,6 +30,7 @@ from app.http.rate_limit import ConfigurableRateLimiter, RateLimiter
 from app.http.sample_schemas import CurrentAccountResponse, PublicStatusResponse
 from app.http.schemas import DataResponse
 from app.idempotency_api import router as idempotency_router
+from app.leave_balance_api import router as leave_balance_router
 from app.leave_configuration_api import router as leave_configuration_router
 from app.organization_api import router as organization_router
 from app.sample_api import get_current_account, get_public_status
@@ -131,6 +132,9 @@ def create_app(
         application.state.department_cursor_codec = EmployeeCursorCodec.from_base64url(
             resolved_settings.cursor_signing_key.get_secret_value()
         )
+        application.state.leave_balance_cursor_codec = EmployeeCursorCodec.from_base64url(
+            resolved_settings.cursor_signing_key.get_secret_value()
+        )
         application.state.idempotency_recovery_namespaces = RecoveryNamespaces(
             RecoveryKey(
                 key_id=resolved_settings.idempotency_recovery_current_key_id,
@@ -182,6 +186,7 @@ def create_app(
     application.include_router(department_router)
     application.include_router(idempotency_router)
     application.include_router(leave_configuration_router)
+    application.include_router(leave_balance_router)
 
     application.add_api_route(
         "/health",

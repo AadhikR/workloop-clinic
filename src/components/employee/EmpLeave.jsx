@@ -96,7 +96,7 @@ export default function EmpLeave() {
     Promise.all([
       getLeaveTypes(),
       getLeaveRequests({ employeeId: profile.employeeId }),
-      getLeaveBalances(profile.employeeId, year),
+      getLeaveBalances(profile.employeeId, year).catch(() => []),
       getPublicHolidays(year),
       getMyEmployeeRecord(),
       getLeaveSettings().catch(() => null),

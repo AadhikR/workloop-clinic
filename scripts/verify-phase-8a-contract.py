@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Check the documentation-only Phase 8A contract package."""
 
 from __future__ import annotations
@@ -75,7 +76,10 @@ def main() -> None:
         if set(record) != required | {"$schema"}:
             fail(f"{path.name} does not use the cutover record top-level contract")
         allowed_statuses = {"preparation"}
-        if path.name == "leave-configuration.json":
+        if path.name in {
+            "leave-configuration.json",
+            "leave-balances-and-reads.json",
+        }:
             allowed_statuses.add("completed")
         if record["status"]["current"] not in allowed_statuses:
             fail(f"{path.name} has an unsupported status for the current phase")

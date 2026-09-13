@@ -8,6 +8,7 @@ import EmployeeDirectory from './EmployeeDirectory.jsx'
 import { readCurrentAccount } from './sampleApi.js'
 import OrganizationSettings from './OrganizationSettings.jsx'
 import LeaveConfiguration from './LeaveConfiguration.jsx'
+import LeaveOverview from './LeaveOverview.jsx'
 
 function OrganizationSummary({ account, authentication }) {
   const organization = useCompanyContext()
@@ -33,6 +34,11 @@ function OrganizationSummary({ account, authentication }) {
         authentication={authentication}
         branchId={organization.selectedBranch.id}
         clearBranch={organization.clearBranch}
+      />
+      <LeaveOverview
+        account={account}
+        authentication={authentication}
+        branchId={organization.selectedBranch.id}
       />
       {account.role === 'admin' && (
         <>

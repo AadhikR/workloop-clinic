@@ -225,6 +225,7 @@ jobs:
           sh scripts/verify-phase-4f-boundaries.sh
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --volume ./scripts:/verification:ro --volume ./tests/fixtures:/workspace-fixtures:ro --entrypoint python migrate -c "import runpy; runpy.run_path('/verification/verify-phase-7g-employee-lifecycle.py', run_name='__main__')"
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --volume ./scripts:/verification:ro --entrypoint python migrate -c "import runpy; runpy.run_path('/verification/verify-phase-8b-configuration-database.py', run_name='__main__')"
+          docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --volume ./scripts:/verification:ro --entrypoint python migrate -c "import runpy; runpy.run_path('/verification/verify-phase-8c-balance-database.py', run_name='__main__')"
       - name: Verify service health
         run: |
           curl --fail --silent --show-error http://127.0.0.1:8000/health | jq --exit-status '.status == "ok" and .database == "ok"'
