@@ -47,7 +47,7 @@ Phase 8 is therefore split into seven parts, 8A through 8G.
 
 | Part | Scope | Status |
 | --- | --- | --- |
-| 8A | Leave contracts, dependency inventory, cutover units, and amendment decisions | Not authorized |
+| 8A | Leave contracts, dependency inventory, cutover units, and amendment decisions | In progress |
 | 8B | Leave settings, types, and public holidays | Not authorized |
 | 8C | Balance authority, accrual, carry-forward, and leave read projections | Not authorized |
 | 8D | Leave attachment metadata and private-object access | Not authorized; blocked by the 8A storage ownership decision |
