@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Verify the Phase 8B configuration boundary without touching a database."""
 
 from __future__ import annotations
@@ -82,6 +83,14 @@ def main() -> None:
     ):
         if f"class {schema_name}" not in schemas:
             fail(f"missing strict request schema {schema_name}")
+
+    repository = (BACKEND / "repositories/leave_configuration.py").read_text(
+        encoding="utf-8"
+    )
+    if repository.count("IN SHARE ROW EXCLUSIVE MODE") != 3:
+        fail("dependent-table mutation guards do not block concurrent writers")
+    if "IN SHARE UPDATE EXCLUSIVE MODE" in repository:
+        fail("dependent-table mutation guards use a writer-compatible lock")
 
     backend_test = ROOT / "backend/tests/test_leave_configuration_service.py"
     frontend_test = ROOT / "tests/migration-leave-configuration.test.js"

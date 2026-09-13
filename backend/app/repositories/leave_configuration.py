@@ -99,11 +99,11 @@ class LeaveConfigurationRepository:
         values: dict[str, Any],
     ) -> RowMapping:
         current = await self._connection.execute(
-            select(LeaveSettings)
+            select(*SETTINGS_COLUMNS)
             .where(LeaveSettings.company_id == company_id, LeaveSettings.branch_id == branch_id)
             .with_for_update()
         )
-        row = current.scalar_one_or_none()
+        row = current.mappings().one_or_none()
         if row is None:
             if expected is not None:
                 raise ValueError("state conflict")
@@ -113,15 +113,15 @@ class LeaveConfigurationRepository:
                 .returning(*SETTINGS_COLUMNS)
             )
             return result.mappings().one()
-        if expected is None or not _same_version(row.updated_at, expected):
+        if expected is None or not _same_version(row["updated_at"], expected):
             raise ValueError("state conflict")
         result = await self._connection.execute(
             update(LeaveSettings)
-            .where(LeaveSettings.id == row.id)
+            .where(LeaveSettings.id == row["id"])
             .values(
                 **values,
                 updated_at=func.greatest(
-                    func.clock_timestamp(), row.updated_at + timedelta(milliseconds=1)
+                    func.clock_timestamp(), row["updated_at"] + timedelta(milliseconds=1)
                 ),
             )
             .returning(*SETTINGS_COLUMNS)
@@ -219,32 +219,42 @@ class LeaveConfigurationRepository:
         expected: datetime | None,
         values: dict[str, Any],
     ) -> RowMapping:
-        current = await self._connection.execute(
-            select(LeaveType)
-            .where(
-                LeaveType.company_id == company_id,
-                LeaveType.branch_id == branch_id,
-                LeaveType.id == type_id,
-            )
-            .with_for_update()
+        criteria = (
+            LeaveType.company_id == company_id,
+            LeaveType.branch_id == branch_id,
+            LeaveType.id == type_id,
         )
-        row = current.scalar_one_or_none()
+        if values.get("is_active") is False:
+            visible = await self._connection.execute(
+                select(*TYPE_COLUMNS).where(*criteria).limit(1)
+            )
+            candidate = visible.mappings().one_or_none()
+            if candidate is None:
+                raise ResourceNotFoundError
+            if expected is None or not _same_version(candidate["updated_at"], expected):
+                raise ValueError("state conflict")
+            if candidate["is_active"]:
+                await self._connection.exec_driver_sql(
+                    "LOCK TABLE public.leave_requests IN SHARE ROW EXCLUSIVE MODE"
+                )
+
+        current = await self._connection.execute(
+            select(*TYPE_COLUMNS).where(*criteria).with_for_update()
+        )
+        row = current.mappings().one_or_none()
         if row is None:
             raise ResourceNotFoundError
-        if expected is None or not _same_version(row.updated_at, expected):
+        if expected is None or not _same_version(row["updated_at"], expected):
             raise ValueError("state conflict")
-        carry_forward_allowed = values.get("carry_forward_allowed", row.carry_forward_allowed)
-        carry_forward_max_days = values.get("carry_forward_max_days", row.carry_forward_max_days)
-        once_per_career = values.get("once_per_career", row.once_per_career)
-        accrual_type = values.get("accrual_type", row.accrual_type)
+        carry_forward_allowed = values.get("carry_forward_allowed", row["carry_forward_allowed"])
+        carry_forward_max_days = values.get("carry_forward_max_days", row["carry_forward_max_days"])
+        once_per_career = values.get("once_per_career", row["once_per_career"])
+        accrual_type = values.get("accrual_type", row["accrual_type"])
         if carry_forward_allowed and carry_forward_max_days == 0:
             raise ValueError("invalid leave type")
         if once_per_career and accrual_type != "once_per_career":
             raise ValueError("invalid leave type")
-        if values.get("is_active") is False and row.is_active:
-            await self._connection.exec_driver_sql(
-                "LOCK TABLE public.leave_requests IN SHARE UPDATE EXCLUSIVE MODE"
-            )
+        if values.get("is_active") is False and row["is_active"]:
             open_request = await self._connection.execute(
                 select(
                     exists().where(
@@ -263,7 +273,7 @@ class LeaveConfigurationRepository:
             .values(
                 **values,
                 updated_at=func.greatest(
-                    func.clock_timestamp(), row.updated_at + timedelta(milliseconds=1)
+                    func.clock_timestamp(), row["updated_at"] + timedelta(milliseconds=1)
                 ),
             )
             .returning(*TYPE_COLUMNS)
@@ -381,6 +391,36 @@ class LeaveConfigurationRepository:
         )
         return result.mappings().one()
 
+    async def _lock_holiday_for_mutation(
+        self,
+        *,
+        company_id: uuid.UUID,
+        branch_id: uuid.UUID,
+        holiday_id: uuid.UUID,
+        expected: dict[str, Any],
+    ) -> RowMapping:
+        criteria = (
+            PublicHoliday.company_id == company_id,
+            PublicHoliday.branch_id == branch_id,
+            PublicHoliday.id == holiday_id,
+        )
+        visible = await self._connection.execute(select(*HOLIDAY_COLUMNS).where(*criteria).limit(1))
+        candidate = visible.mappings().one_or_none()
+        if candidate is None:
+            raise ResourceNotFoundError
+        if any(candidate[field] != value for field, value in expected.items()):
+            raise ValueError("state conflict")
+
+        locked = await self._connection.execute(
+            select(*HOLIDAY_COLUMNS).where(*criteria).with_for_update()
+        )
+        row = locked.mappings().one_or_none()
+        if row is None:
+            raise ValueError("holiday is immutable")
+        if any(row[field] != value for field, value in expected.items()):
+            raise ValueError("state conflict")
+        return row
+
     async def update_holiday(
         self,
         *,
@@ -390,30 +430,24 @@ class LeaveConfigurationRepository:
         expected: dict[str, Any],
         values: dict[str, Any],
     ) -> RowMapping:
-        current = await self._connection.execute(
-            select(PublicHoliday)
-            .where(
-                PublicHoliday.company_id == company_id,
-                PublicHoliday.branch_id == branch_id,
-                PublicHoliday.id == holiday_id,
-            )
-            .with_for_update()
+        row = await self._lock_holiday_for_mutation(
+            company_id=company_id,
+            branch_id=branch_id,
+            holiday_id=holiday_id,
+            expected=expected,
         )
-        row = current.scalar_one_or_none()
-        if row is None:
-            raise ResourceNotFoundError
-        if any(getattr(row, field) != value for field, value in expected.items()):
-            raise ValueError("state conflict")
         await self._connection.exec_driver_sql(
             "LOCK TABLE public.leave_requests, public.attendance_records "
-            "IN SHARE UPDATE EXCLUSIVE MODE"
+            "IN SHARE ROW EXCLUSIVE MODE"
         )
         business_date = (
             await self._connection.exec_driver_sql("SELECT public.workloop_business_date()")
         ).scalar_one()
-        if row.date <= business_date or await self._holiday_used(company_id, branch_id, row.date):
+        if row["date"] <= business_date or await self._holiday_used(
+            company_id, branch_id, row["date"]
+        ):
             raise ValueError("holiday is immutable")
-        new_date = values.get("date", row.date)
+        new_date = values.get("date", row["date"])
         if new_date <= business_date or await self._holiday_used(company_id, branch_id, new_date):
             raise ValueError("holiday is immutable")
         result = await self._connection.execute(
@@ -435,28 +469,22 @@ class LeaveConfigurationRepository:
         holiday_id: uuid.UUID,
         expected: dict[str, Any],
     ) -> None:
-        current = await self._connection.execute(
-            select(PublicHoliday)
-            .where(
-                PublicHoliday.company_id == company_id,
-                PublicHoliday.branch_id == branch_id,
-                PublicHoliday.id == holiday_id,
-            )
-            .with_for_update()
+        row = await self._lock_holiday_for_mutation(
+            company_id=company_id,
+            branch_id=branch_id,
+            holiday_id=holiday_id,
+            expected=expected,
         )
-        row = current.scalar_one_or_none()
-        if row is None:
-            raise ResourceNotFoundError
-        if any(getattr(row, field) != value for field, value in expected.items()):
-            raise ValueError("state conflict")
         await self._connection.exec_driver_sql(
             "LOCK TABLE public.leave_requests, public.attendance_records "
-            "IN SHARE UPDATE EXCLUSIVE MODE"
+            "IN SHARE ROW EXCLUSIVE MODE"
         )
         business_date = (
             await self._connection.exec_driver_sql("SELECT public.workloop_business_date()")
         ).scalar_one()
-        if row.date <= business_date or await self._holiday_used(company_id, branch_id, row.date):
+        if row["date"] <= business_date or await self._holiday_used(
+            company_id, branch_id, row["date"]
+        ):
             raise ValueError("holiday is immutable")
         await self._connection.execute(delete(PublicHoliday).where(PublicHoliday.id == holiday_id))
 

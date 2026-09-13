@@ -33,6 +33,7 @@ from app.services.leave_configuration import (
 )
 from sqlalchemy import Engine, create_engine, delete, select
 from sqlalchemy.engine import URL
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
 EXPECTED_HEAD = "8f6b2d1a4c70"
@@ -378,6 +379,32 @@ def cleanup_extra_rows(engine: Engine) -> None:
         )
 
 
+def verify_guard_lock_conflict(engine: Engine) -> None:
+    with engine.connect() as guard, engine.connect() as writer:
+        guard_transaction = guard.begin()
+        writer_transaction = writer.begin()
+        try:
+            guard.exec_driver_sql(
+                "LOCK TABLE public.leave_requests, public.attendance_records "
+                "IN SHARE ROW EXCLUSIVE MODE"
+            )
+            writer.exec_driver_sql("SET LOCAL lock_timeout = '100ms'")
+            try:
+                writer.exec_driver_sql(
+                    "LOCK TABLE public.leave_requests, public.attendance_records "
+                    "IN ROW EXCLUSIVE MODE"
+                )
+            except DBAPIError as error:
+                assert getattr(error.orig, "sqlstate", None) == "55P03"
+            else:
+                raise AssertionError(
+                    "configuration guard lock allowed a concurrent writer"
+                )
+        finally:
+            writer_transaction.rollback()
+            guard_transaction.rollback()
+
+
 def main() -> None:
     engine = create_engine(os.environ["MIGRATION_DATABASE_URL"])
     rows = build_rows()
@@ -394,6 +421,7 @@ def main() -> None:
                 ).scalar_one()
                 == EXPECTED_HEAD
             )
+        verify_guard_lock_conflict(engine)
         asyncio.run(verify_services())
         print("Phase 8B configuration database check passed")
     finally:

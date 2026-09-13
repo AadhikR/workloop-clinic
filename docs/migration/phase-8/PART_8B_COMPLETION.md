@@ -21,17 +21,18 @@ Status: complete. Phase 8B is closed and Phase 8C remains out of scope.
 
 ## Evidence
 
-- Complete backend suite: 438 passed. The focused Phase 8B service suite contributed six tests.
+- Complete backend suite: 439 passed. The focused Phase 8B service suite contributed seven tests.
 - Complete frontend unit suite: 125 passed. The focused configuration and legacy-freeze suites contributed six tests.
 - FastAPI application import passed.
 - Legacy and migration frontend production builds passed, including the isolated migration graph check.
 - Ruff checks and formatting, strict Pyright, and dependency checks passed.
 - The Phase 8A and 8B structural verifiers passed, as did all five cutover record validators.
-- The routed GitHub full-stack job runs the Phase 8B database verifier in a fresh synthetic environment. The workflow result is reported in the handoff after the single push.
+- The Phase 8B database verifier passed against a disposable PostgreSQL 17 database with synthetic fixtures and no password credentials.
+- Routed GitHub run `34768984495` exposed an incorrect SQLAlchemy Core lock read before any later phase began. The correction uses locked row mappings for settings, leave types, and holidays, preserves protected-holiday errors, and adds a repository regression test. The corrective workflow result is reported in the handoff.
 - `git diff --check` passed.
 - No Alembic revision, schema, constraint, index, RLS policy, grant, role, or protected function
   changed.
 - `workloop-clinic_postgres_data` was not attached, upgraded, seeded, recreated, or deleted.
 - The retained empty FRA1 default VPC was not changed.
 
-No local database credential was created, so the local gate did not start a replacement PostgreSQL stack. The existing GitHub full-stack job owns ephemeral CI credentials and runs the real-database verifier there. The branch remains synthetic-only. The final commit, branch synchronization, and GitHub workflow result are recorded in the phase handoff after the single push.
+No local database credential was created. The database verifier used trust authentication inside an isolated disposable container and never attached the preserved volume. The branch remains synthetic-only. The final commit, branch synchronization, and corrective GitHub workflow result are recorded in the phase handoff.

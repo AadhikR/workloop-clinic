@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import uuid
 from datetime import UTC, date, datetime
 from typing import Any, cast
@@ -146,6 +148,31 @@ class FakeRepository:
     async def seed_holidays(self, **values: object) -> list[dict[str, object]]:
         self.seeded_holidays = list(cast(list[dict[str, Any]], values["holidays"]))
         return self.holidays
+
+
+class FakeMappingResult:
+    def __init__(self, row: dict[str, object] | None) -> None:
+        self.row = row
+
+    def mappings(self) -> FakeMappingResult:
+        return self
+
+    def one_or_none(self) -> dict[str, object] | None:
+        return self.row
+
+    def one(self) -> dict[str, object]:
+        assert self.row is not None
+        return self.row
+
+
+class FakeCoreConnection:
+    def __init__(self, rows: list[dict[str, object]]) -> None:
+        self.rows = rows
+        self.statements: list[object] = []
+
+    async def execute(self, statement: object) -> FakeMappingResult:
+        self.statements.append(statement)
+        return FakeMappingResult(self.rows.pop(0))
 
 
 def service() -> tuple[LeaveConfigurationService, FakeRepository]:
@@ -308,3 +335,24 @@ def test_settings_version_is_optional_only_for_initial_creation() -> None:
         {**created.model_dump(by_alias=True), "expectedUpdatedAt": "2026-09-13T08:00:00.000Z"}
     )
     assert updated.expected_updated_at == NOW
+
+
+@pytest.mark.asyncio
+async def test_settings_lock_reads_a_core_row_mapping() -> None:
+    connection = FakeCoreConnection(
+        [
+            {"id": TYPE_ID, "updated_at": NOW},
+            {"id": TYPE_ID, "updated_at": NOW},
+        ]
+    )
+    repository = LeaveConfigurationRepository(cast(AsyncConnection, connection))
+
+    row = await repository.upsert_settings(
+        company_id=COMPANY_ID,
+        branch_id=BRANCH_ID,
+        expected=NOW,
+        values={"carry_forward_max_days": 15},
+    )
+
+    assert row["id"] == TYPE_ID
+    assert "FOR UPDATE" in str(connection.statements[0])
