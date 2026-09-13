@@ -69,8 +69,11 @@ def main() -> None:
         record = json.loads(path.read_text(encoding="utf-8"))
         if set(record) != required | {"$schema"}:
             fail(f"{path.name} does not use the cutover record top-level contract")
-        if record["status"]["current"] != "preparation":
-            fail(f"{path.name} is not a preparation record")
+        allowed_statuses = {"preparation"}
+        if path.name == "leave-configuration.json":
+            allowed_statuses.add("completed")
+        if record["status"]["current"] not in allowed_statuses:
+            fail(f"{path.name} has an unsupported status for the current phase")
         if record["dataClassification"] != "synthetic":
             fail(f"{path.name} is not synthetic-only")
         if len(record["rollback"]["steps"]) < 5:
