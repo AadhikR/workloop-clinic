@@ -6,8 +6,8 @@ Phase 7 code and verification are complete at commit
 `9edb754675240656b23c279d8b7be765182c1930`. GitHub Migration foundation run `34742244623`
 passed on 2026-09-13. The project owner has not yet recorded explicit Phase 7 signoff.
 
-This document defines the Phase 8 split. The project owner authorized and completed 8A, 8B, and
-8C. Phase 8D and every later part still require separate authorization.
+This document defines the Phase 8 split. The project owner authorized and completed 8A through 8D.
+Phase 8E and every later part still require separate authorization.
 
 ## Why Phase 8 needs subphases
 
@@ -50,7 +50,7 @@ Phase 8 is therefore split into seven parts, 8A through 8G.
 | 8A | Leave contracts, dependency inventory, cutover units, and amendment decisions | Complete |
 | 8B | Leave settings, types, and public holidays | Complete |
 | 8C | Balance authority, accrual, carry-forward, and leave read projections | Complete |
-| 8D | Leave attachment metadata and private-object access | Not authorized; blocked by the 8A storage ownership decision |
+| 8D | Leave attachment metadata and private-object access | Complete |
 | 8E | Employee and administrator submission, auto-approval, and cancellation | Not authorized |
 | 8F | Manager, delegate, and administrator decisions with audit | Not authorized |
 | 8G | Independent review, complete cutover proof, and Phase 8 gate | Not authorized |

@@ -1,6 +1,7 @@
 # Phase 8D attachment proposal
 
-Status: approved by the project owner on 2026-09-14; implementation is in progress.
+Status: complete. The project owner approved the proposal on 2026-09-14, and the implementation
+passed its local and GitHub gates on 2026-09-14.
 
 This proposal defines the minimum Phase 11-owned storage prerequisite and the Phase 8D leave
 attachment amendment. The project owner approved Decision `8A-ATT-1` and decisions `8D-STO-D1`
