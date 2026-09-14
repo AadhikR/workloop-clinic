@@ -1,1 +1,1 @@
-{"featureId":"leave-attachments","command":"python scripts/verify-phase-8a-contract.py","refreshedAt":"2026-09-13T16:24:36Z","sourceDigest":"sha256:9de8058d41693f4297f721324d7d947b0ee00b673dd5bae030400ef1ee245819","sourceRecordCount":1,"targetRecordCount":1}
+{"featureId":"leave-attachments","command":"python scripts/verify-phase-8d-attachments.py","refreshedAt":"2026-09-14T16:10:29Z","sourceDigest":"sha256:9de8058d41693f4297f721324d7d947b0ee00b673dd5bae030400ef1ee245819","sourceRecordCount":1,"targetRecordCount":1}

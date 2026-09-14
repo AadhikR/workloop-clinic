@@ -11,7 +11,14 @@ from sqlalchemy.engine import RowMapping
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.models.identity import Employee
-from app.models.leave import LeaveBalance, LeaveRequest, LeaveSettings, LeaveType, PublicHoliday
+from app.models.leave import (
+    LeaveAttachment,
+    LeaveBalance,
+    LeaveRequest,
+    LeaveSettings,
+    LeaveType,
+    PublicHoliday,
+)
 from app.repositories.scoped import ResourceNotFoundError
 
 
@@ -195,12 +202,26 @@ class LeaveBalanceRepository:
                 LeaveRequest.created_at,
                 LeaveRequest.updated_at,
                 LeaveType.day_count_type,
+                LeaveAttachment.id.label("attachment_id"),
+                LeaveAttachment.file_name.label("attachment_file_name"),
+                LeaveAttachment.content_type.label("attachment_content_type"),
+                LeaveAttachment.size_bytes.label("attachment_size_bytes"),
+                LeaveAttachment.sha256.label("attachment_sha256"),
+                LeaveAttachment.uploaded_at.label("attachment_uploaded_at"),
+                LeaveAttachment.expires_at.label("attachment_expires_at"),
             )
             .join(
                 LeaveType,
                 (LeaveType.id == LeaveRequest.leave_type_id)
                 & (LeaveType.company_id == LeaveRequest.company_id)
                 & (LeaveType.branch_id == LeaveRequest.branch_id),
+            )
+            .outerjoin(
+                LeaveAttachment,
+                (LeaveAttachment.leave_request_id == LeaveRequest.id)
+                & (LeaveAttachment.company_id == LeaveRequest.company_id)
+                & (LeaveAttachment.branch_id == LeaveRequest.branch_id)
+                & (LeaveAttachment.status == "attached"),
             )
             .where(*criteria)
             .order_by(asc(LeaveRequest.id))

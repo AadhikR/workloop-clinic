@@ -148,12 +148,28 @@ def verify_database() -> None:
             .scalar_one()
             .lower()
         )
-        assert "profile_app_user_id=caller.app_user_id" in audit_function.replace(
+        if "_append_audit_event_phase8d_prior" in audit_function:
+            assert "leave_attachment_uploaded" in audit_function
+            assert "leave_attachment_cleanup_requested" in audit_function
+            phase7g_audit_function = (
+                connection.execute(
+                    text(
+                        "SELECT pg_catalog.pg_get_functiondef("
+                        "'public._append_audit_event_phase8d_prior"
+                        "(text,text,uuid,text[],text,jsonb)'::regprocedure)"
+                    )
+                )
+                .scalar_one()
+                .lower()
+            )
+        else:
+            phase7g_audit_function = audit_function
+        assert "profile_app_user_id=caller.app_user_id" in phase7g_audit_function.replace(
             " ", ""
         )
-        assert "_append_audit_event_phase7g_prior" in audit_function
-        assert "employee_portal_role_changed" in audit_function
-        assert "raise exception 'audit event denied'" in audit_function
+        assert "_append_audit_event_phase7g_prior" in phase7g_audit_function
+        assert "employee_portal_role_changed" in phase7g_audit_function
+        assert "raise exception 'audit event denied'" in phase7g_audit_function
         audit_predecessor = (
             connection.execute(
                 text(
@@ -168,6 +184,7 @@ def verify_database() -> None:
         assert "branch_created" in audit_predecessor and "branch_deleted" in audit_predecessor
         assert "employee_branch_corrected" in audit_predecessor
         for signature in (
+            "public._append_audit_event_phase8d_prior(text,text,uuid,text[],text,jsonb)",
             "public._append_audit_event_phase7g_prior(text,text,uuid,text[],text,jsonb)",
             "public._append_audit_event_phase5g(text,text,uuid,text[],text,jsonb)",
             "public._create_workflow_notification_phase5g(text,text)",

@@ -8,6 +8,10 @@ import {
   readAllEmployeeLeaveRequests,
   recalculateLeaveBalances,
 } from './leaveBalanceApi.js'
+import {
+  createLeaveAttachmentDownload,
+  uploadLeaveAttachment,
+} from './leaveAttachmentApi.js'
 
 function currentYear() {
   return new Date().getUTCFullYear()
@@ -49,7 +53,7 @@ function BalanceTable({ balances }) {
   )
 }
 
-function RequestTable({ requests }) {
+function RequestTable({ requests, onDownload, onUpload, uploadState }) {
   if (requests.length === 0) return <p>No leave requests overlap this leave year.</p>
   return (
     <div className="table-wrap">
@@ -61,6 +65,7 @@ function RequestTable({ requests }) {
             <th>Days</th>
             <th>Status</th>
             <th>Reason</th>
+            <th>Attachment</th>
           </tr>
         </thead>
         <tbody>
@@ -71,6 +76,26 @@ function RequestTable({ requests }) {
               <td>{request.daysRequested}</td>
               <td>{request.status}</td>
               <td>{request.reason || 'No reason supplied'}</td>
+              <td>
+                {request.attachment ? (
+                  <button type="button" className="secondary" onClick={() => onDownload(request)}>
+                    Download {request.attachment.fileName}
+                  </button>
+                ) : request.status === 'Pending' ? (
+                  <label>
+                    <span className="sr-only">Upload attachment for request {request.id}</span>
+                    <input
+                      type="file"
+                      accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
+                      onChange={(event) => onUpload(request, event.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                ) : 'None'}
+                {uploadState[request.id] === 'Uploading...' && (
+                  <progress aria-label={`Uploading attachment for request ${request.id}`} />
+                )}
+                {uploadState[request.id] && <span role="status">{uploadState[request.id]}</span>}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -82,6 +107,7 @@ function RequestTable({ requests }) {
 export default function LeaveOverview({ account, authentication, branchId }) {
   const [year, setYear] = useState(currentYear)
   const [state, setState] = useState({ status: 'loading', balances: [], requests: [], message: '' })
+  const [uploadState, setUploadState] = useState({})
   const admin = account.role === 'admin'
 
   const read = useCallback(async (signal) => {
@@ -141,6 +167,35 @@ export default function LeaveOverview({ account, authentication, branchId }) {
     }
   }
 
+  const upload = async (leaveRequest, file) => {
+    if (!file) return
+    setUploadState((current) => ({ ...current, [leaveRequest.id]: 'Uploading...' }))
+    try {
+      await uploadLeaveAttachment(
+        authentication, admin ? branchId : null, leaveRequest.id, file,
+      )
+      const refreshed = await read()
+      setState((current) => ({ ...current, ...refreshed }))
+      setUploadState((current) => ({ ...current, [leaveRequest.id]: 'Upload complete.' }))
+    } catch {
+      setUploadState((current) => ({
+        ...current,
+        [leaveRequest.id]: 'Upload failed. Choose the file again to retry.',
+      }))
+    }
+  }
+
+  const download = async (leaveRequest) => {
+    try {
+      const signed = await createLeaveAttachmentDownload(
+        authentication, admin ? branchId : null, leaveRequest.attachment.id,
+      )
+      globalThis.location.assign(signed.url)
+    } catch {
+      setState((current) => ({ ...current, message: 'The attachment could not be downloaded.' }))
+    }
+  }
+
   return (
     <section className="leave-overview" aria-labelledby="leave-overview-title">
       <h2 id="leave-overview-title">{admin ? 'Branch leave overview' : 'My leave'}</h2>
@@ -170,7 +225,12 @@ export default function LeaveOverview({ account, authentication, branchId }) {
           <h3>Balances</h3>
           <BalanceTable balances={state.balances} />
           <h3>Request calendar</h3>
-          <RequestTable requests={state.requests} />
+          <RequestTable
+            requests={state.requests}
+            onDownload={download}
+            onUpload={upload}
+            uploadState={uploadState}
+          />
         </>
       )}
     </section>

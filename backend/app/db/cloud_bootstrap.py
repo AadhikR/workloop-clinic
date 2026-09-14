@@ -30,6 +30,7 @@ BOOTSTRAPS = (
         connect_roles=(
             DatabaseRole("workloop_runtime"),
             DatabaseRole("workloop_expiry_processing", inherit=False),
+            DatabaseRole("workloop_storage_reconciler", inherit=False),
         ),
     ),
     DatabaseBootstrap(

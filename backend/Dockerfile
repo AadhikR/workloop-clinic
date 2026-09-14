@@ -8,7 +8,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 RUN groupadd --system workloop \
-    && useradd --system --gid workloop --home-dir /app --no-create-home workloop
+    && useradd --system --gid workloop --home-dir /app --no-create-home workloop \
+    && mkdir --parents /var/lib/workloop-storage \
+    && chown workloop:workloop /var/lib/workloop-storage
 
 COPY requirements.lock ./
 RUN python -m pip install --require-hashes --requirement requirements.lock

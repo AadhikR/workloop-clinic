@@ -13,6 +13,7 @@ from app.auth.application_user import AuthorizationPrincipal
 from app.models.identity import AppRole
 from app.repositories.leave_balance import LeaveBalanceRepository, LockedBalanceState
 from app.repositories.scoped import ResourceNotFoundError
+from app.schemas.leave_attachment import LeaveAttachmentResponse
 from app.schemas.leave_balance import LeaveBalanceResponse, LeaveRequestResponse
 from app.services.employees import EmployeeCursorCodec
 from app.services.execution import ServiceExecutionError
@@ -282,7 +283,20 @@ class LeaveBalanceService:
                 holidays=holidays,
                 half_day=row["is_half_day"],
             )
-            values["attachment"] = None
+            attachment_fields = {
+                "id": values.pop("attachment_id"),
+                "file_name": values.pop("attachment_file_name"),
+                "content_type": values.pop("attachment_content_type"),
+                "size_bytes": values.pop("attachment_size_bytes"),
+                "sha256": values.pop("attachment_sha256"),
+                "uploaded_at": values.pop("attachment_uploaded_at"),
+                "expires_at": values.pop("attachment_expires_at"),
+            }
+            values["attachment"] = (
+                None
+                if attachment_fields["id"] is None
+                else LeaveAttachmentResponse.model_validate(attachment_fields)
+            )
             values.pop("day_count_type")
             responses.append(LeaveRequestResponse.model_validate(values))
         return responses, next_cursor

@@ -41,22 +41,8 @@ export async function deleteLeaveType() {
   throw new Error('Leave configuration has moved to the migration settings screen.');
 }
 
-/**
- * Upload a leave supporting document to the employee-documents bucket under the
- * leave/ sub-path. Returns a 7-day signed URL (long enough for HR review).
- * Reuses existing Storage RLS policies — no new bucket needed.
- */
-export async function uploadLeaveAttachment(adminUserId, employeeId, file) {
-  const safeName    = file.name.replace(/[^a-z0-9._-]/gi, '_');
-  const storagePath = `${adminUserId}/${employeeId}/leave/${Date.now()}_${safeName}`;
-  const { error: uploadErr } = await supabase.storage
-    .from('employee-documents')
-    .upload(storagePath, file, { cacheControl: '3600', upsert: false });
-  if (uploadErr) throw uploadErr;
-  const { data: signed } = await supabase.storage
-    .from('employee-documents')
-    .createSignedUrl(storagePath, 604800); // 7 days
-  return signed?.signedUrl ?? '';
+export async function uploadLeaveAttachment() {
+  throw new Error('Leave attachments have moved to the migration leave screen.');
 }
 
 // ── PUBLIC HOLIDAYS ───────────────────────────────────────────────────────────

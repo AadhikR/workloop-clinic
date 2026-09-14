@@ -30,6 +30,7 @@ from app.http.rate_limit import ConfigurableRateLimiter, RateLimiter
 from app.http.sample_schemas import CurrentAccountResponse, PublicStatusResponse
 from app.http.schemas import DataResponse
 from app.idempotency_api import router as idempotency_router
+from app.leave_attachment_api import router as leave_attachment_router
 from app.leave_balance_api import router as leave_balance_router
 from app.leave_configuration_api import router as leave_configuration_router
 from app.organization_api import router as organization_router
@@ -45,6 +46,7 @@ from app.storage.proof_api import (
     delete_storage_proof,
     read_storage_proof,
 )
+from app.storage.synthetic_api import download_synthetic_object
 
 DatabaseProbe = Callable[[AsyncEngine], Awaitable[None]]
 
@@ -187,6 +189,15 @@ def create_app(
     application.include_router(idempotency_router)
     application.include_router(leave_configuration_router)
     application.include_router(leave_balance_router)
+    application.include_router(leave_attachment_router)
+    application.add_api_route(
+        "/_synthetic-storage/v1/{token}",
+        download_synthetic_object,
+        methods=["GET"],
+        response_model=None,
+        operation_id="download_synthetic_storage_object",
+        include_in_schema=False,
+    )
 
     application.add_api_route(
         "/health",

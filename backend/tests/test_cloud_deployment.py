@@ -51,6 +51,7 @@ def test_cloud_bootstrap_grants_only_approved_database_connections() -> None:
     assert [(role.name, role.inherit) for role in workloop_roles] == [
         ("workloop_runtime", True),
         ("workloop_expiry_processing", False),
+        ("workloop_storage_reconciler", False),
     ]
     assert bootstraps["keycloak"].connect_roles == ()
 

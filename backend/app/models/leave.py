@@ -5,6 +5,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
     Date,
@@ -17,7 +18,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import BYTEA, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -322,6 +323,145 @@ class LeaveRequest(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+ATTACHMENT_METADATA_COMPLETE = (
+    "file_name IS NOT NULL AND content_type IS NOT NULL AND size_bytes IS NOT NULL "
+    "AND sha256 IS NOT NULL AND object_key IS NOT NULL"
+)
+ATTACHMENT_METADATA_EMPTY = (
+    "file_name IS NULL AND content_type IS NULL AND size_bytes IS NULL "
+    "AND sha256 IS NULL AND object_key IS NULL"
+)
+
+
+class LeaveAttachment(Base):
+    __tablename__ = "leave_attachments"
+    __table_args__ = (
+        ForeignKeyConstraint(["company_id"], ["companies.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(
+            ["branch_id", "company_id"],
+            ["branches.id", "branches.company_id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["employee_id", "company_id", "branch_id"],
+            ["employees.id", "employees.company_id", "employees.branch_id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["created_by_app_user_id", "company_id"],
+            ["user_profiles.app_user_id", "user_profiles.company_id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["leave_request_id", "company_id", "branch_id"],
+            ["leave_requests.id", "leave_requests.company_id", "leave_requests.branch_id"],
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint("leave_request_id", name="uq_leave_attachments_leave_request_id"),
+        UniqueConstraint(
+            "submission_token_digest", name="uq_leave_attachments_submission_token_digest"
+        ),
+        CheckConstraint(
+            "octet_length(submission_token_digest)=32",
+            name="submission_token_digest",
+        ),
+        CheckConstraint(
+            "status IN ('pending','uploading','staged','attached','cleanup_pending','removed')",
+            name="status",
+        ),
+        CheckConstraint(
+            f"(({ATTACHMENT_METADATA_EMPTY}) OR ({ATTACHMENT_METADATA_COMPLETE}))",
+            name="metadata_completeness",
+        ),
+        CheckConstraint(
+            "file_name IS NULL OR octet_length(file_name) BETWEEN 1 AND 180",
+            name="file_name",
+        ),
+        CheckConstraint(
+            "content_type IS NULL OR content_type IN ('application/pdf','image/png','image/jpeg')",
+            name="content_type",
+        ),
+        CheckConstraint(
+            "size_bytes IS NULL OR size_bytes BETWEEN 1 AND 10485760",
+            name="size_bytes",
+        ),
+        CheckConstraint(
+            "sha256 IS NULL OR sha256 ~ '^[0-9a-f]{64}$'",
+            name="sha256",
+        ),
+        CheckConstraint(
+            "object_key IS NULL OR (octet_length(object_key) BETWEEN 1 AND 1024 "
+            "AND object_key !~ '[[:cntrl:]\\\\]' AND left(object_key,1)<>'/' "
+            "AND object_key NOT LIKE '%//%' AND ('/'||object_key||'/') NOT LIKE '%/./%' "
+            "AND ('/'||object_key||'/') NOT LIKE '%/../%')",
+            name="object_key",
+        ),
+        CheckConstraint(
+            f"(status='pending' AND {ATTACHMENT_METADATA_EMPTY} AND token_consumed_at IS NULL "
+            "AND expires_at=created_at+interval '15 minutes' AND uploaded_at IS NULL "
+            "AND attached_at IS NULL AND cleanup_requested_at IS NULL AND removed_at IS NULL) OR "
+            f"(status='uploading' AND {ATTACHMENT_METADATA_EMPTY} "
+            "AND token_consumed_at IS NOT NULL "
+            "AND expires_at IS NOT NULL AND uploaded_at IS NULL AND attached_at IS NULL "
+            "AND cleanup_requested_at IS NULL AND removed_at IS NULL) OR "
+            f"(status='staged' AND {ATTACHMENT_METADATA_COMPLETE} "
+            "AND token_consumed_at IS NOT NULL AND uploaded_at IS NOT NULL "
+            "AND expires_at=uploaded_at+interval '24 hours' AND leave_request_id IS NULL "
+            "AND attached_at IS NULL AND cleanup_requested_at IS NULL AND removed_at IS NULL) OR "
+            f"(status='attached' AND {ATTACHMENT_METADATA_COMPLETE} "
+            "AND token_consumed_at IS NOT NULL AND uploaded_at IS NOT NULL "
+            "AND expires_at IS NULL AND leave_request_id IS NOT NULL AND attached_at IS NOT NULL "
+            "AND cleanup_requested_at IS NULL AND removed_at IS NULL) OR "
+            f"(status='cleanup_pending' AND {ATTACHMENT_METADATA_COMPLETE} "
+            "AND cleanup_requested_at IS NOT NULL AND removed_at IS NULL) OR "
+            f"(status='removed' AND {ATTACHMENT_METADATA_COMPLETE} AND removed_at IS NOT NULL)",
+            name="lifecycle",
+        ),
+        CheckConstraint(
+            "updated_at>=created_at AND (expires_at IS NULL OR expires_at>=created_at) "
+            "AND (token_consumed_at IS NULL OR token_consumed_at>=created_at) "
+            "AND (uploaded_at IS NULL OR uploaded_at>=created_at) "
+            "AND (attached_at IS NULL OR attached_at>=created_at) "
+            "AND (cleanup_requested_at IS NULL OR cleanup_requested_at>=created_at) "
+            "AND (removed_at IS NULL OR removed_at>=created_at)",
+            name="timestamps",
+        ),
+        Index("ix_leave_attachments_scope", "company_id", "branch_id", "employee_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    branch_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    employee_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    leave_request_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    created_by_app_user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    submission_token_digest: Mapped[bytes] = mapped_column(BYTEA(), nullable=False)
+    file_name: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    content_type: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    size_bytes: Mapped[int | None] = mapped_column(BigInteger(), nullable=True)
+    sha256: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    object_key: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    status: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("'pending'"))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    token_consumed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    uploaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    attached_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    cleanup_requested_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    removed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("statement_timestamp()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("statement_timestamp()")
     )
 
 

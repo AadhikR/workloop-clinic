@@ -150,6 +150,8 @@ jobs:
         run: docker compose --profile tools run --rm migrate
       - name: Verify repeatable migration
         run: docker compose --profile tools run --rm migrate
+      - name: Verify Phase 8D attachment contract
+        run: python scripts/verify-phase-8d-attachments.py
       - name: Verify empty-schema downgrade boundary
         if: needs.changes.outputs.database_deep == 'true'
         run: |
@@ -204,9 +206,9 @@ jobs:
             alembic -c /app/alembic.ini check
           '
           docker compose exec -T backend python -c "import os, psycopg; url=os.environ['DATABASE_URL'].replace('postgresql+psycopg://', 'postgresql://', 1); connection=psycopg.connect(url); cursor=connection.cursor(); cursor.execute('SELECT current_user'); assert cursor.fetchone() == ('workloop_runtime',); connection.close()"
-      - name: Verify Phase 7G exact predecessor
+      - name: Verify audit wrapper exact predecessors
         if: needs.changes.outputs.database_deep == 'true'
-        run: sh scripts/verify-phase-7g-revision.sh
+        run: sh scripts/verify-phase-8d-revision.sh
       - name: Verify database boundaries
         if: needs.changes.outputs.database_deep == 'true'
         run: |
@@ -226,6 +228,7 @@ jobs:
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --volume ./scripts:/verification:ro --volume ./tests/fixtures:/workspace-fixtures:ro --entrypoint python migrate -c "import runpy; runpy.run_path('/verification/verify-phase-7g-employee-lifecycle.py', run_name='__main__')"
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --volume ./scripts:/verification:ro --entrypoint python migrate -c "import runpy; runpy.run_path('/verification/verify-phase-8b-configuration-database.py', run_name='__main__')"
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --volume ./scripts:/verification:ro --entrypoint python migrate -c "import runpy; runpy.run_path('/verification/verify-phase-8c-balance-database.py', run_name='__main__')"
+          docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --volume ./scripts:/verification:ro --entrypoint python migrate -c "import runpy; runpy.run_path('/verification/verify-phase-8d-database.py', run_name='__main__')"
       - name: Verify service health
         run: |
           curl --fail --silent --show-error http://127.0.0.1:8000/health | jq --exit-status '.status == "ok" and .database == "ok"'
@@ -243,6 +246,7 @@ jobs:
         run: sh scripts/verify-phase-3h-logs.sh
       - name: Record persisted state
         run: |
+          docker compose --profile tools run --rm --no-deps --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python storage-reconciler /verification/verify-phase-8d-storage-restart.py prepare
           sh scripts/database-persistence-fingerprint.sh > /tmp/workloop-database-fingerprint
           curl --fail --silent --show-error http://127.0.0.1:8080/realms/workloop-dev/protocol/openid-connect/certs | jq -r '.keys[].kid' | sort > /tmp/workloop-signing-key-ids
       - name: Recreate local stack without removing data
@@ -257,6 +261,7 @@ jobs:
           diff /tmp/workloop-database-fingerprint /tmp/workloop-restarted-database-fingerprint
           curl --fail --silent --show-error http://127.0.0.1:8080/realms/workloop-dev/protocol/openid-connect/certs | jq -r '.keys[].kid' | sort > /tmp/workloop-restarted-signing-key-ids
           diff /tmp/workloop-signing-key-ids /tmp/workloop-restarted-signing-key-ids
+          docker compose --profile tools run --rm --no-deps --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python storage-reconciler /verification/verify-phase-8d-storage-restart.py verify
           if [ "$DATABASE_DEEP" = "true" ]; then
             sh scripts/verify-phase-5d-context.sh
           fi

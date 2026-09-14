@@ -179,7 +179,9 @@ def verify_catalog(engine: Any) -> None:
         tables = set(
             connection.execute(
                 text(
-                    "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname='public' AND tablename NOT IN ('alembic_version', 'idempotency_records')"
+                    "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname='public' "
+                    "AND tablename NOT IN ('alembic_version','idempotency_records',"
+                    "'storage_operations','leave_attachments')"
                 )
             ).scalars()
         )
@@ -270,7 +272,7 @@ WHERE table_schema='public' AND grantee='workloop_expiry_processing'
                 """
 SELECT count(*) FROM pg_catalog.pg_policies
 WHERE schemaname='public' AND policyname NOT LIKE 'phase5%'
-  AND tablename <> 'idempotency_records'
+  AND tablename NOT IN ('idempotency_records','storage_operations','leave_attachments')
   AND policyname NOT IN (
     'phase7g_user_profiles_select_branch_runtime',
     'phase7g_user_profiles_update_role_branch_runtime'
@@ -284,7 +286,7 @@ WHERE schemaname='public' AND policyname NOT LIKE 'phase5%'
             row[0]: row[1]
             for row in connection.execute(
                 text(
-                    "SELECT object.relname,object.relrowsecurity FROM pg_catalog.pg_class AS object JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid=object.relnamespace WHERE namespace.nspname='public' AND object.relkind='r' AND object.relname <> 'idempotency_records'"
+                    "SELECT object.relname,object.relrowsecurity FROM pg_catalog.pg_class AS object JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid=object.relnamespace WHERE namespace.nspname='public' AND object.relkind='r' AND object.relname NOT IN ('idempotency_records','storage_operations','leave_attachments')"
                 )
             )
         }
@@ -308,10 +310,18 @@ WHERE namespace.nspname='public' AND procedure.proname=:name
             acl = str(row[4])
             assert "workloop_runtime=X" in acl and "{=X/" not in acl
             definition = row[5].lower()
-            assert (
-                "session_user" in definition
-                and "resolve_workloop_principal" in definition
-            )
+            if (
+                function_name == "append_audit_event"
+                and "_append_audit_event_phase8d_prior" in definition
+            ):
+                assert "_append_audit_event_phase8d_prior" in definition
+                assert "leave_attachment_uploaded" in definition
+                assert "leave_attachment_cleanup_requested" in definition
+            else:
+                assert (
+                    "session_user" in definition
+                    and "resolve_workloop_principal" in definition
+                )
             expected_arguments = {
                 "create_workflow_notification": "p_type text, p_related_entity_id text",
                 "append_audit_event": (

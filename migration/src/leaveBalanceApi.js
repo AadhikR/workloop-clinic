@@ -40,6 +40,25 @@ function isDateOrNull(value) {
   return value === null || typeof value === 'string' && datePattern.test(value)
 }
 
+function parseAttachment(value) {
+  if (value === null) return null
+  if (
+    !hasExactKeys(value, [
+      'id', 'fileName', 'contentType', 'sizeBytes', 'sha256', 'uploadedAt', 'expiresAt',
+    ])
+    || !uuidPattern.test(value.id)
+    || typeof value.fileName !== 'string'
+    || !['application/pdf', 'image/png', 'image/jpeg'].includes(value.contentType)
+    || !Number.isInteger(value.sizeBytes)
+    || value.sizeBytes < 1
+    || value.sizeBytes > 10_485_760
+    || !/^[0-9a-f]{64}$/.test(value.sha256)
+    || !instantPattern.test(value.uploadedAt)
+    || value.expiresAt !== null && !instantPattern.test(value.expiresAt)
+  ) throw invalidResponse()
+  return Object.freeze({ ...value })
+}
+
 export function parseLeaveBalance(value) {
   if (
     !hasExactKeys(value, balanceKeys)
@@ -71,7 +90,7 @@ export function parseLeaveRequest(value) {
     || !dayPattern.test(value.daysRequested)
     || !statuses.has(value.status)
     || textFields.some((key) => typeof value[key] !== 'string')
-    || value.attachment !== null
+    || value.attachment !== null && typeof value.attachment !== 'object'
     || !isDateOrNull(value.dateOfDeath)
     || !isDateOrNull(value.childBirthDate)
     || !isDateOrNull(value.expectedDueDate)
@@ -84,7 +103,11 @@ export function parseLeaveRequest(value) {
     || !instantPattern.test(value.createdAt)
     || !instantPattern.test(value.updatedAt)
   ) throw invalidResponse()
-  return Object.freeze({ ...value, warnings: Object.freeze([...value.warnings]) })
+  return Object.freeze({
+    ...value,
+    attachment: parseAttachment(value.attachment),
+    warnings: Object.freeze([...value.warnings]),
+  })
 }
 
 function parsePage(value) {

@@ -66,12 +66,14 @@ PHASE_4_TARGET_TABLES = frozenset(
     }
 )
 PHASE_5G_TARGET_TABLES = PHASE_4_TARGET_TABLES | {"audit_events", "idempotency_records"}
+CURRENT_TARGET_TABLES = PHASE_5G_TARGET_TABLES | {"storage_operations", "leave_attachments"}
 
 
-def test_metadata_contains_exactly_the_phase_5g_target_tables() -> None:
+def test_metadata_contains_exactly_the_current_target_tables() -> None:
     assert len(PHASE_4_TARGET_TABLES) == 54
     assert len(PHASE_5G_TARGET_TABLES) == 56
-    assert set(Base.metadata.tables) == PHASE_5G_TARGET_TABLES
+    assert len(CURRENT_TARGET_TABLES) == 58
+    assert set(Base.metadata.tables) == CURRENT_TARGET_TABLES
 
 
 def test_foundation_metadata_has_deterministic_constraint_names() -> None:

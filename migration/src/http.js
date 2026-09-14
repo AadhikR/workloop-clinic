@@ -34,6 +34,7 @@ const errorContract = new Map([
   ['portal_role_conflict', [409, 'conflict']],
   ['idempotency_conflict', [409, 'conflict']],
   ['idempotency_in_progress', [409, 'conflict']],
+  ['attachment_submission_unavailable', [409, 'conflict']],
   ['request_too_large', [413, 'validation']],
   ['unsupported_media_type', [415, 'validation']],
   ['validation_failed', [422, 'validation']],
@@ -331,8 +332,17 @@ function requestHeaders(options, accessToken) {
 }
 
 function requestBody(options, method) {
-  if (!Object.hasOwn(options, 'json')) return undefined
+  const hasJson = Object.hasOwn(options, 'json')
+  const hasForm = Object.hasOwn(options, 'form')
+  if (hasJson && hasForm) throw invalidRequest()
+  if (!hasJson && !hasForm) return undefined
   if (method === 'GET') throw invalidRequest()
+  if (hasForm) {
+    if (typeof FormData === 'undefined' || !(options.form instanceof FormData)) {
+      throw invalidRequest()
+    }
+    return options.form
+  }
   try {
     const body = JSON.stringify(options.json)
     if (body === undefined) throw new Error('value is not JSON')
@@ -361,7 +371,7 @@ export function createHttpClient({
 
   return Object.freeze({
     async request(path, options = {}) {
-      const allowedOptionNames = new Set(['access', 'headers', 'json', 'method', 'signal'])
+      const allowedOptionNames = new Set(['access', 'form', 'headers', 'json', 'method', 'signal'])
       if (Object.keys(options).some((name) => !allowedOptionNames.has(name))) {
         throw invalidRequest()
       }
@@ -400,7 +410,8 @@ export function createHttpClient({
       }
       const callerAbort = () => abortAs('cancelled')
       callerSignal?.addEventListener('abort', callerAbort, { once: true })
-      const deadline = destination.pathname === '/health' ? 10_000 : 20_000
+      const deadline = destination.pathname.endsWith('/file') ? 70_000
+        : destination.pathname === '/health' ? 10_000 : 20_000
       const timeout = timers.setTimeout(() => abortAs('timeout'), deadline)
 
       let response

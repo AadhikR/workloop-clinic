@@ -40,6 +40,7 @@ ERROR_REGISTRY: dict[str, ErrorSpec] = {
     "method_not_allowed": ErrorSpec(405, "Method not allowed"),
     "not_acceptable": ErrorSpec(406, "Requested response type is not available"),
     "state_conflict": ErrorSpec(409, "Resource state changed"),
+    "attachment_submission_unavailable": ErrorSpec(409, "Attachment submission unavailable"),
     "branch_conflict": ErrorSpec(409, "Branch state prevents this operation"),
     "employee_conflict": ErrorSpec(409, "Employee state prevents this operation"),
     "employment_transition_conflict": ErrorSpec(409, "Employment state changed"),

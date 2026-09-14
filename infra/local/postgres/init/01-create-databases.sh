@@ -5,11 +5,13 @@ psql --set ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <
 \getenv workloop_migration_password WORKLOOP_MIGRATION_PASSWORD
 \getenv workloop_runtime_password WORKLOOP_RUNTIME_PASSWORD
 \getenv workloop_expiry_processing_password WORKLOOP_EXPIRY_PROCESSING_PASSWORD
+\getenv workloop_storage_reconciler_password WORKLOOP_STORAGE_RECONCILER_PASSWORD
 \getenv keycloak_db_password KEYCLOAK_DB_PASSWORD
 
 CREATE ROLE workloop_migration LOGIN PASSWORD :'workloop_migration_password' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
 CREATE ROLE workloop_runtime LOGIN PASSWORD :'workloop_runtime_password' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
 CREATE ROLE workloop_expiry_processing LOGIN PASSWORD :'workloop_expiry_processing_password' NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+CREATE ROLE workloop_storage_reconciler LOGIN PASSWORD :'workloop_storage_reconciler_password' NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
 CREATE ROLE keycloak LOGIN PASSWORD :'keycloak_db_password' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
 
 CREATE DATABASE workloop OWNER workloop_migration;
@@ -21,4 +23,5 @@ REVOKE ALL PRIVILEGES ON DATABASE keycloak FROM PUBLIC;
 
 GRANT CONNECT, TEMPORARY ON DATABASE workloop TO workloop_runtime;
 GRANT CONNECT ON DATABASE workloop TO workloop_expiry_processing;
+GRANT CONNECT ON DATABASE workloop TO workloop_storage_reconciler;
 SQL

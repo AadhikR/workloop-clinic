@@ -16,6 +16,7 @@ from app.models.idempotency import IdempotencyRecord
 from app.models.identity import AppUser, Branch, Company, Employee, UserProfile
 from app.models.leave import (
     LeaveApprovalDelegate,
+    LeaveAttachment,
     LeaveAuditLog,
     LeaveBalance,
     LeaveRequest,
@@ -57,6 +58,7 @@ from app.models.records import (
     OffboardingTaskTemplate,
     TrainingRecord,
 )
+from app.models.storage import StorageOperation
 
 __all__ = [
     "AdvanceRepayment",
@@ -92,6 +94,7 @@ __all__ = [
     "InsuranceDependant",
     "InsurancePolicy",
     "LeaveApprovalDelegate",
+    "LeaveAttachment",
     "LeaveAuditLog",
     "LeaveBalance",
     "LeaveRequest",
@@ -114,6 +117,7 @@ __all__ = [
     "Shift",
     "ShiftAssignment",
     "ShiftSwapRequest",
+    "StorageOperation",
     "TrainingRecord",
     "UserProfile",
 ]

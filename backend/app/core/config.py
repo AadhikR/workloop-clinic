@@ -2,6 +2,7 @@ import base64
 import binascii
 import re
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Literal, Self
 
 from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, SecretStr, model_validator
@@ -9,6 +10,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEFAULT_RECOVERY_KEY_ID = "00000000"
 DEFAULT_RECOVERY_KEY = "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA"
+DEFAULT_STORAGE_SIGNING_KEY = "MTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTE"
+DEFAULT_ATTACHMENT_OBJECT_KEY_HMAC_KEY = "MjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjI"
 
 
 def _to_camel(value: str) -> str:
@@ -86,8 +89,20 @@ class Settings(BaseSettings):
     trusted_proxy: Literal["direct", "digitalocean_app_platform"] = Field(
         default="direct", validation_alias="TRUSTED_PROXY"
     )
-    storage_backend: Literal["disabled", "spaces"] = Field(
+    storage_backend: Literal["disabled", "synthetic", "spaces"] = Field(
         default="disabled", validation_alias="STORAGE_BACKEND"
+    )
+    storage_signing_key: SecretStr = Field(
+        default=SecretStr(DEFAULT_STORAGE_SIGNING_KEY),
+        validation_alias="STORAGE_SIGNING_KEY",
+    )
+    attachment_object_key_hmac_key: SecretStr = Field(
+        default=SecretStr(DEFAULT_ATTACHMENT_OBJECT_KEY_HMAC_KEY),
+        validation_alias="ATTACHMENT_OBJECT_KEY_HMAC_KEY",
+    )
+    synthetic_storage_path: Path = Field(
+        default=Path("/tmp/workloop-storage"),
+        validation_alias="SYNTHETIC_STORAGE_PATH",
     )
     spaces_endpoint_url: AnyHttpUrl | None = Field(
         default=None, validation_alias="SPACES_ENDPOINT_URL"
@@ -242,6 +257,28 @@ class Settings(BaseSettings):
     def _validate_storage_settings(self) -> None:
         if self.storage_backend == "disabled":
             return
+        self._decode_32_byte_key(self.storage_signing_key.get_secret_value(), "STORAGE_SIGNING_KEY")
+        self._decode_32_byte_key(
+            self.attachment_object_key_hmac_key.get_secret_value(),
+            "ATTACHMENT_OBJECT_KEY_HMAC_KEY",
+        )
+        if self.app_env not in {"local", "test"} and self.storage_backend == "synthetic":
+            raise ValueError("STORAGE_BACKEND synthetic is limited to local and test")
+        if self.app_env not in {"local", "test"} and (
+            self.storage_signing_key.get_secret_value() == DEFAULT_STORAGE_SIGNING_KEY
+            or self.attachment_object_key_hmac_key.get_secret_value()
+            == DEFAULT_ATTACHMENT_OBJECT_KEY_HMAC_KEY
+        ):
+            raise ValueError("deployed storage keys must not use local defaults")
+        if (
+            self.storage_signing_key.get_secret_value()
+            == self.attachment_object_key_hmac_key.get_secret_value()
+        ):
+            raise ValueError("storage signing and attachment object keys must differ")
+        if self.storage_backend == "synthetic":
+            if not self.synthetic_storage_path.is_absolute():
+                raise ValueError("SYNTHETIC_STORAGE_PATH must be absolute")
+            return
         required = {
             "SPACES_ENDPOINT_URL": self.spaces_endpoint_url,
             "SPACES_REGION": self.spaces_region,
@@ -261,6 +298,17 @@ class Settings(BaseSettings):
             raise ValueError("SPACES_ENDPOINT_URL must match SPACES_REGION")
         if not re.fullmatch(r"[a-z0-9](?:[a-z0-9.-]{1,61}[a-z0-9])?", self.spaces_bucket):
             raise ValueError("SPACES_BUCKET must be a valid lowercase bucket name")
+
+    def decoded_storage_signing_key(self) -> bytes:
+        return self._decode_32_byte_key(
+            self.storage_signing_key.get_secret_value(), "STORAGE_SIGNING_KEY"
+        )
+
+    def decoded_attachment_object_key_hmac_key(self) -> bytes:
+        return self._decode_32_byte_key(
+            self.attachment_object_key_hmac_key.get_secret_value(),
+            "ATTACHMENT_OBJECT_KEY_HMAC_KEY",
+        )
 
     @property
     def cors_allowed_origins(self) -> tuple[str, ...]:

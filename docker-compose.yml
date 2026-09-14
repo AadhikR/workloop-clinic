@@ -81,6 +81,8 @@ services:
     ports:
       - "127.0.0.1:8000:8000"
     read_only: true
+    volumes:
+      - storage_data:/var/lib/workloop-storage
     tmpfs:
       - /tmp
     cap_drop:
@@ -124,5 +126,32 @@ services:
     shm_size: 128mb
     stop_grace_period: 30s
 
+  storage-reconciler:
+    build:
+      context: ./backend
+    image: workloop-api:local
+    profiles:
+      - tools
+    env_file:
+      - path: ./backend/.env.api
+        required: true
+      - path: ./backend/.env.storage-reconciler
+        required: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["python", "-m", "app.storage.reconciler"]
+    read_only: true
+    volumes:
+      - storage_data:/var/lib/workloop-storage
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
+
 volumes:
   postgres_data:
+  storage_data:

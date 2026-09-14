@@ -34,7 +34,13 @@ ALLOWED_HEADERS = (
 EXPOSED_HEADERS = ("X-Correlation-ID", "Idempotency-Replayed", "Location", "Retry-After")
 
 
-def ordinary_body_limit(_scope: Scope) -> int:
+def ordinary_body_limit(scope: Scope) -> int:
+    if (
+        scope.get("method") == "POST"
+        and str(scope.get("path", "")).startswith("/api/v1/leave/attachment-submissions/")
+        and str(scope.get("path", "")).endswith("/file")
+    ):
+        return UPLOAD_REQUEST_LIMIT_BYTES
     return ORDINARY_BODY_LIMIT_BYTES
 
 
@@ -172,6 +178,8 @@ class HttpBoundaryMiddleware:
                 timeout_seconds = (
                     health_timeout if scope.get("path") == "/health" else request_timeout
                 )
+                if self.body_limit_resolver(scope) == UPLOAD_REQUEST_LIMIT_BYTES:
+                    timeout_seconds = 60.0
                 async with asyncio.timeout(timeout_seconds):
                     if route_match is Match.FULL:
                         await self._run_until_complete_or_disconnect(
@@ -280,7 +288,8 @@ class HttpBoundaryMiddleware:
         accept_values = self.header_values(scope, b"accept")
         if len(accept_values) > 1:
             return "invalid_request"
-        if accept_values and not self._accepts_json(accept_values[0]):
+        synthetic_download = str(scope.get("path", "")).startswith("/_synthetic-storage/v1/")
+        if accept_values and not synthetic_download and not self._accepts_json(accept_values[0]):
             return "not_acceptable"
         lengths = self.header_values(scope, b"content-length")
         if len(lengths) > 1:
@@ -329,7 +338,11 @@ class HttpBoundaryMiddleware:
             content_types = self.header_values(scope, b"content-type")
             if len(content_types) > 1:
                 return receive, "invalid_request"
-            if not content_types or not self._is_json_content_type(content_types[0]):
+            is_upload = self.body_limit_resolver(scope) == UPLOAD_REQUEST_LIMIT_BYTES
+            if not content_types or not (
+                self._is_json_content_type(content_types[0])
+                or (is_upload and self._is_multipart_content_type(content_types[0]))
+            ):
                 return receive, "unsupported_media_type"
         delivered = False
 
@@ -385,6 +398,18 @@ class HttpBoundaryMiddleware:
         if media != "application/json":
             return False
         return all(parameter in {"charset=utf-8", 'charset="utf-8"'} for parameter in parameters)
+
+    @staticmethod
+    def _is_multipart_content_type(value: str) -> bool:
+        media, *parameters = (item.strip() for item in value.split(";"))
+        if media.lower() != "multipart/form-data" or len(parameters) != 1:
+            return False
+        name, separator, boundary = parameters[0].partition("=")
+        if name.lower() != "boundary" or separator != "=" or not boundary:
+            return False
+        if boundary.startswith('"') and boundary.endswith('"'):
+            boundary = boundary[1:-1]
+        return 1 <= len(boundary) <= 70 and boundary.isascii()
 
     @staticmethod
     def _rate_limit_class(scope: Scope) -> RateLimitClass:

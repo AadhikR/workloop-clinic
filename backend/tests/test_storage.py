@@ -2,6 +2,7 @@ import hashlib
 import uuid
 from collections.abc import AsyncGenerator, Mapping
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime, timedelta
 from typing import cast
 
 import pytest
@@ -13,7 +14,14 @@ from app.auth.access_token import AccessTokenClaims
 from app.auth.application_user import AuthorizationPrincipal
 from app.auth.dependencies import require_access_token, require_authorization_principal
 from app.models.identity import AccountStatus, AppRole
-from app.storage.base import StorageError, StorageNotFoundError, StoredObject, StoredObjectMetadata
+from app.storage.base import (
+    SignedDownload,
+    StorageConflictError,
+    StorageError,
+    StorageNotFoundError,
+    StoredObject,
+    StoredObjectMetadata,
+)
 from app.storage.proof import PROOF_CONTENT, PROOF_CONTENT_TYPE, PROOF_SHA256
 from app.storage.spaces import S3Client, SpacesObjectStorage
 from tests.test_http_boundary import make_settings
@@ -25,9 +33,19 @@ class MemoryObjectStorage:
         self.fail = fail
         self.closed = False
 
-    async def put_object(self, *, key: str, body: bytes, content_type: str, sha256: str) -> None:
+    async def put_object(
+        self,
+        *,
+        key: str,
+        body: bytes,
+        content_type: str,
+        sha256: str,
+        if_absent: bool = True,
+    ) -> None:
         if self.fail:
             raise StorageError
+        if if_absent and key in self.objects:
+            raise StorageConflictError
         self.objects[key] = StoredObject(
             body=body,
             metadata=StoredObjectMetadata(
@@ -50,6 +68,21 @@ class MemoryObjectStorage:
         if self.fail:
             raise StorageError
         self.objects.pop(key, None)
+
+    async def create_download_url(
+        self,
+        *,
+        key: str,
+        expires_in_seconds: int,
+        download_name: str,
+        content_type: str,
+    ) -> SignedDownload:
+        del download_name, content_type
+        await self.head_object(key=key)
+        return SignedDownload(
+            url="http://testserver/synthetic-download",
+            expires_at=datetime.now(UTC) + timedelta(seconds=expires_in_seconds),
+        )
 
     async def close(self) -> None:
         self.closed = True

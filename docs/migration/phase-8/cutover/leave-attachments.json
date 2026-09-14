@@ -4,13 +4,23 @@
   "featureId": "leave-attachments",
   "dataClassification": "synthetic",
   "status": {
-    "current": "preparation",
-    "changedAt": "2026-09-13T08:00:00Z",
+    "current": "completed",
+    "changedAt": "2026-09-14T16:10:29Z",
     "history": [
       {
         "state": "preparation",
         "at": "2026-09-13T08:00:00Z",
         "reason": "Attachment ownership awaits the Phase 11 prerequisite decision."
+      },
+      {
+        "state": "active-cutover",
+        "at": "2026-09-14T16:08:00Z",
+        "reason": "Phase 8D attachment metadata, upload, signing, and recovery checks passed on synthetic data."
+      },
+      {
+        "state": "completed",
+        "at": "2026-09-14T16:10:29Z",
+        "reason": "Migration attachment authority and the legacy attachment freeze were verified."
       }
     ]
   },
@@ -27,15 +37,15 @@
         "id": "phase8a-legacy-leave-object",
         "system": "legacy-supabase",
         "kind": "storage",
-        "locator": "src/utils/leaveStorage.js:243-256",
-        "cutoverDisposition": "retain"
+        "locator": "src/utils/leaveStorage.js:43-45",
+        "cutoverDisposition": "replace"
       },
       {
         "id": "phase8a-storage-interface",
         "system": "migration-fastapi",
         "kind": "storage",
-        "locator": "backend/app/storage/base.py:14-40",
-        "cutoverDisposition": "freeze"
+        "locator": "backend/app/storage/base.py:14-67",
+        "cutoverDisposition": "retain"
       },
       {
         "id": "phase8a-storage-proof-only",
@@ -48,29 +58,29 @@
         "id": "phase8a-amend-attachment-metadata",
         "system": "migration-fastapi",
         "kind": "data-contract",
-        "locator": "docs/migration/phase-8/PART_8A_DOMAIN_CONTRACT.md",
+        "locator": "docs/migration/phase-8/PART_8D_ATTACHMENT_PROPOSAL.md",
         "cutoverDisposition": "freeze"
       }
     ]
   },
   "authority": {
-    "readSystem": "legacy-supabase",
-    "writeSystem": "legacy-supabase",
+    "readSystem": "migration-fastapi",
+    "writeSystem": "migration-fastapi",
     "writableSystems": [
-      "legacy-supabase"
+      "migration-fastapi"
     ]
   },
   "freeze": {
     "read": {
-      "system": "migration-fastapi",
-      "condition": "No migration attachment read or signing path exists.",
-      "releaseCondition": "Phase 11 prerequisite is approved and 8D passes local synthetic storage checks.",
-      "verificationCommand": "python scripts/verify-phase-8a-contract.py"
+      "system": "legacy-supabase",
+      "condition": "Legacy attachment reads are frozen after private migration signing is active.",
+      "releaseCondition": "Rollback disables migration signing before restoring the legacy reader.",
+      "verificationCommand": "python scripts/verify-phase-8d-attachments.py"
     },
     "write": {
-      "system": "migration-fastapi",
-      "condition": "No migration object or metadata writer exists.",
-      "releaseCondition": "8D attachment cutover passes without public URLs or provider credentials.",
+      "system": "legacy-supabase",
+      "condition": "Legacy attachment uploads are frozen after the migration writer is active.",
+      "releaseCondition": "Rollback disables migration uploads before restoring the legacy writer.",
       "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-8/cutover/leave-attachments.json"
     }
   },
@@ -81,14 +91,14 @@
       "locator": "docs/migration/phase-8/PART_8A_DOMAIN_CONTRACT.md",
       "digest": "sha256:9de8058d41693f4297f721324d7d947b0ee00b673dd5bae030400ef1ee245819"
     },
-    "command": "python scripts/verify-phase-8a-contract.py",
+    "command": "python scripts/verify-phase-8d-attachments.py",
     "lastRefresh": {
-      "timestamp": "2026-09-13T16:24:36Z",
-      "command": "python scripts/verify-phase-8a-contract.py",
+      "timestamp": "2026-09-14T16:10:29Z",
+      "command": "python scripts/verify-phase-8d-attachments.py",
       "sourceDigest": "sha256:9de8058d41693f4297f721324d7d947b0ee00b673dd5bae030400ef1ee245819",
       "evidence": {
         "path": "docs/migration/phase-8/cutover/evidence-leave-attachments.json",
-        "sha256": "sha256:9e873b83510031189eebf43d86b1d1a9db774962be7a178c61c54d08656e5e15"
+        "sha256": "sha256:e456af6e8b05c5c26acc0c1d2ffd0111625bbac86c708dc69ac2c232da29a228"
       }
     }
   },
@@ -121,7 +131,7 @@
       {
         "id": "freeze-migration-writes",
         "action": "Disable migration uploads and signing.",
-        "verificationCommand": "python scripts/verify-phase-8a-contract.py"
+        "verificationCommand": "python scripts/verify-phase-8d-attachments.py"
       },
       {
         "id": "restore-legacy-writes",
@@ -136,7 +146,7 @@
       {
         "id": "verify-authority",
         "action": "Check request ownership and queue scope.",
-        "verificationCommand": "python scripts/verify-phase-8a-contract.py"
+        "verificationCommand": "python scripts/verify-phase-8d-attachments.py"
       },
       {
         "id": "verify-data",
@@ -146,7 +156,7 @@
     ]
   },
   "validation": {
-    "asOf": "2026-09-13T16:24:36Z",
+    "asOf": "2026-09-14T16:10:29Z",
     "refreshMaxAgeHours": 24
   }
 }

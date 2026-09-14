@@ -66,6 +66,25 @@ if (Test-Path -LiteralPath $postgresPath) {
             (New-Object System.Text.UTF8Encoding($false))
         )
     }
+    $storageReconcilerLine = [System.IO.File]::ReadLines($postgresPath) | Where-Object {
+        $_.StartsWith("WORKLOOP_STORAGE_RECONCILER_PASSWORD=")
+    }
+    if ($storageReconcilerLine) {
+        $storageReconcilerPassword = $storageReconcilerLine.Substring(
+            $storageReconcilerLine.IndexOf("=") + 1
+        )
+    }
+    else {
+        $storageReconcilerPassword = New-LocalSecret
+        $postgresLines = @([System.IO.File]::ReadAllLines($postgresPath)) + @(
+            "WORKLOOP_STORAGE_RECONCILER_PASSWORD=$storageReconcilerPassword"
+        )
+        [System.IO.File]::WriteAllLines(
+            $postgresPath,
+            $postgresLines,
+            (New-Object System.Text.UTF8Encoding($false))
+        )
+    }
     $keycloakDatabaseLine = [System.IO.File]::ReadLines($postgresPath) | Where-Object {
         $_.StartsWith("KEYCLOAK_DB_PASSWORD=")
     }
@@ -80,12 +99,14 @@ else {
     $runtimePassword = New-LocalSecret
     $migrationPassword = New-LocalSecret
     $expiryProcessingPassword = New-LocalSecret
+    $storageReconcilerPassword = New-LocalSecret
     $keycloakDatabasePassword = New-LocalSecret
     $postgresLines = @(
         "POSTGRES_PASSWORD=$(New-LocalSecret)"
         "WORKLOOP_MIGRATION_PASSWORD=$migrationPassword"
         "WORKLOOP_RUNTIME_PASSWORD=$runtimePassword"
         "WORKLOOP_EXPIRY_PROCESSING_PASSWORD=$expiryProcessingPassword"
+        "WORKLOOP_STORAGE_RECONCILER_PASSWORD=$storageReconcilerPassword"
         "KEYCLOAK_DB_PASSWORD=$keycloakDatabasePassword"
     )
     [System.IO.File]::WriteAllLines(
@@ -114,7 +135,24 @@ $apiLines = @(
     "IDEMPOTENCY_RECOVERY_CURRENT_KEY_ID=$(New-LocalKeyId)"
     "IDEMPOTENCY_RECOVERY_CURRENT_KEY=$(New-LocalSecret)"
     "IDEMPOTENCY_RECOVERY_PREVIOUS_KEYS=[]"
+    "STORAGE_BACKEND=synthetic"
+    "STORAGE_SIGNING_KEY=$(New-LocalSecret)"
+    "ATTACHMENT_OBJECT_KEY_HMAC_KEY=$(New-LocalSecret)"
+    "SYNTHETIC_STORAGE_PATH=/var/lib/workloop-storage"
     "DATABASE_URL=postgresql+psycopg://workloop_runtime:${runtimePassword}@postgres:5432/workloop"
+)
+
+$reconcilerPath = Join-Path $parent ".env.storage-reconciler"
+$reconcilerLines = @(
+    "DATABASE_URL=postgresql+psycopg://workloop_storage_reconciler:${storageReconcilerPassword}@postgres:5432/workloop"
+    "STORAGE_BACKEND=synthetic"
+    "STORAGE_SIGNING_KEY=$($apiLines | Where-Object { $_.StartsWith('STORAGE_SIGNING_KEY=') } | ForEach-Object { $_.Substring($_.IndexOf('=') + 1) })"
+    "SYNTHETIC_STORAGE_PATH=/var/lib/workloop-storage"
+)
+[System.IO.File]::WriteAllLines(
+    $reconcilerPath,
+    $reconcilerLines,
+    (New-Object System.Text.UTF8Encoding($false))
 )
 
 [System.IO.File]::WriteAllLines(
@@ -123,28 +161,46 @@ $apiLines = @(
     (New-Object System.Text.UTF8Encoding($false))
 )
 
-if (-not (Test-Path -LiteralPath $migrationPath)) {
-    $migrationLines = @(
-        "MIGRATION_DATABASE_URL=postgresql+psycopg://workloop_migration:${migrationPassword}@postgres:5432/workloop"
-    )
-    [System.IO.File]::WriteAllLines(
-        $migrationPath,
-        $migrationLines,
-        (New-Object System.Text.UTF8Encoding($false))
+$migrationLines = @(
+    "MIGRATION_DATABASE_URL=postgresql+psycopg://workloop_migration:${migrationPassword}@postgres:5432/workloop"
+)
+[System.IO.File]::WriteAllLines(
+    $migrationPath,
+    $migrationLines,
+    (New-Object System.Text.UTF8Encoding($false))
+)
+
+if (Test-Path -LiteralPath $keycloakPath) {
+    $keycloakExistingLines = [System.IO.File]::ReadAllLines($keycloakPath)
+    $keycloakAdminUsername = $keycloakExistingLines | Where-Object {
+        $_.StartsWith("KC_BOOTSTRAP_ADMIN_USERNAME=")
+    }
+    $keycloakAdminPassword = $keycloakExistingLines | Where-Object {
+        $_.StartsWith("KC_BOOTSTRAP_ADMIN_PASSWORD=")
+    }
+    if (-not $keycloakAdminUsername) {
+        $keycloakAdminUsername = "KC_BOOTSTRAP_ADMIN_USERNAME=workloop-local-admin"
+    }
+    if (-not $keycloakAdminPassword) {
+        $keycloakAdminPassword = "KC_BOOTSTRAP_ADMIN_PASSWORD=$(New-LocalSecret)"
+    }
+    $keycloakLines = @(
+        "KC_DB_PASSWORD=$keycloakDatabasePassword"
+        $keycloakAdminUsername
+        $keycloakAdminPassword
     )
 }
-
-if (-not (Test-Path -LiteralPath $keycloakPath)) {
+else {
     $keycloakLines = @(
         "KC_DB_PASSWORD=$keycloakDatabasePassword"
         "KC_BOOTSTRAP_ADMIN_USERNAME=workloop-local-admin"
         "KC_BOOTSTRAP_ADMIN_PASSWORD=$(New-LocalSecret)"
     )
-    [System.IO.File]::WriteAllLines(
-        $keycloakPath,
-        $keycloakLines,
-        (New-Object System.Text.UTF8Encoding($false))
-    )
 }
+[System.IO.File]::WriteAllLines(
+    $keycloakPath,
+    $keycloakLines,
+    (New-Object System.Text.UTF8Encoding($false))
+)
 
-"Local PostgreSQL, API, migration, and Keycloak environment files are ready; no secret values were displayed."
+"Local PostgreSQL, API, migration, Keycloak, and storage reconciler environment files are ready; no secret values were displayed."

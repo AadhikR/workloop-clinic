@@ -66,6 +66,9 @@ const createdRows = {
 }
 const browserHistoryId = '00000000-0000-4000-8000-000000000075'
 const browserDepartmentId = '00000000-0000-4000-8000-000000000076'
+const browserLeaveSettingsId = '00000000-0000-4000-8000-000000000077'
+const browserLeaveTypeId = '00000000-0000-4000-8000-000000000078'
+const browserLeaveRequestId = '00000000-0000-4000-8000-000000000079'
 const createdIdentityIds = []
 let activeStage = 'startup'
 
@@ -275,6 +278,31 @@ function createFixtures() {
     },
   )
   createdRows.jobHistory.push(browserHistoryId)
+  stage('synthetic leave attachment fixture creation')
+  psql(
+    "INSERT INTO leave_settings (id, company_id, branch_id) "
+      + "VALUES (:'id', :'company_id', :'branch_id')",
+    { id: browserLeaveSettingsId, company_id: companyId, branch_id: branchId },
+  )
+  psql(
+    "INSERT INTO leave_types (id, company_id, branch_id, code, name) "
+      + "VALUES (:'id', :'company_id', :'branch_id', 'BROWSER', 'Browser proof')",
+    { id: browserLeaveTypeId, company_id: companyId, branch_id: branchId },
+  )
+  psql(
+    "INSERT INTO leave_requests "
+      + "(id, company_id, branch_id, employee_id, leave_type_id, start_date, end_date, "
+      + "days_requested, status, reason) VALUES (:'id', :'company_id', :'branch_id', "
+      + ":'employee_id', :'leave_type_id', '2026-09-21', '2026-09-21', 1.00, "
+      + "'Pending', 'Phase 8D browser attachment proof')",
+    {
+      id: browserLeaveRequestId,
+      company_id: companyId,
+      branch_id: branchId,
+      employee_id: personas[2].employeeId,
+      leave_type_id: browserLeaveTypeId,
+    },
+  )
 }
 
 function cleanupFixtures() {
@@ -299,6 +327,34 @@ function cleanupFixtures() {
       ))
       cleanup(() => psql(
         "DELETE FROM audit_events WHERE company_id = :'company_id'",
+        { company_id: companyId },
+      ))
+      cleanup(() => psql(
+        "DELETE FROM storage_operations WHERE company_id = :'company_id'",
+        { company_id: companyId },
+      ))
+      cleanup(() => psql(
+        "DELETE FROM leave_attachments WHERE company_id = :'company_id'",
+        { company_id: companyId },
+      ))
+      cleanup(() => psql(
+        "DELETE FROM leave_audit_log WHERE company_id = :'company_id'",
+        { company_id: companyId },
+      ))
+      cleanup(() => psql(
+        "DELETE FROM leave_requests WHERE company_id = :'company_id'",
+        { company_id: companyId },
+      ))
+      cleanup(() => psql(
+        "DELETE FROM leave_balances WHERE company_id = :'company_id'",
+        { company_id: companyId },
+      ))
+      cleanup(() => psql(
+        "DELETE FROM leave_types WHERE company_id = :'company_id'",
+        { company_id: companyId },
+      ))
+      cleanup(() => psql(
+        "DELETE FROM leave_settings WHERE company_id = :'company_id'",
         { company_id: companyId },
       ))
       cleanup(() => psql(
@@ -364,6 +420,11 @@ function cleanupFixtures() {
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM user_profiles'), '0'))
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM employees'), '0'))
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM employee_job_history'), '0'))
+  verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM leave_attachments'), '0'))
+  verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM storage_operations'), '0'))
+  verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM leave_requests'), '0'))
+  verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM leave_types'), '0'))
+  verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM leave_settings'), '0'))
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM companies'), '0'))
   verifyCleanup(() => run(['exec', '-T', 'keycloak', 'rm', '-f', kcadmConfig]))
   verifyCleanup(() => run(['exec', '-T', 'keycloak', 'test', '!', '-e', kcadmConfig]))
@@ -458,6 +519,82 @@ async function assertSampleApi(page, persona) {
     assert.ok(sampleText.includes('Not linked'))
     assert.ok(sampleText.includes('Not selected'))
   }
+}
+
+async function assertLeaveAttachmentJourney(page) {
+  const body = Buffer.from('%PDF-1.7\n% Phase 8D browser proof\n%%EOF\n')
+  stage('employee leave attachment upload')
+  await page.getByRole('heading', { name: 'My leave' }).waitFor({ timeout: 20_000 })
+  const input = page.getByLabel(`Upload attachment for request ${browserLeaveRequestId}`)
+  await input.waitFor({ timeout: 20_000 })
+  const intentResponsePromise = page.waitForResponse((response) => {
+    const request = response.request()
+    return request.method() === 'POST'
+      && new URL(response.url()).pathname === '/api/v1/leave/attachment-submissions'
+  })
+  const uploadResponsePromise = page.waitForResponse((response) => {
+    const request = response.request()
+    return request.method() === 'POST'
+      && new URL(response.url()).pathname.endsWith('/file')
+  })
+  await input.setInputFiles({
+    name: 'phase-8d-browser.pdf',
+    mimeType: 'application/pdf',
+    buffer: body,
+  })
+  stage('employee leave attachment intent response')
+  const intentResponse = await intentResponsePromise
+  assert.equal(intentResponse.status(), 201, await intentResponse.text())
+  stage('employee leave attachment file response')
+  const uploadResponse = await uploadResponsePromise
+  assert.equal(uploadResponse.status(), 201, await uploadResponse.text())
+  await page.getByText('Upload complete.', { exact: true }).waitFor({ timeout: 20_000 })
+  const downloadButton = page.getByRole('button', { name: 'Download phase-8d-browser.pdf' })
+  await downloadButton.waitFor({ timeout: 20_000 })
+  assert.equal(
+    psql(
+      "SELECT concat(status, '|', file_name) FROM leave_attachments "
+        + "WHERE leave_request_id = :'request_id'",
+      { request_id: browserLeaveRequestId },
+    ),
+    'attached|phase-8d-browser.pdf',
+  )
+  assert.equal(
+    psql(
+      "SELECT count(*) FROM storage_operations AS operation "
+        + "JOIN leave_attachments AS attachment ON attachment.id = operation.entity_id "
+        + "WHERE attachment.leave_request_id = :'request_id' AND operation.status = 'succeeded'",
+      { request_id: browserLeaveRequestId },
+    ),
+    '1',
+  )
+  assert.equal(
+    psql(
+      "SELECT count(*) FROM audit_events WHERE company_id = :'company_id' "
+        + "AND action = 'leave_attachment_uploaded'",
+      { company_id: companyId },
+    ),
+    '1',
+  )
+
+  stage('employee signed leave attachment download')
+  const signedResponsePromise = page.waitForResponse((response) => {
+    const request = response.request()
+    return request.method() === 'POST'
+      && new URL(response.url()).pathname.endsWith('/download')
+  })
+  await downloadButton.evaluate((button) => button.click())
+  const signedResponse = await signedResponsePromise
+  assert.equal(signedResponse.status(), 200)
+  const signedBody = await signedResponse.json()
+  assert.deepEqual(Object.keys(signedBody), ['data'])
+  const downloaded = await page.request.get(signedBody.data.url)
+  assert.equal(downloaded.status(), 200)
+  assert.equal(downloaded.headers()['content-type'], 'application/pdf')
+  assert.ok(
+    downloaded.headers()['content-disposition'].includes('filename="phase-8d-browser.pdf"'),
+  )
+  assert.deepEqual(await downloaded.body(), body)
 }
 
 function businessFingerprint() {
@@ -954,7 +1091,7 @@ async function browserChecks(viteServer) {
   try {
     for (const persona of personas) {
       stage(`${persona.role} initial session`)
-      const context = await browser.newContext()
+      const context = await browser.newContext({ acceptDownloads: true })
       const page = await context.newPage()
       let callbackUrl
       let leakedCallbackReferrer = null
@@ -1097,6 +1234,7 @@ async function browserChecks(viteServer) {
       }
 
       if (persona.role === 'employee') {
+        await assertLeaveAttachmentJourney(page)
         stage('employee disablement')
         psql(
           "UPDATE app_users SET status = 'disabled' WHERE id = :'app_user_id'",

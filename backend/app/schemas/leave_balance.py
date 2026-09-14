@@ -8,6 +8,7 @@ from typing import Literal
 from pydantic import Field, field_serializer
 
 from app.http.schemas import ApiSchema, StrictRequestSchema
+from app.schemas.leave_attachment import LeaveAttachmentResponse
 
 
 class LeaveBalanceResponse(ApiSchema):
@@ -58,7 +59,7 @@ class LeaveRequestResponse(ApiSchema):
         "Cancelled",
     ]
     reason: str
-    attachment: None = None
+    attachment: LeaveAttachmentResponse | None = None
     rejection_reason: str
     manager_rejection_reason: str
     relationship: str
