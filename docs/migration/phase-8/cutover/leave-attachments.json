@@ -89,16 +89,16 @@
     "source": {
       "kind": "tracked-fixture",
       "locator": "docs/migration/phase-8/PART_8A_DOMAIN_CONTRACT.md",
-      "digest": "sha256:9de8058d41693f4297f721324d7d947b0ee00b673dd5bae030400ef1ee245819"
+      "digest": "sha256:1193ba0007aa23ad5840cf404d96d0eb46e02603cbd320891ea7baa38c6d87c1"
     },
     "command": "python scripts/verify-phase-8d-attachments.py",
     "lastRefresh": {
-      "timestamp": "2026-09-14T16:10:29Z",
+      "timestamp": "2026-09-15T17:31:10Z",
       "command": "python scripts/verify-phase-8d-attachments.py",
-      "sourceDigest": "sha256:9de8058d41693f4297f721324d7d947b0ee00b673dd5bae030400ef1ee245819",
+      "sourceDigest": "sha256:1193ba0007aa23ad5840cf404d96d0eb46e02603cbd320891ea7baa38c6d87c1",
       "evidence": {
         "path": "docs/migration/phase-8/cutover/evidence-leave-attachments.json",
-        "sha256": "sha256:e456af6e8b05c5c26acc0c1d2ffd0111625bbac86c708dc69ac2c232da29a228"
+        "sha256": "sha256:4c32daf2f89667aa0edadd4b6b8578782a2dc6f0e58bdcb700185e88b158bef3"
       }
     }
   },
@@ -156,7 +156,7 @@
     ]
   },
   "validation": {
-    "asOf": "2026-09-14T16:10:29Z",
+    "asOf": "2026-09-15T17:31:10Z",
     "refreshMaxAgeHours": 24
   }
 }

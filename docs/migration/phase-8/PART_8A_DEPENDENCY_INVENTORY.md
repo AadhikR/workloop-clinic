@@ -1,6 +1,6 @@
 # Phase 8A leave dependency inventory
 
-Status: preparation. This inventory records the legacy boundary before any leave runtime or schema change. IDs are stable within Phase 8A and are used by the five cutover records in `cutover/`.
+Status: complete. This inventory records the legacy boundary before any leave runtime or schema change. IDs are stable within Phase 8A and are traced to their current disposition in `PART_8G_INDEPENDENT_REVIEW.md`.
 
 ## Inventory rules
 

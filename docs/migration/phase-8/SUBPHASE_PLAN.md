@@ -7,7 +7,8 @@ Phase 7 code and verification are complete at commit
 passed on 2026-09-13. The project owner has not yet recorded explicit Phase 7 signoff.
 
 This document defines the Phase 8 split. The project owner authorized 8A through 8G. Parts 8A
-through 8F are complete. Phase 8G is authorized but has not started.
+through 8F are complete. Phase 8G completed its independent review and local gate on 2026-09-15.
+The matching GitHub result is reported in the Phase 8G task report after the settled push.
 
 ## Why Phase 8 needs subphases
 
@@ -53,7 +54,7 @@ Phase 8 is therefore split into seven parts, 8A through 8G.
 | 8D | Leave attachment metadata and private-object access | Complete |
 | 8E | Employee and administrator submission, auto-approval, and cancellation | Complete |
 | 8F | Manager, delegate, and administrator decisions with audit | Complete |
-| 8G | Independent review, complete cutover proof, and Phase 8 gate | Authorized; not started |
+| 8G | Independent review, complete cutover proof, and Phase 8 gate | Local gate complete |
 
 ## Rules shared by every part
 
