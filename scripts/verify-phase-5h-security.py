@@ -148,9 +148,25 @@ def verify_database() -> None:
             .scalar_one()
             .lower()
         )
-        if "_append_audit_event_phase8d_prior" in audit_function:
-            assert "leave_attachment_uploaded" in audit_function
-            assert "leave_attachment_cleanup_requested" in audit_function
+        wrapped_audit_function = audit_function
+        if "_append_audit_event_phase8e_prior" in wrapped_audit_function:
+            assert "leave_request_submitted" in wrapped_audit_function
+            assert "leave_request_auto_approved" in wrapped_audit_function
+            assert "leave_request_cancelled" in wrapped_audit_function
+            wrapped_audit_function = (
+                connection.execute(
+                    text(
+                        "SELECT pg_catalog.pg_get_functiondef("
+                        "'public._append_audit_event_phase8e_prior"
+                        "(text,text,uuid,text[],text,jsonb)'::regprocedure)"
+                    )
+                )
+                .scalar_one()
+                .lower()
+            )
+        if "_append_audit_event_phase8d_prior" in wrapped_audit_function:
+            assert "leave_attachment_uploaded" in wrapped_audit_function
+            assert "leave_attachment_cleanup_requested" in wrapped_audit_function
             phase7g_audit_function = (
                 connection.execute(
                     text(
@@ -163,7 +179,7 @@ def verify_database() -> None:
                 .lower()
             )
         else:
-            phase7g_audit_function = audit_function
+            phase7g_audit_function = wrapped_audit_function
         assert "profile_app_user_id=caller.app_user_id" in phase7g_audit_function.replace(
             " ", ""
         )
@@ -184,6 +200,7 @@ def verify_database() -> None:
         assert "branch_created" in audit_predecessor and "branch_deleted" in audit_predecessor
         assert "employee_branch_corrected" in audit_predecessor
         for signature in (
+            "public._append_audit_event_phase8e_prior(text,text,uuid,text[],text,jsonb)",
             "public._append_audit_event_phase8d_prior(text,text,uuid,text[],text,jsonb)",
             "public._append_audit_event_phase7g_prior(text,text,uuid,text[],text,jsonb)",
             "public._append_audit_event_phase5g(text,text,uuid,text[],text,jsonb)",
