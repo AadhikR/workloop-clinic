@@ -20,11 +20,11 @@ from app.auth.scopes import (
     tenant_authorization_scope,
 )
 from app.db.seed import constants as c
-from app.db.seed.fixtures import build_rows
+from app.db.seed.fixtures import Row, build_rows
 from app.db.seed.runner import apply_rows, clean, validate
 from app.models.identity import AccountStatus, AppRole
-from sqlalchemy import create_engine
-from sqlalchemy.engine import URL
+from sqlalchemy import create_engine, inspect
+from sqlalchemy.engine import Connection, URL
 from sqlalchemy.ext.asyncio import create_async_engine
 
 RLS_TABLES = (
@@ -167,6 +167,14 @@ EXPIRY_COLUMNS = {
         "licence_expiry",
     },
 }
+
+
+def revision_columns(connection: Connection, rows: list[Row]) -> dict[str, frozenset[str]]:
+    inspector = inspect(connection)
+    return {
+        table: frozenset(column["name"] for column in inspector.get_columns(table))
+        for table in sorted({row.table for row in rows})
+    }
 
 
 def row_values(table: str, **matches: object) -> dict[str, object]:
@@ -1066,8 +1074,9 @@ def main() -> None:
     expiry = connect_as("workloop_expiry_processing")
     try:
         with engine.begin() as connection:
-            apply_rows(connection, rows)
-            validate(connection, rows)
+            available_columns = revision_columns(connection, rows)
+            apply_rows(connection, rows, available_columns=available_columns)
+            validate(connection, rows, available_columns=available_columns)
         verify_catalog(engine)
         verify_role_boundaries(runtime, expiry)
         asyncio.run(verify_application_resolution())

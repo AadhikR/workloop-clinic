@@ -12,7 +12,7 @@ import json
 import os
 import uuid
 from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Any, cast
@@ -34,12 +34,21 @@ def _sync_url(url: str) -> str:
     return url
 
 
-def _coerce(table_name: str, values: Mapping[str, object]) -> dict[str, object]:
+def _coerce(
+    table_name: str,
+    values: Mapping[str, object],
+    available_columns: Collection[str] | None = None,
+) -> dict[str, object]:
     columns = Base.metadata.tables[table_name].columns
-    enriched = dict(values)
+    enriched = {
+        key: value
+        for key, value in values.items()
+        if available_columns is None or key in available_columns
+    }
     for column in columns:
         if (
-            column.name not in enriched
+            (available_columns is None or column.name in available_columns)
+            and column.name not in enriched
             and isinstance(column.type, DateTime)
             and not column.nullable
             and column.server_default is not None
@@ -69,10 +78,16 @@ def _guard_identity(connection: Connection) -> None:
         raise RuntimeError("the seed must run as the workloop_migration login")
 
 
-def apply_rows(connection: Connection, rows: Sequence[Row]) -> None:
+def apply_rows(
+    connection: Connection,
+    rows: Sequence[Row],
+    *,
+    available_columns: Mapping[str, Collection[str]] | None = None,
+) -> None:
     for row in rows:
         table = Base.metadata.tables[row.table]
-        values = _coerce(row.table, row.values)
+        columns = None if available_columns is None else available_columns[row.table]
+        values = _coerce(row.table, row.values, columns)
         statement = pg_insert(table).values(**values)
         statement = statement.on_conflict_do_nothing(index_elements=list(row.conflict))
         connection.execute(statement)
@@ -90,13 +105,19 @@ def _scoped_count(connection: Connection, table_name: str) -> int:
     return connection.execute(query).scalar_one()
 
 
-def validate(connection: Connection, rows: Sequence[Row]) -> None:
+def validate(
+    connection: Connection,
+    rows: Sequence[Row],
+    *,
+    available_columns: Mapping[str, Collection[str]] | None = None,
+) -> None:
     # Every manifest row exists by primary key and retains every fixed value.
     for row in rows:
         table = Base.metadata.tables[row.table]
         pk = {col.name: row.values[col.name] for col in table.primary_key.columns}
         clauses = [table.c[name] == value for name, value in pk.items()]
-        for name, value in _coerce(row.table, row.values).items():
+        columns = None if available_columns is None else available_columns[row.table]
+        for name, value in _coerce(row.table, row.values, columns).items():
             clauses.append(table.c[name] == value)
         found = connection.execute(select(func.count()).select_from(table).where(*clauses))
         if found.scalar_one() != 1:
