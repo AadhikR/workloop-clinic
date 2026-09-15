@@ -917,6 +917,9 @@ A complete leave workflow passes all three roles, transaction tests, and authori
 
 Move the financially sensitive workflows and make the server authoritative for persisted results.
 
+The detailed execution split is in `docs/migration/phase-9/SUBPHASE_PLAN.md`. Preparing that plan
+does not authorize Phase 9 implementation.
+
 ### Scope
 
 - Payroll runs and entries.
