@@ -7,8 +7,7 @@ Phase 7 code and verification are complete at commit
 passed on 2026-09-13. The project owner has not yet recorded explicit Phase 7 signoff.
 
 This document defines the Phase 8 split. The project owner authorized 8A through 8E. Parts 8A
-through 8D are complete, and 8E is in its final verification gate. Every later part still requires
-separate authorization.
+through 8E are complete. Every later part still requires separate authorization.
 
 ## Why Phase 8 needs subphases
 
@@ -52,7 +51,7 @@ Phase 8 is therefore split into seven parts, 8A through 8G.
 | 8B | Leave settings, types, and public holidays | Complete |
 | 8C | Balance authority, accrual, carry-forward, and leave read projections | Complete |
 | 8D | Leave attachment metadata and private-object access | Complete |
-| 8E | Employee and administrator submission, auto-approval, and cancellation | Final verification |
+| 8E | Employee and administrator submission, auto-approval, and cancellation | Complete |
 | 8F | Manager, delegate, and administrator decisions with audit | Not authorized |
 | 8G | Independent review, complete cutover proof, and Phase 8 gate | Not authorized |
 
