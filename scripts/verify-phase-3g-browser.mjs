@@ -70,6 +70,9 @@ const browserLeaveSettingsId = '00000000-0000-4000-8000-000000000077'
 const browserLeaveTypeId = '00000000-0000-4000-8000-000000000078'
 const browserLeaveRequestId = '00000000-0000-4000-8000-000000000079'
 const browserAutoLeaveTypeId = '00000000-0000-4000-8000-000000000080'
+const browserApprovalLeaveTypeId = '00000000-0000-4000-8000-000000000081'
+const browserAdminApprovalRequestId = '00000000-0000-4000-8000-000000000082'
+const browserManagerApprovalRequestId = '00000000-0000-4000-8000-000000000083'
 const createdIdentityIds = []
 let activeStage = 'startup'
 
@@ -296,6 +299,11 @@ function createFixtures() {
       + "'AUTO_BROWSER', 'Browser auto approval', true)",
     { id: browserAutoLeaveTypeId, company_id: companyId, branch_id: branchId },
   )
+  psql(
+    "INSERT INTO leave_types (id, company_id, branch_id, code, name) "
+      + "VALUES (:'id', :'company_id', :'branch_id', 'APPROVAL_BROWSER', 'Browser approval')",
+    { id: browserApprovalLeaveTypeId, company_id: companyId, branch_id: branchId },
+  )
   for (const leaveTypeId of [browserLeaveTypeId, browserAutoLeaveTypeId]) {
     const isPendingFixture = leaveTypeId === browserLeaveTypeId
     psql(
@@ -328,6 +336,40 @@ function createFixtures() {
       leave_type_id: browserLeaveTypeId,
     },
   )
+  psql(
+    "INSERT INTO leave_balances "
+      + "(company_id, branch_id, employee_id, leave_type_id, leave_year, "
+      + "entitled_days, accrued_days, pending_days, remaining_days) VALUES "
+      + "(:'company_id', :'branch_id', :'employee_id', :'leave_type_id', "
+      + "2026, 10.00, 10.00, 2.00, 8.00)",
+    {
+      branch_id: branchId,
+      company_id: companyId,
+      employee_id: personas[2].employeeId,
+      leave_type_id: browserApprovalLeaveTypeId,
+    },
+  )
+  for (const [id, date, level] of [
+    [browserAdminApprovalRequestId, '2026-10-11', 1],
+    [browserManagerApprovalRequestId, '2026-10-12', 2],
+  ]) {
+    psql(
+      "INSERT INTO leave_requests "
+        + "(id, company_id, branch_id, employee_id, leave_type_id, start_date, end_date, "
+        + "days_requested, status, reason, approval_level_required) VALUES "
+        + "(:'id', :'company_id', :'branch_id', :'employee_id', :'leave_type_id', "
+        + ":'date', :'date', 1.00, 'Pending', 'Phase 8F browser approval proof', :'level')",
+      {
+        id,
+        company_id: companyId,
+        branch_id: branchId,
+        employee_id: personas[2].employeeId,
+        leave_type_id: browserApprovalLeaveTypeId,
+        date,
+        level,
+      },
+    )
+  }
 }
 
 function cleanupFixtures() {
@@ -352,6 +394,10 @@ function cleanupFixtures() {
       ))
       cleanup(() => psql(
         "DELETE FROM audit_events WHERE company_id = :'company_id'",
+        { company_id: companyId },
+      ))
+      cleanup(() => psql(
+        "DELETE FROM leave_approval_delegates WHERE company_id = :'company_id'",
         { company_id: companyId },
       ))
       cleanup(() => psql(
@@ -448,6 +494,7 @@ function cleanupFixtures() {
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM leave_attachments'), '0'))
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM storage_operations'), '0'))
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM leave_requests'), '0'))
+  verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM leave_approval_delegates'), '0'))
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM leave_types'), '0'))
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM leave_settings'), '0'))
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM companies'), '0'))
@@ -781,6 +828,97 @@ async function assertLeaveSubmissionJourney(page, persona) {
       },
     ),
     '0.00|0.00|10.00',
+  )
+}
+
+async function decideApprovalThroughTable(page, { admin, requestId, date, reason }) {
+  const row = page.locator('.leave-approvals tr', { hasText: `${date} to ${date}` })
+  await row.waitFor({ timeout: 20_000 })
+  await row.getByRole('button', { name: 'Approve' }).waitFor()
+  await row.getByRole('button', { name: 'Reject' }).waitFor()
+  return page.evaluate(async ({ admin, branchId, requestId, reason }) => {
+    const { authenticationSession } = await import('/src/authSession.js')
+    const {
+      decideLeave,
+      readAdminApprovalQueue,
+      readApproverQueue,
+    } = await import('/src/leaveApprovalApi.js')
+    const authentication = authenticationSession()
+    const items = admin
+      ? await readAdminApprovalQueue(authentication, branchId)
+      : await readApproverQueue(authentication)
+    const item = items.find((candidate) => candidate.request.id === requestId)
+    if (!item) throw new Error('Rendered approval request is no longer available')
+    return decideLeave(
+      authentication,
+      admin ? branchId : null,
+      requestId,
+      'approve',
+      reason,
+      item.request.updatedAt,
+    )
+  }, { admin, branchId, requestId, reason })
+}
+
+async function assertLeaveApprovalJourney(page, persona) {
+  const admin = persona.role === 'admin'
+  if (admin && await page.locator('.branch-chooser').count()) {
+    await page.getByRole('button', { name: 'Phase 3G main', exact: true }).click()
+  }
+  await page.getByRole('heading', {
+    name: admin ? 'Branch leave decisions' : 'Leave approvals',
+  }).waitFor({ timeout: 20_000 })
+  if (admin) {
+    stage('administrator leave delegation creation')
+    const form = page.locator('.employee-form-grid').filter({
+      has: page.getByRole('button', { name: 'Create delegation' }),
+    })
+    await form.getByLabel('Approver').selectOption(personas[1].employeeId)
+    await form.getByLabel('Delegate').selectOption(personas[2].employeeId)
+    await form.getByLabel('Starts').fill('2026-10-20')
+    await form.getByLabel('Ends').fill('2026-10-21')
+    const createResponsePromise = page.waitForResponse((response) => (
+      response.request().method() === 'POST'
+      && new URL(response.url()).pathname === '/api/v1/leave/delegations/branch'
+    ))
+    await form.getByRole('button', { name: 'Create delegation' }).click()
+    const createResponse = await createResponsePromise
+    assert.equal(createResponse.status(), 201, await createResponse.text())
+    const delegation = (await createResponse.json()).data
+    await page.getByText('Delegation saved.', { exact: true }).waitFor({ timeout: 20_000 })
+    assert.equal(
+      psql(
+        "SELECT count(*) FROM leave_approval_delegates WHERE id = :'delegation_id'",
+        { delegation_id: delegation.id },
+      ),
+      '1',
+    )
+  }
+
+  const requestId = admin ? browserAdminApprovalRequestId : browserManagerApprovalRequestId
+  const date = admin ? '2026-10-11' : '2026-10-12'
+  stage(`${persona.role} leave approval decision`)
+  const decided = await decideApprovalThroughTable(page, {
+    admin,
+    requestId,
+    date,
+    reason: admin ? 'Browser administrator override' : 'Browser manager approval',
+  })
+  assert.equal(decided.status, admin ? 'Approved' : 'ManagerApproved')
+  assert.equal(
+    psql(
+      "SELECT count(*) FROM leave_audit_log WHERE leave_request_id = :'request_id'",
+      { request_id: requestId },
+    ),
+    '1',
+  )
+  assert.equal(
+    psql(
+      "SELECT count(*) FROM audit_events WHERE entity_id = :'request_id' "
+        + "AND action IN ('leave_request_approved', 'leave_request_manager_approved')",
+      { request_id: requestId },
+    ),
+    '1',
   )
 }
 
@@ -1358,7 +1496,10 @@ async function browserChecks(viteServer) {
       const beforeOrganizationReads = businessFingerprint()
       await assertOrganizationApi(page, persona)
       assert.equal(businessFingerprint(), beforeOrganizationReads)
-      if (persona.role === 'admin') await assertLeaveSubmissionJourney(page, persona)
+      if (persona.role === 'admin') {
+        await assertLeaveApprovalJourney(page, persona)
+        await assertLeaveSubmissionJourney(page, persona)
+      }
       await assertEmployeeApi(page, persona)
       const afterEmployeeWorkflows = businessFingerprint()
       await assertDepartmentApi(page, persona)
@@ -1412,6 +1553,7 @@ async function browserChecks(viteServer) {
       await assertNoPersistedTokens(page)
 
       if (persona.role === 'manager') {
+        await assertLeaveApprovalJourney(page, persona)
         stage('manager changed email')
         kcadm([
           'update', `users/${persona.identityId}`, '-r', 'workloop-dev',

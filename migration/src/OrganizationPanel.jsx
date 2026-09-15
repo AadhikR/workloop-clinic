@@ -8,6 +8,7 @@ import EmployeeDirectory from './EmployeeDirectory.jsx'
 import { readCurrentAccount } from './sampleApi.js'
 import OrganizationSettings from './OrganizationSettings.jsx'
 import LeaveConfiguration from './LeaveConfiguration.jsx'
+import LeaveApprovals from './LeaveApprovals.jsx'
 import LeaveOverview from './LeaveOverview.jsx'
 
 function OrganizationSummary({ account, authentication }) {
@@ -36,6 +37,11 @@ function OrganizationSummary({ account, authentication }) {
         clearBranch={organization.clearBranch}
       />
       <LeaveOverview
+        account={account}
+        authentication={authentication}
+        branchId={organization.selectedBranch.id}
+      />
+      <LeaveApprovals
         account={account}
         authentication={authentication}
         branchId={organization.selectedBranch.id}

@@ -8,11 +8,6 @@
 
 import { supabase } from '../lib/supabase';
 
-async function getSessionUser() {
-  const { data: { session } } = await supabase.auth.getSession();
-  return session?.user ?? null;
-}
-
 // ── LEAVE SETTINGS ────────────────────────────────────────────────────────────
 
 export async function getLeaveSettings() {
@@ -99,35 +94,11 @@ export async function submitLeaveRequest(request) {
 }
 
 export async function updateLeaveRequestStatus(requestId, status, actorEmail, reason = '') {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-
-  // Get current status for audit log
-  const { data: current } = await supabase
-    .from('leave_requests')
-    .select('status, employee_id')
-    .eq('id', requestId)
-    .single();
-
-  const updateData = {
-    status,
-    rejection_reason: reason,
-    approved_by:      status === 'Approved' ? actorEmail : '',
-    approved_at:      status === 'Approved' ? new Date().toISOString() : null,
-  };
-
-  const { data, error } = await supabase
-    .from('leave_requests')
-    .update(updateData)
-    .eq('id', requestId)
-    .select()
-    .single();
-  if (error) throw error;
-
-  // Immutable audit log entry
-  await addLeaveAuditLog(requestId, current.employee_id, status, actorEmail, reason, current.status);
-
-  return dbToLeaveRequest(data);
+  void requestId;
+  void status;
+  void actorEmail;
+  void reason;
+  throw new Error('Leave decisions have moved to the migration approval queue.');
 }
 
 export async function cancelLeaveRequest(requestId, actorEmail) {
@@ -136,39 +107,9 @@ export async function cancelLeaveRequest(requestId, actorEmail) {
   throw new Error('Leave request cancellation has moved to the migration leave screen.');
 }
 
-async function addLeaveAuditLog(leaveRequestId, employeeId, action, actor, reason, oldStatus) {
-  const user = await getSessionUser();
-  if (!user) return;
-  await supabase.from('leave_audit_log').insert({
-    user_id:          user.id,
-    leave_request_id: leaveRequestId,
-    employee_id:      employeeId,
-    action,
-    actor,
-    reason:           reason || '',
-    old_status:       oldStatus || '',
-    new_status:       action,
-  });
-}
-
 export async function getLeaveAuditLog(leaveRequestId) {
-  const { data, error } = await supabase
-    .from('leave_audit_log')
-    .select('*')
-    .eq('leave_request_id', leaveRequestId)
-    .order('created_at', { ascending: true });
-  if (error) { console.error('getLeaveAuditLog:', error); return []; }
-  return (data || []).map(row => ({
-    id:             row.id,
-    leaveRequestId: row.leave_request_id,
-    employeeId:     row.employee_id,
-    action:         row.action,
-    actor:          row.actor,
-    reason:         row.reason,
-    oldStatus:      row.old_status,
-    newStatus:      row.new_status,
-    createdAt:      row.created_at,
-  }));
+  void leaveRequestId;
+  throw new Error('Leave audit reads have moved to the migration approval queue.');
 }
 
 function dbToLeaveRequest(row) {
@@ -217,67 +158,8 @@ function dbToLeaveRequest(row) {
  * to the given manager (by reporting_manager_id).
  */
 export async function getLeaveQueueForManager(managerEmployeeId) {
-  if (!managerEmployeeId) return [];
-
-  // Get direct reports with probation status
-  const { data: reports, error: rErr } = await supabase
-    .from('employees')
-    .select('id, employment_status, probation_end_date')
-    .eq('reporting_manager_id', managerEmployeeId);
-
-  if (rErr) { console.error('getLeaveQueueForManager (reports):', rErr); return []; }
-  if (!reports?.length) return [];
-
-  const ids = reports.map(r => r.id);
-  const empMap = Object.fromEntries(reports.map(r => [r.id, r]));
-
-  const [reqResult, balResult] = await Promise.all([
-    supabase
-      .from('leave_requests')
-      .select('*')
-      .in('employee_id', ids)
-      .in('status', ['Pending', 'ManagerApproved', 'ManagerRejected'])
-      .order('submitted_at', { ascending: false }),
-    supabase
-      .from('leave_balances')
-      .select('*')
-      .in('employee_id', ids)
-      .eq('leave_year', new Date().getFullYear()),
-  ]);
-
-  if (reqResult.error) { console.error('getLeaveQueueForManager:', reqResult.error); return []; }
-
-  const balByEmp = {};
-  for (const b of (balResult.data || [])) {
-    if (!balByEmp[b.employee_id]) balByEmp[b.employee_id] = [];
-    balByEmp[b.employee_id].push(b);
-  }
-
-  return (reqResult.data || []).map(row => {
-    const req = dbToLeaveRequest(row);
-    const warnings = [...(req.warnings || [])];
-    const emp = empMap[req.employeeId];
-
-    // Probation warning
-    if (emp?.employment_status === 'Probation') {
-      warnings.push('Employee is on probation');
-    }
-
-    // Low balance warning
-    const empBals = balByEmp[req.employeeId] || [];
-    const matchBal = empBals.find(b => b.leave_type_code === req.leaveTypeCode);
-    if (matchBal) {
-      const remaining = (matchBal.entitled || 0) - (matchBal.used || 0);
-      if (remaining < req.daysRequested) {
-        warnings.push(`Insufficient balance: ${remaining}d remaining, ${req.daysRequested}d requested`);
-      } else if (remaining - req.daysRequested <= 2) {
-        warnings.push(`Low balance after approval: ${remaining - req.daysRequested}d will remain`);
-      }
-    }
-
-    req.warnings = warnings;
-    return req;
-  });
+  void managerEmployeeId;
+  throw new Error('Manager leave queues have moved to the migration approval queue.');
 }
 
 /**
@@ -286,64 +168,33 @@ export async function getLeaveQueueForManager(managerEmployeeId) {
  * If 2-level, it moves to 'ManagerApproved' and waits for HR.
  */
 export async function approveLeaveAsManager(requestId) {
-  const { error } = await supabase.rpc('manager_approve_leave', { p_request_id: requestId });
-  if (error) throw error;
+  void requestId;
+  throw new Error('Manager leave decisions have moved to the migration approval queue.');
 }
 
 /**
  * Manager rejects a direct report's leave request.
  */
 export async function rejectLeaveAsManager(requestId, reason = '') {
-  const { error } = await supabase.rpc('manager_reject_leave', {
-    p_request_id: requestId,
-    p_reason:     reason,
-  });
-  if (error) throw error;
+  void requestId;
+  void reason;
+  throw new Error('Manager leave decisions have moved to the migration approval queue.');
 }
 
 // ── LEAVE APPROVAL DELEGATES (Feature 6) ──────────────────────────────────────
 
 export async function getLeaveApprovalDelegates() {
-  const { data, error } = await supabase
-    .from('leave_approval_delegates')
-    .select('*')
-    .order('from_date', { ascending: false });
-  if (error) { console.error('getLeaveApprovalDelegates:', error); return []; }
-  return (data || []).map(row => ({
-    id:                  row.id,
-    approverEmployeeId:  row.approver_employee_id,
-    delegateEmployeeId:  row.delegate_employee_id,
-    fromDate:            row.from_date,
-    toDate:              row.to_date,
-    createdAt:           row.created_at,
-  }));
+  throw new Error('Leave delegations have moved to the migration approval queue.');
 }
 
 export async function saveLeaveApprovalDelegate(delegate) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-  const row = {
-    user_id:              user.id,
-    approver_employee_id: delegate.approverEmployeeId,
-    delegate_employee_id: delegate.delegateEmployeeId,
-    from_date:            delegate.fromDate,
-    to_date:              delegate.toDate,
-  };
-  if (delegate.id) {
-    const { error } = await supabase.from('leave_approval_delegates').update(row).eq('id', delegate.id);
-    if (error) throw error;
-    return delegate;
-  } else {
-    const { data, error } = await supabase
-      .from('leave_approval_delegates').insert(row).select().single();
-    if (error) throw error;
-    return { ...delegate, id: data.id, createdAt: data.created_at };
-  }
+  void delegate;
+  throw new Error('Leave delegations have moved to the migration approval queue.');
 }
 
 export async function deleteLeaveApprovalDelegate(id) {
-  const { error } = await supabase.from('leave_approval_delegates').delete().eq('id', id);
-  if (error) throw error;
+  void id;
+  throw new Error('Leave delegations have moved to the migration approval queue.');
 }
 
 // ── LEAVE BALANCES ────────────────────────────────────────────────────────────

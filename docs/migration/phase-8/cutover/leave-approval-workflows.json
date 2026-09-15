@@ -4,13 +4,23 @@
   "featureId": "leave-approval-workflows",
   "dataClassification": "synthetic",
   "status": {
-    "current": "preparation",
-    "changedAt": "2026-09-13T08:00:00Z",
+    "current": "completed",
+    "changedAt": "2026-09-15T16:16:06Z",
     "history": [
       {
         "state": "preparation",
         "at": "2026-09-13T08:00:00Z",
         "reason": "Approval contract prepared; legacy decision and delegation writers remain authoritative."
+      },
+      {
+        "state": "active-cutover",
+        "at": "2026-09-15T16:16:05Z",
+        "reason": "Phase 8F authority, transition, balance, concurrency, and audit checks passed on synthetic data."
+      },
+      {
+        "state": "completed",
+        "at": "2026-09-15T16:16:06Z",
+        "reason": "Migration approval authority and the legacy queue, decision, delegation, and audit freeze were verified."
       }
     ]
   },
@@ -62,24 +72,24 @@
     ]
   },
   "authority": {
-    "readSystem": "legacy-supabase",
-    "writeSystem": "legacy-supabase",
+    "readSystem": "migration-fastapi",
+    "writeSystem": "migration-fastapi",
     "writableSystems": [
-      "legacy-supabase"
+      "migration-fastapi"
     ]
   },
   "freeze": {
     "read": {
-      "system": "migration-fastapi",
-      "condition": "Migration queues and audit reads are not connected.",
-      "releaseCondition": "Phase 8F proves direct-report and active-delegation scope.",
-      "verificationCommand": "python scripts/verify-phase-8a-contract.py"
+      "system": "legacy-supabase",
+      "condition": "Legacy manager queues, delegation reads, and direct audit reads fail closed.",
+      "releaseCondition": "Rollback disables migration decisions before restoring legacy reads.",
+      "verificationCommand": "python scripts/verify-phase-8f-approval.py"
     },
     "write": {
-      "system": "migration-fastapi",
-      "condition": "No migration decision, delegation, or audit writer exists.",
-      "releaseCondition": "Phase 8F passes transition, separation, concurrency, and audit checks.",
-      "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-8/cutover/leave-approval-workflows.json"
+      "system": "legacy-supabase",
+      "condition": "Legacy decision and delegation writers fail closed.",
+      "releaseCondition": "Rollback disables migration commands before restoring legacy writers.",
+      "verificationCommand": "node --test tests/phase-8f-legacy-freeze.test.js"
     }
   },
   "refresh": {
@@ -87,16 +97,16 @@
     "source": {
       "kind": "tracked-fixture",
       "locator": "docs/migration/phase-8/PART_8A_DOMAIN_CONTRACT.md",
-      "digest": "sha256:9de8058d41693f4297f721324d7d947b0ee00b673dd5bae030400ef1ee245819"
+      "digest": "sha256:1193ba0007aa23ad5840cf404d96d0eb46e02603cbd320891ea7baa38c6d87c1"
     },
-    "command": "python scripts/verify-phase-8a-contract.py",
+    "command": "python scripts/verify-phase-8f-approval.py",
     "lastRefresh": {
-      "timestamp": "2026-09-13T16:24:36Z",
-      "command": "python scripts/verify-phase-8a-contract.py",
-      "sourceDigest": "sha256:9de8058d41693f4297f721324d7d947b0ee00b673dd5bae030400ef1ee245819",
+      "timestamp": "2026-09-15T16:16:06Z",
+      "command": "python scripts/verify-phase-8f-approval.py",
+      "sourceDigest": "sha256:1193ba0007aa23ad5840cf404d96d0eb46e02603cbd320891ea7baa38c6d87c1",
       "evidence": {
         "path": "docs/migration/phase-8/cutover/evidence-leave-approval-workflows.json",
-        "sha256": "sha256:236684480b3282648d10eb03d127ed2c7e12438f6ed5e179c2051e4766c5bc6f"
+        "sha256": "sha256:9efd131413c9e7e9140cccb0cbcca6abf721e5d469bd03d36598a89abe162807"
       }
     }
   },
@@ -129,7 +139,7 @@
       {
         "id": "freeze-migration-writes",
         "action": "Disable migration decisions, delegation, and audit writes.",
-        "verificationCommand": "python scripts/verify-phase-8a-contract.py"
+        "verificationCommand": "python scripts/verify-phase-8f-approval.py"
       },
       {
         "id": "restore-legacy-writes",
@@ -144,17 +154,17 @@
       {
         "id": "verify-authority",
         "action": "Recheck direct-report, delegation, branch, and actor separation.",
-        "verificationCommand": "python scripts/verify-phase-8a-contract.py"
+        "verificationCommand": "python scripts/verify-phase-8f-approval.py"
       },
       {
         "id": "verify-data",
         "action": "Compare synthetic request, balance, delegation, and audit state.",
-        "verificationCommand": "python scripts/verify-phase-8a-contract.py"
+        "verificationCommand": "python scripts/verify-phase-8f-approval.py"
       }
     ]
   },
   "validation": {
-    "asOf": "2026-09-13T16:24:36Z",
+    "asOf": "2026-09-15T16:16:06Z",
     "refreshMaxAgeHours": 24
   }
 }

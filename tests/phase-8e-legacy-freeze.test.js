@@ -20,16 +20,18 @@ test('freezes legacy leave submission and cancellation entry points', async () =
   }
 })
 
-test('keeps request reads and approval decisions on their existing authority', async () => {
+test('keeps request reads while later approval decisions fail closed', async () => {
   const source = await readFile(new URL('../src/utils/leaveStorage.js', import.meta.url), 'utf8')
+  const requestRead = source.match(new RegExp('export async function getLeaveRequests\\([^)]*\\) \\{([\\s\\S]*?)\\n\\}'))
+  assert.ok(requestRead, 'getLeaveRequests is missing')
+  assert.doesNotMatch(requestRead[1], /has moved/)
   for (const name of [
-    'getLeaveRequests',
     'updateLeaveRequestStatus',
     'approveLeaveAsManager',
     'rejectLeaveAsManager',
   ]) {
     const match = source.match(new RegExp(`export async function ${name}\\([^)]*\\) \\{([\\s\\S]*?)\\n\\}`))
     assert.ok(match, `${name} is missing`)
-    assert.doesNotMatch(match[1], /has moved to the migration leave screen/)
+    assert.match(match[1], /(?:has|have) moved to the migration approval queue/)
   }
 })

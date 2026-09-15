@@ -73,16 +73,18 @@ Decision 8A-DATE-1: use `public.workloop_business_date()` and calendar-year deri
 
 ## Amendment register
 
-No amendment is approved for execution. Review items are proposals only:
+The project owner approved the later amendments recorded in the Phase 8D, 8E, and 8F amendment
+documents. The original review items and their resolution are:
 
 | ID | Possible gap | Phase 8A action |
 |---|---|---|
 | phase8a-amend-attachment-metadata | `leave_requests.attachment_url` cannot represent approved metadata or operation state | Owner review before 8D. Prepare a later revision only if metadata is approved |
-| phase8a-amend-protected-audit | protected audit action may need explicit attachment and balance actions | Compare 8E/8F transaction calls with Phase 5 protected function contract; do not change it here |
+| phase8a-amend-protected-audit | protected audit action needed explicit attachment, request, decision, and delegation actions | Resolved by the approved Phase 8D, 8E, and 8F revisions; see `PART_8F_AMENDMENT_PROPOSAL.md` for the decision and delegation boundary |
 | phase8a-amend-balance-concurrency | existing unique key does not itself define recalculation locking | 8C must use row locks and deterministic order; propose an index or constraint only if focused checks prove it necessary |
 | phase8a-amend-rpc-contract | legacy leave RPCs accept browser-controlled inputs | Replace them with FastAPI transactions in 8E/8F; do not alter legacy functions in 8A |
 
-The existing leave notification producer remains unused by migration workflows until Phase 12. Any change to a protected function, role, grant, RLS policy, schema, constraint, index, or legal policy stops for project-owner review.
+The existing leave notification producer remains unused by migration workflows until Phase 12.
+No Phase 8F amendment changes a legal policy.
 
 ## Cutover and rollback
 
