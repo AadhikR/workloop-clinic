@@ -93,5 +93,8 @@ async def test_synthetic_storage_is_conditional_persistent_and_signed(tmp_path: 
     assert stored.body == body
     assert name == "proof.pdf"
 
+    alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+    assert len(token) % 4 in {2, 3}
+    alias = token[:-1] + alphabet[alphabet.index(token[-1]) ^ 1]
     with pytest.raises(StorageNotFoundError):
-        await reopened.resolve_download(token[:-1] + ("A" if token[-1] != "A" else "B"))
+        await reopened.resolve_download(alias)

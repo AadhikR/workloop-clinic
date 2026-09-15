@@ -175,6 +175,8 @@ class SyntheticObjectStorage:
         try:
             encoded = token.encode()
             raw = base64.urlsafe_b64decode(encoded + b"=" * (-len(encoded) % 4))
+            if base64.urlsafe_b64encode(raw).rstrip(b"=") != encoded:
+                raise ValueError
             payload_object: object = json.loads(self._cipher.decrypt(raw[:12], raw[12:], None))
         except Exception:
             raise StorageNotFoundError from None
