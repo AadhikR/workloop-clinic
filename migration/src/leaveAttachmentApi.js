@@ -41,13 +41,11 @@ export function validateAttachmentFile(file) {
   }
 }
 
-export async function uploadLeaveAttachment(
-  authentication, branchId, requestId, file, { signal } = {},
-) {
+async function uploadWithIntent(authentication, branchId, intentBody, file, { signal } = {}) {
   validateAttachmentFile(file)
   const headers = branchId === null ? undefined : branchHeaders(branchId)
   const intent = await authentication.request('/api/v1/leave/attachment-submissions', {
-    access: 'protected', method: 'POST', headers, json: { requestId }, signal,
+    access: 'protected', method: 'POST', headers, json: intentBody, signal,
   })
   if (
     intent === null
@@ -74,6 +72,24 @@ export async function uploadLeaveAttachment(
     throw new Error('Invalid leave attachment response')
   }
   return parseAttachment(uploaded.data)
+}
+
+export function uploadLeaveAttachment(
+  authentication, branchId, requestId, file, options = {},
+) {
+  if (!uuidPattern.test(requestId)) throw new TypeError('Invalid leave request ID')
+  return uploadWithIntent(authentication, branchId, { requestId }, file, options)
+}
+
+export function uploadStagedLeaveAttachment(
+  authentication, branchId, employeeId, file, options = {},
+) {
+  if (branchId === null) {
+    if (employeeId !== null) throw new TypeError('Self upload cannot select an employee')
+    return uploadWithIntent(authentication, null, {}, file, options)
+  }
+  if (!uuidPattern.test(employeeId)) throw new TypeError('Invalid employee ID')
+  return uploadWithIntent(authentication, branchId, { employeeId }, file, options)
 }
 
 export async function createLeaveAttachmentDownload(

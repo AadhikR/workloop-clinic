@@ -79,6 +79,8 @@ def main() -> None:
         if path.name in {
             "leave-configuration.json",
             "leave-balances-and-reads.json",
+            "leave-attachments.json",
+            "leave-request-submission.json",
         }:
             allowed_statuses.add("completed")
         if record["status"]["current"] not in allowed_statuses:

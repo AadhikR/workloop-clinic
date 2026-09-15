@@ -33,6 +33,7 @@ from app.idempotency_api import router as idempotency_router
 from app.leave_attachment_api import router as leave_attachment_router
 from app.leave_balance_api import router as leave_balance_router
 from app.leave_configuration_api import router as leave_configuration_router
+from app.leave_request_api import router as leave_request_router
 from app.organization_api import router as organization_router
 from app.sample_api import get_current_account, get_public_status
 from app.services.employees import EmployeeCursorCodec
@@ -190,6 +191,7 @@ def create_app(
     application.include_router(leave_configuration_router)
     application.include_router(leave_balance_router)
     application.include_router(leave_attachment_router)
+    application.include_router(leave_request_router)
     application.add_api_route(
         "/_synthetic-storage/v1/{token}",
         download_synthetic_object,

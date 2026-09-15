@@ -94,43 +94,8 @@ export async function getLeaveRequests(filters = {}) {
 }
 
 export async function submitLeaveRequest(request) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-
-  const row = {
-    user_id:                 user.id,
-    employee_id:             request.employeeId,
-    leave_type_id:           request.leaveTypeId,
-    leave_type_code:         request.leaveTypeCode,
-    start_date:              request.startDate,
-    end_date:                request.endDate,
-    is_half_day:             request.isHalfDay || false,
-    half_day_period:         request.halfDayPeriod || null,
-    days_requested:          request.daysRequested || 0,
-    status:                  'Pending',
-    reason:                  request.reason || '',
-    attachment_url:          request.attachmentUrl || '',
-    relationship:            request.relationship || '',
-    deceased_name:           request.deceasedName || '',
-    date_of_death:           request.dateOfDeath || null,
-    child_birth_date:        request.childBirthDate || null,
-    child_name:              request.childName || '',
-    expected_due_date:       request.expectedDueDate || null,
-    institution_name:        request.institutionName || '',
-    exam_dates:              request.examDates || '',
-    approval_level_required: request.approvalLevelRequired || 1,
-    substitute_employee_id:  request.substituteEmployeeId || null,
-    approval_comment:        request.approvalComment || '',
-    submitted_at:            new Date().toISOString(),
-  };
-
-  const { data, error } = await supabase.from('leave_requests').insert(row).select().single();
-  if (error) throw error;
-
-  // Log to audit trail
-  await addLeaveAuditLog(data.id, request.employeeId, 'Submitted', user.email || user.id, '', 'Pending');
-
-  return dbToLeaveRequest(data);
+  void request;
+  throw new Error('Leave request submission has moved to the migration leave screen.');
 }
 
 export async function updateLeaveRequestStatus(requestId, status, actorEmail, reason = '') {
@@ -166,7 +131,9 @@ export async function updateLeaveRequestStatus(requestId, status, actorEmail, re
 }
 
 export async function cancelLeaveRequest(requestId, actorEmail) {
-  return updateLeaveRequestStatus(requestId, 'Cancelled', actorEmail, 'Cancelled by employee');
+  void requestId;
+  void actorEmail;
+  throw new Error('Leave request cancellation has moved to the migration leave screen.');
 }
 
 async function addLeaveAuditLog(leaveRequestId, employeeId, action, actor, reason, oldStatus) {

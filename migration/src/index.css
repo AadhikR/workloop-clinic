@@ -336,6 +336,7 @@ button:focus-visible {
 
 .employee-form-grid input,
 .employee-form-grid select,
+.employee-form-grid textarea,
 .employee-import input {
   box-sizing: border-box;
   width: 100%;
@@ -344,6 +345,32 @@ button:focus-visible {
   background: #fff;
   color: #14261f;
   font: inherit;
+}
+
+.leave-request-form {
+  display: grid;
+  gap: 0.75rem;
+  margin: 1rem 0 1.5rem;
+  padding: 1rem;
+  border: 1px solid #c7d0c9;
+}
+
+.leave-request-form h3,
+.leave-request-form p {
+  margin: 0;
+}
+
+.employee-form-grid label.checkbox {
+  display: flex;
+  align-items: center;
+}
+
+.employee-form-grid label.checkbox input {
+  width: auto;
+}
+
+.leave-request-reason {
+  grid-column: 1 / -1;
 }
 
 .employee-import-preview {

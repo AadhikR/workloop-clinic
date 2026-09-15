@@ -3,6 +3,7 @@ import test from 'node:test'
 
 import {
   createLeaveAttachmentDownload,
+  uploadStagedLeaveAttachment,
   uploadLeaveAttachment,
   validateAttachmentFile,
 } from '../migration/src/leaveAttachmentApi.js'
@@ -70,6 +71,38 @@ test('rejects disallowed extensions and oversized attachment files locally', () 
   )
   const oversized = { name: 'proof.pdf', size: 10_485_761 }
   assert.throws(() => validateAttachmentFile(oversized), /10 MiB/)
+})
+
+test('stages self and administrator attachments without a request ID', async () => {
+  const calls = []
+  const authentication = {
+    async request(path, options) {
+      calls.push({ path, options })
+      if (calls.length % 2 === 1) {
+        return transport({
+          id: attachmentId,
+          submissionToken: `wlat1.${attachmentId}.${'A'.repeat(43)}`,
+          expiresAt: timestamp,
+        }, 201)
+      }
+      return transport({
+        id: attachmentId,
+        fileName: 'proof.pdf',
+        contentType: 'application/pdf',
+        sizeBytes: 16,
+        sha256: '0'.repeat(64),
+        uploadedAt: timestamp,
+        expiresAt: timestamp,
+      }, 201)
+    },
+  }
+  const file = new File(['%PDF-1.7\n%%EOF'], 'proof.pdf', { type: 'application/pdf' })
+  await uploadStagedLeaveAttachment(authentication, null, null, file)
+  await uploadStagedLeaveAttachment(authentication, branchId, requestId, file)
+  assert.deepEqual(calls[0].options.json, {})
+  assert.equal(calls[0].options.headers, undefined)
+  assert.deepEqual(calls[2].options.json, { employeeId: requestId })
+  assert.deepEqual(calls[2].options.headers, { 'X-Workloop-Branch-ID': branchId })
 })
 
 test('requests an authorized download without retaining the signed URL', async () => {

@@ -69,6 +69,7 @@ const browserDepartmentId = '00000000-0000-4000-8000-000000000076'
 const browserLeaveSettingsId = '00000000-0000-4000-8000-000000000077'
 const browserLeaveTypeId = '00000000-0000-4000-8000-000000000078'
 const browserLeaveRequestId = '00000000-0000-4000-8000-000000000079'
+const browserAutoLeaveTypeId = '00000000-0000-4000-8000-000000000080'
 const createdIdentityIds = []
 let activeStage = 'startup'
 
@@ -289,6 +290,30 @@ function createFixtures() {
       + "VALUES (:'id', :'company_id', :'branch_id', 'BROWSER', 'Browser proof')",
     { id: browserLeaveTypeId, company_id: companyId, branch_id: branchId },
   )
+  psql(
+    "INSERT INTO leave_types (id, company_id, branch_id, code, name, auto_approve) "
+      + "VALUES (:'id', :'company_id', :'branch_id', "
+      + "'AUTO_BROWSER', 'Browser auto approval', true)",
+    { id: browserAutoLeaveTypeId, company_id: companyId, branch_id: branchId },
+  )
+  for (const leaveTypeId of [browserLeaveTypeId, browserAutoLeaveTypeId]) {
+    const isPendingFixture = leaveTypeId === browserLeaveTypeId
+    psql(
+      "INSERT INTO leave_balances "
+        + "(company_id, branch_id, employee_id, leave_type_id, leave_year, "
+        + "entitled_days, accrued_days, pending_days, remaining_days) VALUES "
+        + "(:'company_id', :'branch_id', :'employee_id', :'leave_type_id', "
+        + "2026, 10.00, 10.00, :'pending_days', :'remaining_days')",
+      {
+        branch_id: branchId,
+        company_id: companyId,
+        employee_id: personas[2].employeeId,
+        leave_type_id: leaveTypeId,
+        pending_days: isPendingFixture ? '1.00' : '0.00',
+        remaining_days: isPendingFixture ? '9.00' : '10.00',
+      },
+    )
+  }
   psql(
     "INSERT INTO leave_requests "
       + "(id, company_id, branch_id, employee_id, leave_type_id, start_date, end_date, "
@@ -595,6 +620,168 @@ async function assertLeaveAttachmentJourney(page) {
     downloaded.headers()['content-disposition'].includes('filename="phase-8d-browser.pdf"'),
   )
   assert.deepEqual(await downloaded.body(), body)
+
+  stage('employee attached leave request cancellation')
+  await cancelLeaveThroughTable(page, {
+    admin: false,
+    requestId: browserLeaveRequestId,
+    date: '2026-09-21',
+  })
+  assert.equal(
+    psql(
+      "SELECT concat(attachment.status, '|', operation.status) "
+        + "FROM leave_attachments AS attachment "
+        + "JOIN storage_operations AS operation ON operation.entity_id = attachment.id "
+        + "WHERE attachment.leave_request_id = :'request_id' "
+        + "AND operation.operation = 'delete'",
+      { request_id: browserLeaveRequestId },
+    ),
+    'removed|succeeded',
+  )
+  assert.equal(
+    psql(
+      "SELECT count(*) FROM audit_events WHERE company_id = :'company_id' "
+        + "AND action = 'leave_attachment_cleanup_requested'",
+      { company_id: companyId },
+    ),
+    '1',
+  )
+  assert.equal((await page.request.get(signedBody.data.url)).status(), 404)
+}
+
+async function submitLeaveThroughForm(page, { admin, date, leaveType, employeeId = null }) {
+  await page.getByRole('heading', {
+    name: admin ? 'Branch leave overview' : 'My leave',
+  }).waitFor({ timeout: 20_000 })
+  const form = page.locator('.leave-request-form')
+  try {
+    await form.waitFor({ timeout: 20_000 })
+  } catch {
+    const overview = await page.locator('.leave-overview').textContent()
+    throw new Error(`leave request form unavailable: ${overview}`)
+  }
+  if (admin) {
+    await form.locator('label').filter({ hasText: /^Employee/ }).locator('select')
+      .selectOption(employeeId)
+  }
+  await form.locator('label').filter({ hasText: /^Leave type/ }).locator('select')
+    .selectOption({ label: leaveType })
+  await form.getByLabel('Start date', { exact: true }).fill(date)
+  await form.getByLabel('End date', { exact: true }).fill(date)
+  const responsePromise = page.waitForResponse((response) => {
+    const request = response.request()
+    return request.method() === 'POST'
+      && new URL(response.url()).pathname === (admin
+        ? '/api/v1/leave/requests/branch'
+        : '/api/v1/leave/requests/self')
+  })
+  await form.getByRole('button', { name: 'Submit request' }).click()
+  const response = await responsePromise
+  assert.equal(response.status(), 201, await response.text())
+  return (await response.json()).data
+}
+
+async function cancelLeaveThroughTable(page, { admin, requestId, date }) {
+  const row = page.locator('tr', { hasText: `${date} to ${date}` })
+  await row.waitFor({ timeout: 20_000 })
+  const responsePromise = page.waitForResponse((response) => {
+    const request = response.request()
+    return request.method() === 'POST'
+      && new URL(response.url()).pathname === `/api/v1/leave/requests/${requestId}/cancel/${
+        admin ? 'branch' : 'self'
+      }`
+  })
+  await row.getByRole('button', { name: 'Cancel' }).click()
+  const response = await responsePromise
+  assert.equal(response.status(), 200, await response.text())
+  assert.equal((await response.json()).data.status, 'Cancelled')
+  await row.getByText('Cancelled', { exact: true }).waitFor({ timeout: 20_000 })
+}
+
+async function assertLeaveSubmissionJourney(page, persona) {
+  const admin = persona.role === 'admin'
+  if (admin && await page.locator('.branch-chooser').count()) {
+    await page.getByRole('button', { name: 'Phase 3G main', exact: true }).click()
+  }
+  const readiness = await page.evaluate(async ({ admin, branchId, year }) => {
+    const { authenticationSession } = await import('/src/authSession.js')
+    const {
+      readAllAdminLeaveBalances,
+      readAllAdminLeaveRequests,
+      readAllEmployeeLeaveBalances,
+      readAllEmployeeLeaveRequests,
+    } = await import('/src/leaveBalanceApi.js')
+    const { readAllEmployees } = await import('/src/employeeApi.js')
+    const { readSubmissionLeaveTypes } = await import('/src/leaveRequestApi.js')
+    const authentication = authenticationSession()
+    const capture = async (name, operation) => {
+      try {
+        const result = await operation()
+        return { name, count: result.length, ok: true }
+      } catch (error) {
+        return { name, code: error.code ?? null, message: error.message, ok: false }
+      }
+    }
+    const options = { year }
+    return Promise.all(admin ? [
+      capture('balances', () => readAllAdminLeaveBalances(authentication, branchId, options)),
+      capture('requests', () => readAllAdminLeaveRequests(authentication, branchId, options)),
+      capture('types', () => readSubmissionLeaveTypes(authentication, branchId)),
+      capture('employees', () => readAllEmployees(authentication, branchId)),
+    ] : [
+      capture('balances', () => readAllEmployeeLeaveBalances(authentication, options)),
+      capture('requests', () => readAllEmployeeLeaveRequests(authentication, options)),
+      capture('types', () => readSubmissionLeaveTypes(authentication, null)),
+    ])
+  }, { admin, branchId, year: 2026 })
+  stage(`${persona.role} leave readiness ${JSON.stringify(readiness)}`)
+  if (readiness.some(({ ok }) => !ok)) {
+    throw new Error(`${persona.role} leave readiness failed: ${JSON.stringify(readiness)}`)
+  }
+  const date = admin ? '2026-10-05' : '2026-10-04'
+  const leaveType = admin ? 'Browser auto approval' : 'Browser proof'
+  stage(`${persona.role} leave request submission`)
+  const submitted = await submitLeaveThroughForm(page, {
+    admin,
+    date,
+    leaveType,
+    employeeId: personas[2].employeeId,
+  })
+  assert.equal(submitted.employeeId, personas[2].employeeId)
+  assert.equal(submitted.daysRequested, '1.00')
+  assert.equal(submitted.status, admin ? 'Approved' : 'Pending')
+
+  stage(`${persona.role} leave request cancellation`)
+  await cancelLeaveThroughTable(page, { admin, requestId: submitted.id, date })
+  const expectedAuditCount = admin ? '3' : '2'
+  assert.equal(
+    psql(
+      "SELECT count(*) FROM leave_audit_log WHERE leave_request_id = :'request_id'",
+      { request_id: submitted.id },
+    ),
+    expectedAuditCount,
+  )
+  assert.equal(
+    psql(
+      "SELECT count(*) FROM audit_events WHERE entity_id = :'request_id' "
+        + "AND action IN ('leave_request_submitted', "
+        + "'leave_request_auto_approved', 'leave_request_cancelled')",
+      { request_id: submitted.id },
+    ),
+    expectedAuditCount,
+  )
+  assert.equal(
+    psql(
+      "SELECT concat(pending_days, '|', used_days, '|', remaining_days) "
+        + "FROM leave_balances WHERE employee_id = :'employee_id' "
+        + "AND leave_type_id = :'leave_type_id' AND leave_year = 2026",
+      {
+        employee_id: personas[2].employeeId,
+        leave_type_id: admin ? browserAutoLeaveTypeId : browserLeaveTypeId,
+      },
+    ),
+    '0.00|0.00|10.00',
+  )
 }
 
 function businessFingerprint() {
@@ -1171,6 +1358,7 @@ async function browserChecks(viteServer) {
       const beforeOrganizationReads = businessFingerprint()
       await assertOrganizationApi(page, persona)
       assert.equal(businessFingerprint(), beforeOrganizationReads)
+      if (persona.role === 'admin') await assertLeaveSubmissionJourney(page, persona)
       await assertEmployeeApi(page, persona)
       const afterEmployeeWorkflows = businessFingerprint()
       await assertDepartmentApi(page, persona)
@@ -1235,6 +1423,7 @@ async function browserChecks(viteServer) {
 
       if (persona.role === 'employee') {
         await assertLeaveAttachmentJourney(page)
+        await assertLeaveSubmissionJourney(page, persona)
         stage('employee disablement')
         psql(
           "UPDATE app_users SET status = 'disabled' WHERE id = :'app_user_id'",
