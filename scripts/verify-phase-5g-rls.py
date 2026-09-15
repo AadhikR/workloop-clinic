@@ -275,7 +275,10 @@ WHERE schemaname='public' AND policyname NOT LIKE 'phase5%'
   AND tablename NOT IN ('idempotency_records','storage_operations','leave_attachments')
   AND policyname NOT IN (
     'phase7g_user_profiles_select_branch_runtime',
-    'phase7g_user_profiles_update_role_branch_runtime'
+    'phase7g_user_profiles_update_role_branch_runtime',
+    'phase8e_leave_settings_lock_runtime',
+    'phase8e_leave_types_lock_runtime',
+    'phase8e_prior_leave_requests_update_runtime'
   )
 """
             )
