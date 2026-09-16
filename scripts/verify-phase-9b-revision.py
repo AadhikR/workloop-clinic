@@ -9,9 +9,10 @@ import sys
 
 from sqlalchemy import create_engine, text
 
-HEAD = "f9b2c4d6e8a1"
+HEAD = "a1c3e5f7b9d2"
 PREDECESSOR = "e8f4c7b2a610"
 AUDIT_SIGNATURE = "text,text,uuid,text[],text,jsonb"
+PHASE9B_AUDIT_SIGNATURE = f"_append_audit_event_phase9c_prior({AUDIT_SIGNATURE})"
 
 
 def function_row(connection: object, signature: str) -> object:
@@ -121,7 +122,12 @@ def verify_head(connection: object) -> str:
     assert grants and not any(privilege == "DELETE" for privilege, _ in grants)
     audit = function_row(connection, f"append_audit_event({AUDIT_SIGNATURE})")
     assert_protected(audit)
-    definition = str(audit[5])
+    phase9b_audit = function_row(connection, PHASE9B_AUDIT_SIGNATURE)
+    assert phase9b_audit[0] == "workloop_migration"
+    assert phase9b_audit[1] is True and phase9b_audit[2] == "v"
+    assert phase9b_audit[3] == '{"search_path=pg_catalog, public, pg_temp"}'
+    assert "workloop_runtime=X" not in str(phase9b_audit[4])
+    definition = str(phase9b_audit[5])
     assert "expense_receipt_uploaded" in definition
     assert "expense_receipt_cleanup_requested" in definition
     prior = function_row(connection, f"_append_audit_event_phase9b_prior({AUDIT_SIGNATURE})")

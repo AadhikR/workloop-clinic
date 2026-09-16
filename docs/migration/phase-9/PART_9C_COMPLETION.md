@@ -45,4 +45,4 @@ Status: implementation and local verification complete. Phase 9D is authorized b
   authentication and the browser journey passed afterward.
 - Synthetic browser fixtures and the isolated containers and volumes were removed.
   `workloop-clinic_postgres_data` was not attached, upgraded, seeded, recreated, or deleted.
-- The required GitHub result is recorded in the task report after the single phase push.
+- The required GitHub result is recorded in the task report after the Phase 9C gate passes.
