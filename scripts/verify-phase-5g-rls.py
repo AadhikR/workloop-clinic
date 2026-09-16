@@ -317,6 +317,36 @@ WHERE namespace.nspname='public' AND procedure.proname=:name
             definition = row[5].lower()
             if (
                 function_name == "append_audit_event"
+                and "_append_audit_event_phase9c_prior" in definition
+            ):
+                assert "session_user" in definition
+                assert "workloop_actor_kind" in definition
+                assert "workloop_business_date" in definition
+                prior = connection.execute(
+                    text("""
+SELECT pg_catalog.pg_get_userbyid(procedure.proowner),procedure.prosecdef,
+ procedure.provolatile,procedure.proconfig,procedure.proacl,
+ pg_catalog.pg_get_functiondef(procedure.oid)
+FROM pg_catalog.pg_proc AS procedure JOIN pg_catalog.pg_namespace AS namespace
+ ON namespace.oid=procedure.pronamespace
+WHERE namespace.nspname='public'
+ AND procedure.oid=(
+   'public._append_audit_event_phase9c_prior(text,text,uuid,text[],text,jsonb)'
+ )::regprocedure
+""")
+                ).one()
+                assert prior[0] == "workloop_migration" and prior[1] and prior[2] == "v"
+                assert prior[3] == ["search_path=pg_catalog, public, pg_temp"]
+                assert "workloop_runtime=X" not in str(prior[4])
+                prior_definition = prior[5].lower()
+                assert "_append_audit_event_phase9b_prior" in prior_definition
+                assert "expense_receipt_uploaded" in prior_definition
+                assert "expense_receipt_cleanup_requested" in prior_definition
+                assert "session_user" in prior_definition
+                assert "workloop_actor_kind" in prior_definition
+                assert "workloop_business_date" in prior_definition
+            elif (
+                function_name == "append_audit_event"
                 and "_append_audit_event_phase9b_prior" in definition
             ):
                 assert "_append_audit_event_phase9b_prior" in definition

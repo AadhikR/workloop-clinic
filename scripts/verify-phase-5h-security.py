@@ -149,6 +149,20 @@ def verify_database() -> None:
             .lower()
         )
         wrapped_audit_function = audit_function
+        if "_append_audit_event_phase9c_prior" in wrapped_audit_function:
+            assert "salary_advance_requested" in wrapped_audit_function
+            assert "salary_advance_repayment_recorded" in wrapped_audit_function
+            wrapped_audit_function = (
+                connection.execute(
+                    text(
+                        "SELECT pg_catalog.pg_get_functiondef("
+                        "'public._append_audit_event_phase9c_prior"
+                        "(text,text,uuid,text[],text,jsonb)'::regprocedure)"
+                    )
+                )
+                .scalar_one()
+                .lower()
+            )
         if "_append_audit_event_phase9b_prior" in wrapped_audit_function:
             assert "expense_receipt_uploaded" in wrapped_audit_function
             assert "expense_receipt_cleanup_requested" in wrapped_audit_function
@@ -236,6 +250,8 @@ def verify_database() -> None:
         assert "branch_created" in audit_predecessor and "branch_deleted" in audit_predecessor
         assert "employee_branch_corrected" in audit_predecessor
         for signature in (
+            "public._append_audit_event_phase9c_prior(text,text,uuid,text[],text,jsonb)",
+            "public._record_advance_repayment_phase9c_prior(uuid,uuid,uuid,numeric,date)",
             "public._append_audit_event_phase9b_prior(text,text,uuid,text[],text,jsonb)",
             "public._append_audit_event_phase8f_prior(text,text,uuid,text[],text,jsonb)",
             "public._append_audit_event_phase8e_prior(text,text,uuid,text[],text,jsonb)",
@@ -324,6 +340,23 @@ def verify_database() -> None:
             .scalar_one()
             .lower()
         )
+        if "advance_repayment_untrusted_paid_date" in repayment:
+            compact_repayment = " ".join(repayment.split())
+            assert "from public.salary_advances" in compact_repayment
+            assert "where id=p_advance_id for update" in compact_repayment
+            assert "from public.payroll_runs" in compact_repayment
+            assert "where id=p_payroll_run_id for share" in compact_repayment
+            repayment = (
+                connection.execute(
+                    text(
+                        "SELECT pg_catalog.pg_get_functiondef("
+                        "'public._record_advance_repayment_phase9c_prior"
+                        "(uuid,uuid,uuid,numeric,date)'::regprocedure)"
+                    )
+                )
+                .scalar_one()
+                .lower()
+            )
         assert (
             "from public.payroll_runs where id = p_payroll_run_id for update"
             in repayment
