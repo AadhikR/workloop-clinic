@@ -5,8 +5,9 @@
 Phase 8 is complete at commit `2f4956b9ac356e979140ae4be0163017324e9aa4`. GitHub Migration
 foundation run `35006999072` passed on 2026-09-15. Alembic has one head at `e8f4c7b2a610`.
 
-This document splits Phase 9 into eight parts, 9A through 9H. It does not authorize Phase 9A or any
-payroll, advance, expense, receipt, WPS, SIF, or Nafis implementation.
+This document splits Phase 9 into eight parts, 9A through 9H. The project owner authorized sequential
+execution on 2026-09-16. Only the next part may run after the prior part has a clean, synchronized
+branch and a passing routed GitHub workflow.
 
 ## Why Phase 9 needs subphases
 
@@ -41,14 +42,14 @@ payroll result exists. The last part reviews the whole boundary independently.
 
 | Part | Scope | Status |
 | --- | --- | --- |
-| 9A | Financial contracts, dependency inventory, golden cases, and cutover decisions | Not authorized |
-| 9B | Expense claims, manager review, administrator decisions, and receipt boundary | Not authorized |
-| 9C | Salary advances, schedules, withdrawal, decisions, and repayment authority | Not authorized |
-| 9D | Payroll drafts, entries, server calculation, validation, and editable-run lifecycle | Not authorized |
-| 9E | Leave, attendance, roster, expense, and advance payroll inputs | Not authorized |
-| 9F | Payroll approval, finalization, immutable payslips, and financial audit | Not authorized |
-| 9G | WPS state, SIF input projection, compliance overrides, and Nafis snapshots | Not authorized |
-| 9H | Independent review, complete cutover proof, and Phase 9 gate | Not authorized |
+| 9A | Financial contracts, dependency inventory, golden cases, and cutover decisions | Complete |
+| 9B | Expense claims, manager review, administrator decisions, and receipt boundary | Authorized next; not started |
+| 9C | Salary advances, schedules, withdrawal, decisions, and repayment authority | Authorized in sequence; not started |
+| 9D | Payroll drafts, entries, server calculation, validation, and editable-run lifecycle | Authorized in sequence; not started |
+| 9E | Leave, attendance, roster, expense, and advance payroll inputs | Authorized in sequence; not started |
+| 9F | Payroll approval, finalization, immutable payslips, and financial audit | Authorized in sequence; not started |
+| 9G | WPS state, SIF input projection, compliance overrides, and Nafis snapshots | Authorized in sequence; not started |
+| 9H | Independent review, complete cutover proof, and Phase 9 gate | Authorized in sequence; not started |
 
 ## Rules shared by every part
 

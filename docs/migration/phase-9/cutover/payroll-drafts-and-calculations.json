@@ -1,0 +1,41 @@
+{
+  "$schema": "./cutover-record.schema.json",
+  "schemaVersion": 1,
+  "featureId": "payroll-drafts-and-calculations",
+  "dataClassification": "synthetic",
+  "status": {"current": "preparation", "changedAt": "2026-09-16T12:35:24Z", "history": [{"state": "preparation", "at": "2026-09-16T12:35:24Z", "reason": "Payroll draft and calculation contracts are approved; legacy reads and writes remain authoritative until Part 9D passes."}]},
+  "dependencies": {
+    "inventorySource": "docs/migration/phase-9/PART_9A_DEPENDENCY_INVENTORY.md",
+    "requiredIds": ["payroll-storage", "payroll-calculator", "payroll-validator"],
+    "declared": [
+      {"id": "payroll-storage", "system": "legacy-supabase", "kind": "module", "locator": "src/utils/storage.js", "cutoverDisposition": "retain"},
+      {"id": "payroll-calculator", "system": "legacy-supabase", "kind": "module", "locator": "src/utils/payrollCalculator.js", "cutoverDisposition": "retain"},
+      {"id": "payroll-validator", "system": "legacy-supabase", "kind": "module", "locator": "src/utils/payrollValidation.js", "cutoverDisposition": "retain"}
+    ]
+  },
+  "authority": {"readSystem": "legacy-supabase", "writeSystem": "legacy-supabase", "writableSystems": ["legacy-supabase"]},
+  "freeze": {
+    "read": {"system": "migration-fastapi", "condition": "Migration payroll draft reads remain disabled during preparation.", "releaseCondition": "Part 9D proves branch-scoped lists and detail and records active cutover.", "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-9/cutover/payroll-drafts-and-calculations.json"},
+    "write": {"system": "migration-fastapi", "condition": "Migration payroll create, repeat, refresh, replace, and delete remain disabled.", "releaseCondition": "Part 9D proves server calculation, atomic replacement, and the legacy writer freeze.", "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-9/cutover/payroll-drafts-and-calculations.json"}
+  },
+  "refresh": {
+    "mode": "synthetic-only",
+    "source": {"kind": "tracked-fixture", "locator": "docs/migration/phase-9/PART_9A_GOLDEN_CASES.md", "digest": "sha256:db900bd5134a67f3523ca276af6cbed198ca2c1423f8ea31e5bcbcb7bde7f552"},
+    "command": "node scripts/cutover-record-validator.mjs docs/migration/phase-9/cutover/payroll-drafts-and-calculations.json",
+    "lastRefresh": {"timestamp": "2026-09-16T12:35:24Z", "command": "node scripts/cutover-record-validator.mjs docs/migration/phase-9/cutover/payroll-drafts-and-calculations.json", "sourceDigest": "sha256:db900bd5134a67f3523ca276af6cbed198ca2c1423f8ea31e5bcbcb7bde7f552", "evidence": {"path": "docs/migration/phase-9/cutover/evidence-payroll-drafts-and-calculations.json", "sha256": "sha256:667af56131f9e0becff4b4050830d7c69a7d6e9af7d62c7e25caa8056fb69ae8"}}
+  },
+  "identityMapping": {"mode": "synthetic-only", "legacyIdField": "legacySupabaseUserId", "applicationIdField": "applicationUserId", "requiredLegacyUserIds": ["11111111-1111-4111-8111-111111111111"], "mappings": [{"legacySupabaseUserId": "11111111-1111-4111-8111-111111111111", "applicationUserId": "10000000-0000-4000-8000-000000000001", "synthetic": true}]},
+  "rollback": {
+    "trigger": "Part 9D calculation, replacement, scope, or concurrency proof fails after active cutover.",
+    "owner": "phase-owner",
+    "targetAuthority": {"readSystem": "legacy-supabase", "writeSystem": "legacy-supabase", "writableSystems": ["legacy-supabase"]},
+    "steps": [
+      {"id": "freeze-migration-writes", "action": "Disable migration payroll draft mutations.", "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-9/cutover/payroll-drafts-and-calculations.json"},
+      {"id": "restore-legacy-writes", "action": "Restore the legacy payroll draft path as sole writer.", "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-9/cutover/payroll-drafts-and-calculations.json"},
+      {"id": "restore-legacy-reads", "action": "Route payroll draft reads to the legacy application.", "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-9/cutover/payroll-drafts-and-calculations.json"},
+      {"id": "verify-authority", "action": "Verify one writable system and selected-branch scope.", "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-9/cutover/payroll-drafts-and-calculations.json"},
+      {"id": "verify-data", "action": "Compare synthetic entries, totals, and source snapshot digests.", "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-9/cutover/payroll-drafts-and-calculations.json"}
+    ]
+  },
+  "validation": {"asOf": "2026-09-16T12:35:24Z", "refreshMaxAgeHours": 168}
+}
