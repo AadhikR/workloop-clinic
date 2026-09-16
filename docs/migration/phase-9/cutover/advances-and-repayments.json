@@ -4,9 +4,13 @@
   "featureId": "advances-and-repayments",
   "dataClassification": "synthetic",
   "status": {
-    "current": "preparation",
-    "changedAt": "2026-09-16T12:35:24Z",
-    "history": [{"state": "preparation", "at": "2026-09-16T12:35:24Z", "reason": "Advance and repayment contracts are approved; legacy reads and writes remain authoritative until Part 9C passes."}]
+    "current": "completed",
+    "changedAt": "2026-09-16T16:35:09Z",
+    "history": [
+      {"state": "preparation", "at": "2026-09-16T12:35:24Z", "reason": "Advance and repayment contracts are approved; legacy reads and writes remain authoritative until Part 9C passes."},
+      {"state": "active-cutover", "at": "2026-09-16T16:35:08Z", "reason": "Phase 9C scope, schedule, transition, concurrency, idempotency, repayment, and audit checks passed on synthetic data."},
+      {"state": "completed", "at": "2026-09-16T16:35:09Z", "reason": "Migration advance authority and the legacy advance and repayment writer freeze were verified."}
+    ]
   },
   "dependencies": {
     "inventorySource": "docs/migration/phase-9/PART_9A_DEPENDENCY_INVENTORY.md",
@@ -17,30 +21,30 @@
       {"id": "advance-rpcs", "system": "legacy-supabase", "kind": "data-contract", "locator": "sql/051_employee_request_actions.sql", "cutoverDisposition": "retain"}
     ]
   },
-  "authority": {"readSystem": "legacy-supabase", "writeSystem": "legacy-supabase", "writableSystems": ["legacy-supabase"]},
+  "authority": {"readSystem": "migration-fastapi", "writeSystem": "migration-fastapi", "writableSystems": ["migration-fastapi"]},
   "freeze": {
     "read": {
-      "system": "migration-fastapi",
-      "condition": "Migration advance lists remain disabled during preparation.",
-      "releaseCondition": "Part 9C proves self and branch-scoped reads and records active cutover.",
-      "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-9/cutover/advances-and-repayments.json"
+      "system": "legacy-supabase",
+      "condition": "Legacy employee and administrator advance screens fail closed; retained storage reads remain available only to later payroll and offboarding owners.",
+      "releaseCondition": "Rollback disables migration advance authority before restoring legacy screens.",
+      "verificationCommand": "python scripts/verify-phase-9c-advances.py"
     },
     "write": {
-      "system": "migration-fastapi",
-      "condition": "Migration request, decision, schedule, repayment, and settlement commands remain disabled.",
-      "releaseCondition": "Part 9C proves exact balances, concurrency, idempotency, and the legacy writer freeze.",
-      "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-9/cutover/advances-and-repayments.json"
+      "system": "legacy-supabase",
+      "condition": "Legacy request, withdrawal, schedule, decision, repayment, and settlement writers fail closed.",
+      "releaseCondition": "Rollback disables migration advance commands before restoring legacy writers.",
+      "verificationCommand": "node --test tests/phase-9c-legacy-freeze.test.js"
     }
   },
   "refresh": {
     "mode": "synthetic-only",
     "source": {"kind": "tracked-fixture", "locator": "docs/migration/phase-9/PART_9A_GOLDEN_CASES.md", "digest": "sha256:db900bd5134a67f3523ca276af6cbed198ca2c1423f8ea31e5bcbcb7bde7f552"},
-    "command": "node scripts/cutover-record-validator.mjs docs/migration/phase-9/cutover/advances-and-repayments.json",
+    "command": "python scripts/verify-phase-9c-advances.py",
     "lastRefresh": {
-      "timestamp": "2026-09-16T12:35:24Z",
-      "command": "node scripts/cutover-record-validator.mjs docs/migration/phase-9/cutover/advances-and-repayments.json",
+      "timestamp": "2026-09-16T16:35:09Z",
+      "command": "python scripts/verify-phase-9c-advances.py",
       "sourceDigest": "sha256:db900bd5134a67f3523ca276af6cbed198ca2c1423f8ea31e5bcbcb7bde7f552",
-      "evidence": {"path": "docs/migration/phase-9/cutover/evidence-advances-and-repayments.json", "sha256": "sha256:20f546a7d9e00216428751ec24f4b43fcd56c1db2bca4036344a0cf6e8870b7f"}
+      "evidence": {"path": "docs/migration/phase-9/cutover/evidence-advances-and-repayments.json", "sha256": "sha256:e62ccff64d2096800c64e8ab3499e1b32872eb32e4f4c3a27f72beb216c0ab72"}
     }
   },
   "identityMapping": {
@@ -62,5 +66,5 @@
       {"id": "verify-data", "action": "Compare synthetic balances and retain repayment and settled history.", "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-9/cutover/advances-and-repayments.json"}
     ]
   },
-  "validation": {"asOf": "2026-09-16T12:35:24Z", "refreshMaxAgeHours": 168}
+  "validation": {"asOf": "2026-09-16T16:35:09Z", "refreshMaxAgeHours": 24}
 }

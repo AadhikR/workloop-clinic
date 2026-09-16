@@ -736,6 +736,10 @@ function dbToInsuranceDependant(row) {
 
 // ─── SALARY ADVANCES ─────────────────────────────────────────────────────────
 
+function advanceWritesMoved() {
+  throw new Error('Salary advance changes have moved to the migration advance workspace.');
+}
+
 /**
  * Returns advances for the current user's company.
  * Pass employeeId to filter to a single employee; omit to get all.
@@ -755,15 +759,8 @@ export async function getAdvances(employeeId) {
 
 /** Withdraw the signed-in employee's own pending advance request. */
 export async function withdrawEmployeeAdvance(advanceId) {
-  const { data, error } = await supabase.rpc('employee_cancel_advance', {
-    p_advance_id: advanceId,
-  });
-  if (error) throw error;
-
-  // Migration 051 returns true. Accept the older row-returning shape as a
-  // backward-compatible success response while environments are upgraded.
-  const succeeded = data === true || (Array.isArray(data) && data.length > 0);
-  if (!succeeded) throw new Error('The advance request could not be withdrawn.');
+  void advanceId;
+  advanceWritesMoved();
 }
 
 /**
@@ -772,45 +769,8 @@ export async function withdrawEmployeeAdvance(advanceId) {
  * Returns the saved advance.
  */
 export async function saveAdvance(advance) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-
-  const monthlyDeduction = advance.monthlyDeduction ||
-    (advance.repaymentMonths > 0
-      ? parseFloat((advance.amount / advance.repaymentMonths).toFixed(2))
-      : parseFloat(advance.amount));
-
-  const row = {
-    user_id:             user.id,
-    employee_id:         advance.employeeId,
-    amount:              parseFloat(advance.amount) || 0,
-    disbursed_date:      advance.disbursedDate || null,
-    repayment_start_month: advance.repaymentStartMonth ? `${advance.repaymentStartMonth}-01` : null,
-    reason:              advance.reason ?? '',
-    repayment_months:    parseInt(advance.repaymentMonths) || 1,
-    monthly_deduction:   monthlyDeduction,
-    outstanding_balance: advance.outstandingBalance !== undefined
-      ? parseFloat(advance.outstandingBalance)
-      : parseFloat(advance.amount) || 0,
-    status:              advance.status ?? 'active',
-    rejection_reason:    advance.rejectionReason ?? null,
-  };
-
-  const persist = async candidate => {
-    const query = advance.id
-      ? supabase.from('salary_advances').update(candidate).eq('id', advance.id)
-      : supabase.from('salary_advances').insert(candidate);
-    return query.select().single();
-  };
-
-  let { data, error } = await persist(row);
-  if (error && /repayment_start_month/i.test(error.message || '')) {
-    const legacyRow = { ...row };
-    delete legacyRow.repayment_start_month;
-    ({ data, error } = await persist(legacyRow));
-  }
-  if (error) throw error;
-  return dbToAdvance(data);
+  void advance;
+  advanceWritesMoved();
 }
 
 /**
@@ -818,39 +778,25 @@ export async function saveAdvance(advance) {
  * Automatically transitions status to 'settled' when balance reaches 0.
  */
 export async function updateAdvanceBalance(id, newBalance) {
-  const status = newBalance <= 0 ? 'settled' : 'active';
-  const { error } = await supabase
-    .from('salary_advances')
-    .update({ outstanding_balance: Math.max(0, newBalance), status })
-    .eq('id', id);
-  if (error) throw error;
+  void id;
+  void newBalance;
+  advanceWritesMoved();
 }
 
 /**
  * Returns all repayment records for a given advance.
  */
 export async function getAdvanceRepayments(advanceId) {
-  const { data, error } = await supabase
-    .from('advance_repayments')
-    .select('*, payroll_runs(period)')
-    .eq('advance_id', advanceId)
-    .order('paid_date', { ascending: false });
-  if (error) { console.error('getAdvanceRepayments:', error); return []; }
-  return (data || []).map(dbToAdvanceRepayment);
+  void advanceId;
+  advanceWritesMoved();
 }
 
 /**
  * Records a repayment for an advance and updates the outstanding balance.
  */
 export async function saveAdvanceRepayment(repayment) {
-  const { data, error } = await supabase.rpc('record_advance_repayment', {
-    p_advance_id: repayment.advanceId,
-    p_payroll_run_id: repayment.payrollRunId || null,
-    p_amount: parseFloat(repayment.amount),
-    p_paid_date: repayment.paidDate || new Date().toISOString().split('T')[0],
-  });
-  if (error) throw error;
-  return data;
+  void repayment;
+  advanceWritesMoved();
 }
 
 function dbToAdvance(row) {
@@ -867,18 +813,6 @@ function dbToAdvance(row) {
     status:             row.status || 'active',
     rejectionReason:    row.rejection_reason || '',
     createdAt:          row.created_at,
-  };
-}
-
-function dbToAdvanceRepayment(row) {
-  return {
-    id:           row.id,
-    advanceId:    row.advance_id,
-    payrollRunId: row.payroll_run_id || '',
-    payrollPeriod: row.payroll_runs?.period || '',
-    amount:       parseFloat(row.amount) || 0,
-    paidDate:     row.paid_date || '',
-    createdAt:    row.created_at,
   };
 }
 

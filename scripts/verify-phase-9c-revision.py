@@ -1,0 +1,122 @@
+#!/usr/bin/env python3
+"""Verify the Phase 9C authority functions and exact predecessor rollback."""
+
+from __future__ import annotations
+
+import hashlib
+import os
+import sys
+
+from sqlalchemy import create_engine, text
+
+HEAD = "a1c3e5f7b9d2"
+PREDECESSOR = "f9b2c4d6e8a1"
+AUDIT_ARGS = "text,text,uuid,text[],text,jsonb"
+REPAYMENT_ARGS = "uuid,uuid,uuid,numeric,date"
+
+
+def function_row(connection: object, signature: str) -> object:
+    return connection.execute(
+        text(
+            "SELECT pg_catalog.pg_get_userbyid(procedure.proowner),procedure.prosecdef,"
+            "procedure.provolatile,procedure.proconfig::text,procedure.proacl::text,"
+            "pg_catalog.pg_get_functiondef(procedure.oid) "
+            "FROM pg_catalog.pg_proc AS procedure "
+            "JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid=procedure.pronamespace "
+            "WHERE namespace.nspname='public' AND procedure.oid=CAST(:signature AS regprocedure)"
+        ),
+        {"signature": f"public.{signature}"},
+    ).one()
+
+
+def absent(connection: object, signature: str) -> bool:
+    return bool(
+        connection.scalar(
+            text("SELECT to_regprocedure(:signature) IS NULL"),
+            {"signature": f"public.{signature}"},
+        )
+    )
+
+
+def digest(audit: object, repayment: object) -> str:
+    normalized = (
+        str(audit)
+        .replace("_append_audit_event_phase9c_prior", "append_audit_event")
+        .replace("_record_advance_repayment_phase9c_prior", "record_advance_repayment")
+        + "\n"
+        + str(repayment)
+        .replace("_append_audit_event_phase9c_prior", "append_audit_event")
+        .replace("_record_advance_repayment_phase9c_prior", "record_advance_repayment")
+    )
+    return hashlib.sha256(normalized.encode()).hexdigest()
+
+
+def assert_protected(row: object) -> None:
+    assert row[0] == "workloop_migration"
+    assert row[1] is True and row[2] == "v"
+    assert row[3] == '{"search_path=pg_catalog, public, pg_temp"}'
+    acl = str(row[4])
+    assert "workloop_runtime=X" in acl and "{=X/" not in acl
+
+
+def verify_head(connection: object) -> str:
+    assert connection.scalar(text("SELECT version_num FROM alembic_version")) == HEAD
+    replay = connection.scalar(
+        text(
+            "SELECT pg_catalog.pg_get_constraintdef(oid) FROM pg_catalog.pg_constraint "
+            "WHERE conrelid='public.idempotency_records'::regclass "
+            "AND conname='ck_idempotency_records_replay_resource'"
+        )
+    )
+    assert "salary_advance" in str(replay)
+    lock = function_row(connection, "lock_salary_advance(uuid)")
+    assert_protected(lock)
+    audit = function_row(connection, f"append_audit_event({AUDIT_ARGS})")
+    assert_protected(audit)
+    assert "salary_advance_requested" in str(audit[5])
+    assert "salary_advance_repayment_recorded" in str(audit[5])
+    repayment = function_row(connection, f"record_advance_repayment({REPAYMENT_ARGS})")
+    assert_protected(repayment)
+    assert "advance_repayment_untrusted_paid_date" in str(repayment[5])
+    assert "updated_at=statement_timestamp()" in str(repayment[5])
+    prior_audit = function_row(connection, f"_append_audit_event_phase9c_prior({AUDIT_ARGS})")
+    prior_repayment = function_row(
+        connection, f"_record_advance_repayment_phase9c_prior({REPAYMENT_ARGS})"
+    )
+    assert "workloop_runtime=X" not in str(prior_audit[4])
+    assert "workloop_runtime=X" not in str(prior_repayment[4])
+    return digest(prior_audit[5], prior_repayment[5])
+
+
+def verify_predecessor(connection: object) -> str:
+    assert connection.scalar(text("SELECT version_num FROM alembic_version")) == PREDECESSOR
+    assert absent(connection, "lock_salary_advance(uuid)")
+    assert absent(connection, f"_append_audit_event_phase9c_prior({AUDIT_ARGS})")
+    assert absent(connection, f"_record_advance_repayment_phase9c_prior({REPAYMENT_ARGS})")
+    replay = connection.scalar(
+        text(
+            "SELECT pg_catalog.pg_get_constraintdef(oid) FROM pg_catalog.pg_constraint "
+            "WHERE conrelid='public.idempotency_records'::regclass "
+            "AND conname='ck_idempotency_records_replay_resource'"
+        )
+    )
+    assert "salary_advance" not in str(replay) and "expense_claim" in str(replay)
+    audit = function_row(connection, f"append_audit_event({AUDIT_ARGS})")
+    repayment = function_row(connection, f"record_advance_repayment({REPAYMENT_ARGS})")
+    assert_protected(audit)
+    assert_protected(repayment)
+    return digest(audit[5], repayment[5])
+
+
+def main() -> None:
+    if len(sys.argv) != 2 or sys.argv[1] not in {"head", "predecessor"}:
+        raise SystemExit("usage: verify-phase-9c-revision.py head|predecessor")
+    engine = create_engine(os.environ["MIGRATION_DATABASE_URL"])
+    with engine.connect() as connection:
+        value = verify_head(connection) if sys.argv[1] == "head" else verify_predecessor(connection)
+        print(value)
+    engine.dispose()
+
+
+if __name__ == "__main__":
+    main()

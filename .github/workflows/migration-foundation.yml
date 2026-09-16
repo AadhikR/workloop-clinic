@@ -160,6 +160,10 @@ jobs:
         run: |
           python scripts/verify-phase-9b-expenses.py
           node --test tests/expense-api.test.js tests/phase-9b-legacy-freeze.test.js
+      - name: Verify Phase 9C advance contract
+        run: |
+          python scripts/verify-phase-9c-advances.py
+          node --test tests/advance-api.test.js tests/phase-9c-legacy-freeze.test.js
       - name: Verify empty-schema downgrade boundary
         if: needs.changes.outputs.database_deep == 'true'
         run: |
@@ -217,6 +221,9 @@ jobs:
       - name: Verify Phase 9B exact predecessor
         if: needs.changes.outputs.database_deep == 'true'
         run: sh scripts/verify-phase-9b-revision.sh
+      - name: Verify Phase 9C exact predecessor
+        if: needs.changes.outputs.database_deep == 'true'
+        run: sh scripts/verify-phase-9c-revision.sh
       - name: Verify Phase 8F exact predecessor
         if: needs.changes.outputs.database_deep == 'true'
         run: |
@@ -246,6 +253,7 @@ jobs:
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --volume ./scripts:/verification:ro --entrypoint python migrate -c "import runpy; runpy.run_path('/verification/verify-phase-8e-database.py', run_name='__main__')"
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --volume ./scripts:/verification:ro --entrypoint python migrate -c "import runpy; runpy.run_path('/verification/verify-phase-8f-database.py', run_name='__main__')"
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --volume ./scripts:/verification:ro --entrypoint python migrate -c "import runpy; runpy.run_path('/verification/verify-phase-9b-database.py', run_name='__main__')"
+          docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --volume ./scripts:/verification:ro --entrypoint python migrate -c "import runpy; runpy.run_path('/verification/verify-phase-9c-database.py', run_name='__main__')"
       - name: Verify service health
         run: |
           curl --fail --silent --show-error http://127.0.0.1:8000/health | jq --exit-status '.status == "ok" and .database == "ok"'
