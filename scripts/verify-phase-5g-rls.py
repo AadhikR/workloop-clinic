@@ -181,7 +181,7 @@ def verify_catalog(engine: Any) -> None:
                 text(
                     "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname='public' "
                     "AND tablename NOT IN ('alembic_version','idempotency_records',"
-                    "'storage_operations','leave_attachments')"
+                    "'storage_operations','leave_attachments','expense_receipts')"
                 )
             ).scalars()
         )
@@ -272,7 +272,9 @@ WHERE table_schema='public' AND grantee='workloop_expiry_processing'
                 """
 SELECT count(*) FROM pg_catalog.pg_policies
 WHERE schemaname='public' AND policyname NOT LIKE 'phase5%'
-  AND tablename NOT IN ('idempotency_records','storage_operations','leave_attachments')
+  AND tablename NOT IN (
+    'idempotency_records','storage_operations','leave_attachments','expense_receipts'
+  )
   AND policyname NOT IN (
     'phase7g_user_profiles_select_branch_runtime',
     'phase7g_user_profiles_update_role_branch_runtime',
@@ -289,7 +291,7 @@ WHERE schemaname='public' AND policyname NOT LIKE 'phase5%'
             row[0]: row[1]
             for row in connection.execute(
                 text(
-                    "SELECT object.relname,object.relrowsecurity FROM pg_catalog.pg_class AS object JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid=object.relnamespace WHERE namespace.nspname='public' AND object.relkind='r' AND object.relname NOT IN ('idempotency_records','storage_operations','leave_attachments')"
+                    "SELECT object.relname,object.relrowsecurity FROM pg_catalog.pg_class AS object JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid=object.relnamespace WHERE namespace.nspname='public' AND object.relkind='r' AND object.relname NOT IN ('idempotency_records','storage_operations','leave_attachments','expense_receipts')"
                 )
             )
         }
@@ -314,6 +316,16 @@ WHERE namespace.nspname='public' AND procedure.proname=:name
             assert "workloop_runtime=X" in acl and "{=X/" not in acl
             definition = row[5].lower()
             if (
+                function_name == "append_audit_event"
+                and "_append_audit_event_phase9b_prior" in definition
+            ):
+                assert "_append_audit_event_phase9b_prior" in definition
+                assert "expense_receipt_uploaded" in definition
+                assert "expense_receipt_cleanup_requested" in definition
+                assert "session_user" in definition
+                assert "workloop_actor_kind" in definition
+                assert "workloop_business_date" in definition
+            elif (
                 function_name == "append_audit_event"
                 and "_append_audit_event_phase8d_prior" in definition
             ):

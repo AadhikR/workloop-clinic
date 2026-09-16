@@ -5,6 +5,7 @@ import { CompanyProvider } from './CompanyContext.jsx'
 import { useCompanyContext } from './companyContextState.js'
 import DepartmentManager from './DepartmentManager.jsx'
 import EmployeeDirectory from './EmployeeDirectory.jsx'
+import Expenses from './Expenses.jsx'
 import { readCurrentAccount } from './sampleApi.js'
 import OrganizationSettings from './OrganizationSettings.jsx'
 import LeaveConfiguration from './LeaveConfiguration.jsx'
@@ -42,6 +43,11 @@ function OrganizationSummary({ account, authentication }) {
         branchId={organization.selectedBranch.id}
       />
       <LeaveApprovals
+        account={account}
+        authentication={authentication}
+        branchId={organization.selectedBranch.id}
+      />
+      <Expenses
         account={account}
         authentication={authentication}
         branchId={organization.selectedBranch.id}

@@ -4,13 +4,23 @@
   "featureId": "expenses",
   "dataClassification": "synthetic",
   "status": {
-    "current": "preparation",
-    "changedAt": "2026-09-16T12:35:24Z",
+    "current": "completed",
+    "changedAt": "2026-09-16T14:07:00Z",
     "history": [
       {
         "state": "preparation",
         "at": "2026-09-16T12:35:24Z",
         "reason": "Expense and receipt contracts are approved; legacy reads and writes remain authoritative until Part 9B passes."
+      },
+      {
+        "state": "active-cutover",
+        "at": "2026-09-16T14:06:59Z",
+        "reason": "Phase 9B scope, transition, idempotency, concurrency, receipt, audit, and cleanup checks passed on synthetic data."
+      },
+      {
+        "state": "completed",
+        "at": "2026-09-16T14:07:00Z",
+        "reason": "Migration expense authority and the legacy claim, decision, receipt, and queue freeze were verified."
       }
     ]
   },
@@ -42,22 +52,22 @@
     ]
   },
   "authority": {
-    "readSystem": "legacy-supabase",
-    "writeSystem": "legacy-supabase",
-    "writableSystems": ["legacy-supabase"]
+    "readSystem": "migration-fastapi",
+    "writeSystem": "migration-fastapi",
+    "writableSystems": ["migration-fastapi"]
   },
   "freeze": {
     "read": {
-      "system": "migration-fastapi",
-      "condition": "Migration expense lists and receipt downloads remain disabled during preparation.",
-      "releaseCondition": "Part 9B proves scoped reads and records active cutover.",
-      "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-9/cutover/expenses.json"
+      "system": "legacy-supabase",
+      "condition": "Legacy employee, manager, and administrator expense reads and receipt downloads fail closed.",
+      "releaseCondition": "Rollback disables migration expense authority before restoring legacy reads.",
+      "verificationCommand": "python scripts/verify-phase-9b-expenses.py"
     },
     "write": {
-      "system": "migration-fastapi",
-      "condition": "Migration claim, decision, receipt, and deletion commands remain disabled during preparation.",
-      "releaseCondition": "Part 9B proves transactions, idempotency, receipt cleanup, and the legacy writer freeze.",
-      "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-9/cutover/expenses.json"
+      "system": "legacy-supabase",
+      "condition": "Legacy claim, decision, deletion, receipt, and queue writers fail closed; legacy payroll reimbursement remains retained for Part 9F.",
+      "releaseCondition": "Rollback disables migration expense commands before restoring legacy writers.",
+      "verificationCommand": "node --test tests/phase-9b-legacy-freeze.test.js"
     }
   },
   "refresh": {
@@ -67,14 +77,14 @@
       "locator": "docs/migration/phase-9/PART_9A_GOLDEN_CASES.md",
       "digest": "sha256:db900bd5134a67f3523ca276af6cbed198ca2c1423f8ea31e5bcbcb7bde7f552"
     },
-    "command": "node scripts/cutover-record-validator.mjs docs/migration/phase-9/cutover/expenses.json",
+    "command": "python scripts/verify-phase-9b-expenses.py",
     "lastRefresh": {
-      "timestamp": "2026-09-16T12:35:24Z",
-      "command": "node scripts/cutover-record-validator.mjs docs/migration/phase-9/cutover/expenses.json",
+      "timestamp": "2026-09-16T14:07:00Z",
+      "command": "python scripts/verify-phase-9b-expenses.py",
       "sourceDigest": "sha256:db900bd5134a67f3523ca276af6cbed198ca2c1423f8ea31e5bcbcb7bde7f552",
       "evidence": {
         "path": "docs/migration/phase-9/cutover/evidence-expenses.json",
-        "sha256": "sha256:54bcf8b4a3972be5fee489af27dbb199e024639498fcb14e23a7c7e5703590d6"
+        "sha256": "sha256:d041992b846777d5668e7b3870a8ef4e56a6c36f338d8d4cbf873041d32cc3fa"
       }
     }
   },
@@ -107,5 +117,5 @@
       {"id": "verify-data", "action": "Compare synthetic claims and retain paid claims, audit rows, and cleanup intent.", "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-9/cutover/expenses.json"}
     ]
   },
-  "validation": {"asOf": "2026-09-16T12:35:24Z", "refreshMaxAgeHours": 168}
+  "validation": {"asOf": "2026-09-16T14:07:00Z", "refreshMaxAgeHours": 24}
 }

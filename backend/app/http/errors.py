@@ -40,6 +40,7 @@ ERROR_REGISTRY: dict[str, ErrorSpec] = {
     "method_not_allowed": ErrorSpec(405, "Method not allowed"),
     "not_acceptable": ErrorSpec(406, "Requested response type is not available"),
     "state_conflict": ErrorSpec(409, "Resource state changed"),
+    "stale_financial_state": ErrorSpec(409, "Financial state changed"),
     "attachment_submission_unavailable": ErrorSpec(409, "Attachment submission unavailable"),
     "branch_conflict": ErrorSpec(409, "Branch state prevents this operation"),
     "employee_conflict": ErrorSpec(409, "Employee state prevents this operation"),
@@ -49,6 +50,7 @@ ERROR_REGISTRY: dict[str, ErrorSpec] = {
     "department_conflict": ErrorSpec(409, "Department state prevents this operation"),
     "staffing_rule_conflict": ErrorSpec(409, "Staffing rule state prevents this operation"),
     "idempotency_conflict": ErrorSpec(409, "Idempotency key already used"),
+    "idempotency_key_reused": ErrorSpec(409, "Idempotency key already used"),
     "idempotency_in_progress": ErrorSpec(
         409,
         "Request with this idempotency key is in progress",

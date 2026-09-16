@@ -422,7 +422,12 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')
             force
             for name, _, force in flags
             if name
-            not in {"idempotency_records", "storage_operations", "leave_attachments"}
+            not in {
+                "expense_receipts",
+                "idempotency_records",
+                "storage_operations",
+                "leave_attachments",
+            }
         )
 
         runtime_grants = connection.execute(

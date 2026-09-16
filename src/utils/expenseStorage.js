@@ -18,6 +18,12 @@
  */
 import { supabase } from '../lib/supabase';
 
+const movedMessage = 'Expense claims and receipts have moved to the migration expense workspace.';
+
+function expenseMoved() {
+  throw new Error(movedMessage);
+}
+
 // ── Auth helper (never use getUser() — see CLAUDE.md) ────────────────────────
 async function getSessionUser() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -58,14 +64,7 @@ function dbToExpense(row) {
  * joined in, newest first.
  */
 export async function getExpenseClaims() {
-  const user = await getSessionUser();
-  const { data, error } = await supabase
-    .from('expense_claims')
-    .select('*, employees(name)')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false });
-  if (error) throw error;
-  return (data || []).map(dbToExpense);
+  expenseMoved();
 }
 
 /**
@@ -90,36 +89,17 @@ export async function getApprovedUnpaidExpenses() {
  * Approve an expense claim. Stamps approved_by with the admin's email.
  */
 export async function approveExpenseClaim(claimId) {
-  const user = await getSessionUser();
-  const { error } = await supabase
-    .from('expense_claims')
-    .update({
-      status:      'approved',
-      approved_by: user.email,
-      approved_at: new Date().toISOString(),
-      rejection_reason: '',
-    })
-    .eq('id', claimId)
-    .eq('user_id', user.id);
-  if (error) throw error;
+  void claimId;
+  expenseMoved();
 }
 
 /**
  * Reject an expense claim with a mandatory reason.
  */
 export async function rejectExpenseClaim(claimId, reason) {
-  const user = await getSessionUser();
-  const { error } = await supabase
-    .from('expense_claims')
-    .update({
-      status:           'rejected',
-      rejection_reason: reason || '',
-      approved_by:      '',
-      approved_at:      null,
-    })
-    .eq('id', claimId)
-    .eq('user_id', user.id);
-  if (error) throw error;
+  void claimId;
+  void reason;
+  expenseMoved();
 }
 
 /**
@@ -147,13 +127,8 @@ export async function markExpensesPaid(claimIds, payrollRunId) {
  * Does not delete the receipt file from Storage; do that separately if needed.
  */
 export async function deleteExpenseClaim(claimId) {
-  const user = await getSessionUser();
-  const { error } = await supabase
-    .from('expense_claims')
-    .delete()
-    .eq('id', claimId)
-    .eq('user_id', user.id);
-  if (error) throw error;
+  void claimId;
+  expenseMoved();
 }
 
 /**
@@ -161,11 +136,8 @@ export async function deleteExpenseClaim(claimId) {
  * The SECURITY DEFINER RPC enforces ownership and protected statuses server-side.
  */
 export async function deleteEmployeeExpense(claimId) {
-  const { data, error } = await supabase.rpc('employee_delete_expense', {
-    p_expense_id: claimId,
-  });
-  if (error) throw error;
-  if (data !== true) throw new Error('The expense claim could not be deleted.');
+  void claimId;
+  expenseMoved();
 }
 
 /**
@@ -174,27 +146,17 @@ export async function deleteEmployeeExpense(claimId) {
  * Bucket must exist in Supabase Dashboard (see sql/014_expense_claims.sql).
  */
 export async function uploadExpenseReceipt(file, employeeId) {
-  const user = await getSessionUser();
-  const ts       = Date.now();
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const path     = `${user.id}/${employeeId}/${ts}_${safeName}`;
-  const { error } = await supabase.storage
-    .from('expense-receipts')
-    .upload(path, file, { upsert: false });
-  if (error) throw error;
-  return path;
+  void file;
+  void employeeId;
+  expenseMoved();
 }
 
 /**
  * Generate a 1-hour signed URL for an expense receipt.
  */
 export async function getExpenseReceiptUrl(storagePath) {
-  if (!storagePath) return null;
-  const { data, error } = await supabase.storage
-    .from('expense-receipts')
-    .createSignedUrl(storagePath, 3600);
-  if (error) return null;
-  return data?.signedUrl ?? null;
+  void storagePath;
+  expenseMoved();
 }
 
 // ── Manager functions (Feature 3.2: Multi-Level Expense Approvals) ────────────
@@ -204,9 +166,7 @@ export async function getExpenseReceiptUrl(storagePath) {
  * Uses manager_get_expense_queue SECURITY DEFINER RPC (crosses RLS boundary).
  */
 export async function getExpenseQueueForManager() {
-  const { data, error } = await supabase.rpc('manager_get_expense_queue');
-  if (error) { console.error('getExpenseQueueForManager:', error); return []; }
-  return (data || []).map(dbToExpense);
+  expenseMoved();
 }
 
 /**
@@ -214,9 +174,8 @@ export async function getExpenseQueueForManager() {
  * Sets status → 'manager_approved'.
  */
 export async function managerApproveExpense(expenseId) {
-  const { data, error } = await supabase.rpc('manager_approve_expense', { p_expense_id: expenseId });
-  if (error) throw error;
-  if (!data) throw new Error('Expense not found or already actioned.');
+  void expenseId;
+  expenseMoved();
 }
 
 /**
@@ -224,10 +183,7 @@ export async function managerApproveExpense(expenseId) {
  * Sets status → 'manager_rejected'.
  */
 export async function managerRejectExpense(expenseId, reason) {
-  const { data, error } = await supabase.rpc('manager_reject_expense', {
-    p_expense_id: expenseId,
-    p_reason:     reason || '',
-  });
-  if (error) throw error;
-  if (!data) throw new Error('Expense not found or already actioned.');
+  void expenseId;
+  void reason;
+  expenseMoved();
 }

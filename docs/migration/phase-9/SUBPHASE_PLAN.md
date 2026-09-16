@@ -3,7 +3,8 @@
 ## Status
 
 Phase 8 is complete at commit `2f4956b9ac356e979140ae4be0163017324e9aa4`. GitHub Migration
-foundation run `35006999072` passed on 2026-09-15. Alembic has one head at `e8f4c7b2a610`.
+foundation run `35006999072` passed on 2026-09-15. Parts 9A and 9B are complete, and Alembic has
+one head at `f9b2c4d6e8a1`.
 
 This document splits Phase 9 into eight parts, 9A through 9H. The project owner authorized sequential
 execution on 2026-09-16. Only the next part may run after the prior part has a clean, synchronized
@@ -43,8 +44,8 @@ payroll result exists. The last part reviews the whole boundary independently.
 | Part | Scope | Status |
 | --- | --- | --- |
 | 9A | Financial contracts, dependency inventory, golden cases, and cutover decisions | Complete |
-| 9B | Expense claims, manager review, administrator decisions, and receipt boundary | Authorized next; not started |
-| 9C | Salary advances, schedules, withdrawal, decisions, and repayment authority | Authorized in sequence; not started |
+| 9B | Expense claims, manager review, administrator decisions, and receipt boundary | Complete |
+| 9C | Salary advances, schedules, withdrawal, decisions, and repayment authority | Authorized next; not started |
 | 9D | Payroll drafts, entries, server calculation, validation, and editable-run lifecycle | Authorized in sequence; not started |
 | 9E | Leave, attendance, roster, expense, and advance payroll inputs | Authorized in sequence; not started |
 | 9F | Payroll approval, finalization, immutable payslips, and financial audit | Authorized in sequence; not started |

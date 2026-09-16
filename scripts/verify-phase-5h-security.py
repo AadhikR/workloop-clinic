@@ -149,6 +149,20 @@ def verify_database() -> None:
             .lower()
         )
         wrapped_audit_function = audit_function
+        if "_append_audit_event_phase9b_prior" in wrapped_audit_function:
+            assert "expense_receipt_uploaded" in wrapped_audit_function
+            assert "expense_receipt_cleanup_requested" in wrapped_audit_function
+            wrapped_audit_function = (
+                connection.execute(
+                    text(
+                        "SELECT pg_catalog.pg_get_functiondef("
+                        "'public._append_audit_event_phase9b_prior"
+                        "(text,text,uuid,text[],text,jsonb)'::regprocedure)"
+                    )
+                )
+                .scalar_one()
+                .lower()
+            )
         if "_append_audit_event_phase8f_prior" in wrapped_audit_function:
             for action in (
                 "leave_request_manager_approved",
@@ -222,6 +236,7 @@ def verify_database() -> None:
         assert "branch_created" in audit_predecessor and "branch_deleted" in audit_predecessor
         assert "employee_branch_corrected" in audit_predecessor
         for signature in (
+            "public._append_audit_event_phase9b_prior(text,text,uuid,text[],text,jsonb)",
             "public._append_audit_event_phase8f_prior(text,text,uuid,text[],text,jsonb)",
             "public._append_audit_event_phase8e_prior(text,text,uuid,text[],text,jsonb)",
             "public._append_audit_event_phase8d_prior(text,text,uuid,text[],text,jsonb)",

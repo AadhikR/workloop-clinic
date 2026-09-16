@@ -355,6 +355,78 @@ button:focus-visible {
   border: 1px solid #c7d0c9;
 }
 
+.expenses {
+  border-top: 1px solid #dbe3ea;
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+}
+
+.expense-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0 1.5rem;
+  padding: 1rem;
+  border: 1px solid #c7d0c9;
+}
+
+.expense-form h3,
+.expense-form button {
+  grid-column: 1 / -1;
+}
+
+.expense-form label {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.expense-form input,
+.expense-form textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.55rem;
+  border: 1px solid #9aaa9f;
+  font: inherit;
+}
+
+.expense-table-wrap {
+  overflow-x: auto;
+}
+
+.expense-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.8rem;
+}
+
+.expense-table th,
+.expense-table td {
+  padding: 0.55rem;
+  border-bottom: 1px solid #dbe1dc;
+  text-align: start;
+  vertical-align: top;
+}
+
+.expense-table small {
+  display: block;
+  margin-top: 0.2rem;
+  color: #65736b;
+}
+
+.expense-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.expense-actions button {
+  padding: 0.35rem 0.5rem;
+  font-size: 0.72rem;
+}
+
 .leave-request-form h3,
 .leave-request-form p {
   margin: 0;

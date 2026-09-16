@@ -19,6 +19,7 @@ from app.db.authorization_context import AuthorizationTransactionFactory
 from app.db.engine import create_database_engine, probe_database
 from app.department_api import router as department_router
 from app.employee_api import router as employee_router
+from app.expense_api import router as expense_router
 from app.http.errors import (
     api_error,
     error_response_documentation,
@@ -133,6 +134,9 @@ def create_app(
         application.state.employee_cursor_codec = EmployeeCursorCodec.from_base64url(
             resolved_settings.cursor_signing_key.get_secret_value()
         )
+        application.state.expense_cursor_codec = EmployeeCursorCodec.from_base64url(
+            resolved_settings.cursor_signing_key.get_secret_value()
+        )
         application.state.department_cursor_codec = EmployeeCursorCodec.from_base64url(
             resolved_settings.cursor_signing_key.get_secret_value()
         )
@@ -187,6 +191,7 @@ def create_app(
     )
     application.include_router(organization_router)
     application.include_router(employee_router)
+    application.include_router(expense_router)
     application.include_router(department_router)
     application.include_router(idempotency_router)
     application.include_router(leave_configuration_router)

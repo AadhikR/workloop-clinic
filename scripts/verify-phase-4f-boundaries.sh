@@ -106,7 +106,7 @@ BEGIN
       'training_records', 'certifications', 'appraisal_cycles', 'appraisals',
       'appraisal_sections', 'cme_requirements', 'incident_reports',
       'letter_requests', 'audit_events', 'idempotency_records',
-      'storage_operations', 'leave_attachments'
+      'storage_operations', 'leave_attachments', 'expense_receipts'
     );
   IF mismatch_count <> 0 THEN
     RAISE EXCEPTION 'row-level security is enabled outside the approved migration tables';
