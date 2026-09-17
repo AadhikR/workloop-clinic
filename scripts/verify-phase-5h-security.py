@@ -149,6 +149,27 @@ def verify_database() -> None:
             .lower()
         )
         wrapped_audit_function = audit_function
+        if "_append_audit_event_phase9g_prior" in wrapped_audit_function:
+            for action in (
+                "payroll_wps_changed",
+                "wps_entry_paid",
+                "wps_entry_rejected",
+                "sif_projection_recorded",
+                "compliance_override_created",
+                "nafis_snapshot_replaced",
+            ):
+                assert action in wrapped_audit_function
+            wrapped_audit_function = (
+                connection.execute(
+                    text(
+                        "SELECT pg_catalog.pg_get_functiondef("
+                        "'public._append_audit_event_phase9g_prior"
+                        "(text,text,uuid,text[],text,jsonb)'::regprocedure)"
+                    )
+                )
+                .scalar_one()
+                .lower()
+            )
         if "_append_audit_event_phase9f_prior" in wrapped_audit_function:
             for action in (
                 "payroll_submitted",
@@ -303,6 +324,7 @@ def verify_database() -> None:
         )
         assert "employee_branch_corrected" in audit_predecessor
         for signature in (
+            "public._append_audit_event_phase9g_prior(text,text,uuid,text[],text,jsonb)",
             "public._append_audit_event_phase9f_prior(text,text,uuid,text[],text,jsonb)",
             "public._append_audit_event_phase9e_prior(text,text,uuid,text[],text,jsonb)",
             "public._append_audit_event_phase9d_prior(text,text,uuid,text[],text,jsonb)",
