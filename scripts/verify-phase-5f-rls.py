@@ -62,6 +62,8 @@ COMMANDS = {
 
 GRANTS = {table: set(commands) for table, commands in COMMANDS.items()}
 GRANTS["payroll_runs"].discard("UPDATE")
+GRANTS["compliance_overrides"].discard("INSERT")
+GRANTS["nafis_reports"].difference_update({"INSERT", "UPDATE"})
 
 
 def clean_phase5g_audit(connection: Any) -> None:
