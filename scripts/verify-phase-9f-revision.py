@@ -56,9 +56,14 @@ def verify_head(connection: object) -> str:
     transition = function_row(connection, "transition_payroll_run(uuid,text,text,timestamptz)")
     finalizer = function_row(connection, "finalize_payroll_run(uuid,numeric,integer,timestamptz)")
     locker = function_row(connection, "lock_payroll_run(uuid)")
+    immutable_trigger = function_row(connection, "reject_immutable_payroll_evidence_mutation()")
     for row in (audit, locker, transition, finalizer):
         assert_protected(row)
     assert_protected(prior, runtime=False)
+    assert immutable_trigger[0] == "workloop_migration"
+    assert immutable_trigger[1] is False and immutable_trigger[2] == "v"
+    assert immutable_trigger[3] == '{"search_path=pg_catalog, public, pg_temp"}'
+    assert "{=X/" not in str(immutable_trigger[4])
     assert "payslips_issued" in str(audit[5])
     assert "payroll_approval_separation_required" in str(transition[5])
     assert "SELECT pg_catalog.count(*) FROM public.payslips" in str(finalizer[5])

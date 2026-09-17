@@ -16,6 +16,7 @@ depends_on: str | Sequence[str] | None = None
 
 AUDIT_SIGNATURE = "public.append_audit_event(text,text,uuid,text[],text,jsonb)"
 AUDIT_PRIOR_SIGNATURE = "public._append_audit_event_phase9f_prior(text,text,uuid,text[],text,jsonb)"
+IMMUTABLE_TRIGGER_SIGNATURE = "public.reject_immutable_payroll_evidence_mutation()"
 LOCK_SIGNATURE = "public.lock_payroll_run(uuid)"
 TRANSITION_SIGNATURE = "public.transition_payroll_run(uuid,text,text,timestamp with time zone)"
 FINALIZE_SIGNATURE = "public.finalize_payroll_run(uuid,numeric,integer,timestamp with time zone)"
@@ -62,6 +63,8 @@ END
 $function$
 """
     )
+    op.execute(f"ALTER FUNCTION {IMMUTABLE_TRIGGER_SIGNATURE} OWNER TO workloop_migration")
+    op.execute(f"REVOKE ALL ON FUNCTION {IMMUTABLE_TRIGGER_SIGNATURE} FROM PUBLIC")
     op.execute(
         "CREATE TRIGGER trg_payslips_immutable BEFORE UPDATE OR DELETE ON public.payslips "
         "FOR EACH ROW EXECUTE FUNCTION public.reject_immutable_payroll_evidence_mutation()"
