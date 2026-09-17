@@ -684,46 +684,15 @@ function dbToAdvance(row) {
  * Returns all saved Nafis compliance reports for the current user.
  */
 export async function getNafisReports() {
-  const { data, error } = await supabase
-    .from('nafis_reports')
-    .select('*')
-    .order('generated_at', { ascending: false });
-
-  if (error) { console.error('getNafisReports:', error); return []; }
-  return (data || []).map(r => ({
-    id:               r.id,
-    period:           r.period,
-    totalHeadcount:   r.total_headcount,
-    emiratiCount:     r.emirati_count,
-    ratioPercent:     parseFloat(r.ratio_percent) || 0,
-    requiredPercent:  parseFloat(r.required_percent) || 0,
-    compliant:        r.compliant,
-    snapshot:         r.snapshot ?? [],
-    generatedAt:      r.generated_at,
-  }));
+  throw new Error('Phase 9G cutover: WPS and Nafis writes are served by FastAPI.');
 }
 
 /**
  * Saves (upserts) a Nafis compliance report snapshot for a given period.
  */
 export async function saveNafisReport(report) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-
-  const { error } = await supabase
-    .from('nafis_reports')
-    .upsert({
-      user_id:          user.id,
-      period:           report.period,
-      total_headcount:  report.totalHeadcount,
-      emirati_count:    report.emiratiCount,
-      ratio_percent:    report.ratioPercent,
-      required_percent: report.requiredPercent,
-      compliant:        report.compliant,
-      snapshot:         report.snapshot ?? [],
-    }, { onConflict: 'user_id,period' });
-
-  if (error) { console.error('saveNafisReport:', error); throw error; }
+  void report;
+  throw new Error('Phase 9G cutover: WPS and Nafis writes are served by FastAPI.');
 }
 
 // ─── OFFBOARDING ─────────────────────────────────────────────────────────────
@@ -1092,31 +1061,21 @@ function dbToEmployee(row) {
  * entries (safe to call while PayrollEditor is open).
  */
 export async function saveWpsTracking(payrollId, { wpsStatus, wpsSubmittedAt, wpsConfirmedAt, wpsReferenceNo }) {
-  const { error } = await supabase
-    .from('payroll_runs')
-    .update({
-      wps_status:        wpsStatus,
-      wps_submitted_at:  wpsSubmittedAt  ?? null,
-      wps_confirmed_at:  wpsConfirmedAt  ?? null,
-      wps_reference_no:  wpsReferenceNo  ?? '',
-    })
-    .eq('id', payrollId);
-  if (error) throw error;
+  void payrollId;
+  void wpsStatus;
+  void wpsSubmittedAt;
+  void wpsConfirmedAt;
+  void wpsReferenceNo;
+  throw new Error('Phase 9G cutover: WPS and Nafis writes are served by FastAPI.');
 }
 
 // ── COMPLIANCE OVERRIDES (Feature 7.1) ───────────────────────────────────────
 
 export async function saveComplianceOverride({ overrideType, employeeIds, reason }) {
-  const { data: { session } } = await supabase.auth.getSession();
-  const user = session?.user ?? null;
-  if (!user) throw new Error('Not authenticated');
-  const { error } = await supabase.from('compliance_overrides').insert({
-    user_id:       user.id,
-    override_type: overrideType,
-    employee_ids:  employeeIds,
-    reason,
-  });
-  if (error) throw error;
+  void overrideType;
+  void employeeIds;
+  void reason;
+  throw new Error('Phase 9G cutover: WPS and Nafis writes are served by FastAPI.');
 }
 
 // ── PAYROLL APPROVAL (Feature 17) ────────────────────────────────────────────

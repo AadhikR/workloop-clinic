@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify the Phase 9F functions and exact predecessor rollback."""
+"""Verify the Phase 9G functions and exact predecessor rollback."""
 
 from __future__ import annotations
 
@@ -10,8 +10,15 @@ import sys
 from sqlalchemy import create_engine, text
 
 HEAD = "e3a7c9d1f5b2"
-PREDECESSOR = "d7f1b3c5e9a2"
+PREDECESSOR = "b8e2c4d6f9a1"
 AUDIT_ARGS = "text,text,uuid,text[],text,jsonb"
+FUNCTIONS = (
+    "transition_payroll_wps(uuid,text,text,text,timestamptz,text,text)",
+    "transition_wps_entry(uuid,uuid,text,text,timestamptz)",
+    "create_wps_compliance_override(uuid,uuid,uuid,text,text)",
+    "lock_nafis_sources(date)",
+    "replace_nafis_snapshot(uuid,text,integer,integer,numeric,numeric,boolean,jsonb,timestamptz)",
+)
 
 
 def function_row(connection: object, signature: str) -> object:
@@ -37,7 +44,7 @@ def absent(connection: object, signature: str) -> bool:
 
 
 def digest(definition: object) -> str:
-    normalized = str(definition).replace("_append_audit_event_phase9f_prior", "append_audit_event")
+    normalized = str(definition).replace("_append_audit_event_phase9g_prior", "append_audit_event")
     return hashlib.sha256(normalized.encode()).hexdigest()
 
 
@@ -51,44 +58,62 @@ def assert_protected(row: object, *, runtime: bool = True) -> None:
 
 def verify_head(connection: object) -> str:
     assert connection.scalar(text("SELECT version_num FROM alembic_version")) == HEAD
-    current_audit = function_row(connection, f"append_audit_event({AUDIT_ARGS})")
-    audit = function_row(connection, f"_append_audit_event_phase9g_prior({AUDIT_ARGS})")
-    prior = function_row(connection, f"_append_audit_event_phase9f_prior({AUDIT_ARGS})")
-    transition = function_row(connection, "transition_payroll_run(uuid,text,text,timestamptz)")
-    finalizer = function_row(connection, "finalize_payroll_run(uuid,numeric,integer,timestamptz)")
-    locker = function_row(connection, "lock_payroll_run(uuid)")
-    immutable_trigger = function_row(connection, "reject_immutable_payroll_evidence_mutation()")
-    for row in (current_audit, locker, transition, finalizer):
-        assert_protected(row)
-    assert_protected(audit, runtime=False)
+    audit = function_row(connection, f"append_audit_event({AUDIT_ARGS})")
+    prior = function_row(connection, f"_append_audit_event_phase9g_prior({AUDIT_ARGS})")
+    assert_protected(audit)
     assert_protected(prior, runtime=False)
-    assert immutable_trigger[0] == "workloop_migration"
-    assert immutable_trigger[1] is False and immutable_trigger[2] == "v"
-    assert immutable_trigger[3] == '{"search_path=pg_catalog, public, pg_temp"}'
-    assert "{=X/" not in str(immutable_trigger[4])
-    assert "payslips_issued" in str(audit[5])
-    assert "payroll_approval_separation_required" in str(transition[5])
-    assert "SELECT pg_catalog.count(*) FROM public.payslips" in str(finalizer[5])
-    assert "FOR UPDATE" in str(locker[5])
+    for signature in FUNCTIONS:
+        assert_protected(function_row(connection, signature))
+    assert "sif_projection_recorded" in str(audit[5])
+    assert "FOR UPDATE" in str(function_row(connection, FUNCTIONS[0])[5])
+    assert "previous_digest" in str(function_row(connection, FUNCTIONS[0])[5])
+    assert (
+        connection.scalar(
+            text(
+                "SELECT count(*) FROM information_schema.columns WHERE table_schema='public' "
+                "AND table_name='compliance_overrides' "
+                "AND column_name IN ('payroll_run_id','payroll_entry_id','rule_code')"
+            )
+        )
+        == 3
+    )
+    assert (
+        connection.scalar(
+            text(
+                "SELECT count(*) FROM pg_catalog.pg_trigger WHERE NOT tgisinternal "
+                "AND tgrelid='public.compliance_overrides'::regclass "
+                "AND tgname='trg_compliance_overrides_immutable'"
+            )
+        )
+        == 1
+    )
     return digest(prior[5])
 
 
 def verify_predecessor(connection: object) -> str:
     assert connection.scalar(text("SELECT version_num FROM alembic_version")) == PREDECESSOR
     assert absent(connection, f"_append_audit_event_phase9g_prior({AUDIT_ARGS})")
-    assert absent(connection, f"_append_audit_event_phase9f_prior({AUDIT_ARGS})")
-    assert absent(connection, "transition_payroll_run(uuid,text,text,timestamptz)")
-    assert absent(connection, "finalize_payroll_run(uuid,numeric,integer,timestamptz)")
-    assert absent(connection, "lock_payroll_run(uuid)")
+    for signature in FUNCTIONS:
+        assert absent(connection, signature)
+    assert (
+        connection.scalar(
+            text(
+                "SELECT count(*) FROM information_schema.columns WHERE table_schema='public' "
+                "AND table_name='compliance_overrides' "
+                "AND column_name IN ('payroll_run_id','payroll_entry_id','rule_code')"
+            )
+        )
+        == 0
+    )
     audit = function_row(connection, f"append_audit_event({AUDIT_ARGS})")
     assert_protected(audit)
-    assert "payslips_issued" not in str(audit[5])
+    assert "sif_projection_recorded" not in str(audit[5])
     return digest(audit[5])
 
 
 def main() -> None:
     if len(sys.argv) != 2 or sys.argv[1] not in {"head", "predecessor"}:
-        raise SystemExit("usage: verify-phase-9f-revision.py head|predecessor")
+        raise SystemExit("usage: verify-phase-9g-revision.py head|predecessor")
     engine = create_engine(os.environ["MIGRATION_DATABASE_URL"])
     with engine.connect() as connection:
         value = verify_head(connection) if sys.argv[1] == "head" else verify_predecessor(connection)

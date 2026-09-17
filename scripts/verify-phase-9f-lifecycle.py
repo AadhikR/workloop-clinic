@@ -110,7 +110,7 @@ async def main() -> None:
     rows = build_rows()
     with migration_engine.begin() as connection:
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "b8e2c4d6f9a1"
+            "e3a7c9d1f5b2"
         )
         clean_phase_9f(connection)
         clean(connection, rows)

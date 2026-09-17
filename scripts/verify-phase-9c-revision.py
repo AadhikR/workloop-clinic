@@ -9,7 +9,7 @@ import sys
 
 from sqlalchemy import create_engine, text
 
-HEAD = "b8e2c4d6f9a1"
+HEAD = "e3a7c9d1f5b2"
 PREDECESSOR = "f9b2c4d6e8a1"
 AUDIT_ARGS = "text,text,uuid,text[],text,jsonb"
 REPAYMENT_ARGS = "uuid,uuid,uuid,numeric,date"

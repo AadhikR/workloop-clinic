@@ -14,6 +14,7 @@ import LeaveApprovals from './LeaveApprovals.jsx'
 import LeaveOverview from './LeaveOverview.jsx'
 import Payroll from './Payroll.jsx'
 import Payslips from './Payslips.jsx'
+import WpsNafis from './WpsNafis.jsx'
 
 function OrganizationSummary({ account, authentication }) {
   const organization = useCompanyContext()
@@ -66,6 +67,11 @@ function OrganizationSummary({ account, authentication }) {
         branchId={organization.selectedBranch.id}
       />
       <Payslips account={account} authentication={authentication} />
+      <WpsNafis
+        account={account}
+        authentication={authentication}
+        branchId={organization.selectedBranch.id}
+      />
       {account.role === 'admin' && (
         <>
           <LeaveConfiguration authentication={authentication} branchId={organization.selectedBranch.id} />

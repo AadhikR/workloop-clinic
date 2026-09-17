@@ -53,6 +53,8 @@ from app.storage.proof_api import (
     read_storage_proof,
 )
 from app.storage.synthetic_api import download_synthetic_object
+from app.wps_api import nafis_router
+from app.wps_api import router as wps_router
 
 DatabaseProbe = Callable[[AsyncEngine], Awaitable[None]]
 
@@ -204,6 +206,8 @@ def create_app(
     application.include_router(advance_router)
     application.include_router(payroll_router)
     application.include_router(payslip_router)
+    application.include_router(wps_router)
+    application.include_router(nafis_router)
     application.include_router(department_router)
     application.include_router(idempotency_router)
     application.include_router(leave_configuration_router)

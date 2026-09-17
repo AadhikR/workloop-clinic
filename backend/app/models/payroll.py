@@ -745,8 +745,21 @@ class ComplianceOverride(Base):
             ondelete="SET NULL (branch_id)",
         ),
         ForeignKeyConstraint(["created_by_app_user_id"], ["app_users.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(
+            ["payroll_run_id", "company_id", "branch_id"],
+            ["payroll_runs.id", "payroll_runs.company_id", "payroll_runs.branch_id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(["payroll_entry_id"], ["payroll_entries.id"], ondelete="RESTRICT"),
         CheckConstraint("override_type IN ('payroll_sif', 'roster_publish')", name="override_type"),
+        CheckConstraint(
+            "rule_code IS NULL OR rule_code IN ('visa_expired','emirates_id_expired',"
+            "'labour_card_expired','passport_expired','professional_licence_expired')",
+            name="rule_code",
+        ),
         Index("ix_compliance_overrides_company_id_branch_id", "company_id", "branch_id"),
+        Index("ix_compliance_overrides_payroll_run_id", "payroll_run_id"),
+        Index("ix_compliance_overrides_payroll_entry_id", "payroll_entry_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -756,6 +769,9 @@ class ComplianceOverride(Base):
     branch_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     override_type: Mapped[str] = mapped_column(Text(), nullable=False)
     employee_ids: Mapped[list[Any] | None] = mapped_column(JSONB(), nullable=True)
+    payroll_run_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    payroll_entry_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    rule_code: Mapped[str | None] = mapped_column(Text(), nullable=True)
     reason: Mapped[str] = mapped_column(Text(), nullable=False)
     created_by_app_user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(

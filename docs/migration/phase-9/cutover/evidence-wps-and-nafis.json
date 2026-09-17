@@ -1,1 +1,1 @@
-{"featureId":"wps-and-nafis","command":"node scripts/cutover-record-validator.mjs docs/migration/phase-9/cutover/wps-and-nafis.json","refreshedAt":"2026-09-16T12:35:24Z","sourceDigest":"sha256:db900bd5134a67f3523ca276af6cbed198ca2c1423f8ea31e5bcbcb7bde7f552","sourceRecordCount":5,"targetRecordCount":5}
+{"featureId":"wps-and-nafis","command":"python scripts/verify-phase-9g-lifecycle.py","refreshedAt":"2026-09-17T10:36:35Z","sourceDigest":"sha256:db900bd5134a67f3523ca276af6cbed198ca2c1423f8ea31e5bcbcb7bde7f552","sourceRecordCount":5,"targetRecordCount":5}

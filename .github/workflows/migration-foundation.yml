@@ -176,6 +176,10 @@ jobs:
         run: |
           python scripts/verify-phase-9f-approval.py
           node --test tests/payroll-api.test.js tests/phase-9f-legacy-freeze.test.js
+      - name: Verify Phase 9G WPS and Nafis contract
+        run: |
+          python scripts/verify-phase-9g-contract.py
+          node --test tests/wps-nafis-api.test.js tests/phase-9g-legacy-freeze.test.js
       - name: Verify empty-schema downgrade boundary
         if: needs.changes.outputs.database_deep == 'true'
         run: |
@@ -245,6 +249,9 @@ jobs:
       - name: Verify Phase 9F exact predecessor
         if: needs.changes.outputs.database_deep == 'true'
         run: sh scripts/verify-phase-9f-revision.sh
+      - name: Verify Phase 9G exact predecessor
+        if: needs.changes.outputs.database_deep == 'true'
+        run: sh scripts/verify-phase-9g-revision.sh
       - name: Verify Phase 8F exact predecessor
         if: needs.changes.outputs.database_deep == 'true'
         run: |
@@ -279,6 +286,8 @@ jobs:
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --volume ./scripts:/verification:ro --entrypoint python migrate -c "import runpy; runpy.run_path('/verification/verify-phase-9e-database.py', run_name='__main__')"
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --volume ./scripts:/verification:ro --entrypoint python migrate -c "import runpy; runpy.run_path('/verification/verify-phase-9f-database.py', run_name='__main__')"
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --volume ./scripts:/verification:ro --entrypoint python migrate -c "import runpy; runpy.run_path('/verification/verify-phase-9f-lifecycle.py', run_name='__main__')"
+          docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --volume ./scripts:/verification:ro --entrypoint python migrate -c "import runpy; runpy.run_path('/verification/verify-phase-9g-database.py', run_name='__main__')"
+          docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --volume ./scripts:/verification:ro --entrypoint python migrate -c "import runpy; runpy.run_path('/verification/verify-phase-9g-lifecycle.py', run_name='__main__')"
       - name: Verify service health
         run: |
           curl --fail --silent --show-error http://127.0.0.1:8000/health | jq --exit-status '.status == "ok" and .database == "ok"'

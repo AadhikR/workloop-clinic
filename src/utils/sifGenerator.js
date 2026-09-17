@@ -30,81 +30,15 @@
  *   Most likely the bank generates the filename — we'll use: {MOL_ID}{YYYYMMDD}{seq_padded_to_10}
  *   and let the user rename if needed, OR use YYMMDD format to match the examples.
  */
-import { calculatePayrollEntry } from './payrollCalculator';
-
-function padLeft(str, len, char = '0') {
-  return String(str).padStart(len, char);
-}
-
-function toIntAED(amount) {
-  // Round to nearest integer AED
-  return Math.round(parseFloat(amount || 0));
-}
-
-function getDaysInMonth(year, month) {
-  return new Date(year, month, 0).getDate();
-}
-
-function getMonthPeriod(year, month) {
-  // Returns MMYYYY e.g. 022026
-  return `${padLeft(month, 2)}${year}`;
-}
-
-function getMonthName(month) {
-  const names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return names[month - 1];
-}
-
 export function generateSIF(company, employees, payroll) {
-  const lines = [];
-
-  // Parse payroll period
-  const [year, month] = payroll.period.split('-').map(Number);
-  const daysInMonth = getDaysInMonth(year, month);
-  const payStartDate = `${year}-${padLeft(month, 2)}-01`;
-  const payEndDate = `${year}-${padLeft(month, 2)}-${padLeft(daysInMonth, 2)}`;
-
-  let totalAmount = 0;
-  let employeeCount = 0;
-
-  // Build EDR lines for each employee entry in this payroll
-  for (const entry of payroll.entries) {
-    const emp = employees.find(e => e.id === entry.employeeId);
-    if (!emp || entry.excluded) continue;
-
-    const calc = calculatePayrollEntry({ ...entry, basicSalary: entry.basicSalary ?? emp.basicSalary });
-    const basicAED = toIntAED(calc.basicSalary);
-    const allowanceAED = toIntAED(calc.wpsVariableAmount);
-    const daysOnLeave = parseInt(entry.daysOnLeave ?? 0);
-
-    totalAmount += basicAED + allowanceAED;
-    employeeCount++;
-
-    lines.push(
-      `EDR,${emp.molId},${emp.bankRoutingCode},${emp.iban},${payStartDate},${payEndDate},${daysInMonth},${basicAED},${allowanceAED},${daysOnLeave}`
-    );
-  }
-
-  // Build SCR line
-  // sequenceNo = File Creation Time in HHMM format (per WPS guide, Column E of SCR)
-  // Use stored value if present, otherwise use current time HHMM
-  const period = getMonthPeriod(year, month);
-  const paymentDate = payroll.paymentDate; // YYYY-MM-DD
-  const now = new Date();
-  const autoHHMM = String(now.getHours()).padStart(2, '0') + String(now.getMinutes()).padStart(2, '0');
-  const sequenceNo = payroll.sequenceNo || autoHHMM;
-  const description = payroll.description || `Sal for ${getMonthName(month)} ${year}`;
-
-  lines.push(
-    `SCR,${company.molEmployerId},${payroll.scrBankRoutingCode || company.defaultBankRoutingCode},${paymentDate},${sequenceNo},${period},${employeeCount},${totalAmount},AED,${description}`
-  );
-
-  // WPS banks require Windows line endings (CRLF).
-  // Using LF-only causes all lines to appear as a single row when the bank parses the file.
-  return lines.join('\r\n');
+  void company;
+  void employees;
+  void payroll;
+  throw new Error('SIF generation is unavailable after the Phase 9G cutover. Phase 12 owns file generation.');
 }
 
 export function generateSIFFilename(company, payroll) {
+  void payroll;
   /**
    * Filename format per EI businessONLINE WPS User Guide (exactly 25 chars before .sif):
    *   {MOL_Employer_ID_13}{File_Creation_Date_YYMMDD_6}{File_Creation_Time_HHMMSS_6}
@@ -145,16 +79,11 @@ export function generateSIFFilename(company, payroll) {
  * @param {string[]} rejectedEmployeeIds — array of employee.id values to include
  */
 export function generateCorrectedSIF(company, employees, payroll, rejectedEmployeeIds) {
-  const rejectedSet = new Set(rejectedEmployeeIds);
-  const correctedPayroll = {
-    ...payroll,
-    entries: payroll.entries.map(e => ({
-      ...e,
-      // Exclude everyone NOT in the rejected list
-      excluded: e.excluded || !rejectedSet.has(e.employeeId),
-    })),
-  };
-  return generateSIF(company, employees, correctedPayroll);
+  void company;
+  void employees;
+  void payroll;
+  void rejectedEmployeeIds;
+  throw new Error('Corrected SIF generation is unavailable after the Phase 9G cutover. Phase 12 owns file generation.');
 }
 
 export function parseSIFPreview(sifContent) {
