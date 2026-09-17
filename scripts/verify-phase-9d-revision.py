@@ -9,7 +9,7 @@ import sys
 
 from sqlalchemy import create_engine, text
 
-HEAD = "c5e7a9b1d3f4"
+HEAD = "d7f1b3c5e9a2"
 PREDECESSOR = "a1c3e5f7b9d2"
 AUDIT_ARGS = "text,text,uuid,text[],text,jsonb"
 REPLACE_ARGS = "uuid,jsonb"
@@ -78,8 +78,13 @@ def verify_head(connection: object) -> str:
     replace = function_row(connection, f"replace_payroll_entries({REPLACE_ARGS})")
     assert_protected(audit)
     assert_protected(replace)
-    assert "payroll_entries_replaced" in str(audit[5])
+    assert "payroll_inputs_refreshed" in str(audit[5])
     assert "source_snapshot_digest" in str(replace[5])
+    phase9d_audit = function_row(
+        connection, f"_append_audit_event_phase9e_prior({AUDIT_ARGS})"
+    )
+    assert_protected(phase9d_audit, runtime=False)
+    assert "payroll_entries_replaced" in str(phase9d_audit[5])
     prior_audit = function_row(connection, f"_append_audit_event_phase9d_prior({AUDIT_ARGS})")
     prior_replace = function_row(
         connection, f"_replace_payroll_entries_phase9d_prior({REPLACE_ARGS})"
@@ -91,6 +96,7 @@ def verify_head(connection: object) -> str:
 
 def verify_predecessor(connection: object) -> str:
     assert connection.scalar(text("SELECT version_num FROM alembic_version")) == PREDECESSOR
+    assert absent(connection, f"_append_audit_event_phase9e_prior({AUDIT_ARGS})")
     assert absent(connection, f"_append_audit_event_phase9d_prior({AUDIT_ARGS})")
     assert absent(connection, f"_replace_payroll_entries_phase9d_prior({REPLACE_ARGS})")
     assert connection.scalar(
