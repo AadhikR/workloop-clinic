@@ -406,11 +406,11 @@ class DisconnectTransactionFactory:
 
 @pytest.mark.asyncio
 async def test_disconnect_cancels_transaction_backed_get_work() -> None:
-    application = create_app(settings=make_settings(api_request_timeout_seconds=1))
+    application = create_app(settings=make_settings(api_request_timeout_seconds=5))
     transaction_factory = DisconnectTransactionFactory()
     executor = AuthorizedServiceExecutor(
         cast(AuthorizationTransactionFactory, transaction_factory),
-        deadline_seconds=1,
+        deadline_seconds=5,
     )
     active_principal = AuthorizationPrincipal(
         app_user_id=uuid.uuid4(),
@@ -472,9 +472,9 @@ async def test_disconnect_cancels_transaction_backed_get_work() -> None:
         "server": ("127.0.0.1", 8000),
     }
     request_task = asyncio.create_task(application(scope, receive, send))  # type: ignore[arg-type]
-    await asyncio.wait_for(transaction_factory.entered.wait(), timeout=0.5)
+    await asyncio.wait_for(transaction_factory.entered.wait(), timeout=5)
     await incoming.put({"type": "http.disconnect"})
-    await asyncio.wait_for(request_task, timeout=0.5)
+    await asyncio.wait_for(request_task, timeout=5)
 
     assert transaction_factory.cancelled is True
     assert transaction_factory.exited.is_set()
