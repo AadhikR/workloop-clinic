@@ -584,9 +584,21 @@ FROM payroll_entries AS entry WHERE payroll_run_id = :id
         [
             {
                 "employee_id": str(ravi.employee_id),
-                "basic_salary": 1234,
-                "housing_allowance": 200,
+                "basic_salary": "1234.00",
+                "housing_allowance": "200.00",
+                "transport_allowance": "0.00",
+                "allowance": "0.00",
+                "increment": "0.00",
+                "bonus": "0.00",
+                "other_pay": "0.00",
+                "leave_deduction": "0.00",
+                "variable_allowance": "0.00",
+                "additional_allowances": [],
                 "deductions": [],
+                "excluded": False,
+                "source_snapshot": {},
+                "source_snapshot_digest": "0" * 64,
+                "calculated_net_pay": "1434.00",
             }
         ]
     )

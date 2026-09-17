@@ -3,7 +3,15 @@
   "schemaVersion": 1,
   "featureId": "payroll-drafts-and-calculations",
   "dataClassification": "synthetic",
-  "status": {"current": "preparation", "changedAt": "2026-09-16T12:35:24Z", "history": [{"state": "preparation", "at": "2026-09-16T12:35:24Z", "reason": "Payroll draft and calculation contracts are approved; legacy reads and writes remain authoritative until Part 9D passes."}]},
+  "status": {
+    "current": "completed",
+    "changedAt": "2026-09-17T04:24:49Z",
+    "history": [
+      {"state": "preparation", "at": "2026-09-16T12:35:24Z", "reason": "Payroll draft and calculation contracts are approved; legacy reads and writes remain authoritative until Part 9D passes."},
+      {"state": "active-cutover", "at": "2026-09-17T04:24:48Z", "reason": "Phase 9D calculation, branch scope, replacement, concurrency, idempotency, audit, and rollback checks passed on synthetic data."},
+      {"state": "completed", "at": "2026-09-17T04:24:49Z", "reason": "Migration payroll draft authority and the legacy payroll draft read and writer freeze were verified."}
+    ]
+  },
   "dependencies": {
     "inventorySource": "docs/migration/phase-9/PART_9A_DEPENDENCY_INVENTORY.md",
     "requiredIds": ["payroll-storage", "payroll-calculator", "payroll-validator"],
@@ -13,16 +21,16 @@
       {"id": "payroll-validator", "system": "legacy-supabase", "kind": "module", "locator": "src/utils/payrollValidation.js", "cutoverDisposition": "retain"}
     ]
   },
-  "authority": {"readSystem": "legacy-supabase", "writeSystem": "legacy-supabase", "writableSystems": ["legacy-supabase"]},
+  "authority": {"readSystem": "migration-fastapi", "writeSystem": "migration-fastapi", "writableSystems": ["migration-fastapi"]},
   "freeze": {
-    "read": {"system": "migration-fastapi", "condition": "Migration payroll draft reads remain disabled during preparation.", "releaseCondition": "Part 9D proves branch-scoped lists and detail and records active cutover.", "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-9/cutover/payroll-drafts-and-calculations.json"},
-    "write": {"system": "migration-fastapi", "condition": "Migration payroll create, repeat, refresh, replace, and delete remain disabled.", "releaseCondition": "Part 9D proves server calculation, atomic replacement, and the legacy writer freeze.", "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-9/cutover/payroll-drafts-and-calculations.json"}
+    "read": {"system": "legacy-supabase", "condition": "The legacy payroll manager is a migration-workspace placeholder and exposes no payroll draft read path.", "releaseCondition": "Rollback disables migration payroll draft authority before restoring the legacy payroll screen.", "verificationCommand": "python scripts/verify-phase-9d-payroll.py"},
+    "write": {"system": "legacy-supabase", "condition": "Legacy payroll create, repeat, refresh, save, delete, and routing-code cascade writers fail closed.", "releaseCondition": "Rollback disables migration payroll draft commands before restoring the legacy writer.", "verificationCommand": "node --test tests/phase-9d-legacy-freeze.test.js"}
   },
   "refresh": {
     "mode": "synthetic-only",
     "source": {"kind": "tracked-fixture", "locator": "docs/migration/phase-9/PART_9A_GOLDEN_CASES.md", "digest": "sha256:db900bd5134a67f3523ca276af6cbed198ca2c1423f8ea31e5bcbcb7bde7f552"},
-    "command": "node scripts/cutover-record-validator.mjs docs/migration/phase-9/cutover/payroll-drafts-and-calculations.json",
-    "lastRefresh": {"timestamp": "2026-09-16T12:35:24Z", "command": "node scripts/cutover-record-validator.mjs docs/migration/phase-9/cutover/payroll-drafts-and-calculations.json", "sourceDigest": "sha256:db900bd5134a67f3523ca276af6cbed198ca2c1423f8ea31e5bcbcb7bde7f552", "evidence": {"path": "docs/migration/phase-9/cutover/evidence-payroll-drafts-and-calculations.json", "sha256": "sha256:667af56131f9e0becff4b4050830d7c69a7d6e9af7d62c7e25caa8056fb69ae8"}}
+    "command": "python scripts/verify-phase-9d-payroll.py",
+    "lastRefresh": {"timestamp": "2026-09-17T04:24:49Z", "command": "python scripts/verify-phase-9d-payroll.py", "sourceDigest": "sha256:db900bd5134a67f3523ca276af6cbed198ca2c1423f8ea31e5bcbcb7bde7f552", "evidence": {"path": "docs/migration/phase-9/cutover/evidence-payroll-drafts-and-calculations.json", "sha256": "sha256:1b08d7ef76edcc7fe2c6291e9024823443ecb098b93a72b1f07ee37ad159257c"}}
   },
   "identityMapping": {"mode": "synthetic-only", "legacyIdField": "legacySupabaseUserId", "applicationIdField": "applicationUserId", "requiredLegacyUserIds": ["11111111-1111-4111-8111-111111111111"], "mappings": [{"legacySupabaseUserId": "11111111-1111-4111-8111-111111111111", "applicationUserId": "10000000-0000-4000-8000-000000000001", "synthetic": true}]},
   "rollback": {
@@ -37,5 +45,5 @@
       {"id": "verify-data", "action": "Compare synthetic entries, totals, and source snapshot digests.", "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-9/cutover/payroll-drafts-and-calculations.json"}
     ]
   },
-  "validation": {"asOf": "2026-09-16T12:35:24Z", "refreshMaxAgeHours": 168}
+  "validation": {"asOf": "2026-09-17T04:24:49Z", "refreshMaxAgeHours": 24}
 }

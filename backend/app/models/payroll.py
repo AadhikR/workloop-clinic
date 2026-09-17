@@ -83,6 +83,10 @@ class PayrollRun(Base):
             "wps_status NOT IN ('confirmed', 'partial_rejection') OR wps_confirmed_at IS NOT NULL",
             name="wps_confirmed_at",
         ),
+        CheckConstraint(
+            "source_snapshot_digest='' OR source_snapshot_digest~'^[0-9a-f]{64}$'",
+            name="source_snapshot_digest",
+        ),
         Index("ix_payroll_runs_company_id", "company_id"),
         Index("ix_payroll_runs_branch_id", "branch_id"),
         Index("ix_payroll_runs_status", "status"),
@@ -132,6 +136,9 @@ class PayrollRun(Base):
     rejected_by_app_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), nullable=True
     )
+    source_snapshot_digest: Mapped[str] = mapped_column(
+        Text(), nullable=False, server_default=text("''")
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
@@ -179,6 +186,7 @@ class PayrollEntry(Base):
             "wps_payment_status <> 'rejected' OR btrim(wps_rejection_reason) <> ''",
             name="wps_rejection_reason",
         ),
+        CheckConstraint("jsonb_typeof(source_snapshot)='object'", name="source_snapshot_object"),
         Index("ix_payroll_entries_payroll_run_id", "payroll_run_id"),
         Index("ix_payroll_entries_employee_id", "employee_id"),
     )
@@ -220,6 +228,9 @@ class PayrollEntry(Base):
     )
     deductions: Mapped[list[Any]] = mapped_column(
         JSONB(), nullable=False, server_default=text("'[]'")
+    )
+    source_snapshot: Mapped[dict[str, Any]] = mapped_column(
+        JSONB(), nullable=False, server_default=text("'{}'")
     )
     excluded: Mapped[bool] = mapped_column(Boolean(), nullable=False, server_default=text("false"))
     wps_payment_status: Mapped[str] = mapped_column(

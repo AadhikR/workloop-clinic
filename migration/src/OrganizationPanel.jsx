@@ -12,6 +12,7 @@ import OrganizationSettings from './OrganizationSettings.jsx'
 import LeaveConfiguration from './LeaveConfiguration.jsx'
 import LeaveApprovals from './LeaveApprovals.jsx'
 import LeaveOverview from './LeaveOverview.jsx'
+import Payroll from './Payroll.jsx'
 
 function OrganizationSummary({ account, authentication }) {
   const organization = useCompanyContext()
@@ -54,6 +55,11 @@ function OrganizationSummary({ account, authentication }) {
         branchId={organization.selectedBranch.id}
       />
       <Advances
+        account={account}
+        authentication={authentication}
+        branchId={organization.selectedBranch.id}
+      />
+      <Payroll
         account={account}
         authentication={authentication}
         branchId={organization.selectedBranch.id}

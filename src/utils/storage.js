@@ -7,7 +7,7 @@
  */
 
 import { supabase } from '../lib/supabase';
-import { calculatePayrollEntry, calculatePayrollTotals } from './payrollCalculator';
+import { calculatePayrollEntry } from './payrollCalculator';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -81,19 +81,9 @@ export async function saveCompanyLogo(companyId, logoDataUrl) {
  * a "X drafts synced" confirmation. Does not throw when 0 rows match.
  */
 export async function cascadeBankRoutingCodeToDrafts(companyId, newCode) {
-  if (!companyId) throw new Error('cascadeBankRoutingCodeToDrafts: companyId is required.');
-  const { data, error } = await supabase
-    .from('payroll_runs')
-    .update({ scr_bank_routing_code: newCode ?? '' })
-    .eq('company_id', companyId)
-    .eq('status', 'draft')
-    .eq('approval_status', 'draft')
-    .select('id');   // returns updated rows so we can count them
-  if (error) {
-    console.error('cascadeBankRoutingCodeToDrafts:', error);
-    throw new Error(error.message || 'Failed to sync routing code to drafts.');
-  }
-  return { count: data?.length || 0 };
+  void companyId;
+  void newCode;
+  throw new Error('Payroll drafts have moved to the migration payroll workspace.');
 }
 
 /** Legacy branch creation is disabled after the Phase 7C authority switch. */
@@ -209,60 +199,8 @@ export async function addJobHistoryEntry(employeeId, changeType, oldValue, newVa
  *               When omitted, returns all runs (backward-compatible).
  */
 export async function getPayrolls(companyId) {
-  let query = supabase
-    .from('payroll_runs')
-    .select('*')
-    .order('period', { ascending: false });
-
-  if (companyId) {
-    query = query.eq('company_id', companyId);
-  }
-
-  const { data: runs, error: runsErr } = await query;
-
-  if (runsErr) { console.error('getPayrolls runs:', runsErr); return []; }
-  if (!runs?.length) return [];
-
-  const runIds = runs.map(r => r.id);
-
-  const { data: entries, error: entriesErr } = await supabase
-    .from('payroll_entries')
-    .select('*')
-    .in('payroll_run_id', runIds);
-
-  if (entriesErr) { console.error('getPayrolls entries:', entriesErr); return []; }
-
-  return runs.map(run => ({
-    id:                 run.id,
-    period:             run.period,
-    paymentDate:        run.payment_date,
-    sequenceNo:         run.sequence_no,
-    scrBankRoutingCode: run.scr_bank_routing_code,
-    description:        run.description,
-    status:             run.status,
-    runBy:              run.run_by,
-    totalDisbursed:     parseFloat(run.total_disbursed) || 0,
-    employeeCount:      run.employee_count || 0,
-    createdAt:          run.created_at,
-    // WPS tracking (Feature 9)
-    wpsStatus:          run.wps_status      ?? 'draft',
-    wpsSubmittedAt:     run.wps_submitted_at ?? null,
-    wpsConfirmedAt:     run.wps_confirmed_at ?? null,
-    wpsReferenceNo:     run.wps_reference_no ?? '',
-    // Payroll Approval (Feature 17)
-    approvalStatus:            run.approval_status              ?? 'draft',
-    submittedForApprovalAt:    run.submitted_for_approval_at   ?? null,
-    submittedBy:               run.submitted_by                ?? '',
-    approvedBy:                run.approved_by                 ?? '',
-    approvedAt:                run.approved_at                 ?? null,
-    rejectionReason:           run.rejection_reason            ?? '',
-    rejectedAt:                run.rejected_at                 ?? null,
-    // Multi-company (Feature 21)
-    companyId:                 run.company_id                  ?? null,
-    entries: (entries || [])
-      .filter(e => e.payroll_run_id === run.id)
-      .map(dbToEntry),
-  }));
+  void companyId;
+  throw new Error('Payroll drafts have moved to the migration payroll workspace.');
 }
 
 /**
@@ -270,75 +208,24 @@ export async function getPayrolls(companyId) {
  * Automatically records audit trail fields (runBy, totalDisbursed, employeeCount).
  */
 export async function savePayroll(payroll) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-
-  // Calculate totals for audit trail
-  const activeEntries = (payroll.entries || []).filter(e => !e.excluded);
-  const totalDisbursed = calculatePayrollTotals(activeEntries).netPay;
-
-  const runRow = {
-    id:                   payroll.id,
-    user_id:              user.id,
-    company_id:           payroll.companyId ?? null,   // Feature 21: branch scoping
-    period:               payroll.period,
-    payment_date:         payroll.paymentDate ?? '',
-    sequence_no:          payroll.sequenceNo ?? '',
-    scr_bank_routing_code: payroll.scrBankRoutingCode ?? '',
-    description:          payroll.description ?? '',
-    status:               payroll.status ?? 'draft',
-    run_by:               payroll.runBy || user.email || user.id,
-    total_disbursed:      totalDisbursed,
-    employee_count:       activeEntries.length,
-    // WPS tracking (Feature 9)
-    wps_status:           payroll.wpsStatus        ?? 'draft',
-    wps_submitted_at:     payroll.wpsSubmittedAt   ?? null,
-    wps_confirmed_at:     payroll.wpsConfirmedAt   ?? null,
-    wps_reference_no:     payroll.wpsReferenceNo   ?? '',
-    // Payroll Approval (Feature 17)
-    approval_status:              payroll.approvalStatus           ?? 'draft',
-    submitted_for_approval_at:    payroll.submittedForApprovalAt  ?? null,
-    submitted_by:                 payroll.submittedBy              ?? '',
-    approved_by:                  payroll.approvedBy               ?? '',
-    approved_at:                  payroll.approvedAt               ?? null,
-    rejection_reason:             payroll.rejectionReason          ?? '',
-    rejected_at:                  payroll.rejectedAt               ?? null,
-  };
-
-  const { error: runErr } = await supabase
-    .from('payroll_runs')
-    .upsert(runRow, { onConflict: 'id' });
-  if (runErr) throw runErr;
-
-  // Replace all entries atomically via RPC (single transaction)
-  if (payroll.entries?.length) {
-    const entryRows = payroll.entries.map(e => entryToDb(e, payroll.id, user.id));
-    const { error: entErr } = await supabase.rpc('replace_payroll_entries', {
-      p_payroll_run_id: payroll.id,
-      p_entries: entryRows,
-    });
-    if (entErr) throw entErr;
-  }
+  void payroll;
+  throw new Error('Payroll drafts have moved to the migration payroll workspace.');
 }
 
 /**
  * Saves an array of payroll runs.
  */
 export async function savePayrolls(payrolls) {
-  for (const p of payrolls) {
-    await savePayroll(p);
-  }
+  void payrolls;
+  throw new Error('Payroll drafts have moved to the migration payroll workspace.');
 }
 
 /**
  * Deletes a payroll run and all its entries (cascade handles entries).
  */
 export async function deletePayroll(id) {
-  const { error } = await supabase
-    .from('payroll_runs')
-    .delete()
-    .eq('id', id);
-  if (error) throw error;
+  void id;
+  throw new Error('Payroll drafts have moved to the migration payroll workspace.');
 }
 
 // ─── PAYSLIPS ────────────────────────────────────────────────────────────────
@@ -1220,54 +1107,6 @@ function dbToEmployee(row) {
     licenceAuthority:       row.licence_authority ?? 'None',
     licenceNumber:          row.licence_number ?? '',
     licenceExpiry:          row.licence_expiry ?? '',
-  };
-}
-
-function dbToEntry(row) {
-  return {
-    id:                   row.id,
-    employeeId:           row.employee_id,
-    basicSalary:          parseFloat(row.basic_salary) || 0,
-    housingAllowance:     parseFloat(row.housing_allowance) || 0,
-    transportAllowance:   parseFloat(row.transport_allowance) || 0,
-    allowance:            parseFloat(row.allowance) || 0,
-    increment:            parseFloat(row.increment) || 0,
-    bonus:                parseFloat(row.bonus) || 0,
-    otherPay:             parseFloat(row.other_pay) || 0,
-    // du_cost column repurposed to store leaveDeduction (editable leave deduction per payroll entry)
-    leaveDeduction:       parseFloat(row.du_cost) || 0,
-    duCost:               0,
-    variableAllowance:    parseFloat(row.variable_allowance) || 0,
-    additionalAllowances: row.additional_allowances ?? [],
-    deductions:           row.deductions ?? [],
-    excluded:             row.excluded ?? false,
-    // WPS tracking (Feature 9)
-    wpsPaymentStatus:     row.wps_payment_status    ?? 'pending',
-    wpsRejectionReason:   row.wps_rejection_reason  ?? '',
-  };
-}
-
-function entryToDb(entry, runId, userId) {
-  return {
-    payroll_run_id:        runId,
-    user_id:               userId,
-    employee_id:           entry.employeeId,
-    basic_salary:          parseFloat(entry.basicSalary) || 0,
-    housing_allowance:     parseFloat(entry.housingAllowance) || 0,
-    transport_allowance:   parseFloat(entry.transportAllowance) || 0,
-    allowance:             parseFloat(entry.allowance) || 0,
-    increment:             parseFloat(entry.increment) || 0,
-    bonus:                 parseFloat(entry.bonus) || 0,
-    other_pay:             parseFloat(entry.otherPay) || 0,
-    // Store leaveDeduction in du_cost column (repurposed — no schema change needed)
-    du_cost:               parseFloat(entry.leaveDeduction) || 0,
-    variable_allowance:    parseFloat(entry.variableAllowance) || 0,
-    additional_allowances: entry.additionalAllowances ?? [],
-    deductions:            entry.deductions ?? [],
-    excluded:              entry.excluded ?? false,
-    // WPS tracking (Feature 9)
-    wps_payment_status:    entry.wpsPaymentStatus   ?? 'pending',
-    wps_rejection_reason:  entry.wpsRejectionReason ?? '',
   };
 }
 

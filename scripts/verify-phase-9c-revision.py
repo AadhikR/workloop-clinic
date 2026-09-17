@@ -9,7 +9,7 @@ import sys
 
 from sqlalchemy import create_engine, text
 
-HEAD = "a1c3e5f7b9d2"
+HEAD = "c5e7a9b1d3f4"
 PREDECESSOR = "f9b2c4d6e8a1"
 AUDIT_ARGS = "text,text,uuid,text[],text,jsonb"
 REPAYMENT_ARGS = "uuid,uuid,uuid,numeric,date"
@@ -51,12 +51,12 @@ def digest(audit: object, repayment: object) -> str:
     return hashlib.sha256(normalized.encode()).hexdigest()
 
 
-def assert_protected(row: object) -> None:
+def assert_protected(row: object, *, runtime: bool = True) -> None:
     assert row[0] == "workloop_migration"
     assert row[1] is True and row[2] == "v"
     assert row[3] == '{"search_path=pg_catalog, public, pg_temp"}'
     acl = str(row[4])
-    assert "workloop_runtime=X" in acl and "{=X/" not in acl
+    assert ("workloop_runtime=X" in acl) is runtime and "{=X/" not in acl
 
 
 def verify_head(connection: object) -> str:
@@ -73,8 +73,12 @@ def verify_head(connection: object) -> str:
     assert_protected(lock)
     audit = function_row(connection, f"append_audit_event({AUDIT_ARGS})")
     assert_protected(audit)
-    assert "salary_advance_requested" in str(audit[5])
-    assert "salary_advance_repayment_recorded" in str(audit[5])
+    phase9c_audit = function_row(
+        connection, f"_append_audit_event_phase9d_prior({AUDIT_ARGS})"
+    )
+    assert_protected(phase9c_audit, runtime=False)
+    assert "salary_advance_requested" in str(phase9c_audit[5])
+    assert "salary_advance_repayment_recorded" in str(phase9c_audit[5])
     repayment = function_row(connection, f"record_advance_repayment({REPAYMENT_ARGS})")
     assert_protected(repayment)
     assert "advance_repayment_untrusted_paid_date" in str(repayment[5])

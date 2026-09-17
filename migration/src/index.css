@@ -361,6 +361,86 @@ button:focus-visible {
   padding-top: 1.25rem;
 }
 
+.payroll {
+  border-top: 1px solid #dbe3ea;
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+}
+
+.payroll-create,
+.payroll-entry-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.payroll-create {
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid #c7d0c9;
+}
+
+.payroll-create label,
+.payroll-entry-grid label {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.payroll-create input,
+.payroll-entry-grid input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.55rem;
+  border: 1px solid #9aaa9f;
+  font: inherit;
+}
+
+.payroll-layout {
+  display: grid;
+  grid-template-columns: minmax(11rem, 0.7fr) minmax(20rem, 1.3fr);
+  gap: 1rem;
+}
+
+.payroll-run-list,
+.payroll-editor,
+.payroll-actions {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.payroll-run-list button {
+  display: grid;
+  gap: 0.25rem;
+  text-align: start;
+}
+
+.payroll-run-list span,
+.payroll-adjustments {
+  font-size: 0.75rem;
+}
+
+.payroll-entry {
+  margin: 0;
+  padding: 0.8rem;
+  border: 1px solid #c7d0c9;
+}
+
+.payroll-checkbox {
+  display: flex !important;
+  align-items: center;
+}
+
+.payroll-checkbox input {
+  width: auto;
+}
+
+.payroll-blocking {
+  color: #9d2c24;
+  font-weight: 700;
+}
+
 .expense-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -480,6 +560,12 @@ button:focus-visible {
   .department-layout,
   .staffing-editor,
   .employee-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .payroll-layout,
+  .payroll-create,
+  .payroll-entry-grid {
     grid-template-columns: 1fr;
   }
 }

@@ -38,6 +38,7 @@ from app.leave_balance_api import router as leave_balance_router
 from app.leave_configuration_api import router as leave_configuration_router
 from app.leave_request_api import router as leave_request_router
 from app.organization_api import router as organization_router
+from app.payroll_api import router as payroll_router
 from app.sample_api import get_current_account, get_public_status
 from app.services.employees import EmployeeCursorCodec
 from app.services.execution import AuthorizedServiceExecutor
@@ -141,6 +142,9 @@ def create_app(
         application.state.advance_cursor_codec = EmployeeCursorCodec.from_base64url(
             resolved_settings.cursor_signing_key.get_secret_value()
         )
+        application.state.payroll_cursor_codec = EmployeeCursorCodec.from_base64url(
+            resolved_settings.cursor_signing_key.get_secret_value()
+        )
         application.state.department_cursor_codec = EmployeeCursorCodec.from_base64url(
             resolved_settings.cursor_signing_key.get_secret_value()
         )
@@ -197,6 +201,7 @@ def create_app(
     application.include_router(employee_router)
     application.include_router(expense_router)
     application.include_router(advance_router)
+    application.include_router(payroll_router)
     application.include_router(department_router)
     application.include_router(idempotency_router)
     application.include_router(leave_configuration_router)

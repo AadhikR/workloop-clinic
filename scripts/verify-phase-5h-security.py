@@ -149,6 +149,20 @@ def verify_database() -> None:
             .lower()
         )
         wrapped_audit_function = audit_function
+        if "_append_audit_event_phase9d_prior" in wrapped_audit_function:
+            assert "payroll_draft_created" in wrapped_audit_function
+            assert "payroll_entries_replaced" in wrapped_audit_function
+            wrapped_audit_function = (
+                connection.execute(
+                    text(
+                        "SELECT pg_catalog.pg_get_functiondef("
+                        "'public._append_audit_event_phase9d_prior"
+                        "(text,text,uuid,text[],text,jsonb)'::regprocedure)"
+                    )
+                )
+                .scalar_one()
+                .lower()
+            )
         if "_append_audit_event_phase9c_prior" in wrapped_audit_function:
             assert "salary_advance_requested" in wrapped_audit_function
             assert "salary_advance_repayment_recorded" in wrapped_audit_function
@@ -250,6 +264,8 @@ def verify_database() -> None:
         assert "branch_created" in audit_predecessor and "branch_deleted" in audit_predecessor
         assert "employee_branch_corrected" in audit_predecessor
         for signature in (
+            "public._append_audit_event_phase9d_prior(text,text,uuid,text[],text,jsonb)",
+            "public._replace_payroll_entries_phase9d_prior(uuid,jsonb)",
             "public._append_audit_event_phase9c_prior(text,text,uuid,text[],text,jsonb)",
             "public._record_advance_repayment_phase9c_prior(uuid,uuid,uuid,numeric,date)",
             "public._append_audit_event_phase9b_prior(text,text,uuid,text[],text,jsonb)",

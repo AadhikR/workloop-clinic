@@ -317,6 +317,30 @@ WHERE namespace.nspname='public' AND procedure.proname=:name
             definition = row[5].lower()
             if (
                 function_name == "append_audit_event"
+                and "_append_audit_event_phase9d_prior" in definition
+            ):
+                assert "session_user" in definition
+                assert "workloop_actor_kind" in definition
+                assert "workloop_business_date" in definition
+                phase9c = connection.execute(
+                    text("""
+SELECT pg_catalog.pg_get_userbyid(procedure.proowner),procedure.prosecdef,
+ procedure.provolatile,procedure.proconfig,procedure.proacl,
+ pg_catalog.pg_get_functiondef(procedure.oid)
+FROM pg_catalog.pg_proc AS procedure JOIN pg_catalog.pg_namespace AS namespace
+ ON namespace.oid=procedure.pronamespace
+WHERE namespace.nspname='public'
+ AND procedure.oid=(
+   'public._append_audit_event_phase9d_prior(text,text,uuid,text[],text,jsonb)'
+ )::regprocedure
+""")
+                ).one()
+                assert phase9c[0] == "workloop_migration" and phase9c[1] and phase9c[2] == "v"
+                assert phase9c[3] == ["search_path=pg_catalog, public, pg_temp"]
+                assert "workloop_runtime=X" not in str(phase9c[4])
+                definition = phase9c[5].lower()
+            if (
+                function_name == "append_audit_event"
                 and "_append_audit_event_phase9c_prior" in definition
             ):
                 assert "session_user" in definition
