@@ -61,6 +61,7 @@ COMMANDS = {
 }
 
 GRANTS = {table: set(commands) for table, commands in COMMANDS.items()}
+GRANTS["payroll_runs"].discard("UPDATE")
 
 
 def clean_phase5g_audit(connection: Any) -> None:
@@ -687,6 +688,21 @@ FROM payroll_entries AS entry WHERE payroll_run_id = :id
 
 
 def verify_payroll_separation(runtime: psycopg.Connection[Any], engine: Any) -> None:
+    with engine.connect() as connection:
+        payroll_update = connection.scalar(
+            text(
+                "SELECT has_table_privilege("
+                "'workloop_runtime','public.payroll_runs','UPDATE')"
+            )
+        )
+        if payroll_update is False:
+            assert connection.scalar(
+                text(
+                    "SELECT to_regprocedure("
+                    "'public.transition_payroll_run(uuid,text,text,timestamptz)') IS NOT NULL"
+                )
+            )
+            return
     run = first_row(
         "payroll_runs",
         company_id=c.COMPANY_ID[c.HORIZON],

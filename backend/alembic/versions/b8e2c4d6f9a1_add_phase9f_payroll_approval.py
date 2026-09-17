@@ -83,7 +83,8 @@ $function$
 CREATE POLICY phase5f_payslips_select_runtime ON public.payslips
 FOR SELECT TO workloop_runtime
 USING (
-  session_user='workloop_runtime'
+  current_user='workloop_runtime'
+  AND session_user='workloop_runtime'
   AND public.workloop_actor_kind()='human'
   AND public.workloop_actor_key() IS NULL
   AND public.workloop_business_date() IS NOT NULL
@@ -94,6 +95,23 @@ USING (
   AND branch_id=public.workloop_branch_id()
   AND public.workloop_role()='employee'
   AND employee_id=public.workloop_employee_id()
+  AND EXISTS (
+    SELECT 1 FROM public.resolve_workloop_principal() AS principal
+    WHERE principal.app_user_id=public.workloop_app_user_id()
+      AND principal.account_status='active'
+      AND principal.profile_app_user_id=principal.app_user_id
+      AND principal.role='employee'
+      AND principal.profile_company_id=public.workloop_company_id()
+      AND principal.company_id=principal.profile_company_id
+      AND principal.profile_employee_id=public.workloop_employee_id()
+      AND principal.employee_id=principal.profile_employee_id
+      AND principal.employee_company_id=principal.profile_company_id
+      AND principal.employee_branch_id=public.workloop_branch_id()
+      AND principal.employee_active
+      AND principal.employment_status IN ('Active','Probation','On Leave')
+      AND principal.branch_id=principal.employee_branch_id
+      AND principal.branch_company_id=principal.profile_company_id
+  )
 )
 """
     )

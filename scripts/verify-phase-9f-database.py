@@ -23,9 +23,14 @@ def main() -> None:
                 )
             )
         )
-        assert {"trg_payslips_immutable", "trg_payroll_approval_log_immutable"} <= triggers
+        assert {
+            "trg_payslips_immutable",
+            "trg_payroll_approval_log_immutable",
+        } <= triggers
         payroll_update = connection.scalar(
-            text("SELECT has_table_privilege('workloop_runtime','public.payroll_runs','UPDATE')")
+            text(
+                "SELECT has_table_privilege('workloop_runtime','public.payroll_runs','UPDATE')"
+            )
         )
         assert payroll_update is False
         locker = connection.execute(
@@ -40,7 +45,9 @@ def main() -> None:
         for table in ("payslips", "payroll_approval_log"):
             assert (
                 connection.scalar(
-                    text("SELECT relrowsecurity FROM pg_class WHERE oid=CAST(:oid AS regclass)"),
+                    text(
+                        "SELECT relrowsecurity FROM pg_class WHERE oid=CAST(:oid AS regclass)"
+                    ),
                     {"oid": f"public.{table}"},
                 )
                 is True
@@ -61,6 +68,8 @@ def main() -> None:
                 "AND tablename='payslips' AND policyname='phase5f_payslips_select_runtime'"
             )
         )
+        assert "CURRENT_USER" in str(policy) and "SESSION_USER" in str(policy)
+        assert "resolve_workloop_principal()" in str(policy)
         assert "workloop_role() = 'employee'::text" in str(policy)
         assert "manager" not in str(policy)
     engine.dispose()

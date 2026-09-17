@@ -149,6 +149,28 @@ def verify_database() -> None:
             .lower()
         )
         wrapped_audit_function = audit_function
+        if "_append_audit_event_phase9f_prior" in wrapped_audit_function:
+            for action in (
+                "payroll_submitted",
+                "payroll_recalled",
+                "payroll_approved",
+                "payroll_rejected",
+                "payroll_generated",
+                "expense_paid",
+                "payslips_issued",
+            ):
+                assert action in wrapped_audit_function
+            wrapped_audit_function = (
+                connection.execute(
+                    text(
+                        "SELECT pg_catalog.pg_get_functiondef("
+                        "'public._append_audit_event_phase9f_prior"
+                        "(text,text,uuid,text[],text,jsonb)'::regprocedure)"
+                    )
+                )
+                .scalar_one()
+                .lower()
+            )
         if "_append_audit_event_phase9e_prior" in wrapped_audit_function:
             assert "payroll_inputs_refreshed" in wrapped_audit_function
             wrapped_audit_function = (
@@ -257,8 +279,9 @@ def verify_database() -> None:
             )
         else:
             phase7g_audit_function = wrapped_audit_function
-        assert "profile_app_user_id=caller.app_user_id" in phase7g_audit_function.replace(
-            " ", ""
+        assert (
+            "profile_app_user_id=caller.app_user_id"
+            in phase7g_audit_function.replace(" ", "")
         )
         assert "_append_audit_event_phase7g_prior" in phase7g_audit_function
         assert "employee_portal_role_changed" in phase7g_audit_function
@@ -274,9 +297,13 @@ def verify_database() -> None:
             .scalar_one()
             .lower()
         )
-        assert "branch_created" in audit_predecessor and "branch_deleted" in audit_predecessor
+        assert (
+            "branch_created" in audit_predecessor
+            and "branch_deleted" in audit_predecessor
+        )
         assert "employee_branch_corrected" in audit_predecessor
         for signature in (
+            "public._append_audit_event_phase9f_prior(text,text,uuid,text[],text,jsonb)",
             "public._append_audit_event_phase9e_prior(text,text,uuid,text[],text,jsonb)",
             "public._append_audit_event_phase9d_prior(text,text,uuid,text[],text,jsonb)",
             "public._replace_payroll_entries_phase9d_prior(uuid,jsonb)",
