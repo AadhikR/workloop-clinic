@@ -22,6 +22,7 @@ from app.services.payroll import (
     manual_adjustments,
     prorate,
 )
+from app.services.payroll_conversion import convert_legacy_payroll_entry
 
 
 def adjustment(code: str, amount: str, recurrence: str = "recurring") -> PayrollAdjustmentRequest:
@@ -57,11 +58,25 @@ def test_payroll_named_adjustments_match_the_approved_golden_case() -> None:
     assert values.net_pay == Decimal("10600.00")
     assert values.wps_variable_pay == Decimal("600.00")
 
+    recurring_allowances = [adjustment("SHIFT_ALLOWANCE", "250.25")]
+    recurring_deductions = [adjustment("PARKING", "100.00")]
+    repeated = calculate_entry(
+        basic_salary="10000.00",
+        housing_allowance="0.00",
+        transport_allowance="0.00",
+        fixed_allowance="0.00",
+        additional_allowances=recurring_allowances,
+        deductions=recurring_deductions,
+    )
+    assert repeated.gross_pay == Decimal("10250.25")
+    assert repeated.total_deductions == Decimal("100.00")
+    assert repeated.net_pay == Decimal("10150.25")
+
 
 def test_integrated_automatic_inputs_match_the_approved_golden_case() -> None:
     expense = automatic_adjustment(
         "expense",
-        UUID("9e000000-0000-4000-8000-000000000010"),
+        UUID("abcdefab-cdef-4abc-8def-abcdefabcdef"),
         "Expense reimbursement",
         Decimal("350.00"),
     )
@@ -88,10 +103,44 @@ def test_integrated_automatic_inputs_match_the_approved_golden_case() -> None:
         deductions=[advance],
     )
     assert values.fixed_pay == Decimal("16500.00")
+    assert values.bonus == Decimal("1000.00")
+    assert expense["code"] == "EXPENSE_ABCDEFABCDEF4ABC8DEFABCDEFABCDEF"
+    assert expense["amount"] == "350.00"
+    assert roster["amount"] == "288.46"
+    assert sum((Decimal(str(item["amount"])) for item in [expense, roster]), Decimal()) == Decimal(
+        "638.46"
+    )
+    assert values.gross_pay - values.fixed_pay == Decimal("1638.46")
     assert values.gross_pay == Decimal("18138.46")
+    assert values.leave_deduction == Decimal("400.00")
+    assert advance["amount"] == "500.00"
     assert values.total_deductions == Decimal("900.00")
     assert values.net_pay == Decimal("17238.46")
+    assert values.wps_basic_pay == Decimal("12000.00")
     assert values.wps_variable_pay == Decimal("5238.46")
+
+
+def test_legacy_du_cost_conversion_matches_the_approved_golden_case() -> None:
+    converted = convert_legacy_payroll_entry(
+        {"employeeId": "synthetic-employee", "duCost": "225.00"}
+    )
+    assert converted.entry == {
+        "employeeId": "synthetic-employee",
+        "leaveDeduction": "225.00",
+    }
+    assert converted.evidence == (
+        {
+            "legacySourceField": "duCost",
+            "targetField": "leaveDeduction",
+            "value": "225.00",
+        },
+    )
+
+    with pytest.raises(ValueError, match="fields conflict"):
+        convert_legacy_payroll_entry({"duCost": "225.00", "leaveDeduction": "225.00"})
+    for invalid in ("225", "225.0", "2.25e2", "-1.00", "NaN", 225.0):
+        with pytest.raises(ValueError):
+            convert_legacy_payroll_entry({"duCost": invalid})
 
 
 def test_advance_due_uses_oldest_unpaid_installment_and_exact_final_cent() -> None:

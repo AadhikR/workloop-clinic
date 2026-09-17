@@ -39,14 +39,14 @@ const personas = [
     userName: 'phase-3g-admin-test',
   },
   {
-    appUserId: '00000000-0000-0000-0000-000000000072',
-    employeeId: '00000000-0000-0000-0000-000000000072',
+    appUserId: '00000000-0000-4000-8000-000000000072',
+    employeeId: '00000000-0000-4000-8000-000000000072',
     role: 'manager',
     userName: 'phase-3g-manager-test',
   },
   {
-    appUserId: '00000000-0000-0000-0000-000000000073',
-    employeeId: '00000000-0000-0000-0000-000000000073',
+    appUserId: '00000000-0000-4000-8000-000000000073',
+    employeeId: '00000000-0000-4000-8000-000000000073',
     role: 'employee',
     userName: 'phase-3g-employee-test',
   },
@@ -73,7 +73,14 @@ const browserAutoLeaveTypeId = '00000000-0000-4000-8000-000000000080'
 const browserApprovalLeaveTypeId = '00000000-0000-4000-8000-000000000081'
 const browserAdminApprovalRequestId = '00000000-0000-4000-8000-000000000082'
 const browserManagerApprovalRequestId = '00000000-0000-4000-8000-000000000083'
+const browserPayrollRunId = '00000000-0000-4000-8000-000000000090'
+const browserPayrollEntryId = '00000000-0000-4000-8000-000000000091'
+const browserPayslipId = '00000000-0000-4000-8000-000000000092'
 const createdIdentityIds = []
+const financialJourney = {
+  advanceId: null,
+  expenseId: null,
+}
 let activeStage = 'startup'
 
 function stage(name) {
@@ -208,14 +215,19 @@ function createFixtures() {
   }
 
   stage('synthetic organization row creation')
-  psql("INSERT INTO companies (id) VALUES (:'company_id')", { company_id: companyId })
+  psql(
+    "INSERT INTO companies (id,name,sector,enable_nafis,nafis_quota_percent) "
+      + "VALUES (:'company_id','Phase 9H synthetic clinic','Healthcare',true,2.00)",
+    { company_id: companyId },
+  )
   createdRows.company = true
   for (const [createdBranchId, name] of [
     [branchId, 'Phase 3G main'],
     [alternateBranchId, 'Phase 3G alternate'],
   ]) {
     psql(
-      "INSERT INTO branches (id, company_id, name) VALUES (:'branch_id', :'company_id', :'name')",
+      "INSERT INTO branches (id,company_id,name,mol_employer_id,default_bank_routing_code) "
+        + "VALUES (:'branch_id',:'company_id',:'name','999000001','999000001')",
       { branch_id: createdBranchId, company_id: companyId, name },
     )
     createdRows.branches.push(createdBranchId)
@@ -229,11 +241,14 @@ function createFixtures() {
   for (const persona of personas.filter(({ employeeId }) => employeeId)) {
     stage(`synthetic ${persona.role} employee creation`)
     psql(
-      "INSERT INTO employees (id, company_id, branch_id, emp_no, name, mol_id, work_email, "
-        + "job_title, department, reporting_manager_id, basic_salary) "
+      "INSERT INTO employees (id,company_id,branch_id,emp_no,name,mol_id,work_email, "
+        + "job_title,department,reporting_manager_id,basic_salary,housing_allowance, "
+        + "transport_allowance,allowance,bank_routing_code,iban,nationality, "
+        + "nafis_registration_no,employment_start_date) "
         + "VALUES (:'employee_id', :'company_id', :'branch_id', :'emp_no', :'name', "
         + ":'mol_id', :'work_email', :'job_title', 'Clinical', "
-        + "NULLIF(:'manager_id', '')::uuid, 10000.00)",
+        + "NULLIF(:'manager_id', '')::uuid, 10000.00,2000.00,500.00,250.00, "
+        + "'999000001',:'iban','United Arab Emirates',:'nafis_number','2025-01-01')",
       {
         branch_id: branchId,
         company_id: companyId,
@@ -243,6 +258,8 @@ function createFixtures() {
         manager_id: persona.role === 'employee' ? personas[1].employeeId : '',
         mol_id: `MOL-${persona.role}`,
         name: `Phase ${persona.role}`,
+        iban: `AE07033123456789012345${persona.role === 'manager' ? '1' : '2'}`,
+        nafis_number: `NAFIS-${persona.role}`,
         work_email: `${persona.role}@example.test`,
       },
     )
@@ -370,6 +387,63 @@ function createFixtures() {
       },
     )
   }
+  stage('synthetic Phase 9 payroll fixture creation')
+  psql(
+    "INSERT INTO payroll_runs (id,company_id,branch_id,period,payment_date,sequence_no, "
+      + "scr_bank_routing_code,description,status,run_by_app_user_id,total_disbursed, "
+      + "employee_count,wps_status,approval_status,submitted_for_approval_at, "
+      + "submitted_by_app_user_id,approved_by_app_user_id,approved_at,source_snapshot_digest) "
+      + "VALUES (:'id',:'company_id',:'branch_id','2026-08','2026-08-25','0001', "
+      + "'999000001','Phase 9H browser payroll','generated',:'actor',12750.00,1,'draft', "
+      + "'approved',statement_timestamp(),:'actor',:'actor',statement_timestamp(),:'digest')",
+    {
+      actor: personas[0].appUserId,
+      branch_id: branchId,
+      company_id: companyId,
+      digest: 'a'.repeat(64),
+      id: browserPayrollRunId,
+    },
+  )
+  psql(
+    "INSERT INTO payroll_entries (id,payroll_run_id,company_id,branch_id,employee_id, "
+      + "basic_salary,housing_allowance,transport_allowance,allowance,additional_allowances, "
+      + "deductions,source_snapshot,excluded,wps_payment_status) VALUES "
+      + "(:'id',:'run_id',:'company_id',:'branch_id',:'employee_id',10000.00,2000.00, "
+      + "500.00,250.00,'[]','[]','{\"eligibleDays\":31}',false,'pending')",
+    {
+      branch_id: branchId,
+      company_id: companyId,
+      employee_id: personas[2].employeeId,
+      id: browserPayrollEntryId,
+      run_id: browserPayrollRunId,
+    },
+  )
+  psql(
+    "INSERT INTO payslips (id,company_id,branch_id,payroll_run_id,employee_id,period, "
+      + "payment_date,gross_pay,net_pay,data_snapshot) VALUES "
+      + "(:'id',:'company_id',:'branch_id',:'run_id',:'employee_id','2026-08', "
+      + "'2026-08-25',12750.00,12750.00,CAST(:'snapshot' AS jsonb))",
+    {
+      branch_id: branchId,
+      company_id: companyId,
+      employee_id: personas[2].employeeId,
+      id: browserPayslipId,
+      run_id: browserPayrollRunId,
+      snapshot: JSON.stringify({
+        deductions: [],
+        earnings: [
+          { amount: '10000.00', label: 'Basic salary' },
+          { amount: '2000.00', label: 'Housing allowance' },
+          { amount: '500.00', label: 'Transport allowance' },
+          { amount: '250.00', label: 'Fixed allowance' },
+        ],
+        employeeName: 'Phase employee',
+        totalDeductions: '0.00',
+        wpsBasicPay: '10000.00',
+        wpsVariablePay: '2750.00',
+      }),
+    },
+  )
 }
 
 function cleanupFixtures() {
@@ -394,6 +468,21 @@ function cleanupFixtures() {
       ))
       cleanup(() => psql(
         "DELETE FROM audit_events WHERE company_id = :'company_id'",
+        { company_id: companyId },
+      ))
+      cleanup(() => psql(
+        "SET SESSION AUTHORIZATION workloop_migration; "
+          + "DELETE FROM compliance_overrides WHERE company_id = :'company_id'; "
+          + "DELETE FROM payslips WHERE company_id = :'company_id'; "
+          + "DELETE FROM payroll_approval_log WHERE company_id = :'company_id'; "
+          + "DELETE FROM advance_repayments WHERE company_id = :'company_id'; "
+          + "DELETE FROM payroll_entries WHERE company_id = :'company_id'; "
+          + "DELETE FROM expense_receipts WHERE company_id = :'company_id'; "
+          + "DELETE FROM expense_claims WHERE company_id = :'company_id'; "
+          + "DELETE FROM salary_advances WHERE company_id = :'company_id'; "
+          + "DELETE FROM payroll_runs WHERE company_id = :'company_id'; "
+          + "DELETE FROM nafis_reports WHERE company_id = :'company_id'; "
+          + "RESET SESSION AUTHORIZATION",
         { company_id: companyId },
       ))
       cleanup(() => psql(
@@ -497,6 +586,12 @@ function cleanupFixtures() {
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM leave_approval_delegates'), '0'))
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM leave_types'), '0'))
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM leave_settings'), '0'))
+  verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM expense_claims'), '0'))
+  verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM salary_advances'), '0'))
+  verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM payroll_runs'), '0'))
+  verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM payroll_entries'), '0'))
+  verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM payslips'), '0'))
+  verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM nafis_reports'), '0'))
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM companies'), '0'))
   verifyCleanup(() => run(['exec', '-T', 'keycloak', 'rm', '-f', kcadmConfig]))
   verifyCleanup(() => run(['exec', '-T', 'keycloak', 'test', '!', '-e', kcadmConfig]))
@@ -1089,7 +1184,32 @@ async function assertEmployeeApi(page, persona) {
     await page.getByRole('heading', { name: 'Phase 7F browser employee edited' }).waitFor()
 
     stage('admin employee portal role round trip')
+    const portalReadPromise = page.waitForResponse((response) => (
+      response.request().method() === 'GET'
+      && new URL(response.url()).pathname
+        === `/api/v1/employees/${personas[2].employeeId}/portal-role`
+    ))
     await page.getByRole('button', { name: /Phase employee/ }).click()
+    const portalReadResponse = await portalReadPromise
+    assert.equal(portalReadResponse.status(), 200)
+    const portalRead = (await portalReadResponse.json()).data
+    if (!portalRead.activated) {
+      const state = psql(
+        "SELECT app_user.status::text,profile.role::text,profile.employee_id,"
+          + "employee.active,employee.employment_status,employee.branch_id "
+          + "FROM app_users AS app_user "
+          + "LEFT JOIN user_profiles AS profile ON profile.app_user_id=app_user.id "
+          + "LEFT JOIN employees AS employee ON employee.id=profile.employee_id "
+          + "WHERE app_user.id=:'app_user_id'",
+        { app_user_id: personas[2].appUserId },
+      )
+      throw new Error(`employee portal fixture is ineligible: ${state}`)
+    }
+    assert.deepEqual(portalRead, {
+      activated: true,
+      employeeId: personas[2].employeeId,
+      role: 'employee',
+    })
     const portalPanel = page.locator('.employee-portal-role')
     await portalPanel.getByText('Current role: employee').waitFor()
     const promotePromise = page.waitForResponse((response) => {
@@ -1411,10 +1531,127 @@ async function assertDepartmentApi(page, persona) {
   assert.equal(await page.evaluate(() => sessionStorage.getItem('workloop.branchId')), null)
 }
 
+async function assertPhase9BrowserJourney(page, persona) {
+  if (persona.role === 'employee') {
+    const result = await page.evaluate(async ({ payslipId }) => {
+      const { authenticationSession } = await import('/src/authSession.js')
+      const { createExpense } = await import('/src/expenseApi.js')
+      const { createSelfAdvance } = await import('/src/advanceApi.js')
+      const { readSelfPayslip, readSelfPayslips } = await import('/src/payrollApi.js')
+      const authentication = authenticationSession()
+      const expense = await createExpense(authentication, {
+        amount: '350.00',
+        category: 'Travel',
+        description: 'Phase 9H synthetic browser expense',
+        expenseDate: '2026-09-17',
+        receiptId: null,
+      })
+      const advance = await createSelfAdvance(authentication, {
+        amount: '1500.00',
+        installmentCount: 3,
+        reason: 'Phase 9H synthetic browser advance',
+        repaymentStartPeriod: '2026-09',
+      })
+      const payslips = await readSelfPayslips(authentication)
+      const payslip = await readSelfPayslip(authentication, payslipId)
+      return { advance, expense, payslip, payslipCount: payslips.items.length }
+    }, { payslipId: browserPayslipId })
+    assert.equal(result.expense.status, 'pending')
+    assert.equal(result.advance.status, 'pending')
+    assert.equal(result.payslip.id, browserPayslipId)
+    assert.equal(result.payslip.netPay, '12750.00')
+    assert.equal(result.payslipCount, 1)
+    financialJourney.expenseId = result.expense.id
+    financialJourney.advanceId = result.advance.id
+    return
+  }
+
+  if (persona.role === 'manager') {
+    assert.ok(financialJourney.expenseId)
+    const result = await page.evaluate(async ({ expenseId }) => {
+      const { authenticationSession } = await import('/src/authSession.js')
+      const { managerApproveExpense, readManagerExpenses } = await import('/src/expenseApi.js')
+      const authentication = authenticationSession()
+      const queue = await readManagerExpenses(authentication, { status: 'pending' })
+      const claim = queue.items.find((item) => item.id === expenseId)
+      if (!claim) throw new Error('Phase 9H expense is missing from the manager queue')
+      return managerApproveExpense(authentication, claim)
+    }, { expenseId: financialJourney.expenseId })
+    assert.equal(result.status, 'manager_approved')
+    return
+  }
+
+  assert.ok(financialJourney.expenseId)
+  assert.ok(financialJourney.advanceId)
+  const result = await page.evaluate(async ({ advanceId, branchId, expenseId, payrollRunId }) => {
+    const { authenticationSession } = await import('/src/authSession.js')
+    const { adminApproveExpense, readAdminExpenses } = await import('/src/expenseApi.js')
+    const { approveAdvance, readAdminAdvances } = await import('/src/advanceApi.js')
+    const { createPayrollRun, deletePayrollRun, readPayrollRun } = await import('/src/payrollApi.js')
+    const {
+      confirmWps,
+      readNafisSnapshots,
+      readSifInput,
+      readWps,
+      recordSifProjection,
+      replaceNafisSnapshot,
+      submitWps,
+      updateWpsEntry,
+    } = await import('/src/wpsNafisApi.js')
+    const authentication = authenticationSession()
+    const expenses = await readAdminExpenses(authentication, branchId, { status: 'manager_approved' })
+    const claim = expenses.items.find((item) => item.id === expenseId)
+    if (!claim) throw new Error('Phase 9H expense is missing from the administrator queue')
+    const expense = await adminApproveExpense(authentication, branchId, claim)
+    const advances = await readAdminAdvances(authentication, branchId, { status: 'pending' })
+    const pendingAdvance = advances.items.find((item) => item.id === advanceId)
+    if (!pendingAdvance) throw new Error('Phase 9H advance is missing from the administrator queue')
+    const advance = await approveAdvance(authentication, branchId, pendingAdvance)
+    const draft = await createPayrollRun(authentication, branchId, {
+      paymentDate: '2026-09-25',
+      period: '2026-09',
+    })
+    const payroll = await readPayrollRun(authentication, branchId, draft.id)
+    await deletePayrollRun(authentication, branchId, payroll)
+    let wps = await readWps(authentication, branchId, payrollRunId)
+    const sif = await readSifInput(authentication, branchId, payrollRunId)
+    wps = await recordSifProjection(authentication, branchId, wps)
+    wps = await submitWps(authentication, branchId, wps, 'PHASE9H-SYNTHETIC')
+    wps = await updateWpsEntry(authentication, branchId, wps, wps.entries[0], 'paid')
+    wps = await confirmWps(authentication, branchId, wps)
+    const nafis = await replaceNafisSnapshot(authentication, branchId, '2026-08')
+    const nafisList = await readNafisSnapshots(authentication, branchId, '2026-08')
+    return {
+      advanceStatus: advance.status,
+      expenseStatus: expense.status,
+      nafisCount: nafisList.items.length,
+      nafisPeriod: nafis.period,
+      payrollWarnings: payroll.sourceWarnings,
+      sifTotal: sif.header.totalIntegerPay,
+      wpsStatus: wps.status,
+    }
+  }, {
+    advanceId: financialJourney.advanceId,
+    branchId,
+    expenseId: financialJourney.expenseId,
+    payrollRunId: browserPayrollRunId,
+  })
+  assert.equal(result.expenseStatus, 'approved')
+  assert.equal(result.advanceStatus, 'active')
+  assert.deepEqual(result.payrollWarnings.sort(), [
+    'attendance_input_not_ready',
+    'roster_input_not_ready',
+  ])
+  assert.equal(result.sifTotal, 12750)
+  assert.equal(result.wpsStatus, 'confirmed')
+  assert.equal(result.nafisPeriod, '2026-08')
+  assert.equal(result.nafisCount, 1)
+}
+
 async function browserChecks(viteServer) {
   const browser = await chromium.launch({ headless: true })
   try {
-    for (const persona of personas) {
+    for (const persona of [personas[2], personas[1], personas[0]]) {
       stage(`${persona.role} initial session`)
       const context = await browser.newContext({ acceptDownloads: true })
       const page = await context.newPage()
@@ -1501,6 +1738,7 @@ async function browserChecks(viteServer) {
         await assertLeaveSubmissionJourney(page, persona)
       }
       await assertEmployeeApi(page, persona)
+      await assertPhase9BrowserJourney(page, persona)
       const afterEmployeeWorkflows = businessFingerprint()
       await assertDepartmentApi(page, persona)
       assert.equal(businessFingerprint(), afterEmployeeWorkflows)
@@ -1609,6 +1847,13 @@ async function browserChecks(viteServer) {
       assert.equal(currentAccountRequestsUsedBearer, true)
       assert.equal(bearerLeftApiOrigin, false)
       await context.close()
+      if (persona.role === 'employee') {
+        stage('employee fixture account restoration')
+        psql(
+          "UPDATE app_users SET status = 'active' WHERE id = :'app_user_id'",
+          { app_user_id: persona.appUserId },
+        )
+      }
     }
 
     stage('wrong nonce rejection')

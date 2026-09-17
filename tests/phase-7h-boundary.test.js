@@ -51,8 +51,12 @@ function readRecord(name) {
   return JSON.parse(readFileSync(path.join(recordDirectory, name), 'utf8'))
 }
 
+function readText(file) {
+  return readFileSync(file, 'utf8').replaceAll('\r\n', '\n')
+}
+
 function contractDependencyIds() {
-  const contract = readFileSync(contractPath, 'utf8')
+  const contract = readText(contractPath)
   const section = contract
     .split('### Stable dependency IDs\n', 2)[1]
     .split('### Legacy operation inventory\n', 1)[0]

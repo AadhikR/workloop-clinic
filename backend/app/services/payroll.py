@@ -200,7 +200,7 @@ def automatic_adjustment(
 ) -> dict[str, object]:
     return {
         "id": str(uuid.uuid5(AUTOMATIC_NAMESPACE, f"{source_type}:{source_id}")),
-        "code": f"{source_type.upper()}_{source_id.hex}",
+        "code": f"{source_type.upper()}_{source_id.hex.upper()}",
         "label": label,
         "amount": f"{money(amount):.2f}",
         "recurrence": "one_time",

@@ -49,7 +49,8 @@ function parseTimestamp(value) {
 }
 
 function digest(buffer) {
-  return `sha256:${createHash('sha256').update(buffer).digest('hex')}`
+  const canonical = Buffer.from(buffer.toString('utf8').replace(/\r\n/g, '\n'))
+  return `sha256:${createHash('sha256').update(canonical).digest('hex')}`
 }
 
 function resolveTrackedPath(repositoryDirectory, candidate) {

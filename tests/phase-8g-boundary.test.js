@@ -38,6 +38,10 @@ function inventoryIds(source) {
   return [...source.matchAll(/\bphase8a-[a-z0-9-]+\b/g)].map((match) => match[0])
 }
 
+function readText(file) {
+  return readFileSync(file, 'utf8').replaceAll('\r\n', '\n')
+}
+
 function sourceFiles(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const item = path.join(directory, entry.name)
@@ -46,8 +50,8 @@ function sourceFiles(directory) {
 }
 
 test('traces every Phase 8A dependency exactly once', () => {
-  const inventory = readFileSync(inventoryPath, 'utf8')
-  const review = readFileSync(reviewPath, 'utf8')
+  const inventory = readText(inventoryPath)
+  const review = readText(reviewPath)
   const ids = inventoryIds(inventory)
   assert.equal(ids.length, 42)
   assert.equal(new Set(ids).size, ids.length)
@@ -82,7 +86,7 @@ test('keeps every Phase 8 cutover complete, current, and single-writer', () => {
 })
 
 test('keeps the reverse dependency rollback order explicit', () => {
-  const plan = readFileSync(planPath, 'utf8')
+  const plan = readText(planPath)
   assert.match(
     plan,
     /decisions and delegation, submission and cancellation,\nattachments, balances and reads, then configuration/,
@@ -95,7 +99,7 @@ test('keeps the complete migration source tree free of Supabase calls', () => {
   const forbidden = /supabase|createClient|@supabase/i
   for (const file of sourceFiles(migrationSource)) {
     assert.doesNotMatch(
-      readFileSync(file, 'utf8'),
+      readText(file),
       forbidden,
       `${path.relative(repositoryDirectory, file)} contains a Supabase path`,
     )

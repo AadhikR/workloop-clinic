@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -38,6 +40,36 @@ test('accepts the complete synthetic cutover declaration', async () => {
   const record = await readJson(templatePath)
   assert.deepEqual(validateCutoverRecord(record, { repositoryDirectory }), [])
   assert.equal(assertValidCutoverRecord(record, { repositoryDirectory }), record)
+})
+
+test('validates text evidence with platform-independent line endings', async () => {
+  const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), 'workloop-cutover-'))
+  try {
+    const fixtureDirectory = path.join(temporaryDirectory, 'fixtures')
+    const sourcePath = path.join(fixtureDirectory, 'source.md')
+    const evidencePath = path.join(fixtureDirectory, 'evidence.json')
+    await mkdir(fixtureDirectory, { recursive: true })
+    const record = await readJson(templatePath)
+    const source = 'one\ntwo\n'
+    record.refresh.source.digest = `sha256:${createHash('sha256').update(source).digest('hex')}`
+    record.refresh.source.locator = 'fixtures/source.md'
+    record.refresh.lastRefresh.sourceDigest = record.refresh.source.digest
+    record.refresh.lastRefresh.evidence.path = 'fixtures/evidence.json'
+    const evidence = `${JSON.stringify({
+      featureId: record.featureId,
+      command: record.refresh.lastRefresh.command,
+      refreshedAt: record.refresh.lastRefresh.timestamp,
+      sourceDigest: record.refresh.lastRefresh.sourceDigest,
+      sourceRecordCount: 1,
+      targetRecordCount: 1,
+    })}\n`
+    record.refresh.lastRefresh.evidence.sha256 = `sha256:${createHash('sha256').update(evidence).digest('hex')}`
+    await writeFile(sourcePath, source.replaceAll('\n', '\r\n'))
+    await writeFile(evidencePath, evidence.replaceAll('\n', '\r\n'))
+    assert.deepEqual(validateCutoverRecord(record, { repositoryDirectory: temporaryDirectory }), [])
+  } finally {
+    await rm(temporaryDirectory, { recursive: true, force: true })
+  }
 })
 
 test('rejects every incomplete or ambiguous synthetic fixture', async (context) => {

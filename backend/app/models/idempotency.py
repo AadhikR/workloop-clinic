@@ -91,7 +91,8 @@ class IdempotencyRecord(Base):
         ),
         CheckConstraint(
             "(replay_resource_kind IN "
-            "('branch','employee','department','user_profile','leave_request','expense_claim') "
+            "('branch','employee','department','user_profile','leave_request','expense_claim',"
+            "'salary_advance','payroll_run','compliance_override','nafis_snapshot') "
             "AND replay_resource_id IS NOT NULL) "
             "OR (replay_resource_kind = 'tenant' AND replay_resource_id IS NULL) "
             "OR replay_resource_kind IS NULL",
