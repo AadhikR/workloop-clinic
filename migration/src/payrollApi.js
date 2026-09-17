@@ -18,6 +18,12 @@ const entryKeys = [
   'netPay', 'wpsBasicPay', 'wpsVariablePay', 'excluded', 'additionalAllowances',
   'deductions', 'sourceExplanations', 'sourceFingerprint',
 ]
+const historyKeys = ['id', 'action', 'actorName', 'reason', 'createdAt']
+const payslipKeys = [
+  'id', 'period', 'paymentDate', 'employeeName', 'earnings', 'deductions', 'grossPay',
+  'totalDeductions', 'netPay', 'wpsBasicPay', 'wpsVariablePay', 'issuedAt',
+]
+const lineKeys = ['label', 'amount']
 
 function exactKeys(value, expected) {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -211,4 +217,87 @@ export async function deletePayrollRun(authentication, branchId, run) {
     throw new Error('Invalid payroll response')
   }
   return response.data
+}
+
+function reason(value) {
+  const trimmed = String(value ?? '').trim()
+  if (trimmed.length < 1 || trimmed.length > 500) throw new TypeError('A reason is required')
+  return trimmed
+}
+
+async function lifecycleCommand(authentication, branchId, run, action, reasonValue) {
+  if (!['submit', 'recall', 'approve', 'reject', 'generate'].includes(action)) {
+    throw new TypeError('Invalid payroll command')
+  }
+  const extra = ['recall', 'reject'].includes(action) ? { reason: reason(reasonValue) } : {}
+  const response = await authentication.request(`/api/v1/payroll-runs/${run.id}/${action}`, {
+    access: 'protected', method: 'POST', headers: headers(branchId, true),
+    json: version(run, extra),
+  })
+  return parsePayrollRun(response.data, true)
+}
+
+export const submitPayrollRun = (authentication, branchId, run) => lifecycleCommand(authentication, branchId, run, 'submit')
+export const recallPayrollRun = (authentication, branchId, run, value) => lifecycleCommand(authentication, branchId, run, 'recall', value)
+export const approvePayrollRun = (authentication, branchId, run) => lifecycleCommand(authentication, branchId, run, 'approve')
+export const rejectPayrollRun = (authentication, branchId, run, value) => lifecycleCommand(authentication, branchId, run, 'reject', value)
+export const generatePayrollRun = (authentication, branchId, run) => lifecycleCommand(authentication, branchId, run, 'generate')
+
+export async function readPayrollApprovalHistory(authentication, branchId, runId) {
+  if (!uuidPattern.test(runId)) throw new TypeError('Invalid payroll run ID')
+  const response = await authentication.request(`/api/v1/payroll-runs/${runId}/approval-history`, {
+    access: 'protected', headers: headers(branchId),
+  })
+  if (!Array.isArray(response.data)) throw new Error('Invalid payroll history response')
+  return response.data.map((item) => {
+    if (
+      !exactKeys(item, historyKeys) || !uuidPattern.test(item.id)
+      || !['submitted', 'recalled', 'approved', 'rejected'].includes(item.action)
+      || typeof item.actorName !== 'string' || !(item.reason === null || typeof item.reason === 'string')
+      || !timestampPattern.test(item.createdAt)
+    ) throw new Error('Invalid payroll history response')
+    return item
+  })
+}
+
+function payslipLine(item) {
+  if (!exactKeys(item, lineKeys) || typeof item.label !== 'string' || !moneyPattern.test(item.amount)) {
+    throw new Error('Invalid payslip response')
+  }
+  return item
+}
+
+export function parsePayslip(item) {
+  if (
+    !exactKeys(item, payslipKeys) || !uuidPattern.test(item.id) || !periodPattern.test(item.period)
+    || !datePattern.test(item.paymentDate) || typeof item.employeeName !== 'string'
+    || !Array.isArray(item.earnings) || !Array.isArray(item.deductions)
+    || ['grossPay', 'totalDeductions', 'netPay', 'wpsBasicPay', 'wpsVariablePay']
+      .some((key) => !moneyPattern.test(item[key]))
+    || !timestampPattern.test(item.issuedAt)
+  ) throw new Error('Invalid payslip response')
+  item.earnings.forEach(payslipLine)
+  item.deductions.forEach(payslipLine)
+  return item
+}
+
+export async function readSelfPayslips(authentication, options = {}) {
+  const parameters = new URLSearchParams()
+  if (options.limit !== undefined) {
+    if (!Number.isInteger(options.limit) || options.limit < 1 || options.limit > 100) {
+      throw new TypeError('Invalid payslip query')
+    }
+    parameters.set('limit', String(options.limit))
+  }
+  if (options.cursor) parameters.set('cursor', String(options.cursor))
+  const suffix = parameters.size ? `?${parameters}` : ''
+  const response = await authentication.request(`/api/v1/payslips/self${suffix}`, { access: 'protected' })
+  if (!Array.isArray(response.data) || response.page === null) throw new Error('Invalid payslip response')
+  return { items: response.data.map(parsePayslip), page: response.page }
+}
+
+export async function readSelfPayslip(authentication, payslipId) {
+  if (!uuidPattern.test(payslipId)) throw new TypeError('Invalid payslip ID')
+  const response = await authentication.request(`/api/v1/payslips/self/${payslipId}`, { access: 'protected' })
+  return parsePayslip(response.data)
 }

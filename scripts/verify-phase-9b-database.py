@@ -85,7 +85,7 @@ async def main() -> None:
     rows = build_rows()
     with migration_engine.begin() as connection:
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "d7f1b3c5e9a2"
+            "b8e2c4d6f9a1"
         )
         apply_rows(connection, rows)
         validate(connection, rows)

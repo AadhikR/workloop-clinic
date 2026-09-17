@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify the Phase 9E audit wrapper and exact predecessor rollback."""
+"""Verify the Phase 9F functions and exact predecessor rollback."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import sys
 from sqlalchemy import create_engine, text
 
 HEAD = "b8e2c4d6f9a1"
-PREDECESSOR = "c5e7a9b1d3f4"
+PREDECESSOR = "d7f1b3c5e9a2"
 AUDIT_ARGS = "text,text,uuid,text[],text,jsonb"
 
 
@@ -21,8 +21,7 @@ def function_row(connection: object, signature: str) -> object:
             "procedure.provolatile,procedure.proconfig::text,procedure.proacl::text,"
             "pg_catalog.pg_get_functiondef(procedure.oid) FROM pg_catalog.pg_proc AS procedure "
             "JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid=procedure.pronamespace "
-            "WHERE namespace.nspname='public' "
-            "AND procedure.oid=CAST(:signature AS regprocedure)"
+            "WHERE namespace.nspname='public' AND procedure.oid=CAST(:signature AS regprocedure)"
         ),
         {"signature": f"public.{signature}"},
     ).one()
@@ -38,7 +37,7 @@ def absent(connection: object, signature: str) -> bool:
 
 
 def digest(definition: object) -> str:
-    normalized = str(definition).replace("_append_audit_event_phase9e_prior", "append_audit_event")
+    normalized = str(definition).replace("_append_audit_event_phase9f_prior", "append_audit_event")
     return hashlib.sha256(normalized.encode()).hexdigest()
 
 
@@ -52,29 +51,36 @@ def assert_protected(row: object, *, runtime: bool = True) -> None:
 
 def verify_head(connection: object) -> str:
     assert connection.scalar(text("SELECT version_num FROM alembic_version")) == HEAD
-    current_audit = function_row(connection, f"append_audit_event({AUDIT_ARGS})")
-    audit = function_row(connection, f"_append_audit_event_phase9f_prior({AUDIT_ARGS})")
-    prior = function_row(connection, f"_append_audit_event_phase9e_prior({AUDIT_ARGS})")
-    assert_protected(current_audit)
-    assert_protected(audit, runtime=False)
+    audit = function_row(connection, f"append_audit_event({AUDIT_ARGS})")
+    prior = function_row(connection, f"_append_audit_event_phase9f_prior({AUDIT_ARGS})")
+    transition = function_row(connection, "transition_payroll_run(uuid,text,text,timestamptz)")
+    finalizer = function_row(connection, "finalize_payroll_run(uuid,numeric,integer,timestamptz)")
+    locker = function_row(connection, "lock_payroll_run(uuid)")
+    for row in (audit, locker, transition, finalizer):
+        assert_protected(row)
     assert_protected(prior, runtime=False)
-    assert "payroll_inputs_refreshed" in str(audit[5])
-    assert "source_types text[]" in str(audit[5])
+    assert "payslips_issued" in str(audit[5])
+    assert "payroll_approval_separation_required" in str(transition[5])
+    assert "SELECT pg_catalog.count(*) FROM public.payslips" in str(finalizer[5])
+    assert "FOR UPDATE" in str(locker[5])
     return digest(prior[5])
 
 
 def verify_predecessor(connection: object) -> str:
     assert connection.scalar(text("SELECT version_num FROM alembic_version")) == PREDECESSOR
-    assert absent(connection, f"_append_audit_event_phase9e_prior({AUDIT_ARGS})")
+    assert absent(connection, f"_append_audit_event_phase9f_prior({AUDIT_ARGS})")
+    assert absent(connection, "transition_payroll_run(uuid,text,text,timestamptz)")
+    assert absent(connection, "finalize_payroll_run(uuid,numeric,integer,timestamptz)")
+    assert absent(connection, "lock_payroll_run(uuid)")
     audit = function_row(connection, f"append_audit_event({AUDIT_ARGS})")
     assert_protected(audit)
-    assert "payroll_inputs_refreshed" not in str(audit[5])
+    assert "payslips_issued" not in str(audit[5])
     return digest(audit[5])
 
 
 def main() -> None:
     if len(sys.argv) != 2 or sys.argv[1] not in {"head", "predecessor"}:
-        raise SystemExit("usage: verify-phase-9e-revision.py head|predecessor")
+        raise SystemExit("usage: verify-phase-9f-revision.py head|predecessor")
     engine = create_engine(os.environ["MIGRATION_DATABASE_URL"])
     with engine.connect() as connection:
         value = verify_head(connection) if sys.argv[1] == "head" else verify_predecessor(connection)

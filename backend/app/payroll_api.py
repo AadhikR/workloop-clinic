@@ -22,18 +22,22 @@ from app.http.schemas import CollectionResponse, DataResponse, Page
 from app.repositories.idempotency import IdempotencyRepository
 from app.schemas.payroll import (
     PERIOD,
+    PayrollApprovalHistoryResponse,
     PayrollCreateRequest,
     PayrollEntriesRequest,
+    PayrollReasonRequest,
     PayrollRepeatRequest,
     PayrollRunDetailResponse,
     PayrollRunResponse,
     PayrollVersionRequest,
+    PayslipResponse,
 )
 from app.services.execution import AuthorizedServiceExecutor, ServiceExecutionError
 from app.services.idempotency import IdempotencyCommand, IdempotencyCoordinator, IdempotentResponse
-from app.services.payroll import PayrollListQuery, PayrollService
+from app.services.payroll import PayrollListQuery, PayrollService, PayslipListQuery
 
 router = APIRouter(prefix="/api/v1/payroll-runs", tags=["payroll"])
+payslip_router = APIRouter(prefix="/api/v1/payslips", tags=["payslips"])
 
 ERROR_CODES = (
     "invalid_request",
@@ -247,7 +251,9 @@ async def create_payroll_run(
 async def _command(
     *,
     request: Request,
-    body: PayrollRepeatRequest | PayrollVersionRequest | PayrollEntriesRequest,
+    body: (
+        PayrollRepeatRequest | PayrollVersionRequest | PayrollReasonRequest | PayrollEntriesRequest
+    ),
     claims: VerifiedAccessToken,
     principal: AuthorizationPrincipal,
     selected: uuid.UUID,
@@ -284,6 +290,191 @@ async def _command(
         body=cast(dict[str, object], body.model_dump(mode="json", by_alias=True)),
         mutate=mutate,
     )
+
+
+@router.get(
+    "/{run_id}/approval-history",
+    response_model=CollectionResponse[PayrollApprovalHistoryResponse],
+    operation_id="get_payroll_approval_history",
+    responses={**success_response_documentation(200, "Payroll approval history"), **ERRORS},
+)
+async def get_payroll_approval_history(
+    run_id: uuid.UUID,
+    request: Request,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedReadPrincipal,
+    selected: AdminSelectedBranch,
+) -> CollectionResponse[PayrollApprovalHistoryResponse]:
+    items = await _executor(request).execute(
+        claims=claims,
+        principal=principal,
+        selected_admin_branch_id=selected,
+        operation=lambda connection: _service(request, connection).approval_history(
+            principal, selected, run_id
+        ),
+    )
+    return CollectionResponse(
+        data=items,
+        page=Page(limit=max(1, len(items)), next_cursor=None, has_more=False),
+    )
+
+
+@router.post("/{run_id}/submit", operation_id="submit_payroll_run", responses=ERRORS)
+async def submit_payroll_run(
+    run_id: uuid.UUID,
+    request: Request,
+    body: PayrollVersionRequest,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedWritePrincipal,
+    selected: AdminSelectedBranch,
+) -> JSONResponse:
+    return await _command(
+        request=request,
+        body=body,
+        claims=claims,
+        principal=principal,
+        selected=selected,
+        run_id=run_id,
+        operation_id="submit_payroll_run",
+        method="POST",
+        mutate_result=lambda service: service.submit(principal, selected, run_id, body),
+    )
+
+
+@router.post("/{run_id}/recall", operation_id="recall_payroll_run", responses=ERRORS)
+async def recall_payroll_run(
+    run_id: uuid.UUID,
+    request: Request,
+    body: PayrollReasonRequest,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedWritePrincipal,
+    selected: AdminSelectedBranch,
+) -> JSONResponse:
+    return await _command(
+        request=request,
+        body=body,
+        claims=claims,
+        principal=principal,
+        selected=selected,
+        run_id=run_id,
+        operation_id="recall_payroll_run",
+        method="POST",
+        mutate_result=lambda service: service.recall(principal, selected, run_id, body),
+    )
+
+
+@router.post("/{run_id}/approve", operation_id="approve_payroll_run", responses=ERRORS)
+async def approve_payroll_run(
+    run_id: uuid.UUID,
+    request: Request,
+    body: PayrollVersionRequest,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedWritePrincipal,
+    selected: AdminSelectedBranch,
+) -> JSONResponse:
+    return await _command(
+        request=request,
+        body=body,
+        claims=claims,
+        principal=principal,
+        selected=selected,
+        run_id=run_id,
+        operation_id="approve_payroll_run",
+        method="POST",
+        mutate_result=lambda service: service.approve(principal, selected, run_id, body),
+    )
+
+
+@router.post("/{run_id}/reject", operation_id="reject_payroll_run", responses=ERRORS)
+async def reject_payroll_run(
+    run_id: uuid.UUID,
+    request: Request,
+    body: PayrollReasonRequest,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedWritePrincipal,
+    selected: AdminSelectedBranch,
+) -> JSONResponse:
+    return await _command(
+        request=request,
+        body=body,
+        claims=claims,
+        principal=principal,
+        selected=selected,
+        run_id=run_id,
+        operation_id="reject_payroll_run",
+        method="POST",
+        mutate_result=lambda service: service.reject(principal, selected, run_id, body),
+    )
+
+
+@router.post("/{run_id}/generate", operation_id="generate_payroll_run", responses=ERRORS)
+async def generate_payroll_run(
+    run_id: uuid.UUID,
+    request: Request,
+    body: PayrollVersionRequest,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedWritePrincipal,
+    selected: AdminSelectedBranch,
+) -> JSONResponse:
+    return await _command(
+        request=request,
+        body=body,
+        claims=claims,
+        principal=principal,
+        selected=selected,
+        run_id=run_id,
+        operation_id="generate_payroll_run",
+        method="POST",
+        mutate_result=lambda service: service.generate(principal, selected, run_id, body),
+    )
+
+
+@payslip_router.get(
+    "/self",
+    response_model=CollectionResponse[PayslipResponse],
+    operation_id="list_self_payslips",
+    responses={**success_response_documentation(200, "Own immutable payslips"), **ERRORS},
+)
+async def list_self_payslips(
+    request: Request,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedReadPrincipal,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    cursor: Annotated[str | None, Query(max_length=512)] = None,
+) -> CollectionResponse[PayslipResponse]:
+    items, next_cursor = await _executor(request).execute(
+        claims=claims,
+        principal=principal,
+        operation=lambda connection: _service(request, connection).list_self_payslips(
+            principal, PayslipListQuery(limit, cursor)
+        ),
+    )
+    return CollectionResponse(
+        data=items,
+        page=Page(limit=limit, next_cursor=next_cursor, has_more=next_cursor is not None),
+    )
+
+
+@payslip_router.get(
+    "/self/{payslip_id}",
+    response_model=DataResponse[PayslipResponse],
+    operation_id="get_self_payslip",
+    responses={**success_response_documentation(200, "Own immutable payslip"), **ERRORS},
+)
+async def get_self_payslip(
+    payslip_id: uuid.UUID,
+    request: Request,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedReadPrincipal,
+) -> DataResponse[PayslipResponse]:
+    result = await _executor(request).execute(
+        claims=claims,
+        principal=principal,
+        operation=lambda connection: _service(request, connection).get_self_payslip(
+            principal, payslip_id
+        ),
+    )
+    return DataResponse(data=result)
 
 
 @router.post("/{run_id}/repeat", operation_id="repeat_payroll_run", responses=ERRORS)

@@ -7,7 +7,6 @@
  */
 
 import { supabase } from '../lib/supabase';
-import { calculatePayrollEntry } from './payrollCalculator';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -235,32 +234,8 @@ export async function deletePayroll(id) {
  * Called by PayrollEditor when the admin clicks "Download SIF".
  */
 export async function createPayslipRecords(payroll) {
-  const user = await getSessionUser();
-  if (!user) return;
-
-  const activeEntries = (payroll.entries || []).filter(e => !e.excluded);
-  if (!activeEntries.length) return;
-
-  const rows = activeEntries.map(entry => {
-    const calc = calculatePayrollEntry(entry);
-
-    return {
-      user_id:        user.id,
-      payroll_run_id: payroll.id,
-      employee_id:    entry.employeeId,
-      period:         payroll.period,
-      payment_date:   payroll.paymentDate || null,
-      gross_pay:      calc.grossEarnings,
-      net_pay:        calc.netPay,
-      data_snapshot:  entry,
-    };
-  });
-
-  const { error } = await supabase
-    .from('payslips')
-    .upsert(rows, { onConflict: 'payroll_run_id,employee_id' });
-
-  if (error) console.error('createPayslipRecords:', error);
+  void payroll;
+  throw new Error('Payroll approval and payslips have moved to the migration payroll workspace.');
 }
 
 // ─── EMPLOYEE DOCUMENTS ─────────────────────────────────────────────────────
@@ -1146,99 +1121,34 @@ export async function saveComplianceOverride({ overrideType, employeeIds, reason
 
 // ── PAYROLL APPROVAL (Feature 17) ────────────────────────────────────────────
 
-async function logApprovalAction(user, payrollRunId, action, notes = '') {
-  await supabase.from('payroll_approval_log').insert({
-    user_id:        user.id,
-    payroll_run_id: payrollRunId,
-    action,
-    performed_by:   user.email || user.id,
-    notes,
-  });
-}
-
 /** Submit a draft payroll run for approval. Locks editing until approved/rejected. */
 export async function submitPayrollForApproval(payrollRunId) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-  const { error } = await supabase
-    .from('payroll_runs')
-    .update({
-      approval_status:           'pending_approval',
-      submitted_for_approval_at: new Date().toISOString(),
-      submitted_by:              user.email || user.id,
-      rejection_reason:          '',
-      rejected_at:               null,
-    })
-    .eq('id', payrollRunId);
-  if (error) throw error;
-  await logApprovalAction(user, payrollRunId, 'submitted');
+  void payrollRunId;
+  throw new Error('Payroll approval and payslips have moved to the migration payroll workspace.');
 }
 
 /** Approve a pending-approval payroll. Enables the Generate SIF button. */
 export async function approvePayroll(payrollRunId, notes = '') {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-  const { error } = await supabase
-    .from('payroll_runs')
-    .update({
-      approval_status: 'approved',
-      approved_by:     user.email || user.id,
-      approved_at:     new Date().toISOString(),
-    })
-    .eq('id', payrollRunId);
-  if (error) throw error;
-  await logApprovalAction(user, payrollRunId, 'approved', notes);
+  void payrollRunId;
+  void notes;
+  throw new Error('Payroll approval and payslips have moved to the migration payroll workspace.');
 }
 
 /** Reject a pending payroll, returning it to draft with a mandatory reason. */
 export async function rejectPayroll(payrollRunId, reason) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-  const { error } = await supabase
-    .from('payroll_runs')
-    .update({
-      approval_status:  'draft',
-      rejection_reason: reason || '',
-      rejected_at:      new Date().toISOString(),
-      approved_by:      '',
-      approved_at:      null,
-    })
-    .eq('id', payrollRunId);
-  if (error) throw error;
-  await logApprovalAction(user, payrollRunId, 'rejected', reason);
+  void payrollRunId;
+  void reason;
+  throw new Error('Payroll approval and payslips have moved to the migration payroll workspace.');
 }
 
 /** Recall a submitted payroll before it is approved (back to draft). */
 export async function recallPayrollApproval(payrollRunId) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-  const { error } = await supabase
-    .from('payroll_runs')
-    .update({
-      approval_status:           'draft',
-      submitted_for_approval_at: null,
-      submitted_by:              '',
-    })
-    .eq('id', payrollRunId);
-  if (error) throw error;
-  await logApprovalAction(user, payrollRunId, 'recalled');
+  void payrollRunId;
+  throw new Error('Payroll approval and payslips have moved to the migration payroll workspace.');
 }
 
 /** Return the full approval event log for a payroll run (newest first). */
 export async function getPayrollApprovalLog(payrollRunId) {
-  const user = await getSessionUser();
-  if (!user) return [];
-  const { data, error } = await supabase
-    .from('payroll_approval_log')
-    .select('*')
-    .eq('payroll_run_id', payrollRunId)
-    .order('created_at', { ascending: false });
-  if (error) return [];
-  return (data || []).map(r => ({
-    id:          r.id,
-    action:      r.action,
-    performedBy: r.performed_by,
-    notes:       r.notes,
-    createdAt:   r.created_at,
-  }));
+  void payrollRunId;
+  throw new Error('Payroll approval and payslips have moved to the migration payroll workspace.');
 }

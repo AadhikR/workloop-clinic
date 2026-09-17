@@ -20,14 +20,18 @@ from app.repositories.payroll import PayrollRepository
 from app.schemas.payroll import (
     PayrollAdjustmentRequest,
     PayrollAdjustmentResponse,
+    PayrollApprovalHistoryResponse,
     PayrollCreateRequest,
     PayrollEntriesRequest,
     PayrollEntryPreview,
     PayrollEntryResponse,
+    PayrollReasonRequest,
     PayrollRepeatRequest,
     PayrollRunDetailResponse,
     PayrollRunResponse,
     PayrollVersionRequest,
+    PayslipLineResponse,
+    PayslipResponse,
 )
 from app.services.employees import EmployeeCursorCodec
 from app.services.execution import ServiceExecutionError
@@ -37,6 +41,8 @@ ZERO = Decimal("0.00")
 AUTOMATIC_PREFIXES = ("AUTO_", "LEAVE_", "ATTENDANCE_", "ROSTER_", "EXPENSE_", "ADVANCE_")
 SOURCE_TYPES = ("leave", "attendance", "roster", "expense", "advance")
 AUTOMATIC_NAMESPACE = uuid.UUID("9e000000-0000-4000-8000-000000000001")
+PAYSLIP_NAMESPACE = uuid.UUID("9f000000-0000-4000-8000-000000000001")
+REPAYMENT_NAMESPACE = uuid.UUID("9f000000-0000-4000-8000-000000000002")
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,6 +52,12 @@ class PayrollListQuery:
     period: str | None = None
     run_status: str | None = None
     approval_status: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class PayslipListQuery:
+    limit: int = 50
+    cursor: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -402,6 +414,24 @@ def _run_response(
     )
 
 
+def _payslip_response(row: RowMapping) -> PayslipResponse:
+    snapshot = dict(row["data_snapshot"])
+    return PayslipResponse(
+        id=row["id"],
+        period=row["period"],
+        payment_date=row["payment_date"],
+        employee_name=str(snapshot["employeeName"]),
+        earnings=[PayslipLineResponse.model_validate(item) for item in snapshot["earnings"]],
+        deductions=[PayslipLineResponse.model_validate(item) for item in snapshot["deductions"]],
+        gross_pay=f"{money(row['gross_pay']):.2f}",
+        total_deductions=str(snapshot["totalDeductions"]),
+        net_pay=f"{money(row['net_pay']):.2f}",
+        wps_basic_pay=str(snapshot["wpsBasicPay"]),
+        wps_variable_pay=str(snapshot["wpsVariablePay"]),
+        issued_at=row["issued_at"],
+    )
+
+
 class PayrollService:
     def __init__(self, connection: AsyncConnection, cursor_codec: EmployeeCursorCodec) -> None:
         self.connection = connection
@@ -476,6 +506,80 @@ class PayrollService:
         base = _run_response(row, entries, _source_warnings(entry_rows)).model_dump()
         return PayrollRunDetailResponse(**base, entries=entries)
 
+    async def approval_history(
+        self, principal: AuthorizationPrincipal, branch_id: uuid.UUID, run_id: uuid.UUID
+    ) -> list[PayrollApprovalHistoryResponse]:
+        self._admin(principal)
+        if await self.repository.get_run(principal.company_id, branch_id, run_id) is None:
+            raise ServiceExecutionError("resource_not_found")
+        return [
+            PayrollApprovalHistoryResponse(
+                id=row["id"],
+                action=row["action"],
+                actor_name=row["actor_name"],
+                reason=row["notes"] or None,
+                created_at=row["created_at"],
+            )
+            for row in await self.repository.approval_history(run_id)
+        ]
+
+    async def list_self_payslips(
+        self, principal: AuthorizationPrincipal, query: PayslipListQuery
+    ) -> tuple[list[PayslipResponse], str | None]:
+        if (
+            principal.role is not AppRole.EMPLOYEE
+            or principal.employee_id is None
+            or principal.branch_id is None
+        ):
+            raise ServiceExecutionError("operation_not_permitted")
+        try:
+            cursor_id = self.cursor_codec.decode(
+                principal=principal,
+                branch_id=principal.branch_id,
+                operation_id="list_self_payslips",
+                query=query,
+                cursor=query.cursor,
+            )
+        except ValueError:
+            raise ServiceExecutionError("invalid_cursor") from None
+        rows = await self.repository.list_self_payslips(
+            company_id=principal.company_id,
+            branch_id=principal.branch_id,
+            employee_id=principal.employee_id,
+            cursor_id=cursor_id,
+            limit=query.limit + 1,
+        )
+        visible = rows[: query.limit]
+        next_cursor = None
+        if len(rows) > query.limit and visible:
+            next_cursor = self.cursor_codec.encode(
+                principal=principal,
+                branch_id=principal.branch_id,
+                operation_id="list_self_payslips",
+                query=query,
+                last_id=visible[-1]["id"],
+            )
+        return [_payslip_response(row) for row in visible], next_cursor
+
+    async def get_self_payslip(
+        self, principal: AuthorizationPrincipal, payslip_id: uuid.UUID
+    ) -> PayslipResponse:
+        if (
+            principal.role is not AppRole.EMPLOYEE
+            or principal.employee_id is None
+            or principal.branch_id is None
+        ):
+            raise ServiceExecutionError("operation_not_permitted")
+        row = await self.repository.get_self_payslip(
+            company_id=principal.company_id,
+            branch_id=principal.branch_id,
+            employee_id=principal.employee_id,
+            payslip_id=payslip_id,
+        )
+        if row is None:
+            raise ServiceExecutionError("resource_not_found")
+        return _payslip_response(row)
+
     async def _validate_period_and_payment(self, period: str, payment_date: date) -> None:
         business_date = await self.repository.business_date()
         period_start, period_end = _period_dates(period)
@@ -488,7 +592,7 @@ class PayrollService:
         self, principal: AuthorizationPrincipal, branch_id: uuid.UUID, run_id: uuid.UUID
     ) -> RowMapping:
         self._admin(principal)
-        row = await self.repository.lock_run(principal.company_id, branch_id, run_id)
+        row = await self.repository.get_run_for_action(principal.company_id, branch_id, run_id)
         if row is None:
             raise ServiceExecutionError("resource_not_found")
         return row
@@ -996,6 +1100,390 @@ class PayrollService:
                 "updated_at",
             ],
             reason="Payroll entries replaced",
+        )
+        return await self.detail(principal, branch_id, run_id)
+
+    @staticmethod
+    def _preserved(rows: list[RowMapping]) -> dict[uuid.UUID, ManualValues]:
+        return {
+            row["employee_id"]: ManualValues(
+                increment=row["increment"],
+                bonus=row["bonus"],
+                other_pay=row["other_pay"],
+                variable_allowance=row["variable_allowance"],
+                additional_allowances=manual_adjustments(
+                    [dict(item) for item in row["additional_allowances"]]
+                ),
+                deductions=manual_adjustments([dict(item) for item in row["deductions"]]),
+                excluded=row["excluded"],
+            )
+            for row in rows
+        }
+
+    @staticmethod
+    def _stored_row(row: RowMapping) -> dict[str, object]:
+        additions = [dict(item) for item in row["additional_allowances"]]
+        deductions = [dict(item) for item in row["deductions"]]
+        values = calculate_entry(
+            basic_salary=row["basic_salary"],
+            housing_allowance=row["housing_allowance"],
+            transport_allowance=row["transport_allowance"],
+            fixed_allowance=row["allowance"],
+            increment=row["increment"],
+            bonus=row["bonus"],
+            other_pay=row["other_pay"],
+            variable_allowance=row["variable_allowance"],
+            leave_deduction=row["leave_deduction"],
+            additional_allowances=additions,
+            deductions=deductions,
+        )
+        return {
+            "employee_id": str(row["employee_id"]),
+            "basic_salary": f"{money(row['basic_salary']):.2f}",
+            "housing_allowance": f"{money(row['housing_allowance']):.2f}",
+            "transport_allowance": f"{money(row['transport_allowance']):.2f}",
+            "allowance": f"{money(row['allowance']):.2f}",
+            "increment": f"{money(row['increment']):.2f}",
+            "bonus": f"{money(row['bonus']):.2f}",
+            "other_pay": f"{money(row['other_pay']):.2f}",
+            "leave_deduction": f"{money(row['leave_deduction']):.2f}",
+            "variable_allowance": f"{money(row['variable_allowance']):.2f}",
+            "additional_allowances": additions,
+            "deductions": deductions,
+            "excluded": row["excluded"],
+            "source_snapshot": dict(row["source_snapshot"]),
+            "calculated_net_pay": f"{values.net_pay:.2f}",
+        }
+
+    async def _approval_recheck(
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        row: RowMapping,
+        *,
+        require_current_sources: bool,
+    ) -> list[RowMapping]:
+        entry_rows = await self.repository.entries(row["id"])
+        if not entry_rows:
+            raise ServiceExecutionError("validation_failed")
+        rebuilt = await self._employee_entries(
+            principal,
+            branch_id,
+            row["period"],
+            self._preserved(entry_rows),
+        )
+        rebuilt_digest = rebuilt[0]["source_snapshot_digest"] if rebuilt else _digest([])
+        stored = [self._stored_row(item) for item in entry_rows]
+        stored.sort(key=lambda item: str(item["employee_id"]))
+        rebuilt_without_digest = [
+            {key: value for key, value in item.items() if key != "source_snapshot_digest"}
+            for item in rebuilt
+        ]
+        rebuilt_without_digest.sort(key=lambda item: str(item["employee_id"]))
+        responses = [_entry_response(item) for item in entry_rows]
+        warnings = _source_warnings(entry_rows)
+        validation_status, _ = _validation(responses, warnings)
+        total = money(
+            sum(
+                (Decimal(item.net_pay) for item in responses if not item.excluded),
+                ZERO,
+            )
+        )
+        count = sum(not item.excluded for item in responses)
+        consistent = (
+            _canonical(stored) == _canonical(rebuilt_without_digest)
+            and rebuilt_digest == row["source_snapshot_digest"]
+            and total == money(row["total_disbursed"])
+            and count == row["employee_count"]
+        )
+        if require_current_sources and (not consistent or validation_status != "valid"):
+            raise ServiceExecutionError("stale_financial_state")
+        return entry_rows
+
+    @staticmethod
+    def _transition_version(row: RowMapping, request: PayrollVersionRequest) -> None:
+        if not _same_version(row["updated_at"], request.expected_updated_at):
+            raise ServiceExecutionError("stale_financial_state")
+
+    async def submit(
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        run_id: uuid.UUID,
+        request: PayrollVersionRequest,
+    ) -> PayrollRunDetailResponse:
+        row = await self._locked(principal, branch_id, run_id)
+        self._transition_version(row, request)
+        if row["status"] != "draft" or row["approval_status"] != "draft":
+            raise ServiceExecutionError("stale_financial_state")
+        await self._approval_recheck(principal, branch_id, row, require_current_sources=True)
+        await self.repository.transition(run_id, "submit", "", request.expected_updated_at)
+        await append_audit_event(
+            self.connection,
+            action="payroll_submitted",
+            entity_type="payroll_run",
+            entity_id=run_id,
+            changed_fields=[
+                "approval_status",
+                "submitted_by_app_user_id",
+                "submitted_for_approval_at",
+            ],
+            reason="Payroll submitted for approval",
+        )
+        return await self.detail(principal, branch_id, run_id)
+
+    async def recall(
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        run_id: uuid.UUID,
+        request: PayrollReasonRequest,
+    ) -> PayrollRunDetailResponse:
+        row = await self._locked(principal, branch_id, run_id)
+        self._transition_version(row, request)
+        if row["status"] != "draft" or row["approval_status"] != "pending_approval":
+            raise ServiceExecutionError("stale_financial_state")
+        await self._approval_recheck(principal, branch_id, row, require_current_sources=False)
+        await self.repository.transition(
+            run_id, "recall", request.reason, request.expected_updated_at
+        )
+        await append_audit_event(
+            self.connection,
+            action="payroll_recalled",
+            entity_type="payroll_run",
+            entity_id=run_id,
+            changed_fields=[
+                "approval_status",
+                "submitted_by_app_user_id",
+                "submitted_for_approval_at",
+            ],
+            reason=request.reason,
+        )
+        return await self.detail(principal, branch_id, run_id)
+
+    async def approve(
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        run_id: uuid.UUID,
+        request: PayrollVersionRequest,
+    ) -> PayrollRunDetailResponse:
+        row = await self._locked(principal, branch_id, run_id)
+        self._transition_version(row, request)
+        if row["status"] != "draft" or row["approval_status"] != "pending_approval":
+            raise ServiceExecutionError("stale_financial_state")
+        if principal.app_user_id in {
+            row["run_by_app_user_id"],
+            row["submitted_by_app_user_id"],
+        }:
+            raise ServiceExecutionError("operation_not_permitted")
+        await self._approval_recheck(principal, branch_id, row, require_current_sources=True)
+        await self.repository.transition(run_id, "approve", "", request.expected_updated_at)
+        await append_audit_event(
+            self.connection,
+            action="payroll_approved",
+            entity_type="payroll_run",
+            entity_id=run_id,
+            changed_fields=["approval_status", "approved_by_app_user_id", "approved_at"],
+            reason="Payroll approved",
+        )
+        return await self.detail(principal, branch_id, run_id)
+
+    async def reject(
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        run_id: uuid.UUID,
+        request: PayrollReasonRequest,
+    ) -> PayrollRunDetailResponse:
+        row = await self._locked(principal, branch_id, run_id)
+        self._transition_version(row, request)
+        if row["status"] != "draft" or row["approval_status"] != "pending_approval":
+            raise ServiceExecutionError("stale_financial_state")
+        if principal.app_user_id == row["submitted_by_app_user_id"]:
+            raise ServiceExecutionError("operation_not_permitted")
+        await self._approval_recheck(principal, branch_id, row, require_current_sources=False)
+        await self.repository.transition(
+            run_id, "reject", request.reason, request.expected_updated_at
+        )
+        await append_audit_event(
+            self.connection,
+            action="payroll_rejected",
+            entity_type="payroll_run",
+            entity_id=run_id,
+            changed_fields=[
+                "approval_status",
+                "rejection_reason",
+                "rejected_by_app_user_id",
+                "rejected_at",
+            ],
+            reason=request.reason,
+        )
+        return await self.detail(principal, branch_id, run_id)
+
+    @staticmethod
+    def _payslip_snapshot(entry: PayrollEntryResponse) -> dict[str, object]:
+        earnings: list[dict[str, object]] = [
+            PayslipLineResponse(label=label, amount=amount).model_dump(mode="json", by_alias=True)
+            for label, amount in (
+                ("Basic salary", entry.basic_salary),
+                ("Housing allowance", entry.housing_allowance),
+                ("Transport allowance", entry.transport_allowance),
+                ("Fixed allowance", entry.fixed_allowance),
+                ("Increment", entry.increment),
+                ("Bonus", entry.bonus),
+                ("Other pay", entry.other_pay),
+                ("Variable allowance", entry.variable_allowance),
+            )
+            if Decimal(amount) != ZERO
+        ]
+        earnings.extend(
+            PayslipLineResponse(label=item.label, amount=item.amount).model_dump(
+                mode="json", by_alias=True
+            )
+            for item in entry.additional_allowances
+        )
+        deductions: list[dict[str, object]] = []
+        if Decimal(entry.leave_deduction) != ZERO:
+            deductions.append(
+                PayslipLineResponse(
+                    label="Leave deduction", amount=entry.leave_deduction
+                ).model_dump(mode="json", by_alias=True)
+            )
+        deductions.extend(
+            PayslipLineResponse(label=item.label, amount=item.amount).model_dump(
+                mode="json", by_alias=True
+            )
+            for item in entry.deductions
+        )
+        return {
+            "deductions": deductions,
+            "earnings": earnings,
+            "employeeName": entry.employee_name,
+            "totalDeductions": entry.total_deductions,
+            "wpsBasicPay": entry.wps_basic_pay,
+            "wpsVariablePay": entry.wps_variable_pay,
+        }
+
+    async def generate(
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        run_id: uuid.UUID,
+        request: PayrollVersionRequest,
+    ) -> PayrollRunDetailResponse:
+        row = await self._locked(principal, branch_id, run_id)
+        self._transition_version(row, request)
+        if row["status"] != "draft" or row["approval_status"] != "approved":
+            raise ServiceExecutionError("stale_financial_state")
+        entry_rows = await self._approval_recheck(
+            principal, branch_id, row, require_current_sources=True
+        )
+        business_date = await self.repository.business_date()
+        payslip_snapshots: list[dict[str, object]] = []
+        paid_expenses: set[uuid.UUID] = set()
+        repaid_advances: set[uuid.UUID] = set()
+        total = ZERO
+        count = 0
+        for entry_row in entry_rows:
+            entry = _entry_response(entry_row)
+            if entry.excluded:
+                continue
+            if Decimal(entry.net_pay) < ZERO:
+                raise ServiceExecutionError("validation_failed")
+            snapshot = self._payslip_snapshot(entry)
+            payslip_snapshots.append(snapshot)
+            await self.repository.insert_payslip(
+                payslip_id=uuid.uuid5(PAYSLIP_NAMESPACE, f"{run_id}:{entry.employee_id}"),
+                run=row,
+                employee_id=entry.employee_id,
+                gross_pay=Decimal(entry.gross_pay),
+                net_pay=Decimal(entry.net_pay),
+                snapshot=snapshot,
+            )
+            total = money(total + Decimal(entry.net_pay))
+            count += 1
+            source_snapshot = dict(entry_row["source_snapshot"])
+            for source in source_snapshot.get("automaticInputs", []):
+                source_type = source["sourceType"]
+                source_id = uuid.UUID(source["sourceId"])
+                amount = Decimal(source["calculatedAmount"])
+                if source_type == "expense":
+                    if source_id in paid_expenses or not await self.repository.pay_expense(
+                        source_id, run_id
+                    ):
+                        raise ServiceExecutionError("stale_financial_state")
+                    paid_expenses.add(source_id)
+                    await append_audit_event(
+                        self.connection,
+                        action="expense_paid",
+                        entity_type="expense_claim",
+                        entity_id=source_id,
+                        changed_fields=["status", "payroll_run_id"],
+                        reason="Expense paid through generated payroll",
+                    )
+                elif source_type == "advance":
+                    if source_id in repaid_advances:
+                        raise ServiceExecutionError("validation_failed")
+                    repaid_advances.add(source_id)
+                    repayment = await self.repository.record_advance_repayment(
+                        advance_id=source_id,
+                        run_id=run_id,
+                        repayment_key=uuid.uuid5(REPAYMENT_NAMESPACE, f"{run_id}:{source_id}"),
+                        amount=amount,
+                        paid_date=business_date,
+                    )
+                    metadata = {
+                        "repayment_id": str(repayment["repaymentId"]),
+                        "payroll_run_id": str(run_id),
+                        "repayment_kind": "payroll",
+                    }
+                    await append_audit_event(
+                        self.connection,
+                        action="salary_advance_repayment_recorded",
+                        entity_type="salary_advance",
+                        entity_id=source_id,
+                        changed_fields=["outstanding_balance", "status"],
+                        reason="Advance repayment applied through generated payroll",
+                        metadata=metadata,
+                    )
+                    if repayment["newStatus"] == "settled":
+                        await append_audit_event(
+                            self.connection,
+                            action="salary_advance_settled",
+                            entity_type="salary_advance",
+                            entity_id=source_id,
+                            changed_fields=["status", "outstanding_balance"],
+                            reason="Advance settled through generated payroll",
+                            metadata=metadata,
+                        )
+        if total != money(row["total_disbursed"]) or count != row["employee_count"]:
+            raise ServiceExecutionError("stale_financial_state")
+        await self.repository.generate(
+            run_id,
+            total=total,
+            count=count,
+            expected_updated_at=request.expected_updated_at,
+        )
+        await append_audit_event(
+            self.connection,
+            action="payroll_generated",
+            entity_type="payroll_run",
+            entity_id=run_id,
+            changed_fields=["status", "total_disbursed", "employee_count"],
+            reason="Payroll generated",
+        )
+        await append_audit_event(
+            self.connection,
+            action="payslips_issued",
+            entity_type="payroll_run",
+            entity_id=run_id,
+            changed_fields=["status", "total_disbursed", "employee_count"],
+            reason="Immutable payslips issued",
+            metadata={
+                "payslip_count": count,
+                "snapshot_digest": _digest(payslip_snapshots),
+            },
         )
         return await self.detail(principal, branch_id, run_id)
 

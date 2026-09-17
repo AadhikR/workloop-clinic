@@ -9,7 +9,7 @@ import sys
 
 from sqlalchemy import create_engine, text
 
-HEAD = "d7f1b3c5e9a2"
+HEAD = "b8e2c4d6f9a1"
 PREDECESSOR = "a1c3e5f7b9d2"
 AUDIT_ARGS = "text,text,uuid,text[],text,jsonb"
 REPLACE_ARGS = "uuid,jsonb"
@@ -74,9 +74,11 @@ def verify_head(connection: object) -> str:
         )
     )
     assert "payroll_run" in str(replay)
-    audit = function_row(connection, f"append_audit_event({AUDIT_ARGS})")
+    current_audit = function_row(connection, f"append_audit_event({AUDIT_ARGS})")
+    audit = function_row(connection, f"_append_audit_event_phase9f_prior({AUDIT_ARGS})")
     replace = function_row(connection, f"replace_payroll_entries({REPLACE_ARGS})")
-    assert_protected(audit)
+    assert_protected(current_audit)
+    assert_protected(audit, runtime=False)
     assert_protected(replace)
     assert "payroll_inputs_refreshed" in str(audit[5])
     assert "source_snapshot_digest" in str(replace[5])

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import date
+from decimal import Decimal
 
 from sqlalchemy import text
 from sqlalchemy.engine import RowMapping
@@ -94,15 +95,16 @@ LIMIT :limit
             .one_or_none()
         )
 
-    async def lock_run(
+    async def get_run_for_action(
         self, company_id: uuid.UUID, branch_id: uuid.UUID, run_id: uuid.UUID
     ) -> RowMapping | None:
+        await self.connection.execute(text("SELECT public.lock_payroll_run(:id)"), {"id": run_id})
         return (
             (
                 await self.connection.execute(
                     text(
                         "SELECT * FROM public.payroll_runs WHERE id=:id AND company_id=:company_id "
-                        "AND branch_id=:branch_id FOR UPDATE"
+                        "AND branch_id=:branch_id"
                     ),
                     {"id": run_id, "company_id": company_id, "branch_id": branch_id},
                 )
@@ -129,6 +131,194 @@ ORDER BY employee.name,entry.employee_id
                     {"run_id": run_id},
                 )
             ).mappings()
+        )
+
+    async def approval_history(self, run_id: uuid.UUID) -> list[RowMapping]:
+        return list(
+            (
+                await self.connection.execute(
+                    text(
+                        """
+SELECT history.id,history.action,history.notes,history.created_at,
+       'Administrator' AS actor_name
+FROM public.payroll_approval_log AS history
+WHERE history.payroll_run_id=:run_id
+ORDER BY history.created_at,history.id
+"""
+                    ),
+                    {"run_id": run_id},
+                )
+            ).mappings()
+        )
+
+    async def list_self_payslips(
+        self,
+        *,
+        company_id: uuid.UUID,
+        branch_id: uuid.UUID,
+        employee_id: uuid.UUID,
+        cursor_id: uuid.UUID | None,
+        limit: int,
+    ) -> list[RowMapping]:
+        return list(
+            (
+                await self.connection.execute(
+                    text(
+                        """
+SELECT slip.* FROM public.payslips AS slip
+WHERE slip.company_id=:company_id AND slip.branch_id=:branch_id
+  AND slip.employee_id=:employee_id
+  AND (CAST(:cursor_id AS uuid) IS NULL OR (slip.period,slip.id)<(
+    SELECT anchor.period,anchor.id FROM public.payslips AS anchor
+    WHERE anchor.id=CAST(:cursor_id AS uuid) AND anchor.company_id=:company_id
+      AND anchor.branch_id=:branch_id AND anchor.employee_id=:employee_id))
+ORDER BY slip.period DESC,slip.id DESC
+LIMIT :limit
+"""
+                    ),
+                    {
+                        "company_id": company_id,
+                        "branch_id": branch_id,
+                        "employee_id": employee_id,
+                        "cursor_id": cursor_id,
+                        "limit": limit,
+                    },
+                )
+            ).mappings()
+        )
+
+    async def get_self_payslip(
+        self,
+        *,
+        company_id: uuid.UUID,
+        branch_id: uuid.UUID,
+        employee_id: uuid.UUID,
+        payslip_id: uuid.UUID,
+    ) -> RowMapping | None:
+        return (
+            (
+                await self.connection.execute(
+                    text(
+                        "SELECT * FROM public.payslips WHERE id=:id AND company_id=:company_id "
+                        "AND branch_id=:branch_id AND employee_id=:employee_id"
+                    ),
+                    {
+                        "id": payslip_id,
+                        "company_id": company_id,
+                        "branch_id": branch_id,
+                        "employee_id": employee_id,
+                    },
+                )
+            )
+            .mappings()
+            .one_or_none()
+        )
+
+    async def transition(
+        self,
+        run_id: uuid.UUID,
+        action: str,
+        reason: str,
+        expected_updated_at: object,
+    ) -> None:
+        await self.connection.execute(
+            text(
+                "SELECT public.transition_payroll_run(:run_id,:action,:reason,:expected_updated_at)"
+            ),
+            {
+                "run_id": run_id,
+                "action": action,
+                "reason": reason,
+                "expected_updated_at": expected_updated_at,
+            },
+        )
+
+    async def insert_payslip(
+        self,
+        *,
+        payslip_id: uuid.UUID,
+        run: RowMapping,
+        employee_id: uuid.UUID,
+        gross_pay: Decimal,
+        net_pay: Decimal,
+        snapshot: dict[str, object],
+    ) -> None:
+        await self.connection.execute(
+            text(
+                """
+INSERT INTO public.payslips(
+ id,company_id,branch_id,payroll_run_id,employee_id,period,payment_date,
+ gross_pay,net_pay,data_snapshot)
+VALUES(:id,:company_id,:branch_id,:run_id,:employee_id,:period,:payment_date,
+ :gross_pay,:net_pay,CAST(:snapshot AS jsonb))
+"""
+            ),
+            {
+                "id": payslip_id,
+                "company_id": run["company_id"],
+                "branch_id": run["branch_id"],
+                "run_id": run["id"],
+                "employee_id": employee_id,
+                "period": run["period"],
+                "payment_date": run["payment_date"],
+                "gross_pay": gross_pay,
+                "net_pay": net_pay,
+                "snapshot": json.dumps(snapshot, sort_keys=True),
+            },
+        )
+
+    async def pay_expense(self, expense_id: uuid.UUID, run_id: uuid.UUID) -> bool:
+        return (
+            await self.connection.execute(
+                text(
+                    "UPDATE public.expense_claims SET status='paid',payroll_run_id=:run_id,"
+                    "updated_at=statement_timestamp() WHERE id=:expense_id AND status='approved' "
+                    "AND payroll_run_id IS NULL RETURNING id"
+                ),
+                {"expense_id": expense_id, "run_id": run_id},
+            )
+        ).scalar_one_or_none() is not None
+
+    async def record_advance_repayment(
+        self,
+        *,
+        advance_id: uuid.UUID,
+        run_id: uuid.UUID,
+        repayment_key: uuid.UUID,
+        amount: Decimal,
+        paid_date: date,
+    ) -> dict[str, object]:
+        result = await self.connection.scalar(
+            text(
+                "SELECT public.record_advance_repayment("
+                ":advance_id,:run_id,:repayment_key,:amount,:paid_date)"
+            ),
+            {
+                "advance_id": advance_id,
+                "run_id": run_id,
+                "repayment_key": repayment_key,
+                "amount": amount,
+                "paid_date": paid_date,
+            },
+        )
+        return dict(result)
+
+    async def generate(
+        self,
+        run_id: uuid.UUID,
+        *,
+        total: Decimal,
+        count: int,
+        expected_updated_at: object,
+    ) -> None:
+        await self.connection.execute(
+            text("SELECT public.finalize_payroll_run(:run_id,:total,:count,:expected_updated_at)"),
+            {
+                "run_id": run_id,
+                "total": total,
+                "count": count,
+                "expected_updated_at": expected_updated_at,
+            },
         )
 
     async def eligible_employees(

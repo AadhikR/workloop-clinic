@@ -2,13 +2,20 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  approvePayrollRun,
   createPayrollRun,
   deletePayrollRun,
+  generatePayrollRun,
   parsePayrollRun,
+  parsePayslip,
   payrollPreview,
+  readPayrollApprovalHistory,
   readPayrollRuns,
+  recallPayrollRun,
+  rejectPayrollRun,
   refreshPayrollRun,
   savePayrollEntries,
+  submitPayrollRun,
 } from '../migration/src/payrollApi.js'
 
 const branchId = '91000000-0000-4000-8000-000000000001'
@@ -141,4 +148,49 @@ test('browser payroll arithmetic is a preview with exact fixed-decimal output', 
   assert.equal(calculated.grossPay, '10750.00')
   assert.equal(calculated.totalDeductions, '150.00')
   assert.equal(calculated.netPay, '10600.00')
+})
+
+test('approval commands preserve optimistic concurrency and require reasons', async () => {
+  for (const operation of [submitPayrollRun, approvePayrollRun, generatePayrollRun]) {
+    const api = client()
+    await operation(api, branchId, detail)
+    assert.equal(api.calls[0].options.json.expectedUpdatedAt, now)
+    assert.match(api.calls[0].options.headers['Idempotency-Key'], /^[0-9a-f-]{36}$/)
+  }
+  for (const operation of [recallPayrollRun, rejectPayrollRun]) {
+    const api = client()
+    await operation(api, branchId, detail, '  Correct source data  ')
+    assert.deepEqual(api.calls[0].options.json, {
+      expectedUpdatedAt: now,
+      reason: 'Correct source data',
+    })
+    await assert.rejects(() => operation(api, branchId, detail, '  '), /reason is required/i)
+  }
+})
+
+test('history and payslip projections reject extra financial authority', async () => {
+  const historyApi = client()
+  historyApi.request = async () => ({
+    data: [{ id: entryId, action: 'approved', actorName: 'Administrator', reason: null, createdAt: now }],
+    page: { limit: 1, nextCursor: null, hasMore: false },
+  })
+  const history = await readPayrollApprovalHistory(historyApi, branchId, runId)
+  assert.equal(history[0].action, 'approved')
+
+  const payslip = {
+    id: entryId,
+    period: '2026-09',
+    paymentDate: '2026-09-25',
+    employeeName: 'Synthetic Employee',
+    earnings: [{ label: 'Basic salary', amount: '10000.00' }],
+    deductions: [],
+    grossPay: '10000.00',
+    totalDeductions: '0.00',
+    netPay: '10000.00',
+    wpsBasicPay: '10000.00',
+    wpsVariablePay: '0.00',
+    issuedAt: now,
+  }
+  assert.deepEqual(parsePayslip(payslip), payslip)
+  assert.throws(() => parsePayslip({ ...payslip, iban: 'unsafe' }), /Invalid payslip/)
 })

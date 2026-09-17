@@ -131,6 +131,18 @@ class PayrollVersionRequest(StrictRequestSchema):
     expected_updated_at: datetime
 
 
+class PayrollReasonRequest(PayrollVersionRequest):
+    reason: str = Field(min_length=1, max_length=500)
+
+    @field_validator("reason")
+    @classmethod
+    def trim_reason(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("reason is required")
+        return value
+
+
 class PayrollEntriesRequest(PayrollVersionRequest):
     entries: list[PayrollEntrySaveRequest] = Field(max_length=10000)
 
@@ -199,3 +211,39 @@ class PayrollRunResponse(ApiSchema):
 
 class PayrollRunDetailResponse(PayrollRunResponse):
     entries: list[PayrollEntryResponse]
+
+
+class PayrollApprovalHistoryResponse(ApiSchema):
+    id: uuid.UUID
+    action: Literal["submitted", "recalled", "approved", "rejected"]
+    actor_name: str
+    reason: str | None
+    created_at: datetime
+
+    @field_serializer("created_at")
+    def serialize_created_at(self, value: datetime) -> str:
+        return value.astimezone(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+class PayslipLineResponse(ApiSchema):
+    label: str
+    amount: str
+
+
+class PayslipResponse(ApiSchema):
+    id: uuid.UUID
+    period: str
+    payment_date: date
+    employee_name: str
+    earnings: list[PayslipLineResponse]
+    deductions: list[PayslipLineResponse]
+    gross_pay: str
+    total_deductions: str
+    net_pay: str
+    wps_basic_pay: str
+    wps_variable_pay: str
+    issued_at: datetime
+
+    @field_serializer("issued_at")
+    def serialize_issued_at(self, value: datetime) -> str:
+        return value.astimezone(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")

@@ -1,14 +1,20 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import {
+  approvePayrollRun,
   createPayrollRun,
   deletePayrollRun,
+  generatePayrollRun,
   payrollPreview,
+  readPayrollApprovalHistory,
   readPayrollRun,
   readPayrollRuns,
+  recallPayrollRun,
+  rejectPayrollRun,
   refreshPayrollRun,
   repeatPayrollRun,
   savePayrollEntries,
+  submitPayrollRun,
 } from './payrollApi.js'
 
 const today = new Date().toISOString().slice(0, 10)
@@ -60,6 +66,8 @@ export default function Payroll({ account, authentication, branchId }) {
   const [status, setStatus] = useState('loading')
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
+  const [history, setHistory] = useState([])
+  const [reason, setReason] = useState('')
 
   const load = useCallback(async () => {
     if (account.role !== 'admin') return
@@ -85,6 +93,7 @@ export default function Payroll({ account, authentication, branchId }) {
       const detail = await readPayrollRun(authentication, branchId, run.id)
       setSelected(detail)
       setEntries(detail.entries)
+      setHistory(await readPayrollApprovalHistory(authentication, branchId, run.id))
     } catch (error) {
       setMessage(error.message)
     } finally {
@@ -100,6 +109,7 @@ export default function Payroll({ account, authentication, branchId }) {
       if (detail) {
         setSelected(detail)
         setEntries(detail.entries)
+        setHistory(await readPayrollApprovalHistory(authentication, branchId, detail.id))
       } else {
         setSelected(null)
         setEntries([])
@@ -118,7 +128,7 @@ export default function Payroll({ account, authentication, branchId }) {
   return (
     <section className="payroll" aria-labelledby="payroll-title">
       <h2 id="payroll-title">Payroll drafts</h2>
-      <p>FastAPI recalculates every amount and refreshes approved payroll inputs. Approval remains unavailable.</p>
+      <p>FastAPI recalculates every amount, locks approval transitions, and issues immutable payslips.</p>
       <form className="payroll-create" onSubmit={(event) => {
         event.preventDefault()
         runAction(() => createPayrollRun(authentication, branchId, form), 'Payroll draft created.')
@@ -141,7 +151,7 @@ export default function Payroll({ account, authentication, branchId }) {
           </div>
           {selected && (
             <div className="payroll-editor">
-              <h3>{selected.period} editable draft</h3>
+              <h3>{selected.period} payroll · {selected.approvalStatus} · {selected.runStatus}</h3>
               {selected.blockingErrors.map((error) => <p className="payroll-blocking" key={error}>{error}</p>)}
               {selected.sourceWarnings.length > 0 && (
                 <section className="payroll-source-warnings" aria-labelledby="payroll-source-warnings-title">
@@ -151,11 +161,11 @@ export default function Payroll({ account, authentication, branchId }) {
                 </section>
               )}
               <div className="payroll-actions">
-                <button type="button" disabled={busy} onClick={() => runAction(
+                <button type="button" disabled={busy || selected.approvalStatus !== 'draft' || selected.runStatus !== 'draft'} onClick={() => runAction(
                   () => savePayrollEntries(authentication, branchId, selected, entries),
                   'Payroll entries saved.',
                 )}>Save entries</button>
-                <button type="button" className="secondary" disabled={busy} onClick={() => runAction(
+                <button type="button" className="secondary" disabled={busy || selected.approvalStatus !== 'draft' || selected.runStatus !== 'draft'} onClick={() => runAction(
                   () => refreshPayrollRun(authentication, branchId, selected),
                   'Automatic payroll inputs refreshed.',
                 )}>Refresh payroll inputs</button>
@@ -163,16 +173,57 @@ export default function Payroll({ account, authentication, branchId }) {
                   () => repeatPayrollRun(authentication, branchId, selected, form),
                   'Recurring manual items copied to the new draft.',
                 )}>Repeat into form period</button>
-                <button type="button" className="secondary" disabled={busy} onClick={() => runAction(
+                <button type="button" className="secondary" disabled={busy || selected.approvalStatus !== 'draft' || selected.runStatus !== 'draft'} onClick={() => runAction(
                   async () => { await deletePayrollRun(authentication, branchId, selected); return null },
                   'Payroll draft deleted.',
                 )}>Delete draft</button>
+                {selected.approvalStatus === 'draft' && selected.runStatus === 'draft' && (
+                  <button type="button" disabled={busy || selected.validationStatus !== 'valid'} onClick={() => runAction(
+                    () => submitPayrollRun(authentication, branchId, selected),
+                    'Payroll submitted for approval.',
+                  )}>Submit for approval</button>
+                )}
+                {selected.approvalStatus === 'pending_approval' && (
+                  <>
+                    <button type="button" disabled={busy} onClick={() => runAction(
+                      () => approvePayrollRun(authentication, branchId, selected),
+                      'Payroll approved.',
+                    )}>Approve</button>
+                    <button type="button" className="secondary" disabled={busy || !reason.trim()} onClick={() => runAction(
+                      () => recallPayrollRun(authentication, branchId, selected, reason),
+                      'Payroll recalled to draft.',
+                    )}>Recall</button>
+                    <button type="button" className="secondary" disabled={busy || !reason.trim()} onClick={() => runAction(
+                      () => rejectPayrollRun(authentication, branchId, selected, reason),
+                      'Payroll rejected to draft.',
+                    )}>Reject</button>
+                  </>
+                )}
+                {selected.approvalStatus === 'approved' && selected.runStatus === 'draft' && (
+                  <button type="button" disabled={busy} onClick={() => runAction(
+                    () => generatePayrollRun(authentication, branchId, selected),
+                    'Payroll generated and payslips issued.',
+                  )}>Generate payroll</button>
+                )}
               </div>
+              {selected.approvalStatus === 'pending_approval' && (
+                <label>Recall or rejection reason
+                  <input maxLength="500" value={reason} onChange={(event) => setReason(event.target.value)} />
+                </label>
+              )}
+              {history.length > 0 && (
+                <section aria-labelledby="payroll-history-title">
+                  <h4 id="payroll-history-title">Approval history</h4>
+                  <ol>{history.map((item) => (
+                    <li key={item.id}>{item.action} by {item.actorName}{item.reason ? ` — ${item.reason}` : ''}</li>
+                  ))}</ol>
+                </section>
+              )}
               {entries.map((item, index) => (
                 <EntryEditor
                   key={item.id}
                   value={item}
-                  disabled={busy}
+                  disabled={busy || selected.approvalStatus !== 'draft' || selected.runStatus !== 'draft'}
                   onChange={(next) => setEntries(entries.map((entry, entryIndex) => entryIndex === index ? next : entry))}
                 />
               ))}
