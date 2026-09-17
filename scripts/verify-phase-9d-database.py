@@ -32,7 +32,12 @@ from app.schemas.payroll import (
 from app.services.employees import EmployeeCursorCodec
 from app.services.execution import AuthorizedServiceExecutor, ServiceExecutionError
 from app.services.idempotency import IdempotencyCommand, IdempotencyCoordinator, IdempotentResponse
-from app.services.payroll import PayrollService, _preview, calculate_entry
+from app.services.payroll import (
+    PayrollService,
+    _preview,
+    calculate_entry,
+    is_automatic_adjustment,
+)
 
 COMPANY_ID = seed.COMPANY_ID[seed.HORIZON]
 BRANCH_ID = seed.BRANCH_DXB
@@ -87,21 +92,46 @@ async def main() -> None:
         database_url("workloop_migration", "WORKLOOP_MIGRATION_PASSWORD")
     )
     rows = build_rows()
+    fixture_run_ids = [row.values["id"] for row in rows if row.table == "payroll_runs"]
     with migration_engine.begin() as connection:
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "c5e7a9b1d3f4"
+            "d7f1b3c5e9a2"
         )
         connection.execute(
-            text(
-                "DELETE FROM public.idempotency_records WHERE replay_resource_kind='payroll_run'"
-            )
+            text("DELETE FROM public.idempotency_records WHERE replay_resource_kind='payroll_run'")
         )
         connection.execute(
             text(
                 "DELETE FROM public.audit_events WHERE entity_type='payroll_run' "
                 "AND action IN ('payroll_draft_created','payroll_draft_refreshed',"
+                "'payroll_inputs_refreshed',"
                 "'payroll_entries_replaced','payroll_draft_deleted')"
             )
+        )
+        connection.execute(
+            text(
+                "DELETE FROM public.payroll_entries AS entry USING public.payroll_runs AS run "
+                "WHERE entry.payroll_run_id=run.id AND run.company_id=:company_id "
+                "AND run.branch_id=:branch_id "
+                "AND NOT (run.id=ANY(CAST(:fixture_run_ids AS uuid[])))"
+            ),
+            {
+                "company_id": COMPANY_ID,
+                "branch_id": BRANCH_ID,
+                "fixture_run_ids": fixture_run_ids,
+            },
+        )
+        connection.execute(
+            text(
+                "DELETE FROM public.payroll_runs WHERE company_id=:company_id "
+                "AND branch_id=:branch_id "
+                "AND NOT (id=ANY(CAST(:fixture_run_ids AS uuid[])))"
+            ),
+            {
+                "company_id": COMPANY_ID,
+                "branch_id": BRANCH_ID,
+                "fixture_run_ids": fixture_run_ids,
+            },
         )
         clean(connection, rows)
         apply_rows(connection, rows)
@@ -201,12 +231,18 @@ async def main() -> None:
     first = await idempotent_create(create_body)
     replay = await idempotent_create(create_body)
     assert replay.replayed and replay.body == first.body
-    changed = PayrollCreateRequest(period=source_period, payment_date=date.fromisoformat(source_period + "-24"))
+    changed = PayrollCreateRequest(
+        period=source_period, payment_date=date.fromisoformat(source_period + "-24")
+    )
     await expect_code("idempotency_conflict", idempotent_create(changed))
     assert first.body is not None
     source_id = uuid.UUID(first.body["data"]["id"])  # type: ignore[index]
     source = await run(lambda service: service.detail(principal, BRANCH_ID, source_id))
-    assert source.sequence == "0001" and source.source_warnings == []  # type: ignore[union-attr]
+    assert source.sequence == "0001"  # type: ignore[union-attr]
+    assert source.source_warnings == [  # type: ignore[union-attr]
+        "attendance_input_not_ready",
+        "roster_input_not_ready",
+    ]
     assert source.entries and all(item.net_pay == "10000.00" for item in source.entries)  # type: ignore[union-attr]
     await expect_code(
         "resource_not_found",
@@ -231,7 +267,20 @@ async def main() -> None:
         note=None,
     )
 
-    def save_item(item: object, *, additions: list[PayrollAdjustmentRequest] | None = None) -> PayrollEntrySaveRequest:
+    def save_item(
+        item: object, *, additions: list[PayrollAdjustmentRequest] | None = None
+    ) -> PayrollEntrySaveRequest:
+        manual_additions = additions or []
+        automatic_additions = [
+            value.model_dump(mode="json")
+            for value in item.additional_allowances  # type: ignore[attr-defined]
+            if is_automatic_adjustment(value.model_dump(mode="json"))
+        ]
+        automatic_deductions = [
+            value.model_dump(mode="json")
+            for value in item.deductions  # type: ignore[attr-defined]
+            if is_automatic_adjustment(value.model_dump(mode="json"))
+        ]
         values = calculate_entry(
             basic_salary=item.basic_salary,  # type: ignore[attr-defined]
             housing_allowance=item.housing_allowance,  # type: ignore[attr-defined]
@@ -241,8 +290,12 @@ async def main() -> None:
             bonus=item.bonus,  # type: ignore[attr-defined]
             other_pay=item.other_pay,  # type: ignore[attr-defined]
             variable_allowance=item.variable_allowance,  # type: ignore[attr-defined]
-            additional_allowances=additions or [],
-            deductions=[],
+            leave_deduction=item.leave_deduction,  # type: ignore[attr-defined]
+            additional_allowances=[
+                value.model_dump(mode="json") for value in manual_additions
+            ]
+            + automatic_additions,
+            deductions=automatic_deductions,
         )
         return PayrollEntrySaveRequest(
             employee_id=item.employee_id,  # type: ignore[attr-defined]
@@ -250,7 +303,7 @@ async def main() -> None:
             bonus=item.bonus,  # type: ignore[attr-defined]
             other_pay=item.other_pay,  # type: ignore[attr-defined]
             variable_allowance=item.variable_allowance,  # type: ignore[attr-defined]
-            additional_allowances=additions or [],
+            additional_allowances=manual_additions,
             deductions=[],
             excluded=item.excluded,  # type: ignore[attr-defined]
             preview=_preview(values),
@@ -284,7 +337,9 @@ async def main() -> None:
             ),
         )
     )
-    repeated_first = next(item for item in repeated.entries if item.employee_id == first_entry.employee_id)  # type: ignore[union-attr]
+    repeated_first = next(
+        item for item in repeated.entries if item.employee_id == first_entry.employee_id
+    )  # type: ignore[union-attr]
     assert repeated_first.gross_pay == "10250.25"
     assert [item.code for item in repeated_first.additional_allowances] == ["SHIFT_ALLOWANCE"]
 
@@ -305,14 +360,17 @@ async def main() -> None:
         try:
             return await run(
                 lambda service: service.save_entries(
-                    principal, BRANCH_ID, current.id, save_request  # type: ignore[union-attr]
+                    principal,
+                    BRANCH_ID,
+                    current.id,
+                    save_request,  # type: ignore[union-attr]
                 )
             )
         except ServiceExecutionError as error:
             return error.code
 
     concurrent = await asyncio.gather(concurrent_save(), concurrent_save())
-    assert sum(item == "stale_financial_state" for item in concurrent) == 1
+    assert sum(item == "stale_financial_state" for item in concurrent) == 1, concurrent
     updated = next(item for item in concurrent if item != "stale_financial_state")
 
     invalid_items = list(current_items)
@@ -354,13 +412,17 @@ async def main() -> None:
     )
 
     with migration_engine.begin() as connection:
-        assert connection.scalar(
-            text(
-                "SELECT count(*) FROM public.audit_events WHERE entity_type='payroll_run' "
-                "AND action IN ('payroll_draft_created','payroll_draft_refreshed',"
-                "'payroll_entries_replaced','payroll_draft_deleted')"
+        assert (
+            connection.scalar(
+                text(
+                    "SELECT count(*) FROM public.audit_events WHERE entity_type='payroll_run' "
+                    "AND action IN ('payroll_draft_created','payroll_draft_refreshed',"
+                    "'payroll_inputs_refreshed',"
+                    "'payroll_entries_replaced','payroll_draft_deleted')"
+                )
             )
-        ) >= 8
+            >= 8
+        )
         connection.execute(
             text("DELETE FROM public.idempotency_records WHERE replay_resource_kind='payroll_run'")
         )
@@ -368,6 +430,7 @@ async def main() -> None:
             text(
                 "DELETE FROM public.audit_events WHERE entity_type='payroll_run' "
                 "AND action IN ('payroll_draft_created','payroll_draft_refreshed',"
+                "'payroll_inputs_refreshed',"
                 "'payroll_entries_replaced','payroll_draft_deleted')"
             )
         )

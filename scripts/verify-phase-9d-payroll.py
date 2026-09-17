@@ -39,7 +39,7 @@ def main() -> None:
         "ROUND_HALF_UP",
         'raise ServiceExecutionError("stale_financial_state")',
         'action="payroll_entries_replaced"',
-        '"automaticInputs": list[object]()',
+        '"automaticInputs": automatic_inputs',
     )
     require(
         "backend/app/repositories/payroll.py",

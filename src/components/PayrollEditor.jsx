@@ -8,16 +8,13 @@ import { createNotifications } from '../utils/notificationStorage';
 import AllowDeductPanel from './AllowDeductPanel';
 import SIFPreviewModal from './SIFPreviewModal';
 import { downloadPayslip, downloadAllPayslips } from '../utils/payslipGenerator';
-import { calculatePayrollLeaveDeductions } from '../utils/leaveEngine';
-import { getLeaveRequests } from '../utils/leaveStorage';
-import { getAttendancePayrollData, getOvertimeFromRoster } from '../utils/attendanceStorage';
 import { getAdvances } from '../utils/storage';
 import { formatDateUAE, daysUntil, validateBankRoutingCode } from '../utils/uaeValidators';
-import { getApprovedUnpaidExpenses, markExpensesPaid } from '../utils/expenseStorage';
+import { markExpensesPaid } from '../utils/expenseStorage';
 import { getPayrollSummaryFromAttendance } from '../utils/attendanceEngine';
 import { calculatePayrollEntry, calculatePayrollTotals, withCalculatedPayrollFields } from '../utils/payrollCalculator';
 import { validatePayrollRun } from '../utils/payrollValidation';
-import { getAdvanceInstallmentForPeriod, stageAdvancesForPayroll } from '../utils/advanceSchedule';
+import { stageAdvancesForPayroll } from '../utils/advanceSchedule';
 import { saveAdvanceRepayment } from '../utils/storage';
 
 function getMonthName(month) {
@@ -114,13 +111,12 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
   const [showPanel, setShowPanel] = useState(false);
   const [saveStatus, setSaveStatus] = useState('saved'); // saved | unsaved | saving | failed
   const [saveError, setSaveError] = useState('');
-  const [leaveDeductions, setLeaveDeductions] = useState({}); // { [employeeId]: deductionResult }
-  const [attendanceData, setAttendanceData]   = useState(null); // { periodClosed, payrollReady, byEmployee }
-  const [advanceData, setAdvanceData]         = useState({}); // { [employeeId]: advance[] }
-  const [advancesLoaded, setAdvancesLoaded]   = useState(false);
-  const [expenseData, setExpenseData]         = useState({}); // { [employeeId]: expense[] } — approved+unpaid
-  const [rosterOvertime, setRosterOvertime]   = useState({}); // { [employeeId]: { overtimeHours, plannedHours, actualHours } }
-  const [attendanceWarning, setAttendanceWarning] = useState(false);
+  const leaveDeductions = {};
+  const attendanceData = null;
+  const advanceData = {};
+  const expenseData = {};
+  const rosterOvertime = {};
+  const attendanceWarning = true;
   const autoSaveTimer = useRef(null);
   const fileRef = useRef();
 
@@ -167,82 +163,6 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
   // WPS per-employee search (PAY-14)
   const [wpsSearch, setWpsSearch] = useState('');
 
-  // Load leave deductions for this payroll period and pre-fill entry fields
-  useEffect(() => {
-    const [y, m] = payroll.period.split('-').map(Number);
-    const periodStart = `${y}-${String(m).padStart(2,'0')}-01`;
-    const daysInMonth = new Date(y, m, 0).getDate();
-    const periodEnd   = `${y}-${String(m).padStart(2,'0')}-${String(daysInMonth).padStart(2,'0')}`;
-
-    getLeaveRequests({ status: 'Approved', year: y }).then(leaves => {
-      const deductMap = {};
-      for (const emp of employees) {
-        const empLeaves = leaves.filter(l => l.employeeId === emp.id);
-        if (empLeaves.length > 0) {
-          const result = calculatePayrollLeaveDeductions(empLeaves, periodStart, periodEnd, emp.basicSalary);
-          if (result.totalDeduction > 0) {
-            deductMap[emp.id] = result;
-          }
-        }
-      }
-      setLeaveDeductions(deductMap);
-
-      // Pre-fill leaveDeduction on entries that don't already have a manual override
-      setEntries(prev => prev.map(entry => {
-        const calc = deductMap[entry.employeeId];
-        // Only pre-fill if the entry has no existing leaveDeduction value (0 or undefined)
-        if (calc && (!entry.leaveDeduction || entry.leaveDeduction === 0)) {
-          return { ...entry, leaveDeduction: parseFloat(calc.totalDeduction.toFixed(2)) };
-        }
-        return entry;
-      }));
-    }).catch(() => {}); // leave module may not be set up yet — fail silently
-  }, [payroll.period, employees]);
-
-  // Load only advances scheduled for this exact payroll period. Settled,
-  // cancelled, pending, and out-of-period advances are intentionally omitted.
-  useEffect(() => {
-    getAdvances().then(all => {
-      const byEmp = {};
-      for (const entry of payroll.entries.map(normaliseEntry)) {
-        const due = all.filter(advance =>
-          advance.employeeId === entry.employeeId &&
-          getAdvanceInstallmentForPeriod(advance, payroll.period) > 0
-        );
-        if (due.length) byEmp[entry.employeeId] = due;
-      }
-      setAdvanceData(byEmp);
-    }).catch(() => setAdvanceData({})).finally(() => setAdvancesLoaded(true));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [payroll.period]);
-
-  // Load approved+unpaid expenses — shown as informational panel; marked paid on submit (Feature 14)
-  useEffect(() => {
-    getApprovedUnpaidExpenses().then(all => {
-      const byEmp = {};
-      for (const exp of all) {
-        if (!byEmp[exp.employeeId]) byEmp[exp.employeeId] = [];
-        byEmp[exp.employeeId].push(exp);
-      }
-      setExpenseData(byEmp);
-    }).catch(() => {}); // expense_claims table may not exist yet — fail silently
-  }, []);
-
-  // Load roster-derived overtime for this payroll period (Feature 5.2)
-  useEffect(() => {
-    const [y, m] = payroll.period.split('-').map(Number);
-    getOvertimeFromRoster(y, m).then(setRosterOvertime).catch(() => {});
-  }, [payroll.period]);
-
-  // Load attendance data for this payroll period (Connection C)
-  // Art. 56: Payroll must not run against unclosed attendance period
-  useEffect(() => {
-    getAttendancePayrollData(payroll.period).then(data => {
-      setAttendanceData(data);
-      setAttendanceWarning(!data.periodClosed);
-    }).catch(() => {}); // attendance module may not be set up yet — fail silently
-  }, [payroll.period]);
-
   const payrollPayload = useCallback((updatedEntries, updatedMeta, overrides = {}) => ({
     ...payroll,
     ...updatedMeta,
@@ -282,36 +202,6 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
   useEffect(() => () => {
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
   }, []);
-
-  // Reconcile the system-generated advance deduction after advance data loads.
-  // This removes stale deductions immediately when an advance is settled or when
-  // the opened payroll is not one of its scheduled months.
-  useEffect(() => {
-    if (!advancesLoaded || editingLocked) return;
-    const next = entries.map(entry => {
-      const remaining = (entry.deductions || []).filter(item => item.label !== 'Advance Repayment');
-      const staging = stageAdvancesForPayroll(advanceData[entry.employeeId] || [], payroll.period, entry);
-      const staged = staging.staged;
-      const total = staging.total;
-      return {
-        ...entry,
-        deductions: total > 0 ? [...remaining, {
-          label: 'Advance Repayment',
-          amount: total,
-          source: 'automatic',
-          recurrence: 'one_time',
-          payrollPeriod: payroll.period,
-          advanceRepayments: staged.map(item => ({ id: item.advance.id, amount: item.amount })),
-        }] : remaining,
-      };
-    });
-    if (JSON.stringify(next) === JSON.stringify(entries)) return;
-    setEntries(next);
-    saveNow(next, meta).catch(() => { /* visible failed state is rendered in the header */ });
-  // Reconcile only when the fetched monthly staging changes; entry edits should
-  // not repeatedly recreate a deduction the user explicitly undid.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [advancesLoaded, advanceData, editingLocked, leaveDeductions]);
 
   const [year, month] = payroll.period.split('-').map(Number);
   const daysInMonth = getDaysInMonth(year, month);
@@ -1258,14 +1148,12 @@ export default function PayrollEditor({ payroll, employees, company, onSave, onB
           </div>
         </div>
 
-        {/* ── Attendance Warning (Art. 56 — period must be closed before payroll) ── */}
         {attendanceWarning && (
           <div className="alert alert-warning mb-4">
             <AlertCircle size={16}/>
             <div>
-              <strong>Art. 56 — Attendance Not Finalised:</strong> The attendance period for {payroll.period} has not been closed yet.
-              UAE Labour Law requires payroll to be based on finalised attendance data.
-              Please close the attendance period in the <strong>Attendance</strong> module before running payroll.
+              <strong>Automatic payroll inputs have moved to the migration payroll workspace.</strong>{' '}
+              This legacy editor no longer reads leave, attendance, roster, expense, or advance inputs.
             </div>
           </div>
         )}

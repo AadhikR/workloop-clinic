@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from typing import cast
 from uuid import UUID
 
 import pytest
 from pydantic import ValidationError
+from sqlalchemy.engine import RowMapping
 
 from app.schemas.payroll import (
     PayrollAdjustmentRequest,
@@ -13,7 +15,13 @@ from app.schemas.payroll import (
     PayrollEntryResponse,
     PayrollRunDetailResponse,
 )
-from app.services.payroll import calculate_entry, prorate
+from app.services.payroll import (
+    advance_due,
+    automatic_adjustment,
+    calculate_entry,
+    manual_adjustments,
+    prorate,
+)
 
 
 def adjustment(code: str, amount: str, recurrence: str = "recurring") -> PayrollAdjustmentRequest:
@@ -48,6 +56,75 @@ def test_payroll_named_adjustments_match_the_approved_golden_case() -> None:
     assert values.total_deductions == Decimal("150.00")
     assert values.net_pay == Decimal("10600.00")
     assert values.wps_variable_pay == Decimal("600.00")
+
+
+def test_integrated_automatic_inputs_match_the_approved_golden_case() -> None:
+    expense = automatic_adjustment(
+        "expense",
+        UUID("9e000000-0000-4000-8000-000000000010"),
+        "Expense reimbursement",
+        Decimal("350.00"),
+    )
+    roster = automatic_adjustment(
+        "roster",
+        UUID("9e000000-0000-4000-8000-000000000011"),
+        "Roster overtime",
+        Decimal("288.46"),
+    )
+    advance = automatic_adjustment(
+        "advance",
+        UUID("9e000000-0000-4000-8000-000000000012"),
+        "Advance repayment",
+        Decimal("500.00"),
+    )
+    values = calculate_entry(
+        basic_salary="12000.00",
+        housing_allowance="3000.00",
+        transport_allowance="1000.00",
+        fixed_allowance="500.00",
+        bonus="1000.00",
+        leave_deduction="400.00",
+        additional_allowances=[expense, roster],
+        deductions=[advance],
+    )
+    assert values.fixed_pay == Decimal("16500.00")
+    assert values.gross_pay == Decimal("18138.46")
+    assert values.total_deductions == Decimal("900.00")
+    assert values.net_pay == Decimal("17238.46")
+    assert values.wps_variable_pay == Decimal("5238.46")
+
+
+def test_advance_due_uses_oldest_unpaid_installment_and_exact_final_cent() -> None:
+    row = cast(
+        RowMapping,
+        {
+            "amount": Decimal("1000.00"),
+            "outstanding_balance": Decimal("666.67"),
+            "repayment_start_month": date(2026, 8, 1),
+            "repayment_months": 3,
+        },
+    )
+    due_period, amount = advance_due(row, date(2026, 10, 1))
+    assert due_period == date(2026, 9, 1)
+    assert amount == Decimal("666.67")
+
+
+def test_manual_adjustment_filter_never_preserves_reserved_sources() -> None:
+    manual: dict[str, object] = {
+        "id": str(UUID(int=1)),
+        "code": "SHIFT_ALLOWANCE",
+        "label": "Shift allowance",
+        "amount": "250.00",
+        "recurrence": "recurring",
+        "note": None,
+    }
+    automatic = automatic_adjustment(
+        "expense",
+        UUID("9e000000-0000-4000-8000-000000000020"),
+        "Expense reimbursement",
+        Decimal("350.00"),
+    )
+    assert manual_adjustments([manual, automatic]) == [manual]
 
 
 def test_payroll_proration_rounds_each_component_before_aggregation() -> None:

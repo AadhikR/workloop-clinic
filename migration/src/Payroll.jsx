@@ -17,6 +17,8 @@ const currentPeriod = today.slice(0, 7)
 function EntryEditor({ value, onChange, disabled }) {
   const preview = payrollPreview(value)
   const set = (name, next) => onChange({ ...value, [name]: next })
+  const manualItems = [...value.additionalAllowances, ...value.deductions]
+    .filter((item) => !/^(?:AUTO_|LEAVE_|ATTENDANCE_|ROSTER_|EXPENSE_|ADVANCE_)/.test(item.code))
   return (
     <fieldset className="payroll-entry" disabled={disabled}>
       <legend>{value.employeeName}</legend>
@@ -37,9 +39,14 @@ function EntryEditor({ value, onChange, disabled }) {
       </div>
       {(value.additionalAllowances.length > 0 || value.deductions.length > 0) && (
         <p className="payroll-adjustments">
-          Manual items: {[...value.additionalAllowances, ...value.deductions]
+          Manual items: {manualItems.length === 0 ? 'None' : manualItems
             .map((item) => `${item.label} ${item.amount} (${item.recurrence})`).join(', ')}
         </p>
+      )}
+      {value.sourceExplanations.length > 0 && (
+        <ul className="payroll-source-explanations" aria-label={`${value.employeeName} automatic payroll sources`}>
+          {value.sourceExplanations.map((item) => <li key={item}>{item}</li>)}
+        </ul>
       )}
     </fieldset>
   )
@@ -111,7 +118,7 @@ export default function Payroll({ account, authentication, branchId }) {
   return (
     <section className="payroll" aria-labelledby="payroll-title">
       <h2 id="payroll-title">Payroll drafts</h2>
-      <p>FastAPI recalculates every amount before saving. Approval and automatic payroll inputs are not available yet.</p>
+      <p>FastAPI recalculates every amount and refreshes approved payroll inputs. Approval remains unavailable.</p>
       <form className="payroll-create" onSubmit={(event) => {
         event.preventDefault()
         runAction(() => createPayrollRun(authentication, branchId, form), 'Payroll draft created.')
@@ -136,6 +143,13 @@ export default function Payroll({ account, authentication, branchId }) {
             <div className="payroll-editor">
               <h3>{selected.period} editable draft</h3>
               {selected.blockingErrors.map((error) => <p className="payroll-blocking" key={error}>{error}</p>)}
+              {selected.sourceWarnings.length > 0 && (
+                <section className="payroll-source-warnings" aria-labelledby="payroll-source-warnings-title">
+                  <h4 id="payroll-source-warnings-title">Source warnings</h4>
+                  <p>Attendance and roster values stay blocked until Phase 10 publishes their approved projections.</p>
+                  <ul>{selected.sourceWarnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>
+                </section>
+              )}
               <div className="payroll-actions">
                 <button type="button" disabled={busy} onClick={() => runAction(
                   () => savePayrollEntries(authentication, branchId, selected, entries),
@@ -143,8 +157,8 @@ export default function Payroll({ account, authentication, branchId }) {
                 )}>Save entries</button>
                 <button type="button" className="secondary" disabled={busy} onClick={() => runAction(
                   () => refreshPayrollRun(authentication, branchId, selected),
-                  'Trusted salary snapshots refreshed.',
-                )}>Refresh salaries</button>
+                  'Automatic payroll inputs refreshed.',
+                )}>Refresh payroll inputs</button>
                 <button type="button" className="secondary" disabled={busy} onClick={() => runAction(
                   () => repeatPayrollRun(authentication, branchId, selected, form),
                   'Recurring manual items copied to the new draft.',

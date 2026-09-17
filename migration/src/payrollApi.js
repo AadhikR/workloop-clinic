@@ -3,6 +3,7 @@ const timestampPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
 const datePattern = /^\d{4}-\d{2}-\d{2}$/
 const periodPattern = /^\d{4}-(?:0[1-9]|1[0-2])$/
 const moneyPattern = /^-?(?:0|[1-9]\d{0,9})\.\d{2}$/
+const automaticCodePattern = /^(?:AUTO_|LEAVE_|ATTENDANCE_|ROSTER_|EXPENSE_|ADVANCE_)/
 
 const runKeys = [
   'id', 'period', 'paymentDate', 'sequence', 'runStatus', 'approvalStatus',
@@ -190,8 +191,8 @@ export async function savePayrollEntries(authentication, branchId, run, entries)
     bonus: item.bonus,
     otherPay: item.otherPay,
     variableAllowance: item.variableAllowance,
-    additionalAllowances: item.additionalAllowances,
-    deductions: item.deductions,
+    additionalAllowances: item.additionalAllowances.filter((value) => !automaticCodePattern.test(value.code)),
+    deductions: item.deductions.filter((value) => !automaticCodePattern.test(value.code)),
     excluded: item.excluded,
     preview: payrollPreview(item),
   }))

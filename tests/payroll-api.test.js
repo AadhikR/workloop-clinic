@@ -101,9 +101,25 @@ test('payroll commands send idempotency, selected branch, and optimistic timesta
   assert.deepEqual(refresh.calls[0].options.json, { expectedUpdatedAt: now })
 
   const save = client()
-  await savePayrollEntries(save, branchId, detail, [entry])
+  const automatic = {
+    id: runId,
+    code: 'EXPENSE_91000000000040008000000000000002',
+    label: 'Expense reimbursement',
+    amount: '350.00',
+    recurrence: 'one_time',
+    note: null,
+  }
+  const entryWithAutomaticInput = {
+    ...entry,
+    additionalAllowances: [automatic],
+    grossPay: '10350.00',
+    netPay: '10350.00',
+    wpsVariablePay: '350.00',
+  }
+  await savePayrollEntries(save, branchId, detail, [entryWithAutomaticInput])
   assert.equal(save.calls[0].options.json.expectedUpdatedAt, now)
-  assert.deepEqual(save.calls[0].options.json.entries[0].preview, payrollPreview(entry))
+  assert.deepEqual(save.calls[0].options.json.entries[0].preview, payrollPreview(entryWithAutomaticInput))
+  assert.deepEqual(save.calls[0].options.json.entries[0].additionalAllowances, [])
 
   const remove = client()
   await deletePayrollRun(remove, branchId, detail)

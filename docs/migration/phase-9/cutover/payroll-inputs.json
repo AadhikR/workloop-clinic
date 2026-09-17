@@ -3,7 +3,15 @@
   "schemaVersion": 1,
   "featureId": "payroll-inputs",
   "dataClassification": "synthetic",
-  "status": {"current": "preparation", "changedAt": "2026-09-16T12:35:24Z", "history": [{"state": "preparation", "at": "2026-09-16T12:35:24Z", "reason": "Payroll input contracts are approved; legacy reads and writes remain authoritative until Part 9E passes."}]},
+  "status": {
+    "current": "completed",
+    "changedAt": "2026-09-17T05:51:45Z",
+    "history": [
+      {"state": "preparation", "at": "2026-09-16T12:35:24Z", "reason": "Payroll input contracts are approved; legacy reads and writes remain authoritative until Part 9E passes."},
+      {"state": "active-cutover", "at": "2026-09-17T05:51:44Z", "reason": "Phase 9E source locking, scope, version, calculation, refresh, concurrency, audit, and fail-closed checks passed on synthetic data."},
+      {"state": "completed", "at": "2026-09-17T05:51:45Z", "reason": "Migration payroll input authority and the legacy automatic-input read freeze were verified."}
+    ]
+  },
   "dependencies": {
     "inventorySource": "docs/migration/phase-9/PART_9A_DEPENDENCY_INVENTORY.md",
     "requiredIds": ["leave-input", "attendance-input", "roster-input", "financial-input"],
@@ -14,16 +22,16 @@
       {"id": "financial-input", "system": "legacy-supabase", "kind": "module", "locator": "src/components/PayrollEditor.jsx", "cutoverDisposition": "retain"}
     ]
   },
-  "authority": {"readSystem": "legacy-supabase", "writeSystem": "legacy-supabase", "writableSystems": ["legacy-supabase"]},
+  "authority": {"readSystem": "migration-fastapi", "writeSystem": "migration-fastapi", "writableSystems": ["migration-fastapi"]},
   "freeze": {
-    "read": {"system": "migration-fastapi", "condition": "Migration automatic payroll input reads remain disabled or fail closed during preparation.", "releaseCondition": "Part 9E proves every approved source projection and records active cutover.", "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-9/cutover/payroll-inputs.json"},
-    "write": {"system": "migration-fastapi", "condition": "Migration input refresh cannot become authoritative during preparation.", "releaseCondition": "Part 9E proves deterministic locking, source versions, repeatability, and the legacy writer freeze.", "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-9/cutover/payroll-inputs.json"}
+    "read": {"system": "legacy-supabase", "condition": "The legacy payroll editor does not read leave, attendance, roster, expense, or advance payroll inputs.", "releaseCondition": "Rollback disables migration automatic-input refresh before restoring legacy input reads.", "verificationCommand": "node --test tests/phase-9e-legacy-freeze.test.js"},
+    "write": {"system": "legacy-supabase", "condition": "The legacy payroll editor cannot apply or refresh automatic payroll inputs.", "releaseCondition": "Rollback disables migration automatic-input commands before restoring the legacy path.", "verificationCommand": "node --test tests/phase-9e-legacy-freeze.test.js"}
   },
   "refresh": {
     "mode": "synthetic-only",
     "source": {"kind": "tracked-fixture", "locator": "docs/migration/phase-9/PART_9A_GOLDEN_CASES.md", "digest": "sha256:db900bd5134a67f3523ca276af6cbed198ca2c1423f8ea31e5bcbcb7bde7f552"},
-    "command": "node scripts/cutover-record-validator.mjs docs/migration/phase-9/cutover/payroll-inputs.json",
-    "lastRefresh": {"timestamp": "2026-09-16T12:35:24Z", "command": "node scripts/cutover-record-validator.mjs docs/migration/phase-9/cutover/payroll-inputs.json", "sourceDigest": "sha256:db900bd5134a67f3523ca276af6cbed198ca2c1423f8ea31e5bcbcb7bde7f552", "evidence": {"path": "docs/migration/phase-9/cutover/evidence-payroll-inputs.json", "sha256": "sha256:00e56a05a785177fa305233bf3db464e19da756b6dc09122e6602419be2b106b"}}
+    "command": "python scripts/verify-phase-9e-payroll-inputs.py",
+    "lastRefresh": {"timestamp": "2026-09-17T05:51:45Z", "command": "python scripts/verify-phase-9e-payroll-inputs.py", "sourceDigest": "sha256:db900bd5134a67f3523ca276af6cbed198ca2c1423f8ea31e5bcbcb7bde7f552", "evidence": {"path": "docs/migration/phase-9/cutover/evidence-payroll-inputs.json", "sha256": "sha256:65ca47ad8d45ee04eddb0903d56ea1d8f1da7174ea45e2f90355780226567b6f"}}
   },
   "identityMapping": {"mode": "synthetic-only", "legacyIdField": "legacySupabaseUserId", "applicationIdField": "applicationUserId", "requiredLegacyUserIds": ["11111111-1111-4111-8111-111111111111"], "mappings": [{"legacySupabaseUserId": "11111111-1111-4111-8111-111111111111", "applicationUserId": "10000000-0000-4000-8000-000000000001", "synthetic": true}]},
   "rollback": {
@@ -38,5 +46,5 @@
       {"id": "verify-data", "action": "Compare synthetic source IDs, versions, rounded results, and digests.", "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-9/cutover/payroll-inputs.json"}
     ]
   },
-  "validation": {"asOf": "2026-09-16T12:35:24Z", "refreshMaxAgeHours": 168}
+  "validation": {"asOf": "2026-09-17T05:51:45Z", "refreshMaxAgeHours": 24}
 }

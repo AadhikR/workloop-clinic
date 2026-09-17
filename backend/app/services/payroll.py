@@ -4,6 +4,7 @@ import calendar
 import hashlib
 import json
 import uuid
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
@@ -33,6 +34,9 @@ from app.services.execution import ServiceExecutionError
 
 CENT = Decimal("0.01")
 ZERO = Decimal("0.00")
+AUTOMATIC_PREFIXES = ("AUTO_", "LEAVE_", "ATTENDANCE_", "ROSTER_", "EXPENSE_", "ADVANCE_")
+SOURCE_TYPES = ("leave", "attendance", "roster", "expense", "advance")
+AUTOMATIC_NAMESPACE = uuid.UUID("9e000000-0000-4000-8000-000000000001")
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,6 +171,109 @@ def _stamp_digest(entries: list[dict[str, object]]) -> list[dict[str, object]]:
     return [{**item, "source_snapshot_digest": digest} for item in entries]
 
 
+def is_automatic_adjustment(item: dict[str, object]) -> bool:
+    code = str(item.get("code", ""))
+    return item.get("source") == "automatic" or code.startswith(AUTOMATIC_PREFIXES)
+
+
+def manual_adjustments(items: list[dict[str, object]]) -> list[dict[str, object]]:
+    return [item for item in items if not is_automatic_adjustment(item)]
+
+
+def automatic_adjustment(
+    source_type: str,
+    source_id: uuid.UUID,
+    label: str,
+    amount: Decimal,
+) -> dict[str, object]:
+    return {
+        "id": str(uuid.uuid5(AUTOMATIC_NAMESPACE, f"{source_type}:{source_id}")),
+        "code": f"{source_type.upper()}_{source_id.hex}",
+        "label": label,
+        "amount": f"{money(amount):.2f}",
+        "recurrence": "one_time",
+        "note": None,
+    }
+
+
+def _automatic_source(
+    *,
+    source_type: str,
+    source_id: uuid.UUID,
+    source_version: datetime,
+    period: str,
+    direction: Literal["addition", "deduction"],
+    amount: Decimal,
+    calculation_inputs: dict[str, object],
+) -> dict[str, object]:
+    return {
+        "calculatedAmount": f"{money(amount):.2f}",
+        "calculationInputs": calculation_inputs,
+        "direction": direction,
+        "period": period,
+        "sourceId": str(source_id),
+        "sourceType": source_type,
+        "sourceVersion": _iso(source_version),
+    }
+
+
+def _add_months(value: date, count: int) -> date:
+    index = value.year * 12 + value.month - 1 + count
+    return date(index // 12, index % 12 + 1, 1)
+
+
+def _installments(amount: Decimal, count: int) -> list[Decimal]:
+    monthly = (amount / Decimal(count)).quantize(CENT, rounding=ROUND_HALF_UP)
+    remaining = amount
+    values: list[Decimal] = []
+    for index in range(count):
+        installment = remaining if index == count - 1 else min(monthly, remaining)
+        installment = money(installment)
+        values.append(installment)
+        remaining = money(remaining - installment)
+    return values
+
+
+def advance_due(row: RowMapping, period_start: date) -> tuple[date, Decimal]:
+    amount = money(row["amount"])
+    paid = money(amount - money(row["outstanding_balance"]))
+    due = ZERO
+    due_period = row["repayment_start_month"]
+    for index, scheduled in enumerate(_installments(amount, row["repayment_months"])):
+        installment_period = _add_months(row["repayment_start_month"], index)
+        applied = min(scheduled, paid)
+        paid = money(paid - applied)
+        remaining = money(scheduled - applied)
+        if remaining > ZERO and installment_period <= period_start:
+            if due == ZERO:
+                due_period = installment_period
+            due = money(due + remaining)
+    return due_period, min(due, money(row["outstanding_balance"]))
+
+
+def _source_audit_metadata(entries: list[dict[str, object]]) -> dict[str, object]:
+    grouped: dict[str, list[dict[str, object]]] = {name: [] for name in SOURCE_TYPES}
+    for entry in entries:
+        snapshot = cast(dict[str, object], entry["source_snapshot"])
+        inputs = cast(list[dict[str, object]], snapshot.get("automaticInputs", []))
+        for item in inputs:
+            source_type = str(item["sourceType"])
+            if source_type in grouped:
+                grouped[source_type].append(item)
+    return {
+        "counts": {name: len(grouped[name]) for name in SOURCE_TYPES},
+        "digests": {
+            name: _digest(
+                sorted(
+                    grouped[name],
+                    key=lambda item: (str(item["sourceId"]), str(item["sourceVersion"])),
+                )
+            )
+            for name in SOURCE_TYPES
+        },
+    }
+
+
 def _adjustment_dict(item: PayrollAdjustmentRequest | dict[str, object]) -> dict[str, object]:
     if isinstance(item, PayrollAdjustmentRequest):
         return item.model_dump(mode="json", by_alias=True)
@@ -251,19 +358,33 @@ def _entry_response(row: RowMapping) -> PayrollEntryResponse:
     )
 
 
+def _source_warnings(rows: list[RowMapping]) -> list[str]:
+    values: set[str] = set()
+    for row in rows:
+        snapshot = dict(row["source_snapshot"] or {})
+        values.update(str(item) for item in snapshot.get("sourceWarnings", []))
+    return sorted(values)
+
+
 def _validation(
-    entries: list[PayrollEntryResponse],
+    entries: list[PayrollEntryResponse], source_warnings: list[str]
 ) -> tuple[Literal["valid", "blocking"], list[str]]:
     errors = [
         f"negative_net_pay:{item.employee_id}"
         for item in entries
         if not item.excluded and Decimal(item.net_pay) < ZERO
     ]
+    errors.extend(
+        f"payroll_input_not_ready:{item.removesuffix('_input_not_ready')}"
+        for item in source_warnings
+    )
     return ("blocking" if errors else "valid"), errors
 
 
-def _run_response(row: RowMapping, entries: list[PayrollEntryResponse]) -> PayrollRunResponse:
-    validation_status, errors = _validation(entries)
+def _run_response(
+    row: RowMapping, entries: list[PayrollEntryResponse], source_warnings: list[str]
+) -> PayrollRunResponse:
+    validation_status, errors = _validation(entries, source_warnings)
     return PayrollRunResponse(
         id=row["id"],
         period=row["period"],
@@ -275,7 +396,7 @@ def _run_response(row: RowMapping, entries: list[PayrollEntryResponse]) -> Payro
         total_amount=f"{money(row['total_disbursed']):.2f}",
         validation_status=validation_status,
         blocking_errors=errors,
-        source_warnings=[],
+        source_warnings=source_warnings,
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
@@ -329,8 +450,9 @@ class PayrollService:
         visible = rows[: query.limit]
         responses: list[PayrollRunResponse] = []
         for row in visible:
-            entries = [_entry_response(item) for item in await self.repository.entries(row["id"])]
-            responses.append(_run_response(row, entries))
+            entry_rows = await self.repository.entries(row["id"])
+            entries = [_entry_response(item) for item in entry_rows]
+            responses.append(_run_response(row, entries, _source_warnings(entry_rows)))
         next_cursor = None
         if len(rows) > query.limit and visible:
             next_cursor = self.cursor_codec.encode(
@@ -349,8 +471,9 @@ class PayrollService:
         row = await self.repository.get_run(principal.company_id, branch_id, run_id)
         if row is None:
             raise ServiceExecutionError("resource_not_found")
-        entries = [_entry_response(item) for item in await self.repository.entries(run_id)]
-        base = _run_response(row, entries).model_dump()
+        entry_rows = await self.repository.entries(run_id)
+        entries = [_entry_response(item) for item in entry_rows]
+        base = _run_response(row, entries, _source_warnings(entry_rows)).model_dump()
         return PayrollRunDetailResponse(**base, entries=entries)
 
     async def _validate_period_and_payment(self, period: str, payment_date: date) -> None:
@@ -387,12 +510,53 @@ class PayrollService:
         preserved: dict[uuid.UUID, ManualValues],
     ) -> list[dict[str, object]]:
         start, end = _period_dates(period)
+        leave_inputs = await self.repository.lock_leave_inputs(
+            company_id=principal.company_id,
+            branch_id=branch_id,
+            period_start=start,
+            period_end=end,
+        )
+        attendance_inputs = await self.repository.attendance_input_projection(
+            company_id=principal.company_id,
+            branch_id=branch_id,
+            period=period,
+        )
+        roster_inputs = await self.repository.roster_input_projection(
+            company_id=principal.company_id,
+            branch_id=branch_id,
+            period=period,
+        )
+        expense_inputs = await self.repository.lock_expense_inputs(
+            company_id=principal.company_id,
+            branch_id=branch_id,
+            period_start=start,
+            period_end=end,
+        )
+        advance_inputs = await self.repository.lock_advance_inputs(
+            company_id=principal.company_id,
+            branch_id=branch_id,
+            period_start=start,
+        )
         employees = await self.repository.eligible_employees(
             company_id=principal.company_id,
             branch_id=branch_id,
             period_start=start,
             period_end=end,
         )
+        leave_by_employee: defaultdict[uuid.UUID, list[RowMapping]] = defaultdict(list)
+        expense_by_employee: defaultdict[uuid.UUID, list[RowMapping]] = defaultdict(list)
+        advance_by_employee: defaultdict[uuid.UUID, list[RowMapping]] = defaultdict(list)
+        for item in leave_inputs:
+            leave_by_employee[item["employee_id"]].append(item)
+        for item in expense_inputs:
+            expense_by_employee[item["employee_id"]].append(item)
+        for item in advance_inputs:
+            advance_by_employee[item["employee_id"]].append(item)
+        source_warnings: list[str] = []
+        if attendance_inputs is None:
+            source_warnings.append("attendance_input_not_ready")
+        if roster_inputs is None:
+            source_warnings.append("roster_input_not_ready")
         result: list[dict[str, object]] = []
         for employee in employees:
             eligible_start = max(start, employee["employment_start_date"] or start)
@@ -400,8 +564,109 @@ class PayrollService:
             days = (eligible_end - eligible_start).days + 1
             period_days = end.day
             manual = preserved.get(employee["id"])
-            additions = manual["additional_allowances"] if manual else []
-            deductions = manual["deductions"] if manual else []
+            additions = list(manual["additional_allowances"]) if manual else []
+            deductions = list(manual["deductions"]) if manual else []
+            automatic_inputs: list[dict[str, object]] = []
+            explanations: list[str] = []
+            leave_deduction = ZERO
+
+            for leave in leave_by_employee[employee["id"]]:
+                overlap_start = max(start, leave["start_date"])
+                overlap_end = min(end, leave["end_date"])
+                overlap_days = Decimal((overlap_end - overlap_start).days + 1)
+                if leave["is_half_day"]:
+                    overlap_days = Decimal("0.5")
+                amount = money(Decimal(employee["basic_salary"]) / Decimal(30) * overlap_days)
+                leave_deduction = money(leave_deduction + amount)
+                source_version = max(leave["request_updated_at"], leave["leave_type_updated_at"])
+                automatic_inputs.append(
+                    _automatic_source(
+                        source_type="leave",
+                        source_id=leave["source_id"],
+                        source_version=source_version,
+                        period=period,
+                        direction="deduction",
+                        amount=amount,
+                        calculation_inputs={
+                            "basicSalary": f"{money(employee['basic_salary']):.2f}",
+                            "days": f"{overlap_days:.2f}",
+                            "leaveTypeCode": leave["leave_type_code"],
+                        },
+                    )
+                )
+                explanations.append(
+                    f"Approved {leave['leave_type_code']} leave deducted AED {amount:.2f}."
+                )
+
+            for expense in expense_by_employee[employee["id"]]:
+                amount = money(expense["amount"])
+                additions.append(
+                    automatic_adjustment(
+                        "expense", expense["source_id"], "Expense reimbursement", amount
+                    )
+                )
+                automatic_inputs.append(
+                    _automatic_source(
+                        source_type="expense",
+                        source_id=expense["source_id"],
+                        source_version=expense["source_version"],
+                        period=period,
+                        direction="addition",
+                        amount=amount,
+                        calculation_inputs={"expenseDate": str(expense["expense_date"])},
+                    )
+                )
+                explanations.append(f"Approved expense reimbursed AED {amount:.2f}.")
+
+            before_advances = calculate_entry(
+                basic_salary=prorate(employee["basic_salary"], days, period_days),
+                housing_allowance=prorate(employee["housing_allowance"], days, period_days),
+                transport_allowance=prorate(employee["transport_allowance"], days, period_days),
+                fixed_allowance=prorate(employee["allowance"], days, period_days),
+                increment=manual["increment"] if manual else ZERO,
+                bonus=manual["bonus"] if manual else ZERO,
+                other_pay=manual["other_pay"] if manual else ZERO,
+                variable_allowance=manual["variable_allowance"] if manual else ZERO,
+                leave_deduction=leave_deduction,
+                additional_allowances=additions,
+                deductions=deductions,
+            )
+            available = max(before_advances.net_pay, ZERO)
+            due_advances = [
+                (*advance_due(advance, start), advance)
+                for advance in advance_by_employee[employee["id"]]
+            ]
+            due_advances.sort(
+                key=lambda item: (item[0], item[2]["created_at"], item[2]["source_id"])
+            )
+            for due_period, due, advance in due_advances:
+                if due <= ZERO:
+                    continue
+                amount = min(due, available)
+                available = money(available - amount)
+                deductions.append(
+                    automatic_adjustment(
+                        "advance", advance["source_id"], "Advance repayment", amount
+                    )
+                )
+                automatic_inputs.append(
+                    _automatic_source(
+                        source_type="advance",
+                        source_id=advance["source_id"],
+                        source_version=advance["source_version"],
+                        period=period,
+                        direction="deduction",
+                        amount=amount,
+                        calculation_inputs={
+                            "availablePayCapacity": f"{money(available + amount):.2f}",
+                            "dueAmount": f"{due:.2f}",
+                            "duePeriod": due_period.strftime("%Y-%m"),
+                            "outstandingBalance": f"{money(advance['outstanding_balance']):.2f}",
+                        },
+                    )
+                )
+                explanations.append(f"Advance repayment deducted AED {amount:.2f}.")
+
             values = calculate_entry(
                 basic_salary=prorate(employee["basic_salary"], days, period_days),
                 housing_allowance=prorate(employee["housing_allowance"], days, period_days),
@@ -411,18 +676,22 @@ class PayrollService:
                 bonus=manual["bonus"] if manual else ZERO,
                 other_pay=manual["other_pay"] if manual else ZERO,
                 variable_allowance=manual["variable_allowance"] if manual else ZERO,
+                leave_deduction=leave_deduction,
                 additional_allowances=additions,
                 deductions=deductions,
             )
             snapshot: dict[str, object] = {
-                "automaticInputs": list[object](),
+                "automaticInputs": automatic_inputs,
                 "effectiveDate": _iso(employee["updated_at"]),
                 "eligibleDays": days,
                 "employmentStartDate": str(employee["employment_start_date"])
                 if employee["employment_start_date"]
                 else None,
                 "employeeSourceVersion": _iso(employee["updated_at"]),
-                "manualAdjustments": {"allowances": additions, "deductions": deductions},
+                "manualAdjustments": {
+                    "allowances": manual_adjustments(additions),
+                    "deductions": manual_adjustments(deductions),
+                },
                 "periodDays": period_days,
                 "salary": {
                     "allowance": f"{money(employee['allowance']):.2f}",
@@ -430,7 +699,8 @@ class PayrollService:
                     "housingAllowance": f"{money(employee['housing_allowance']):.2f}",
                     "transportAllowance": f"{money(employee['transport_allowance']):.2f}",
                 },
-                "sourceExplanations": [],
+                "sourceExplanations": explanations,
+                "sourceWarnings": source_warnings,
                 "terminationDate": str(employee["termination_date"])
                 if employee["termination_date"]
                 else None,
@@ -532,7 +802,7 @@ class PayrollService:
         await self.repository.replace_entries(run_id, entries)
         await append_audit_event(
             self.connection,
-            action="payroll_draft_refreshed",
+            action="payroll_inputs_refreshed",
             entity_type="payroll_run",
             entity_id=run_id,
             changed_fields=[
@@ -541,7 +811,8 @@ class PayrollService:
                 "total_disbursed",
                 "updated_at",
             ],
-            reason="Payroll draft refreshed",
+            reason="Payroll inputs refreshed",
+            metadata=_source_audit_metadata(entries),
         )
         return await self.detail(principal, branch_id, run_id)
 
@@ -564,10 +835,12 @@ class PayrollService:
                 "additional_allowances": [
                     item
                     for item in row["additional_allowances"]
-                    if item.get("recurrence") == "recurring"
+                    if item.get("recurrence") == "recurring" and not is_automatic_adjustment(item)
                 ],
                 "deductions": [
-                    item for item in row["deductions"] if item.get("recurrence") == "recurring"
+                    item
+                    for item in row["deductions"]
+                    if item.get("recurrence") == "recurring" and not is_automatic_adjustment(item)
                 ],
                 "excluded": False,
             }
@@ -589,8 +862,8 @@ class PayrollService:
                 "bonus": entry["bonus"],
                 "other_pay": entry["other_pay"],
                 "variable_allowance": entry["variable_allowance"],
-                "additional_allowances": list(entry["additional_allowances"]),
-                "deductions": list(entry["deductions"]),
+                "additional_allowances": manual_adjustments(list(entry["additional_allowances"])),
+                "deductions": manual_adjustments(list(entry["deductions"])),
                 "excluded": entry["excluded"],
             }
         entries = await self._employee_entries(principal, branch_id, row["period"], preserved)
@@ -599,7 +872,7 @@ class PayrollService:
         await self.repository.replace_entries(run_id, entries)
         await append_audit_event(
             self.connection,
-            action="payroll_draft_refreshed",
+            action="payroll_inputs_refreshed",
             entity_type="payroll_run",
             entity_id=run_id,
             changed_fields=[
@@ -608,7 +881,8 @@ class PayrollService:
                 "total_disbursed",
                 "updated_at",
             ],
-            reason="Payroll draft refreshed",
+            reason="Payroll inputs refreshed",
+            metadata=_source_audit_metadata(entries),
         )
         return await self.detail(principal, branch_id, run_id)
 
@@ -622,6 +896,8 @@ class PayrollService:
         row = await self._locked(principal, branch_id, run_id)
         self._draft_version(row, request.expected_updated_at)
         start, end = _period_dates(row["period"])
+        existing_rows = await self.repository.entries(run_id)
+        existing_by_employee = {item["employee_id"]: item for item in existing_rows}
         employees = await self.repository.eligible_employees(
             company_id=principal.company_id,
             branch_id=branch_id,
@@ -629,16 +905,31 @@ class PayrollService:
             period_end=end,
         )
         employee_by_id = {item["id"]: item for item in employees}
-        if set(employee_by_id) != {item.employee_id for item in request.entries}:
+        request_employee_ids = {item.employee_id for item in request.entries}
+        if (
+            set(employee_by_id) != request_employee_ids
+            or set(existing_by_employee) != request_employee_ids
+        ):
             raise ServiceExecutionError("validation_failed")
         stored: list[dict[str, object]] = []
         for item in request.entries:
             employee = employee_by_id[item.employee_id]
+            existing = existing_by_employee[item.employee_id]
             eligible_start = max(start, employee["employment_start_date"] or start)
             eligible_end = min(end, employee["termination_date"] or end)
             days = (eligible_end - eligible_start).days + 1
-            additions = [_adjustment_dict(value) for value in item.additional_allowances]
-            deductions = [_adjustment_dict(value) for value in item.deductions]
+            manual_additions = [_adjustment_dict(value) for value in item.additional_allowances]
+            manual_deductions = [_adjustment_dict(value) for value in item.deductions]
+            automatic_additions = [
+                dict(value)
+                for value in existing["additional_allowances"]
+                if is_automatic_adjustment(value)
+            ]
+            automatic_deductions = [
+                dict(value) for value in existing["deductions"] if is_automatic_adjustment(value)
+            ]
+            additions = manual_additions + automatic_additions
+            deductions = manual_deductions + automatic_deductions
             values = calculate_entry(
                 basic_salary=prorate(employee["basic_salary"], days, end.day),
                 housing_allowance=prorate(employee["housing_allowance"], days, end.day),
@@ -648,36 +939,49 @@ class PayrollService:
                 bonus=item.bonus,
                 other_pay=item.other_pay,
                 variable_allowance=item.variable_allowance,
-                additional_allowances=item.additional_allowances,
-                deductions=item.deductions,
+                leave_deduction=existing["leave_deduction"],
+                additional_allowances=additions,
+                deductions=deductions,
             )
             if item.preview != _preview(values):
                 raise ServiceExecutionError("validation_failed")
-            snapshot: dict[str, object] = {
-                "automaticInputs": list[object](),
-                "effectiveDate": _iso(employee["updated_at"]),
-                "eligibleDays": days,
-                "employmentStartDate": str(employee["employment_start_date"])
-                if employee["employment_start_date"]
-                else None,
-                "employeeSourceVersion": _iso(employee["updated_at"]),
-                "manualAdjustments": {"allowances": additions, "deductions": deductions},
-                "periodDays": end.day,
-                "salary": {
-                    "allowance": f"{money(employee['allowance']):.2f}",
-                    "basicSalary": f"{money(employee['basic_salary']):.2f}",
-                    "housingAllowance": f"{money(employee['housing_allowance']):.2f}",
-                    "transportAllowance": f"{money(employee['transport_allowance']):.2f}",
-                },
-                "sourceExplanations": [],
-                "terminationDate": str(employee["termination_date"])
-                if employee["termination_date"]
-                else None,
-            }
+            snapshot = dict(existing["source_snapshot"] or {})
+            snapshot.update(
+                {
+                    "effectiveDate": _iso(employee["updated_at"]),
+                    "eligibleDays": days,
+                    "employmentStartDate": str(employee["employment_start_date"])
+                    if employee["employment_start_date"]
+                    else None,
+                    "employeeSourceVersion": _iso(employee["updated_at"]),
+                    "manualAdjustments": {
+                        "allowances": manual_additions,
+                        "deductions": manual_deductions,
+                    },
+                    "periodDays": end.day,
+                    "salary": {
+                        "allowance": f"{money(employee['allowance']):.2f}",
+                        "basicSalary": f"{money(employee['basic_salary']):.2f}",
+                        "housingAllowance": f"{money(employee['housing_allowance']):.2f}",
+                        "transportAllowance": f"{money(employee['transport_allowance']):.2f}",
+                    },
+                    "terminationDate": str(employee["termination_date"])
+                    if employee["termination_date"]
+                    else None,
+                }
+            )
             stored.append(
-                self._stored(
-                    item.employee_id, values, additions, deductions, item.excluded, snapshot
-                )
+                {
+                    **self._stored(
+                        item.employee_id,
+                        values,
+                        additions,
+                        deductions,
+                        item.excluded,
+                        snapshot,
+                    ),
+                    "leave_deduction": f"{money(existing['leave_deduction']):.2f}",
+                }
             )
         await self.repository.replace_entries(run_id, _stamp_digest(stored))
         await append_audit_event(

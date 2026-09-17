@@ -165,6 +165,121 @@ FOR SHARE
             ).mappings()
         )
 
+    async def lock_leave_inputs(
+        self,
+        *,
+        company_id: uuid.UUID,
+        branch_id: uuid.UUID,
+        period_start: date,
+        period_end: date,
+    ) -> list[RowMapping]:
+        return list(
+            (
+                await self.connection.execute(
+                    text(
+                        """
+SELECT request.id AS source_id,request.employee_id,request.start_date,request.end_date,
+       request.days_requested,request.is_half_day,request.updated_at AS request_updated_at,
+       leave_type.code AS leave_type_code,leave_type.updated_at AS leave_type_updated_at
+FROM public.leave_requests AS request
+JOIN public.leave_types AS leave_type
+  ON leave_type.id=request.leave_type_id AND leave_type.company_id=request.company_id
+ AND leave_type.branch_id=request.branch_id
+WHERE request.company_id=:company_id AND request.branch_id=:branch_id
+  AND request.status='Approved' AND leave_type.affects_payroll
+  AND request.start_date<=:period_end AND request.end_date>=:period_start
+ORDER BY request.employee_id,request.start_date,request.id
+FOR UPDATE OF request
+"""
+                    ),
+                    {
+                        "company_id": company_id,
+                        "branch_id": branch_id,
+                        "period_start": period_start,
+                        "period_end": period_end,
+                    },
+                )
+            ).mappings()
+        )
+
+    async def attendance_input_projection(
+        self, *, company_id: uuid.UUID, branch_id: uuid.UUID, period: str
+    ) -> list[RowMapping] | None:
+        del company_id, branch_id, period
+        return None
+
+    async def roster_input_projection(
+        self, *, company_id: uuid.UUID, branch_id: uuid.UUID, period: str
+    ) -> list[RowMapping] | None:
+        del company_id, branch_id, period
+        return None
+
+    async def lock_expense_inputs(
+        self,
+        *,
+        company_id: uuid.UUID,
+        branch_id: uuid.UUID,
+        period_start: date,
+        period_end: date,
+    ) -> list[RowMapping]:
+        return list(
+            (
+                await self.connection.execute(
+                    text(
+                        """
+SELECT claim.id AS source_id,claim.employee_id,claim.amount,claim.expense_date,
+       claim.updated_at AS source_version
+FROM public.expense_claims AS claim
+WHERE claim.company_id=:company_id AND claim.branch_id=:branch_id
+  AND claim.status='approved' AND claim.payroll_run_id IS NULL
+  AND claim.expense_date BETWEEN :period_start AND :period_end
+ORDER BY claim.employee_id,claim.expense_date,claim.id
+FOR UPDATE OF claim
+"""
+                    ),
+                    {
+                        "company_id": company_id,
+                        "branch_id": branch_id,
+                        "period_start": period_start,
+                        "period_end": period_end,
+                    },
+                )
+            ).mappings()
+        )
+
+    async def lock_advance_inputs(
+        self,
+        *,
+        company_id: uuid.UUID,
+        branch_id: uuid.UUID,
+        period_start: date,
+    ) -> list[RowMapping]:
+        return list(
+            (
+                await self.connection.execute(
+                    text(
+                        """
+SELECT advance.id AS source_id,advance.employee_id,advance.amount,
+       advance.repayment_start_month,advance.repayment_months,
+       advance.monthly_deduction,advance.outstanding_balance,
+       advance.created_at,advance.updated_at AS source_version
+FROM public.salary_advances AS advance
+WHERE advance.company_id=:company_id AND advance.branch_id=:branch_id
+  AND advance.status='active' AND advance.outstanding_balance>0
+  AND advance.repayment_start_month<=:period_start
+ORDER BY advance.employee_id,advance.repayment_start_month,advance.created_at,advance.id
+FOR UPDATE OF advance
+"""
+                    ),
+                    {
+                        "company_id": company_id,
+                        "branch_id": branch_id,
+                        "period_start": period_start,
+                    },
+                )
+            ).mappings()
+        )
+
     async def create_run(
         self,
         *,
