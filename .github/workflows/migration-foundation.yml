@@ -234,6 +234,9 @@ jobs:
             alembic -c /app/alembic.ini check
           '
           docker compose exec -T backend python -c "import os, psycopg; url=os.environ['DATABASE_URL'].replace('postgresql+psycopg://', 'postgresql://', 1); connection=psycopg.connect(url); cursor=connection.cursor(); cursor.execute('SELECT current_user'); assert cursor.fetchone() == ('workloop_runtime',); connection.close()"
+      - name: Verify Phase 9H exact predecessor
+        if: needs.changes.outputs.database_deep == 'true'
+        run: sh scripts/verify-phase-9h-revision.sh
       - name: Verify Phase 9B exact predecessor
         if: needs.changes.outputs.database_deep == 'true'
         run: sh scripts/verify-phase-9b-revision.sh

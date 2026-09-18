@@ -1,7 +1,7 @@
 # Phase 9H completion
 
-Status: independent review corrections and the final local gate are complete. The routed GitHub
-result is pending the single settled push.
+Status: independent review corrections, the final local gate, and the routed-verifier repair are
+complete. The required GitHub result is pending the corrective push.
 
 ## Review result
 
@@ -156,8 +156,8 @@ The exact staged tree passed the boundary-matched local gate in a fresh isolated
 - all 180 frontend tests and the production build;
 - the Phase 9H inventory, golden-case, cutover, conversion, and idempotency checks;
 - the complete historical database, RLS, grant, security, seed, and Phase 9 lifecycle checks;
-- empty-schema migration replay, repeatable head application, exact Phase 9G rollback and replay,
-  and an Alembic current-head check;
+- empty-schema migration replay, repeatable head application, exact Phase 9H-to-9G rollback and
+  replay, the complete historical exact-predecessor chain, and an Alembic current-head check;
 - unchanged normalized database catalogue fingerprint, Keycloak signing-key identifiers, synthetic
   private-storage state, and PostgreSQL, backend, and Keycloak image digests after container
   recreation without rebuilding; and
@@ -167,7 +167,9 @@ The exact staged tree passed the boundary-matched local gate in a fresh isolated
 
 ## GitHub result
 
-Pending the single settled push.
+The first routed run exposed stale current-head assertions in the historical database verifiers.
+The repair tracks the Phase 9H head and adds a live Phase 9H-to-9G rollback/replay check. The required
+result is pending the corrective push.
 
 ## Resource boundary
 

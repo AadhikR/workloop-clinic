@@ -36,6 +36,28 @@ const rollbackSteps = [
   'verify-authority',
   'verify-data',
 ]
+const currentHeadVerifierPaths = [
+  'scripts/verify-phase-7g-employee-lifecycle.py',
+  'scripts/verify-phase-8b-configuration-database.py',
+  'scripts/verify-phase-8c-balance-database.py',
+  'scripts/verify-phase-8d-database.py',
+  'scripts/verify-phase-8e-database.py',
+  'scripts/verify-phase-8f-database.py',
+  'scripts/verify-phase-9b-database.py',
+  'scripts/verify-phase-9b-revision.py',
+  'scripts/verify-phase-9c-database.py',
+  'scripts/verify-phase-9c-revision.py',
+  'scripts/verify-phase-9d-database.py',
+  'scripts/verify-phase-9d-revision.py',
+  'scripts/verify-phase-9e-database.py',
+  'scripts/verify-phase-9e-revision.py',
+  'scripts/verify-phase-9f-database.py',
+  'scripts/verify-phase-9f-lifecycle.py',
+  'scripts/verify-phase-9f-revision.py',
+  'scripts/verify-phase-9g-database.py',
+  'scripts/verify-phase-9g-lifecycle.py',
+  'scripts/verify-phase-9g-revision.py',
+]
 
 function readText(filePath) {
   return readFileSync(filePath, 'utf8').replaceAll('\r\n', '\n')
@@ -127,4 +149,31 @@ test('keeps the legacy payroll converter offline and evidence-producing', () => 
   assert.match(converter, /"legacySourceField": "duCost"/)
   assert.match(converter, /"targetField": "leaveDeduction"/)
   assert.doesNotMatch(converter, /APIRouter|supabase|AsyncConnection/)
+})
+
+test('routes exact Phase 9H rollback and tracks the current Alembic head', () => {
+  const workflow = readText(path.join(
+    repositoryDirectory,
+    '.github',
+    'workflows',
+    'migration-foundation.yml',
+  ))
+  const revisionScript = readText(path.join(
+    repositoryDirectory,
+    'scripts',
+    'verify-phase-9h-revision.sh',
+  ))
+  const revisionVerifier = readText(path.join(
+    repositoryDirectory,
+    'scripts',
+    'verify-phase-9h-revision.py',
+  ))
+  assert.match(workflow, /Verify Phase 9H exact predecessor/)
+  assert.match(workflow, /sh scripts\/verify-phase-9h-revision\.sh/)
+  assert.match(revisionScript, /downgrade e3a7c9d1f5b2/)
+  assert.match(revisionVerifier, /HEAD = "f4b8d2e6a901"/)
+  assert.match(revisionVerifier, /PREDECESSOR = "e3a7c9d1f5b2"/)
+  for (const verifierPath of currentHeadVerifierPaths) {
+    assert.match(readText(path.join(repositoryDirectory, verifierPath)), /f4b8d2e6a901/)
+  }
 })

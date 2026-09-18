@@ -9,7 +9,7 @@ import sys
 
 from sqlalchemy import create_engine, text
 
-HEAD = "e3a7c9d1f5b2"
+HEAD = "f4b8d2e6a901"
 PREDECESSOR = "e8f4c7b2a610"
 AUDIT_SIGNATURE = "text,text,uuid,text[],text,jsonb"
 PHASE9B_AUDIT_SIGNATURE = f"_append_audit_event_phase9c_prior({AUDIT_SIGNATURE})"
