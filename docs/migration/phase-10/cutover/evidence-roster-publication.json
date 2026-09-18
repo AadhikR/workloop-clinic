@@ -1,0 +1,1 @@
+{"featureId":"roster-publication","command":"node scripts/cutover-record-validator.mjs docs/migration/phase-10/cutover/roster-publication.json","refreshedAt":"2026-09-18T08:00:00Z","sourceDigest":"sha256:e0fcce294e309612dbf15cf0379899aea4b76217ad7be93834ec6ed1aca1120c","sourceRecordCount":0,"targetRecordCount":0,"result":"preparation-template-validated"}

@@ -61,8 +61,8 @@ last part reviews the complete boundary independently.
 
 | Part | Scope | Status |
 | --- | --- | --- |
-| 10A | Contracts, dependency inventory, golden cases, amendments, and cutover decisions | Authorized next; not started |
-| 10B | Attendance settings, shift templates, and effective-dated shift assignment | Authorized after the 10A commit; not started |
+| 10A | Contracts, dependency inventory, golden cases, amendments, and cutover decisions | Complete |
+| 10B | Attendance settings, shift templates, and effective-dated shift assignment | Authorized next; not started |
 | 10C | Manual and biometric event ingestion, badge mappings, provenance, and deduplication | Planned; not authorized |
 | 10D | Server attendance calculation, administrator reads, and employee self reads | Planned; not authorized |
 | 10E | Regularisation, absence resolution, overtime approval, and attendance audit | Planned; not authorized |
