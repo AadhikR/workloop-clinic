@@ -153,36 +153,13 @@ export async function getClockEvents(employeeId, date) {
 }
 
 export async function recordClockEvent({ employeeId, eventType, method = 'WEB', notes = '', enteredBy = null, ipAddress = null }) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-  const { data, error } = await supabase.from('clock_events').insert({
-    user_id:     user.id,
-    employee_id: employeeId,
-    event_type:  eventType,
-    event_time:  new Date().toISOString(),
-    method,
-    ip_address:  ipAddress,
-    entered_by:  enteredBy || user.id,
-    notes,
-  }).select().single();
-  if (error) throw error;
-  return dbToClockEvent(data);
+  void employeeId; void eventType; void method; void notes; void enteredBy; void ipAddress;
+  throw new Error('Clock-event writes have moved to the migration attendance ingestion screen.');
 }
 
 export async function recordManualClockEvent({ employeeId, eventType, eventTime, notes, enteredBy }) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-  const { data, error } = await supabase.from('clock_events').insert({
-    user_id:     user.id,
-    employee_id: employeeId,
-    event_type:  eventType,
-    event_time:  eventTime,
-    method:      'MANUAL',
-    entered_by:  enteredBy || user.id,
-    notes:       notes || '',
-  }).select().single();
-  if (error) throw error;
-  return dbToClockEvent(data);
+  void employeeId; void eventType; void eventTime; void notes; void enteredBy;
+  throw new Error('Manual clock-event writes have moved to the migration attendance ingestion screen.');
 }
 
 function dbToClockEvent(row) {

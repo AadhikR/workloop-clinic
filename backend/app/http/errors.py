@@ -52,6 +52,7 @@ ERROR_REGISTRY: dict[str, ErrorSpec] = {
     "attendance_configuration_conflict": ErrorSpec(
         409, "Attendance settings prevent this operation"
     ),
+    "clock_event_conflict": ErrorSpec(409, "A matching clock event already exists"),
     "shift_conflict": ErrorSpec(409, "Shift state prevents this operation"),
     "retained_shift": ErrorSpec(409, "Retained shift references prevent this operation"),
     "shift_assignment_conflict": ErrorSpec(409, "Shift assignment state prevents this operation"),

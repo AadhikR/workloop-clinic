@@ -407,9 +407,28 @@ class ClockEvent(Base):
         ),
         CheckConstraint("gps_lat IS NULL OR gps_lat BETWEEN -90 AND 90", name="latitude"),
         CheckConstraint("gps_lng IS NULL OR gps_lng BETWEEN -180 AND 180", name="longitude"),
+        UniqueConstraint("id", "company_id", "branch_id", name="uq_clock_events_id_scope"),
         Index("ix_clock_events_employee_id_event_time", "employee_id", "event_time"),
         Index("ix_clock_events_event_time", "event_time"),
         Index("ix_clock_events_branch_id", "branch_id"),
+        ForeignKeyConstraint(
+            ["import_batch_id", "company_id", "branch_id"],
+            [
+                "attendance_import_batches.id",
+                "attendance_import_batches.company_id",
+                "attendance_import_batches.branch_id",
+            ],
+            name="fk_clock_events_import_batch_scope",
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint(
+            "(import_batch_id IS NULL AND import_row_number IS NULL AND source_badge_no IS NULL "
+            "AND source_device_name IS NULL AND event_fingerprint IS NULL) OR "
+            "(method='BIOMETRIC' AND import_batch_id IS NOT NULL AND import_row_number IS NOT NULL "
+            "AND source_badge_no IS NOT NULL AND source_device_name IS NOT NULL "
+            "AND event_fingerprint IS NOT NULL)",
+            name="phase10c_provenance",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -432,6 +451,94 @@ class ClockEvent(Base):
         Boolean(), nullable=False, server_default=text("false")
     )
     superseded_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    event_fingerprint: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    import_batch_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    import_row_number: Mapped[int | None] = mapped_column(Integer(), nullable=True)
+    source_badge_no: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    source_device_name: Mapped[str | None] = mapped_column(Text(), nullable=True)
+
+
+class AttendanceImportBatch(Base):
+    __tablename__ = "attendance_import_batches"
+    __table_args__ = (
+        ForeignKeyConstraint(["company_id"], ["companies.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(
+            ["branch_id", "company_id"], ["branches.id", "branches.company_id"], ondelete="RESTRICT"
+        ),
+        ForeignKeyConstraint(["submitted_by_app_user_id"], ["app_users.id"], ondelete="RESTRICT"),
+        UniqueConstraint(
+            "company_id",
+            "branch_id",
+            "batch_fingerprint",
+            name="uq_attendance_import_batches_scope_fingerprint",
+        ),
+        UniqueConstraint(
+            "id", "company_id", "branch_id", name="uq_attendance_import_batches_id_scope"
+        ),
+        CheckConstraint("row_count BETWEEN 1 AND 5000", name="row_count"),
+        CheckConstraint("byte_count BETWEEN 1 AND 2097152", name="byte_count"),
+        Index(
+            "ix_attendance_import_batches_scope_created",
+            "company_id",
+            "branch_id",
+            text("created_at DESC"),
+        ),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    branch_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    submitted_by_app_user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    batch_fingerprint: Mapped[str] = mapped_column(Text(), nullable=False)
+    row_count: Mapped[int] = mapped_column(Integer(), nullable=False)
+    byte_count: Mapped[int] = mapped_column(Integer(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class AttendanceImportRowOutcome(Base):
+    __tablename__ = "attendance_import_row_outcomes"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["batch_id", "company_id", "branch_id"],
+            [
+                "attendance_import_batches.id",
+                "attendance_import_batches.company_id",
+                "attendance_import_batches.branch_id",
+            ],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["clock_event_id", "company_id", "branch_id"],
+            ["clock_events.id", "clock_events.company_id", "clock_events.branch_id"],
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint(
+            "batch_id", "row_number", name="uq_attendance_import_row_outcomes_batch_row"
+        ),
+        CheckConstraint("row_number >= 1", name="row_number"),
+        CheckConstraint(
+            "outcome IN ('accepted','duplicate','unknown_badge','invalid')", name="outcome"
+        ),
+        CheckConstraint(
+            "(outcome='accepted') = (clock_event_id IS NOT NULL)", name="event_for_accepted_only"
+        ),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    batch_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    branch_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    row_number: Mapped[int] = mapped_column(Integer(), nullable=False)
+    outcome: Mapped[str] = mapped_column(Text(), nullable=False)
+    reason_code: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    clock_event_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )

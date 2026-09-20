@@ -70,13 +70,15 @@ CURRENT_TARGET_TABLES = PHASE_5G_TARGET_TABLES | {
     "storage_operations",
     "leave_attachments",
     "expense_receipts",
+    "attendance_import_batches",
+    "attendance_import_row_outcomes",
 }
 
 
 def test_metadata_contains_exactly_the_current_target_tables() -> None:
     assert len(PHASE_4_TARGET_TABLES) == 54
     assert len(PHASE_5G_TARGET_TABLES) == 56
-    assert len(CURRENT_TARGET_TABLES) == 59
+    assert len(CURRENT_TARGET_TABLES) == 61
     assert set(Base.metadata.tables) == CURRENT_TARGET_TABLES
 
 

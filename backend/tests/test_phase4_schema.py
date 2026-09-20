@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from app.models import Base
-from tests.test_db_base import PHASE_4_TARGET_TABLES
+from tests.test_db_base import CURRENT_TARGET_TABLES
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 MODEL_DIR = BACKEND_ROOT / "app" / "models"
@@ -83,7 +83,7 @@ def test_every_foreign_key_resolves_within_the_target_schema() -> None:
             # Accessing .column forces SQLAlchemy to resolve the reference; an
             # unresolved target raises here rather than at first query.
             target_table = fk.column.table.name
-            assert target_table in PHASE_4_TARGET_TABLES, (
+            assert target_table in CURRENT_TARGET_TABLES, (
                 f"{table.name}.{fk.parent.name} points outside the target schema: {target_table}"
             )
 

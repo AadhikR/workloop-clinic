@@ -7,11 +7,12 @@ Phase 9 implementation and verification are complete at commit
 `35350832324` passed on 2026-09-18, and Alembic has one head at `f4b8d2e6a901`.
 The project owner signed off Phase 9 and authorized 10A on 2026-09-18. The owner directed 10A to
 settle bounded Phase 10 decisions with best judgment, commit its approved contract artifacts, and
-continue into 10B without an intermediate authorization pause. Parts 10A and 10B are complete.
+continue into 10B without an intermediate authorization pause. Parts 10A through 10C are complete.
 
 This document splits Phase 10 into ten parts, 10A through 10J. The completed authorization covered
-10A and 10B. Part 10C is next but remains unauthorized, as do Parts 10D through 10J. The completed
-authorization did not include production data, external biometric devices, paid services, cloud
+10A through 10C. The owner also authorized sequential work from 10D through 10J, with a separate
+task and verified handoff for each part. Phase 11 remains outside that authorization. The
+authorization does not include production data, external biometric devices, paid services, cloud
 resources, or the preserved PostgreSQL volume.
 
 ## Why Phase 10 needs subphases
@@ -63,14 +64,14 @@ last part reviews the complete boundary independently.
 | --- | --- | --- |
 | 10A | Contracts, dependency inventory, golden cases, amendments, and cutover decisions | Complete |
 | 10B | Attendance settings, shift templates, and effective-dated shift assignment | Complete |
-| 10C | Manual and biometric event ingestion, badge mappings, provenance, and deduplication | Next; not authorized |
-| 10D | Server attendance calculation, administrator reads, and employee self reads | Planned; not authorized |
-| 10E | Regularisation, absence resolution, overtime approval, and attendance audit | Planned; not authorized |
-| 10F | Atomic period close and the closed attendance payroll projection | Planned; not authorized |
-| 10G | Roster drafts, leave conflicts, staffing gates, and compliance overrides | Planned; not authorized |
-| 10H | Roster publication, employee schedules, actual-hours authority, and payroll projection | Planned; not authorized |
-| 10I | Shift-swap requests, cancellation, rejection, and protected execution | Planned; not authorized |
-| 10J | Independent review, complete cutover proof, and Phase 10 gate | Planned; not authorized |
+| 10C | Manual and biometric event ingestion, badge mappings, provenance, and deduplication | Complete |
+| 10D | Server attendance calculation, administrator reads, and employee self reads | Next; authorized |
+| 10E | Regularisation, absence resolution, overtime approval, and attendance audit | Planned; authorized after verified 10D handoff |
+| 10F | Atomic period close and the closed attendance payroll projection | Planned; authorized after verified 10E handoff |
+| 10G | Roster drafts, leave conflicts, staffing gates, and compliance overrides | Planned; authorized after verified 10F handoff |
+| 10H | Roster publication, employee schedules, actual-hours authority, and payroll projection | Planned; authorized after verified 10G handoff |
+| 10I | Shift-swap requests, cancellation, rejection, and protected execution | Planned; authorized after verified 10H handoff |
+| 10J | Independent review, complete cutover proof, and Phase 10 gate | Planned; authorized after verified 10I handoff |
 
 ## Rules shared by every part
 

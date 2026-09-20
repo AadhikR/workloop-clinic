@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from app import __version__
 from app.advance_api import router as advance_router
 from app.attendance_configuration_api import router as attendance_configuration_router
+from app.attendance_ingestion_api import router as attendance_ingestion_router
 from app.auth.access_token import AccessTokenVerifier
 from app.auth.application_user import ApplicationUserResolver
 from app.auth.dependencies import AuthenticatedAuthorizationPrincipal
@@ -157,6 +158,9 @@ def create_app(
                 resolved_settings.cursor_signing_key.get_secret_value()
             )
         )
+        application.state.attendance_ingestion_cursor_codec = EmployeeCursorCodec.from_base64url(
+            resolved_settings.cursor_signing_key.get_secret_value()
+        )
         application.state.leave_balance_cursor_codec = EmployeeCursorCodec.from_base64url(
             resolved_settings.cursor_signing_key.get_secret_value()
         )
@@ -216,6 +220,7 @@ def create_app(
     application.include_router(nafis_router)
     application.include_router(department_router)
     application.include_router(attendance_configuration_router)
+    application.include_router(attendance_ingestion_router)
     application.include_router(idempotency_router)
     application.include_router(leave_configuration_router)
     application.include_router(leave_balance_router)

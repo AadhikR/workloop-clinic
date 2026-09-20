@@ -1,6 +1,8 @@
 from app.db.base import Base
 from app.models.attendance import (
     AttendanceAuditLog,
+    AttendanceImportBatch,
+    AttendanceImportRowOutcome,
     AttendancePeriod,
     AttendanceRecord,
     AttendanceSettings,
@@ -70,6 +72,8 @@ __all__ = [
     "Asset",
     "AssetAssignment",
     "AttendanceAuditLog",
+    "AttendanceImportBatch",
+    "AttendanceImportRowOutcome",
     "AttendancePeriod",
     "AttendanceRecord",
     "AttendanceSettings",

@@ -32,23 +32,13 @@ export async function getBiometricMappings() {
 }
 
 export async function saveBiometricMapping({ badgeNo, employeeId, deviceName = 'Default' }) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-  const { data, error } = await supabase
-    .from('biometric_mappings')
-    .upsert(
-      { user_id: user.id, badge_no: badgeNo, employee_id: employeeId, device_name: deviceName },
-      { onConflict: 'user_id,badge_no' }
-    )
-    .select()
-    .single();
-  if (error) throw error;
-  return { id: data.id, badgeNo: data.badge_no, employeeId: data.employee_id, deviceName: data.device_name, createdAt: data.created_at };
+  void badgeNo; void employeeId; void deviceName;
+  throw new Error('Biometric mapping writes have moved to the migration attendance ingestion screen.');
 }
 
 export async function deleteBiometricMapping(id) {
-  const { error } = await supabase.from('biometric_mappings').delete().eq('id', id);
-  if (error) throw error;
+  void id;
+  throw new Error('Biometric mapping writes have moved to the migration attendance ingestion screen.');
 }
 
 // ── CSV parser ────────────────────────────────────────────────────────────────
@@ -190,51 +180,6 @@ export function parseBiometricCsv(text) {
  * @returns {{ imported: number, skipped: number, errors: string[] }}
  */
 export async function importBiometricPunches(punches) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-  if (punches.length === 0) return { imported: 0, skipped: 0, errors: [] };
-
-  // Determine date range for deduplication query
-  const times   = punches.map(p => new Date(p.eventTime).getTime());
-  const minTime = new Date(Math.min(...times) - 60000).toISOString();
-  const maxTime = new Date(Math.max(...times) + 60000).toISOString();
-
-  // Fetch existing BIOMETRIC clock events in that range
-  const { data: existing } = await supabase
-    .from('clock_events')
-    .select('employee_id, event_type, event_time')
-    .eq('user_id', user.id)
-    .eq('method', 'BIOMETRIC')
-    .gte('event_time', minTime)
-    .lte('event_time', maxTime);
-
-  // Deduplicate at minute-level using UTC to absorb timezone differences
-  // (DB stores UTC; eventTime may carry +04:00 offset — normalise both before comparing)
-  const existingSet = new Set(
-    (existing || []).map(e => `${e.employee_id}_${e.event_type}_${new Date(e.event_time).toISOString().substring(0, 16)}`)
-  );
-
-  const toInsert = [];
-  let skipped = 0;
-
-  for (const p of punches) {
-    const key = `${p.employeeId}_${p.eventType}_${new Date(p.eventTime).toISOString().substring(0, 16)}`;
-    if (existingSet.has(key)) { skipped++; continue; }
-    toInsert.push({
-      user_id:     user.id,
-      employee_id: p.employeeId,
-      event_type:  p.eventType,
-      event_time:  p.eventTime,
-      method:      'BIOMETRIC',
-      notes:       'Imported from biometric device',
-      entered_by:  user.id,
-    });
-  }
-
-  if (toInsert.length === 0) return { imported: 0, skipped, errors: [] };
-
-  const { error } = await supabase.from('clock_events').insert(toInsert);
-  if (error) throw error;
-
-  return { imported: toInsert.length, skipped, errors: [] };
+  void punches;
+  throw new Error('Biometric imports have moved to the migration attendance ingestion screen.');
 }
