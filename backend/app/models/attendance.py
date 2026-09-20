@@ -411,6 +411,31 @@ class ClockEvent(Base):
         Index("ix_clock_events_employee_id_event_time", "employee_id", "event_time"),
         Index("ix_clock_events_event_time", "event_time"),
         Index("ix_clock_events_branch_id", "branch_id"),
+        Index(
+            "uq_clock_events_fingerprint",
+            "company_id",
+            "branch_id",
+            "event_fingerprint",
+            unique=True,
+            postgresql_where=text("event_fingerprint IS NOT NULL"),
+        ),
+        Index(
+            "uq_clock_events_method_minute",
+            "employee_id",
+            "event_type",
+            "method",
+            text("date_trunc('minute'::text, (event_time AT TIME ZONE 'UTC'::text))"),
+            unique=True,
+            postgresql_where=text("method = ANY (ARRAY['MANUAL'::text, 'BIOMETRIC'::text])"),
+        ),
+        Index(
+            "ix_clock_events_scope_employee_time",
+            "company_id",
+            "branch_id",
+            "employee_id",
+            text("event_time DESC"),
+            "id",
+        ),
         ForeignKeyConstraint(
             ["import_batch_id", "company_id", "branch_id"],
             [
@@ -427,7 +452,7 @@ class ClockEvent(Base):
             "(method='BIOMETRIC' AND import_batch_id IS NOT NULL AND import_row_number IS NOT NULL "
             "AND source_badge_no IS NOT NULL AND source_device_name IS NOT NULL "
             "AND event_fingerprint IS NOT NULL)",
-            name="phase10c_provenance",
+            name="phase10c_clock_event_provenance",
         ),
     )
 
@@ -884,6 +909,12 @@ class BiometricMapping(Base):
         ),
         UniqueConstraint("branch_id", "badge_no", name="uq_biometric_mappings_branch_id_badge_no"),
         Index("ix_biometric_mappings_employee_id", "employee_id"),
+        Index(
+            "ix_biometric_mappings_scope_badge",
+            "company_id",
+            "branch_id",
+            "badge_no",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
