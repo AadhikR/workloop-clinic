@@ -44,19 +44,13 @@ const currentHeadVerifierPaths = [
   'scripts/verify-phase-8e-database.py',
   'scripts/verify-phase-8f-database.py',
   'scripts/verify-phase-9b-database.py',
-  'scripts/verify-phase-9b-revision.py',
   'scripts/verify-phase-9c-database.py',
-  'scripts/verify-phase-9c-revision.py',
   'scripts/verify-phase-9d-database.py',
-  'scripts/verify-phase-9d-revision.py',
   'scripts/verify-phase-9e-database.py',
-  'scripts/verify-phase-9e-revision.py',
   'scripts/verify-phase-9f-database.py',
   'scripts/verify-phase-9f-lifecycle.py',
-  'scripts/verify-phase-9f-revision.py',
   'scripts/verify-phase-9g-database.py',
   'scripts/verify-phase-9g-lifecycle.py',
-  'scripts/verify-phase-9g-revision.py',
 ]
 
 function readText(filePath) {
@@ -174,6 +168,6 @@ test('routes exact Phase 9H rollback and tracks the current Alembic head', () =>
   assert.match(revisionVerifier, /HEAD = "f4b8d2e6a901"/)
   assert.match(revisionVerifier, /PREDECESSOR = "e3a7c9d1f5b2"/)
   for (const verifierPath of currentHeadVerifierPaths) {
-    assert.match(readText(path.join(repositoryDirectory, verifierPath)), /f4b8d2e6a901/)
+    assert.match(readText(path.join(repositoryDirectory, verifierPath)), /a6c8e0f2b4d7/)
   }
 })

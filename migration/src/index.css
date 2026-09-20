@@ -235,6 +235,37 @@ button:focus-visible {
   padding-top: 1.25rem;
 }
 
+.attendance-configuration {
+  border-top: 1px solid #dbe3ea;
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+}
+
+.attendance-configuration fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  border: 1px solid #c7d0c9;
+}
+
+.shift-list {
+  display: grid;
+  gap: 0.5rem;
+  margin: 1rem 0;
+  padding: 0;
+  list-style: none;
+}
+
+.shift-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.shift-list li span {
+  flex: 1;
+}
+
 .department-layout,
 .staffing-editor {
   display: grid;

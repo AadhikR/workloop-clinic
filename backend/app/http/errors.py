@@ -49,6 +49,12 @@ ERROR_REGISTRY: dict[str, ErrorSpec] = {
     "portal_role_conflict": ErrorSpec(409, "Portal role state changed"),
     "department_conflict": ErrorSpec(409, "Department state prevents this operation"),
     "staffing_rule_conflict": ErrorSpec(409, "Staffing rule state prevents this operation"),
+    "attendance_configuration_conflict": ErrorSpec(
+        409, "Attendance settings prevent this operation"
+    ),
+    "shift_conflict": ErrorSpec(409, "Shift state prevents this operation"),
+    "retained_shift": ErrorSpec(409, "Retained shift references prevent this operation"),
+    "shift_assignment_conflict": ErrorSpec(409, "Shift assignment state prevents this operation"),
     "idempotency_conflict": ErrorSpec(409, "Idempotency key already used"),
     "idempotency_key_reused": ErrorSpec(409, "Idempotency key already used"),
     "idempotency_in_progress": ErrorSpec(

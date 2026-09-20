@@ -18,7 +18,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, ExcludeConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -40,6 +40,31 @@ class AttendanceSettings(Base):
             "AND regularisation_max_days_per_month >= 0 AND regularisation_window_days >= 0",
             name="nonnegative",
         ),
+        CheckConstraint(
+            "cardinality(working_days) > 0 AND cardinality(weekend_days) > 0 "
+            "AND cardinality(working_days) + cardinality(weekend_days) = 7 "
+            "AND NOT working_days && weekend_days "
+            "AND working_days <@ ARRAY['Sun','Mon','Tue','Wed','Thu','Fri','Sat']::text[] "
+            "AND weekend_days <@ ARRAY['Sun','Mon','Tue','Wed','Thu','Fri','Sat']::text[] "
+            "AND ARRAY['Sun','Mon','Tue','Wed','Thu','Fri','Sat']::text[] "
+            "<@ (working_days || weekend_days)",
+            name="phase10b_attendance_settings_days",
+        ),
+        CheckConstraint(
+            "default_hours_per_day BETWEEN 0.25 AND 24 "
+            "AND late_grace_minutes BETWEEN 0 AND 240 "
+            "AND early_departure_grace_minutes BETWEEN 0 AND 240 "
+            "AND max_daily_overtime_hours BETWEEN 0 AND 12 "
+            "AND regularisation_max_days_per_month BETWEEN 0 AND 31 "
+            "AND regularisation_window_days BETWEEN 0 AND 365",
+            name="phase10b_attendance_settings_bounds",
+        ),
+        CheckConstraint(
+            "octet_length(biometric_api_key) <= 512 "
+            "AND (NOT biometric_api_enabled "
+            "OR octet_length(btrim(biometric_api_key)) BETWEEN 16 AND 512)",
+            name="phase10b_attendance_settings_secret",
+        ),
         CheckConstraint("late_deduction_amount >= 0", name="late_deduction_amount"),
         CheckConstraint(
             "late_deduction_policy IN ('none', 'per_minute', 'per_occurrence')",
@@ -54,7 +79,7 @@ class AttendanceSettings(Base):
     company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     branch_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     working_days: Mapped[list[str]] = mapped_column(
-        ARRAY(Text()), nullable=False, server_default=text("ARRAY['Mon', 'Tue', 'Wed', 'Thu']")
+        ARRAY(Text()), nullable=False, server_default=text("ARRAY['Sun','Mon','Tue','Wed','Thu']")
     )
     weekend_days: Mapped[list[str]] = mapped_column(
         ARRAY(Text()), nullable=False, server_default=text("ARRAY['Fri', 'Sat']")
@@ -117,8 +142,45 @@ class Shift(Base):
         CheckConstraint(
             "break_minutes >= 0 AND expected_hours >= 0 AND late_grace_minutes >= 0 "
             "AND early_departure_grace_minutes >= 0 "
-            "AND (min_hours_flexible IS NULL OR min_hours_flexible >= 0) AND min_staff >= 0",
+            "AND (min_hours_flexible IS NULL OR min_hours_flexible >= 0) "
+            "AND min_staff >= 0",
             name="nonnegative",
+        ),
+        CheckConstraint(
+            "octet_length(btrim(name)) BETWEEN 1 AND 80 "
+            "AND color ~ '^#[0-9A-F]{6}$' "
+            "AND (code IS NULL OR code ~ '^[A-Z0-9]([A-Z0-9-]{0,10}[A-Z0-9])?$')",
+            name="phase10b_shifts_text",
+        ),
+        CheckConstraint(
+            "break_minutes BETWEEN 0 AND 240 AND expected_hours BETWEEN 0.25 AND 24 "
+            "AND late_grace_minutes BETWEEN 0 AND 240 "
+            "AND early_departure_grace_minutes BETWEEN 0 AND 240 "
+            "AND (min_hours_flexible IS NULL "
+            "OR min_hours_flexible BETWEEN 0.25 AND expected_hours) "
+            "AND min_staff BETWEEN 0 AND 999",
+            name="phase10b_shifts_bounds",
+        ),
+        CheckConstraint(
+            "(shift_type='fixed' AND start_time IS NOT NULL AND end_time IS NOT NULL "
+            "AND start_time < end_time AND NOT is_overnight "
+            "AND split_start_time IS NULL AND split_end_time IS NULL "
+            "AND min_hours_flexible IS NULL "
+            "AND shift_category IN ('morning','afternoon','night')) "
+            "OR (shift_type='overnight' AND start_time IS NOT NULL AND end_time IS NOT NULL "
+            "AND end_time <= start_time AND is_overnight "
+            "AND split_start_time IS NULL AND split_end_time IS NULL "
+            "AND min_hours_flexible IS NULL AND shift_category='night') "
+            "OR (shift_type='split' AND start_time IS NOT NULL AND end_time IS NOT NULL "
+            "AND split_start_time IS NOT NULL AND split_end_time IS NOT NULL "
+            "AND start_time < end_time AND end_time <= split_start_time "
+            "AND split_start_time < split_end_time AND NOT is_overnight "
+            "AND min_hours_flexible IS NULL AND shift_category='split') "
+            "OR (shift_type='flexible' AND start_time IS NULL AND end_time IS NULL "
+            "AND split_start_time IS NULL AND split_end_time IS NULL "
+            "AND NOT is_overnight AND break_minutes=0 "
+            "AND min_hours_flexible IS NOT NULL AND shift_category='flexible')",
+            name="phase10b_shifts_shape",
         ),
         CheckConstraint(
             "shift_type IN ('fixed', 'flexible', 'split', 'overnight')", name="shift_type"
@@ -163,7 +225,7 @@ class Shift(Base):
     )
     min_hours_flexible: Mapped[Decimal | None] = mapped_column(Numeric(4, 2), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean(), nullable=False, server_default=text("true"))
-    color: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("'#6366f1'"))
+    color: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("'#6366F1'"))
     code: Mapped[str | None] = mapped_column(Text(), nullable=True)
     shift_category: Mapped[str] = mapped_column(
         Text(), nullable=False, server_default=text("'morning'")
@@ -197,10 +259,26 @@ class ShiftAssignment(Base):
             ondelete="RESTRICT",
         ),
         CheckConstraint("effective_to IS NULL OR effective_to >= effective_from", name="dates"),
+        ExcludeConstraint(
+            ("company_id", "="),
+            ("branch_id", "="),
+            ("employee_id", "="),
+            (text("daterange(effective_from, effective_to, '[]')"), "&&"),
+            name="shift_assignments_no_overlap",
+            using="gist",
+        ),
         Index(
             "ix_shift_assignments_employee_id_effective_from",
             "employee_id",
             text("effective_from DESC"),
+        ),
+        Index(
+            "ix_shift_assignments_scope_employee_effective",
+            "company_id",
+            "branch_id",
+            "employee_id",
+            text("effective_from DESC"),
+            "id",
         ),
     )
 
@@ -214,6 +292,9 @@ class ShiftAssignment(Base):
     effective_from: Mapped[date_type] = mapped_column(Date(), nullable=False)
     effective_to: Mapped[date_type | None] = mapped_column(Date(), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
 

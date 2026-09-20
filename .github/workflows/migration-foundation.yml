@@ -180,6 +180,10 @@ jobs:
         run: |
           python scripts/verify-phase-9g-contract.py
           node --test tests/wps-nafis-api.test.js tests/phase-9g-legacy-freeze.test.js
+      - name: Verify Phase 10B attendance configuration contract
+        run: |
+          node --test tests/migration-attendance-configuration.test.js tests/phase-10b-legacy-freeze.test.js
+          node scripts/cutover-record-validator.mjs docs/migration/phase-10/cutover/attendance-configuration.json
       - name: Verify empty-schema downgrade boundary
         if: needs.changes.outputs.database_deep == 'true'
         run: |
@@ -237,6 +241,9 @@ jobs:
       - name: Verify Phase 9H exact predecessor
         if: needs.changes.outputs.database_deep == 'true'
         run: sh scripts/verify-phase-9h-revision.sh
+      - name: Verify Phase 10B exact predecessor
+        if: needs.changes.outputs.database_deep == 'true'
+        run: sh scripts/verify-phase-10b-revision.sh
       - name: Verify Phase 9B exact predecessor
         if: needs.changes.outputs.database_deep == 'true'
         run: sh scripts/verify-phase-9b-revision.sh
@@ -291,6 +298,7 @@ jobs:
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --volume ./scripts:/verification:ro --entrypoint python migrate -c "import runpy; runpy.run_path('/verification/verify-phase-9f-lifecycle.py', run_name='__main__')"
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --volume ./scripts:/verification:ro --entrypoint python migrate -c "import runpy; runpy.run_path('/verification/verify-phase-9g-database.py', run_name='__main__')"
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --volume ./scripts:/verification:ro --entrypoint python migrate -c "import runpy; runpy.run_path('/verification/verify-phase-9g-lifecycle.py', run_name='__main__')"
+          docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-10b-database.py
       - name: Verify service health
         run: |
           curl --fail --silent --show-error http://127.0.0.1:8000/health | jq --exit-status '.status == "ok" and .database == "ok"'

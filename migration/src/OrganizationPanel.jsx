@@ -7,6 +7,7 @@ import DepartmentManager from './DepartmentManager.jsx'
 import EmployeeDirectory from './EmployeeDirectory.jsx'
 import Expenses from './Expenses.jsx'
 import Advances from './Advances.jsx'
+import AttendanceConfiguration from './AttendanceConfiguration.jsx'
 import { readCurrentAccount } from './sampleApi.js'
 import OrganizationSettings from './OrganizationSettings.jsx'
 import LeaveConfiguration from './LeaveConfiguration.jsx'
@@ -75,6 +76,7 @@ function OrganizationSummary({ account, authentication }) {
       {account.role === 'admin' && (
         <>
           <LeaveConfiguration authentication={authentication} branchId={organization.selectedBranch.id} />
+          <AttendanceConfiguration authentication={authentication} branchId={organization.selectedBranch.id} />
           <DepartmentManager
             authentication={authentication}
             branchId={organization.selectedBranch.id}

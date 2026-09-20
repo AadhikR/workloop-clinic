@@ -42,34 +42,8 @@ export async function getAttendanceSettings() {
 }
 
 export async function saveAttendanceSettings(settings) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-  const row = {
-    user_id:                    user.id,
-    working_days:               settings.workingDays || ['Mon','Tue','Wed','Thu'],
-    weekend_days:               settings.weekendDays || ['Fri','Sat'],
-    default_hours_per_day:      settings.defaultHoursPerDay ?? 8,
-    late_grace_minutes:         settings.lateGraceMinutes ?? 10,
-    early_departure_grace_minutes: settings.earlyDepartureGraceMinutes ?? 10,
-    overtime_requires_approval: settings.overtimeRequiresApproval ?? true,
-    max_daily_overtime_hours:   settings.maxDailyOvertimeHours ?? 2,
-    late_deduction_policy:      settings.lateDeductionPolicy || 'none',
-    late_deduction_amount:      settings.lateDeductionAmount ?? 0,
-    wfh_enabled:                settings.wfhEnabled ?? false,
-    regularisation_max_days_per_month: settings.regularisationMaxDaysPerMonth ?? 2,
-    regularisation_window_days: settings.regularisationWindowDays ?? 7,
-    biometric_api_enabled:      settings.biometricApiEnabled ?? false,
-    biometric_api_key:          settings.biometricApiKey || '',
-  };
-  if (settings.id) {
-    const { error } = await supabase.from('attendance_settings').update(row).eq('id', settings.id);
-    if (error) throw error;
-  } else {
-    const { data, error } = await supabase.from('attendance_settings')
-      .upsert(row, { onConflict: 'user_id' }).select().single();
-    if (error) throw error;
-    return data ? { ...dbToAttendanceSettings(data) } : settings;
-  }
+  void settings;
+  throw new Error('Attendance settings have moved to the migration attendance configuration screen.');
 }
 
 function dbToAttendanceSettings(row) {
@@ -108,42 +82,13 @@ export async function getShifts() {
 }
 
 export async function saveShift(shift) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-  const row = {
-    user_id:          user.id,
-    name:             shift.name,
-    code:             shift.code || null,
-    shift_category:   shift.shiftCategory || 'morning',
-    shift_type:       shift.shiftType || 'fixed',
-    start_time:       shift.startTime || null,
-    end_time:         shift.endTime || null,
-    break_minutes:    shift.breakMinutes ?? 60,
-    expected_hours:   shift.expectedHours ?? 8,
-    late_grace_minutes: shift.lateGraceMinutes ?? 10,
-    early_departure_grace_minutes: shift.earlyDepartureGraceMinutes ?? 10,
-    split_start_time: shift.splitStartTime || null,
-    split_end_time:   shift.splitEndTime || null,
-    is_overnight:     shift.isOvernight ?? false,
-    min_hours_flexible: shift.minHoursFlexible || null,
-    is_active:        shift.isActive ?? true,
-    color:            shift.color || '#6366f1',
-    min_staff:        shift.minStaff ?? 1,
-  };
-  if (shift.id) {
-    const { data, error } = await supabase.from('shifts').update(row).eq('id', shift.id).select().single();
-    if (error) throw error;
-    return dbToShift(data);
-  } else {
-    const { data, error } = await supabase.from('shifts').insert(row).select().single();
-    if (error) throw error;
-    return dbToShift(data);
-  }
+  void shift;
+  throw new Error('Shift changes have moved to the migration attendance configuration screen.');
 }
 
 export async function deleteShift(id) {
-  const { error } = await supabase.from('shifts').update({ is_active: false }).eq('id', id);
-  if (error) throw error;
+  void id;
+  throw new Error('Shift changes have moved to the migration attendance configuration screen.');
 }
 
 function dbToShift(row) {
@@ -186,16 +131,8 @@ export async function getShiftForEmployee(employeeId, date) {
 }
 
 export async function assignShift(employeeId, shiftId, effectiveFrom, effectiveTo = null) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-  const { error } = await supabase.from('shift_assignments').insert({
-    user_id:        user.id,
-    employee_id:    employeeId,
-    shift_id:       shiftId,
-    effective_from: effectiveFrom,
-    effective_to:   effectiveTo,
-  });
-  if (error) throw error;
+  void employeeId; void shiftId; void effectiveFrom; void effectiveTo;
+  throw new Error('Shift assignments have moved to the migration attendance configuration screen.');
 }
 
 // ── CLOCK EVENTS ──────────────────────────────────────────────────────────────

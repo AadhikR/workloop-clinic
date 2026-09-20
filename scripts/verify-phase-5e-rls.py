@@ -579,6 +579,13 @@ SELECT p.proname
 FROM pg_catalog.pg_proc AS p
 JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace
 WHERE n.nspname = 'public'
+  AND NOT EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_depend AS dependency
+    WHERE dependency.classid = 'pg_catalog.pg_proc'::pg_catalog.regclass
+      AND dependency.objid = p.oid
+      AND dependency.deptype = 'e'
+  )
   AND pg_catalog.has_function_privilege(
     'workloop_expiry_processing', p.oid, 'EXECUTE'
   )

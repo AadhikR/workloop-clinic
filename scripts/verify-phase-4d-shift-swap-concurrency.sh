@@ -52,10 +52,10 @@ INSERT INTO employees (id, company_id, branch_id, name, mol_id) VALUES
 INSERT INTO user_profiles (app_user_id, company_id, role) VALUES
   ('00000000-0000-0000-0000-000000000c11',
    '00000000-0000-0000-0000-000000000a01', 'admin');
-INSERT INTO shifts (id, company_id, branch_id, name) VALUES
+INSERT INTO shifts (id, company_id, branch_id, name, start_time, end_time) VALUES
   ('00000000-0000-0000-0000-000000000c21',
    '00000000-0000-0000-0000-000000000a01',
-   '00000000-0000-0000-0000-000000000b01', 'Day');
+   '00000000-0000-0000-0000-000000000b01', 'Day', '08:00', '16:00');
 INSERT INTO roster_assignments
   (id, company_id, branch_id, employee_id, shift_id, date) VALUES
   ('00000000-0000-0000-0000-000000000c31',
