@@ -125,8 +125,15 @@ async def client_for(role: AppRole) -> AsyncGenerator[AsyncClient, None]:
     application = create_app(settings=make_settings(api_request_timeout_seconds=1))
     application.state.authorized_service_executor = RecordingExecutor()
     service = StubService()
-    application.state.attendance_ingestion_service_factory = lambda _connection: service
-    application.state.idempotency_coordinator_factory = lambda _connection: ImmediateIdempotency()
+
+    def service_factory(_connection: AsyncConnection) -> StubService:
+        return service
+
+    def idempotency_factory(_connection: AsyncConnection) -> ImmediateIdempotency:
+        return ImmediateIdempotency()
+
+    application.state.attendance_ingestion_service_factory = service_factory
+    application.state.idempotency_coordinator_factory = idempotency_factory
     application.dependency_overrides[require_access_token] = lambda: claims()
     application.dependency_overrides[require_authorization_principal] = lambda: principal(role)
     async with AsyncClient(
