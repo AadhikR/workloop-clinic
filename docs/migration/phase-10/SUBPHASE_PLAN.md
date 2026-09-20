@@ -15,6 +15,19 @@ task and verified handoff for each part. Phase 11 remains outside that authoriza
 authorization does not include production data, external biometric devices, paid services, cloud
 resources, or the preserved PostgreSQL volume.
 
+## Standing sequential authorization
+
+On 2026-09-20, the project owner explicitly approved implementation of 10D and every subsequent
+Phase 10 part through 10J. This is standing authorization: do not request approval again for a
+listed part when its verified predecessor handoff is complete. Each part must run in a separate
+Codex task. After a part passes its required local and GitHub gates and the branch is clean and
+synchronized, that task must prepare the next phase-specific handoff under
+`docs/migration/HANDOFF_PROMPT_STANDARD.md` and create the next task automatically.
+
+The authorization is sequential, not concurrent. Do not skip a part, begin its implementation
+before the predecessor is verified, or continue into Phase 11. It does not expand the resource,
+data, service, or production boundaries stated in this plan.
+
 ## Why Phase 10 needs subphases
 
 Attendance and rostering share shifts, employees, branch rules, leave, staffing rules, payroll
