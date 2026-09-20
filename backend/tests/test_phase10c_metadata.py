@@ -5,7 +5,7 @@ from app.models import Base
 
 def test_phase10c_clock_event_metadata_matches_the_migration() -> None:
     table = Base.metadata.tables["clock_events"]
-    indexes = {index.name: index for index in table.indexes}
+    indexes = {str(index.name): index for index in table.indexes if index.name is not None}
 
     assert {
         "ix_clock_events_scope_employee_time",
@@ -43,8 +43,8 @@ def test_phase10c_biometric_mapping_metadata_matches_the_migration() -> None:
         index for index in table.indexes if index.name == "ix_biometric_mappings_scope_badge"
     )
 
-    assert [expression.name for expression in index.expressions] == [
-        "company_id",
-        "branch_id",
-        "badge_no",
+    assert [str(expression) for expression in index.expressions] == [
+        "biometric_mappings.company_id",
+        "biometric_mappings.branch_id",
+        "biometric_mappings.badge_no",
     ]
