@@ -1087,9 +1087,22 @@ class RosterAssignment(Base):
             "AND (actual_hours IS NULL OR actual_hours >= 0) AND co_hours >= 0",
             name="hours",
         ),
+        CheckConstraint(
+            "version >= 1 AND planned_hours IS NOT NULL AND planned_hours BETWEEN 0.25 AND 24 "
+            "AND octet_length(notes) <= 500",
+            name="phase10g_roster_draft",
+        ),
         Index("ix_roster_assignments_employee_id", "employee_id"),
         Index("ix_roster_assignments_date", "date"),
         Index("ix_roster_assignments_branch_id", "branch_id"),
+        Index(
+            "ix_roster_assignments_scope_date_employee",
+            "company_id",
+            "branch_id",
+            "date",
+            "employee_id",
+            "id",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -1107,6 +1120,7 @@ class RosterAssignment(Base):
     co_hours: Mapped[Decimal] = mapped_column(
         Numeric(4, 2), nullable=False, server_default=text("0")
     )
+    version: Mapped[int] = mapped_column(Integer(), nullable=False, server_default=text("1"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )

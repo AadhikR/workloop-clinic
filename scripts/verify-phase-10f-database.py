@@ -198,7 +198,7 @@ async def main() -> None:
     added_event_ids: list[uuid.UUID] = []
     with migration_engine.begin() as connection:
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "d0f6b8e2a753"
+            "a1c3e5f7b902"
         )
         raw_today = connection.scalar(
             text("SELECT timezone('Asia/Dubai',statement_timestamp())::date")

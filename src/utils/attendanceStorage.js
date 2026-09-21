@@ -335,40 +335,16 @@ export async function getRosterForMonth(year, month, companyId = null) {
  * Uses ON CONFLICT on (employee_id, date) to update if already assigned.
  */
 export async function saveRosterAssignment({ employeeId, shiftId, date, notes = '', published = false, plannedHours = null, companyId = null }) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-
-  const row = {
-    user_id:       user.id,
-    employee_id:   employeeId,
-    shift_id:      shiftId,
-    date,
-    notes,
-    published,
-    planned_hours: plannedHours,
-  };
-  if (companyId) row.company_id = companyId;
-
-  const { data, error } = await supabase
-    .from('roster_assignments')
-    .upsert(row, { onConflict: 'employee_id,date' })
-    .select('*, shifts(*)')
-    .single();
-
-  if (error) throw error;
-  return dbToRosterAssignment(data);
+  void employeeId; void shiftId; void date; void notes; void published; void plannedHours; void companyId;
+  throw new Error('Roster draft writes have moved to the migration roster screen.');
 }
 
 /**
  * Remove a roster assignment for a specific employee on a specific date.
  */
 export async function deleteRosterAssignment(employeeId, date) {
-  const { error } = await supabase
-    .from('roster_assignments')
-    .delete()
-    .eq('employee_id', employeeId)
-    .eq('date', date);
-  if (error) throw error;
+  void employeeId; void date;
+  throw new Error('Roster draft writes have moved to the migration roster screen.');
 }
 
 /**

@@ -98,7 +98,7 @@ async def main() -> None:
         validate(connection, seed_rows)
     with migration_engine.begin() as connection:
         assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
-            "d0f6b8e2a753"
+            "a1c3e5f7b902"
         )
         role = connection.execute(
             text(

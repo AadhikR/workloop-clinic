@@ -754,12 +754,33 @@ class ComplianceOverride(Base):
         CheckConstraint("override_type IN ('payroll_sif', 'roster_publish')", name="override_type"),
         CheckConstraint(
             "rule_code IS NULL OR rule_code IN ('visa_expired','emirates_id_expired',"
-            "'labour_card_expired','passport_expired','professional_licence_expired')",
+            "'labour_card_expired','passport_expired','professional_licence_expired',"
+            "'leave_conflict','staffing_shortfall')",
             name="rule_code",
+        ),
+        CheckConstraint(
+            "(override_type<>'roster_publish' AND roster_month IS NULL "
+            "AND violation_digest IS NULL AND violation_snapshot IS NULL) OR "
+            "(override_type='roster_publish' AND branch_id IS NOT NULL "
+            "AND payroll_run_id IS NULL AND payroll_entry_id IS NULL "
+            "AND rule_code IN ('leave_conflict','staffing_shortfall') "
+            "AND roster_month ~ '^(19|20)[0-9]{2}-(0[1-9]|1[0-2])$' "
+            "AND violation_digest ~ '^sha256:[0-9a-f]{64}$' "
+            "AND jsonb_typeof(violation_snapshot)='object' "
+            "AND octet_length(btrim(reason)) BETWEEN 10 AND 500)",
+            name="phase10g_roster_override",
         ),
         Index("ix_compliance_overrides_company_id_branch_id", "company_id", "branch_id"),
         Index("ix_compliance_overrides_payroll_run_id", "payroll_run_id"),
         Index("ix_compliance_overrides_payroll_entry_id", "payroll_entry_id"),
+        Index(
+            "uq_compliance_overrides_roster_violation",
+            "branch_id",
+            "roster_month",
+            "violation_digest",
+            unique=True,
+            postgresql_where=text("override_type='roster_publish'"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -772,6 +793,9 @@ class ComplianceOverride(Base):
     payroll_run_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     payroll_entry_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     rule_code: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    roster_month: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    violation_digest: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    violation_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSONB(), nullable=True)
     reason: Mapped[str] = mapped_column(Text(), nullable=False)
     created_by_app_user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(

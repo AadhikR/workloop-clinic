@@ -12,6 +12,7 @@ import AttendanceIngestion from './AttendanceIngestion.jsx'
 import AttendanceCalculation from './AttendanceCalculation.jsx'
 import AttendanceExceptions from './AttendanceExceptions.jsx'
 import AttendancePeriods from './AttendancePeriods.jsx'
+import RosterDrafts from './RosterDrafts.jsx'
 import PersonalAttendance from './PersonalAttendance.jsx'
 import { readCurrentAccount } from './sampleApi.js'
 import OrganizationSettings from './OrganizationSettings.jsx'
@@ -87,6 +88,7 @@ function OrganizationSummary({ account, authentication }) {
           <AttendanceCalculation authentication={authentication} branchId={organization.selectedBranch.id} />
           <AttendanceExceptions authentication={authentication} branchId={organization.selectedBranch.id} />
           <AttendancePeriods authentication={authentication} branchId={organization.selectedBranch.id} />
+          <RosterDrafts authentication={authentication} branchId={organization.selectedBranch.id} />
           <DepartmentManager
             authentication={authentication}
             branchId={organization.selectedBranch.id}
