@@ -181,7 +181,8 @@ def verify_catalog(engine: Any) -> None:
                 text(
                     "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname='public' "
                     "AND tablename NOT IN ('alembic_version','idempotency_records',"
-                    "'storage_operations','leave_attachments','expense_receipts')"
+                    "'storage_operations','leave_attachments','expense_receipts',"
+                    "'attendance_import_batches','attendance_import_row_outcomes')"
                 )
             ).scalars()
         )
@@ -273,7 +274,8 @@ WHERE table_schema='public' AND grantee='workloop_expiry_processing'
 SELECT count(*) FROM pg_catalog.pg_policies
 WHERE schemaname='public' AND policyname NOT LIKE 'phase5%'
   AND tablename NOT IN (
-    'idempotency_records','storage_operations','leave_attachments','expense_receipts'
+    'idempotency_records','storage_operations','leave_attachments','expense_receipts',
+    'attendance_import_batches','attendance_import_row_outcomes'
   )
   AND policyname NOT IN (
     'phase7g_user_profiles_select_branch_runtime',
@@ -291,7 +293,7 @@ WHERE schemaname='public' AND policyname NOT LIKE 'phase5%'
             row[0]: row[1]
             for row in connection.execute(
                 text(
-                    "SELECT object.relname,object.relrowsecurity FROM pg_catalog.pg_class AS object JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid=object.relnamespace WHERE namespace.nspname='public' AND object.relkind='r' AND object.relname NOT IN ('idempotency_records','storage_operations','leave_attachments','expense_receipts')"
+                    "SELECT object.relname,object.relrowsecurity FROM pg_catalog.pg_class AS object JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid=object.relnamespace WHERE namespace.nspname='public' AND object.relkind='r' AND object.relname NOT IN ('idempotency_records','storage_operations','leave_attachments','expense_receipts','attendance_import_batches','attendance_import_row_outcomes')"
                 )
             )
         }
@@ -315,6 +317,40 @@ WHERE namespace.nspname='public' AND procedure.proname=:name
             acl = str(row[4])
             assert "workloop_runtime=X" in acl and "{=X/" not in acl
             definition = row[5].lower()
+            for private_name, required_action in (
+                (
+                    "_append_audit_event_phase10c(text,text,uuid,text[],text,jsonb)",
+                    "attendance_manual_event_created",
+                ),
+                (
+                    "_append_audit_event_phase10a(text,text,uuid,text[],text,jsonb)",
+                    "attendance_settings_changed",
+                ),
+            ):
+                if (
+                    function_name != "append_audit_event"
+                    or private_name.split("(")[0] not in definition
+                ):
+                    continue
+                assert required_action in definition
+                private = connection.execute(
+                    text(
+                        """
+SELECT pg_catalog.pg_get_userbyid(procedure.proowner),procedure.prosecdef,
+ procedure.provolatile,procedure.proconfig,procedure.proacl,
+ pg_catalog.pg_get_functiondef(procedure.oid)
+FROM pg_catalog.pg_proc AS procedure JOIN pg_catalog.pg_namespace AS namespace
+ ON namespace.oid=procedure.pronamespace
+WHERE namespace.nspname='public'
+ AND procedure.oid=CAST(:signature AS regprocedure)
+"""
+                    ),
+                    {"signature": f"public.{private_name}"},
+                ).one()
+                assert private[0] == "workloop_migration" and private[1] and private[2] == "v"
+                assert private[3] == ["search_path=pg_catalog, public, pg_temp"]
+                assert "workloop_runtime=X" not in str(private[4])
+                definition = private[5].lower()
             if (
                 function_name == "append_audit_event"
                 and "_append_audit_event_phase9d_prior" in definition

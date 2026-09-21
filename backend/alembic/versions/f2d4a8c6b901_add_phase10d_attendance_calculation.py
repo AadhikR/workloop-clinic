@@ -100,11 +100,20 @@ END $$;
 CREATE TRIGGER trg_phase10d_clock_events_stale AFTER INSERT ON public.clock_events
 FOR EACH ROW EXECUTE FUNCTION public.phase10d_mark_attendance_stale();
 """)
+    op.execute(
+        "REVOKE ALL ON FUNCTION public.phase10c_clock_event_append_only(), "
+        "public.phase10c_import_evidence_append_only(), "
+        "public.phase10d_mark_attendance_stale() FROM PUBLIC"
+    )
 
 
 def downgrade() -> None:
     op.execute("DROP TRIGGER trg_phase10d_clock_events_stale ON public.clock_events")
     op.execute("DROP FUNCTION public.phase10d_mark_attendance_stale()")
+    op.execute(
+        "GRANT EXECUTE ON FUNCTION public.phase10c_clock_event_append_only(), "
+        "public.phase10c_import_evidence_append_only() TO PUBLIC"
+    )
     op.drop_constraint("replay_resource", "idempotency_records", type_="check")
     op.create_check_constraint(
         "replay_resource",

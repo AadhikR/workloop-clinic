@@ -36,6 +36,8 @@ The final database-sensitive gate ran in the fresh `workloop-phase10d-gate` stac
   self scope, concurrent recalculation, and atomic batch rollback.
 - FastAPI and Keycloak authentication, the browser journey, database and storage persistence,
   signing-key persistence, health, synthetic cleanup, and service-log safety passed after restart.
+- Follow-up isolated checks passed the hardened function ACLs, the exact 10D rollback and replay,
+  and the complete current database-boundary chain from Phase 4 through Phase 10D.
 
 The routed GitHub result is reported in the task handoff after the final push. This local gate record
 does not contain a workflow URL.

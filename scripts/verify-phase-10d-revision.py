@@ -23,6 +23,10 @@ COLUMNS = {
 INDEX = "ix_attendance_records_scope_stale"
 TRIGGER = "trg_phase10d_clock_events_stale"
 FUNCTION = "phase10d_mark_attendance_stale()"
+PHASE10C_FUNCTIONS = {
+    "phase10c_clock_event_append_only()",
+    "phase10c_import_evidence_append_only()",
+}
 
 
 def scalar_set(connection: object, statement: str) -> set[str]:
@@ -37,6 +41,17 @@ def audit_digest(connection: object) -> str:
         )
     )
     return hashlib.sha256(definition.encode()).hexdigest()
+
+
+def can_expiry_execute(connection: object, function: str) -> bool:
+    return bool(
+        connection.scalar(
+            text(
+                "SELECT has_function_privilege('workloop_expiry_processing', :function, 'EXECUTE')"
+            ),
+            {"function": f"public.{function}"},
+        )
+    )
 
 
 def verify_head(connection: object) -> str:
@@ -61,6 +76,8 @@ def verify_head(connection: object) -> str:
     assert connection.scalar(
         text("SELECT to_regprocedure('public.phase10d_mark_attendance_stale()') IS NOT NULL")
     )
+    assert not any(can_expiry_execute(connection, function) for function in PHASE10C_FUNCTIONS)
+    assert not can_expiry_execute(connection, FUNCTION)
     constraints = scalar_set(
         connection,
         "SELECT conname FROM pg_constraint WHERE conrelid='public.attendance_records'::regclass",
@@ -95,6 +112,7 @@ def verify_predecessor(connection: object) -> str:
     assert connection.scalar(
         text("SELECT to_regprocedure('public.phase10d_mark_attendance_stale()') IS NULL")
     )
+    assert all(can_expiry_execute(connection, function) for function in PHASE10C_FUNCTIONS)
     replay = str(
         connection.scalar(
             text(

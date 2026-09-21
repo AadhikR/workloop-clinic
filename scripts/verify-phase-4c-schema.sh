@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-# Phase 4C schema gate. Proves the 55 business tables exist, that a connected row
+# Phase 4C schema gate. Proves the 57 business tables exist, that a connected row
 # graph spanning every business domain satisfies the foreign-key and scope
 # constraints end to end, and that a cross-tenant branch and cross-branch
 # employee reference are both rejected. The runtime grant boundary moved to
@@ -21,8 +21,8 @@ BEGIN
       'alembic_version', 'audit_events', 'idempotency_records',
       'storage_operations', 'leave_attachments'
     );
-  IF table_count <> 55 THEN
-    RAISE EXCEPTION 'expected 55 target tables, found %', table_count;
+  IF table_count <> 57 THEN
+    RAISE EXCEPTION 'expected 57 target tables, found %', table_count;
   END IF;
 
   -- Identity and organization seed (two tenants, one branch each).
