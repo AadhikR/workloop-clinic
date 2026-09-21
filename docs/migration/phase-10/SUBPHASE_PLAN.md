@@ -78,8 +78,8 @@ last part reviews the complete boundary independently.
 | 10A | Contracts, dependency inventory, golden cases, amendments, and cutover decisions | Complete |
 | 10B | Attendance settings, shift templates, and effective-dated shift assignment | Complete |
 | 10C | Manual and biometric event ingestion, badge mappings, provenance, and deduplication | Complete |
-| 10D | Server attendance calculation, administrator reads, and employee self reads | Next; authorized |
-| 10E | Regularisation, absence resolution, overtime approval, and attendance audit | Planned; authorized after verified 10D handoff |
+| 10D | Server attendance calculation, administrator reads, and employee self reads | Complete |
+| 10E | Regularisation, absence resolution, overtime approval, and attendance audit | Next; authorized |
 | 10F | Atomic period close and the closed attendance payroll projection | Planned; authorized after verified 10E handoff |
 | 10G | Roster drafts, leave conflicts, staffing gates, and compliance overrides | Planned; authorized after verified 10F handoff |
 | 10H | Roster publication, employee schedules, actual-hours authority, and payroll projection | Planned; authorized after verified 10G handoff |

@@ -5,6 +5,7 @@ from decimal import Decimal
 
 from sqlalchemy import (
     ARRAY,
+    JSON,
     Boolean,
     CheckConstraint,
     Date,
@@ -18,7 +19,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlalchemy.dialects.postgresql import UUID, ExcludeConstraint
+from sqlalchemy.dialects.postgresql import JSONB, UUID, ExcludeConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -620,6 +621,11 @@ class AttendanceRecord(Base):
         CheckConstraint("absence_deduction >= 0", name="absence_deduction"),
         CheckConstraint("late_deduction >= 0", name="late_deduction"),
         CheckConstraint(
+            "calculation_version >= 1 AND btrim(source_digest) <> '' "
+            "AND jsonb_typeof(source_snapshot) = 'object'",
+            name="phase10d_attendance_derivation",
+        ),
+        CheckConstraint(
             "NOT overtime_approved OR overtime_approved_by_app_user_id IS NOT NULL",
             name="overtime_actor",
         ),
@@ -629,6 +635,14 @@ class AttendanceRecord(Base):
         Index("ix_attendance_records_employee_id_date", "employee_id", "date"),
         Index("ix_attendance_records_branch_id_date", "branch_id", "date"),
         Index("ix_attendance_records_status", "status"),
+        Index(
+            "ix_attendance_records_scope_stale",
+            "company_id",
+            "branch_id",
+            "source_stale",
+            "date",
+            "employee_id",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -688,6 +702,26 @@ class AttendanceRecord(Base):
     )
     resolution_type: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("''"))
     resolution_notes: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("''"))
+    source_snapshot: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB, "postgresql"),
+        nullable=False,
+        server_default=text("jsonb_build_object('legacy', true)"),
+    )
+    source_digest: Mapped[str] = mapped_column(
+        Text(), nullable=False, server_default=text("'legacy-unverified'")
+    )
+    calculation_version: Mapped[int] = mapped_column(
+        Integer(), nullable=False, server_default=text("1")
+    )
+    source_clock_event_ids: Mapped[list[uuid.UUID]] = mapped_column(
+        ARRAY(UUID(as_uuid=True)), nullable=False, server_default=text("ARRAY[]::uuid[]")
+    )
+    evidence_flags: Mapped[list[str]] = mapped_column(
+        ARRAY(Text()), nullable=False, server_default=text("ARRAY[]::text[]")
+    )
+    source_stale: Mapped[bool] = mapped_column(
+        Boolean(), nullable=False, server_default=text("true")
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )

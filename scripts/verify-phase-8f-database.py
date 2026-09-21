@@ -94,7 +94,7 @@ async def main() -> None:
     rows = build_rows()
     with migration_engine.begin() as connection:
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "b7d9e1f3a5c6"
+            "f2d4a8c6b901"
         )
         business_date = connection.scalar(
             text("SELECT timezone('Asia/Dubai',statement_timestamp())::date")

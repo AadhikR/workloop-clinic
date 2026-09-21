@@ -9,6 +9,8 @@ import Expenses from './Expenses.jsx'
 import Advances from './Advances.jsx'
 import AttendanceConfiguration from './AttendanceConfiguration.jsx'
 import AttendanceIngestion from './AttendanceIngestion.jsx'
+import AttendanceCalculation from './AttendanceCalculation.jsx'
+import PersonalAttendance from './PersonalAttendance.jsx'
 import { readCurrentAccount } from './sampleApi.js'
 import OrganizationSettings from './OrganizationSettings.jsx'
 import LeaveConfiguration from './LeaveConfiguration.jsx'
@@ -74,11 +76,13 @@ function OrganizationSummary({ account, authentication }) {
         authentication={authentication}
         branchId={organization.selectedBranch.id}
       />
+      {account.role !== 'admin' && <PersonalAttendance authentication={authentication} />}
       {account.role === 'admin' && (
         <>
           <LeaveConfiguration authentication={authentication} branchId={organization.selectedBranch.id} />
           <AttendanceConfiguration authentication={authentication} branchId={organization.selectedBranch.id} />
           <AttendanceIngestion authentication={authentication} branchId={organization.selectedBranch.id} />
+          <AttendanceCalculation authentication={authentication} branchId={organization.selectedBranch.id} />
           <DepartmentManager
             authentication={authentication}
             branchId={organization.selectedBranch.id}

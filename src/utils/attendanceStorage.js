@@ -12,13 +12,7 @@
  */
 
 import { supabase } from '../lib/supabase';
-import {
-  deriveAttendanceStatus,
-  isWeekendDay,
-  isPublicHolidayDay,
-  isRamadanDay,
-  ATTENDANCE_STATUS,
-} from './attendanceEngine';
+import { ATTENDANCE_STATUS } from './attendanceEngine';
 
 async function getSessionUser() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -180,108 +174,13 @@ function dbToClockEvent(row) {
 // ── ATTENDANCE RECORDS ────────────────────────────────────────────────────────
 
 export async function getAttendanceRecords(filters = {}) {
-  let query = supabase.from('attendance_records').select('*').order('date', { ascending: false });
-
-  if (filters.employeeId) {
-    // Employee self-service: filter by employee ID (uses employee SELECT RLS policy)
-    query = query.eq('employee_id', filters.employeeId);
-  } else {
-    // Admin path: scope to this admin's employees by employee_id.
-    // This is more robust than filtering by user_id because the RPC writes records
-    // with user_id = admin's uuid from the employees table, but if the fallback
-    // direct-insert path runs it may use a different user_id.
-    const sessionUser = await getSessionUser();
-    if (!sessionUser) return [];
-    const { data: empsData } = await supabase
-      .from('employees')
-      .select('id')
-      .eq('user_id', sessionUser.id);
-    const empIds = (empsData || []).map(e => e.id);
-    if (empIds.length === 0) return [];
-    query = query.in('employee_id', empIds);
-  }
-
-  if (filters.dateFrom)   query = query.gte('date', filters.dateFrom);
-  if (filters.dateTo)     query = query.lte('date', filters.dateTo);
-  if (filters.status)     query = query.eq('status', filters.status);
-  if (filters.period) {
-    const [y, m] = filters.period.split('-').map(Number);
-    query = query.gte('date', `${y}-${String(m).padStart(2,'0')}-01`)
-                 .lte('date', `${y}-${String(m).padStart(2,'0')}-${new Date(y, m, 0).getDate()}`);
-  }
-  const { data, error } = await query;
-  if (error) { console.error('getAttendanceRecords:', error); return []; }
-  return (data || []).map(dbToAttendanceRecord);
+  void filters;
+  throw new Error('Attendance reads moved to the migration attendance calculation screen.');
 }
 
 export async function upsertAttendanceRecord(record) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-  const row = {
-    user_id:                user.id,
-    employee_id:            record.employeeId,
-    date:                   record.date,
-    shift_id:               record.shiftId || null,
-    clock_in_time:          record.clockInTime || null,
-    clock_out_time:         record.clockOutTime || null,
-    total_hours:            record.totalHours ?? 0,
-    status:                 record.status || ATTENDANCE_STATUS.ABSENT,
-    late_minutes:           record.lateMinutes ?? 0,
-    early_departure_minutes: record.earlyDepartureMinutes ?? 0,
-    overtime_hours:         record.overtimeHours ?? 0,
-    overtime_type:          record.overtimeType || null,
-    overtime_amount:        record.overtimeAmount ?? 0,
-    overtime_approved_by:   record.overtimeApprovedBy || '',
-    overtime_approved:      record.overtimeApproved ?? false,
-    worked_on_rest_day:     record.workedOnRestDay ?? false,
-    rest_day_substitute:    record.restDaySubstitute ?? false,
-    missing_clock_out:      record.missingClockOut ?? false,
-    is_ramadan_day:         record.isRamadanDay ?? false,
-    absence_deduction:      record.absenceDeduction ?? 0,
-    late_deduction:         record.lateDeduction ?? 0,
-    period_closed:          record.periodClosed ?? false,
-    resolved_by:            record.resolvedBy || '',
-    resolution_type:        record.resolutionType || '',
-    resolution_notes:       record.resolutionNotes || '',
-  };
-  const { data, error } = await supabase
-    .from('attendance_records')
-    .upsert(row, { onConflict: 'user_id,employee_id,date' })
-    .select()
-    .single();
-  if (error) throw error;
-  return dbToAttendanceRecord(data);
-}
-
-function dbToAttendanceRecord(row) {
-  return {
-    id:                    row.id,
-    employeeId:            row.employee_id,
-    date:                  row.date,
-    shiftId:               row.shift_id,
-    clockInTime:           row.clock_in_time,
-    clockOutTime:          row.clock_out_time,
-    totalHours:            parseFloat(row.total_hours) || 0,
-    status:                row.status,
-    lateMinutes:           row.late_minutes || 0,
-    earlyDepartureMinutes: row.early_departure_minutes || 0,
-    overtimeHours:         parseFloat(row.overtime_hours) || 0,
-    overtimeType:          row.overtime_type,
-    overtimeAmount:        parseFloat(row.overtime_amount) || 0,
-    overtimeApprovedBy:    row.overtime_approved_by,
-    overtimeApproved:      row.overtime_approved,
-    workedOnRestDay:       row.worked_on_rest_day,
-    restDaySubstitute:     row.rest_day_substitute,
-    missingClockOut:       row.missing_clock_out,
-    isRamadanDay:          row.is_ramadan_day,
-    absenceDeduction:      parseFloat(row.absence_deduction) || 0,
-    lateDeduction:         parseFloat(row.late_deduction) || 0,
-    periodClosed:          row.period_closed,
-    resolvedBy:            row.resolved_by,
-    resolutionType:        row.resolution_type,
-    resolutionNotes:       row.resolution_notes,
-    updatedAt:             row.updated_at,
-  };
+  void record;
+  throw new Error('Attendance record writes moved to the migration attendance calculation screen.');
 }
 
 // ── COMPUTE & SAVE ATTENDANCE FOR A DAY ──────────────────────────────────────
@@ -301,54 +200,9 @@ export async function computeAndSaveAttendance({
   ramadanStart,
   ramadanEnd,
 }) {
-  const weekendDays = settings?.weekendDays || ['Fri','Sat'];
-  const isWeekend   = isWeekendDay(date, weekendDays);
-  const isHoliday   = isPublicHolidayDay(date, holidayDates);
-  const isRamadan   = isRamadanDay(date, ramadanStart, ramadanEnd);
-
-  // Check if employee has approved leave on this date (Connection B)
-  const hasApprovedLeave = (approvedLeaves || []).some(l =>
-    l.status === 'Approved' && l.startDate <= date && l.endDate >= date
-  );
-
-  // Get clock events for this day
-  const events = await getClockEvents(employee.id, date);
-  const clockIn  = events.find(e => e.eventType === 'CLOCK_IN')?.eventTime || null;
-  const clockOut = events.filter(e => e.eventType === 'CLOCK_OUT').pop()?.eventTime || null;
-
-  // Derive status
-  const derived = deriveAttendanceStatus({
-    date,
-    clockIn,
-    clockOut,
-    shift,
-    hasApprovedLeave,
-    isWeekend,
-    isHoliday,
-    isRamadan,
-    settings,
-    monthlyBasic: employee.basicSalary || 0,
-  });
-
-  // Save record
-  return upsertAttendanceRecord({
-    employeeId:            employee.id,
-    date,
-    shiftId:               shift?.id || null,
-    clockInTime:           clockIn,
-    clockOutTime:          clockOut,
-    totalHours:            derived.totalHours || 0,
-    status:                derived.status,
-    lateMinutes:           derived.lateMinutes || 0,
-    earlyDepartureMinutes: derived.earlyDepartureMinutes || 0,
-    overtimeHours:         derived.overtimeHours || 0,
-    overtimeType:          derived.overtimeType || null,
-    overtimeAmount:        derived.overtimeAmount || 0,
-    missingClockOut:       derived.missingClockOut || false,
-    isRamadanDay:          isRamadan,
-    lateDeduction:         derived.lateDeduction || 0,
-    workedOnRestDay:       derived.workedOnRestDay || false,
-  });
+  void employee; void date; void shift; void settings; void approvedLeaves;
+  void holidayDates; void ramadanStart; void ramadanEnd;
+  throw new Error('Attendance calculation moved to the migration attendance calculation screen.');
 }
 
 // ── ATTENDANCE PERIODS ────────────────────────────────────────────────────────
