@@ -40,7 +40,7 @@ from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.engine import URL
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
-EXPECTED_HEAD = "f2d4a8c6b901"
+EXPECTED_HEAD = "c9e5a7d1f642"
 FIXTURE_PATH = Path("/workspace-fixtures/phase-7g/employee-lifecycle.json")
 CURSOR_CODEC = EmployeeCursorCodec(b"phase-7g-verifier-cursor-key-000")
 ADMIN_SUBJECT = "hr.admin@horizon.test"

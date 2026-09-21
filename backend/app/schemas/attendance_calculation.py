@@ -26,11 +26,13 @@ class AttendanceRecordResponse(ApiSchema):
     total_hours: Decimal
     expected_hours: Decimal
     status: str
+    resolution_type: Literal["LEAVE_LINKED", "UNAUTHORISED", "WFH"] | None = None
     late_minutes: int
     early_departure_minutes: int
     overtime_hours: Decimal
     overtime_type: str | None
     overtime_amount: Decimal
+    overtime_approved: bool = False
     absence_deduction: Decimal
     late_deduction: Decimal
     worked_on_rest_day: bool

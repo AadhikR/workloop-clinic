@@ -1575,8 +1575,12 @@ def _attendance_rows() -> list[Row]:
         }
         if extra.get("resolution_type"):
             values["resolved_by_app_user_id"] = c.ADMIN_APP_USER[c.HORIZON]
+            values["resolved_at"] = c.CLOCK_TIMESTAMP
+            values["resolution_source_digest"] = "fixture-phase10e"
         if extra.get("overtime_approved"):
             values["overtime_approved_by_app_user_id"] = c.ADMIN_APP_USER[c.HORIZON]
+            values["overtime_approved_at"] = c.CLOCK_TIMESTAMP
+            values["overtime_approval_source_digest"] = "fixture-phase10e"
         values.update(extra)
         rows.append(Row("attendance_records", values))
 

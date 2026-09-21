@@ -241,6 +241,29 @@ button:focus-visible {
   padding-top: 1.25rem;
 }
 
+.attendance-exceptions {
+  border-top: 1px solid #dbe3ea;
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+}
+
+.exception-list {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0.75rem 0 1.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+.exception-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem;
+  border: 1px solid #c7d0c9;
+}
+
 .attendance-configuration fieldset {
   display: flex;
   flex-wrap: wrap;

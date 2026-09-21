@@ -329,14 +329,24 @@ class RegularisationRequest(Base):
             name="uq_regularisation_requests_id_employee_id_company_id_branch_id",
         ),
         CheckConstraint("correct_clock_out > correct_clock_in", name="clock_order"),
-        CheckConstraint("status IN ('Pending', 'Approved', 'Rejected')", name="status"),
         CheckConstraint(
-            "status = 'Pending' OR (approved_by_app_user_id IS NOT NULL "
-            "AND approved_at IS NOT NULL)",
-            name="decision_fields",
+            "correct_clock_out - correct_clock_in <= interval '24 hours'",
+            name="phase10e_regularisation_span",
         ),
         CheckConstraint(
-            "status <> 'Rejected' OR btrim(rejection_reason) <> ''", name="rejection_fields"
+            "char_length(btrim(reason)) BETWEEN 3 AND 500",
+            name="phase10e_regularisation_reason",
+        ),
+        CheckConstraint("version >= 1", name="phase10e_regularisation_version"),
+        CheckConstraint("status IN ('Pending', 'Approved', 'Rejected')", name="status"),
+        CheckConstraint(
+            "(status='Pending' AND approved_by_app_user_id IS NULL AND approved_at IS NULL "
+            "AND rejection_reason='') OR (status='Approved' "
+            "AND approved_by_app_user_id IS NOT NULL AND approved_at IS NOT NULL "
+            "AND rejection_reason='') OR (status='Rejected' "
+            "AND approved_by_app_user_id IS NOT NULL AND approved_at IS NOT NULL "
+            "AND btrim(rejection_reason) <> '')",
+            name="phase10e_decision_state",
         ),
         Index(
             "ix_regularisation_requests_employee_id_attendance_date",
@@ -344,6 +354,15 @@ class RegularisationRequest(Base):
             "attendance_date",
         ),
         Index("ix_regularisation_requests_status", "status"),
+        Index(
+            "uq_regularisation_requests_pending_employee_date",
+            "company_id",
+            "branch_id",
+            "employee_id",
+            "attendance_date",
+            unique=True,
+            postgresql_where=text("status = 'Pending'"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -374,6 +393,7 @@ class RegularisationRequest(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
+    version: Mapped[int] = mapped_column(Integer(), nullable=False, server_default=text("1"))
 
 
 class ClockEvent(Base):
@@ -408,6 +428,10 @@ class ClockEvent(Base):
         ),
         CheckConstraint("gps_lat IS NULL OR gps_lat BETWEEN -90 AND 90", name="latitude"),
         CheckConstraint("gps_lng IS NULL OR gps_lng BETWEEN -180 AND 180", name="longitude"),
+        CheckConstraint(
+            "is_superseded = (superseded_by IS NOT NULL)",
+            name="phase10e_clock_event_supersession",
+        ),
         UniqueConstraint("id", "company_id", "branch_id", name="uq_clock_events_id_scope"),
         Index("ix_clock_events_employee_id_event_time", "employee_id", "event_time"),
         Index("ix_clock_events_event_time", "event_time"),
@@ -427,7 +451,9 @@ class ClockEvent(Base):
             "method",
             text("date_trunc('minute'::text, (event_time AT TIME ZONE 'UTC'::text))"),
             unique=True,
-            postgresql_where=text("method = ANY (ARRAY['MANUAL'::text, 'BIOMETRIC'::text])"),
+            postgresql_where=text(
+                "method = ANY (ARRAY['MANUAL'::text, 'BIOMETRIC'::text]) AND superseded_by IS NULL"
+            ),
         ),
         Index(
             "ix_clock_events_scope_employee_time",
@@ -632,6 +658,21 @@ class AttendanceRecord(Base):
         CheckConstraint(
             "resolution_type = '' OR resolved_by_app_user_id IS NOT NULL", name="resolution_actor"
         ),
+        CheckConstraint(
+            "(resolution_type = '' AND resolved_by_app_user_id IS NULL AND resolved_at IS NULL "
+            "AND resolution_source_digest IS NULL) OR (resolution_type <> '' "
+            "AND resolved_by_app_user_id IS NOT NULL AND resolved_at IS NOT NULL "
+            "AND btrim(resolution_source_digest) <> '')",
+            name="phase10e_attendance_resolution_evidence",
+        ),
+        CheckConstraint(
+            "(NOT overtime_approved AND overtime_approved_by_app_user_id IS NULL "
+            "AND overtime_approved_at IS NULL AND overtime_approval_source_digest IS NULL) "
+            "OR (overtime_approved AND overtime_approved_by_app_user_id IS NOT NULL "
+            "AND overtime_approved_at IS NOT NULL "
+            "AND btrim(overtime_approval_source_digest) <> '')",
+            name="phase10e_overtime_approval_evidence",
+        ),
         Index("ix_attendance_records_employee_id_date", "employee_id", "date"),
         Index("ix_attendance_records_branch_id_date", "branch_id", "date"),
         Index("ix_attendance_records_status", "status"),
@@ -700,6 +741,8 @@ class AttendanceRecord(Base):
     resolved_by_app_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), nullable=True
     )
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    resolution_source_digest: Mapped[str | None] = mapped_column(Text(), nullable=True)
     resolution_type: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("''"))
     resolution_notes: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("''"))
     source_snapshot: Mapped[dict[str, object]] = mapped_column(
@@ -722,6 +765,10 @@ class AttendanceRecord(Base):
     source_stale: Mapped[bool] = mapped_column(
         Boolean(), nullable=False, server_default=text("true")
     )
+    overtime_approved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    overtime_approval_source_digest: Mapped[str | None] = mapped_column(Text(), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
@@ -785,6 +832,12 @@ class AttendanceAuditLog(Base):
             ondelete="RESTRICT",
         ),
         ForeignKeyConstraint(["actor_app_user_id"], ["app_users.id"], ondelete="RESTRICT"),
+        CheckConstraint(
+            "action IN ('edit', 'Absence Resolved', 'REGULARISATION_APPROVED', "
+            "'REGULARISATION_REJECTED', "
+            "'ABSENCE_RESOLVED', 'OVERTIME_APPROVED')",
+            name="phase10e_attendance_audit_action",
+        ),
         Index("ix_attendance_audit_log_employee_id_date", "employee_id", "attendance_date"),
     )
 

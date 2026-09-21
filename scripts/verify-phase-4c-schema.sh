@@ -65,8 +65,8 @@ BEGIN
     VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', '2026-01');
   INSERT INTO attendance_audit_log (company_id, branch_id, employee_id, action, actor_app_user_id)
     VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000021', 'edit', '00000000-0000-0000-0000-000000000032');
-  INSERT INTO regularisation_requests (company_id, branch_id, employee_id, attendance_date, correct_clock_in, correct_clock_out)
-    VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000021', '2026-01-02', '2026-01-02T09:00:00Z', '2026-01-02T17:00:00Z');
+  INSERT INTO regularisation_requests (company_id, branch_id, employee_id, attendance_date, correct_clock_in, correct_clock_out, reason)
+    VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000021', '2026-01-02', '2026-01-02T09:00:00Z', '2026-01-02T17:00:00Z', 'Schema smoke request');
   INSERT INTO clock_events (company_id, branch_id, employee_id, event_type, event_time)
     VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000021', 'CLOCK_IN', '2026-01-02T09:00:00Z');
   INSERT INTO shift_swap_requests (company_id, branch_id, requester_employee_id, target_employee_id, requester_date)

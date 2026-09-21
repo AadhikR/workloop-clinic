@@ -40,6 +40,7 @@ def _record(row: RowMapping) -> AttendanceRecordResponse:
     values = dict(row)
     snapshot = cast(dict[str, object], values["source_snapshot"])
     values["expected_hours"] = snapshot.get("expectedHours", "0.00")
+    values["resolution_type"] = values["resolution_type"] or None
     return AttendanceRecordResponse.model_validate(
         {field: values[field] for field in AttendanceRecordResponse.model_fields}
     )
@@ -253,6 +254,8 @@ class AttendanceRecordService:
             )
         source_events = cast(list[RowMapping], sources["events"])
         raw_events = _owned_events(request.attendance_date, shift, source_events)
+        current = cast(RowMapping | None, sources["current"])
+        resolution_type = None if current is None else current["resolution_type"] or None
         leave_settings = cast(RowMapping | None, sources["leaveSettings"])
         ramadan = bool(
             leave_settings
@@ -269,7 +272,7 @@ class AttendanceRecordService:
             weekday in settings["weekend_days"],
             bool(sources["holiday"]),
             bool(sources["leave"]),
-            False,
+            resolution_type == "WFH",
             ramadan,
             weekday in settings["working_days"],
             Decimal(employee["basic_salary"]),
@@ -281,6 +284,8 @@ class AttendanceRecordService:
         result = calculate(snapshot)
         prior_required = cast(list[RowMapping], sources["priorRequired"])
         evidence_flags = list(result.blocker_flags)
+        if resolution_type is not None:
+            evidence_flags.append(f"resolution:{resolution_type.lower()}")
         if (
             result.status == "UNEXPLAINED_ABSENCE"
             and len(prior_required) == 2
@@ -387,11 +392,17 @@ class AttendanceRecordService:
                 for item in prior_required
             ],
             "expectedHours": f"{result.expected_hours:.2f}",
+            "resolution": None
+            if current is None or resolution_type is None
+            else {
+                "type": resolution_type,
+                "resolvedAt": _source_value(current["resolved_at"]),
+                "sourceDigest": current["resolution_source_digest"],
+            },
         }
         digest = hashlib.sha256(
             json.dumps(source_snapshot, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
-        current = cast(RowMapping | None, sources["current"])
         if current is not None and request.expected_source_digest is None:
             raise ServiceExecutionError("state_conflict")
         if request.expected_source_digest is not None and request.expected_source_digest != (
@@ -426,6 +437,10 @@ class AttendanceRecordService:
             "source_clock_event_ids": [item["id"] for item in raw_events],
             "evidence_flags": sorted(set(evidence_flags)),
             "source_stale": False,
+            "overtime_approved": False,
+            "overtime_approved_by_app_user_id": None,
+            "overtime_approved_at": None,
+            "overtime_approval_source_digest": None,
             "calculation_version": 1
             if current is None
             else int(current["calculation_version"]) + 1,

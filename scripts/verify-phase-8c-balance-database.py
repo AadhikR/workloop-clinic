@@ -29,7 +29,7 @@ from sqlalchemy.engine import URL
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
-EXPECTED_HEAD = "f2d4a8c6b901"
+EXPECTED_HEAD = "c9e5a7d1f642"
 ADMIN = "hr.admin@horizon.test"
 AISHA = "aisha.manager@horizon.test"
 RAVI = "ravi.employee@horizon.test"

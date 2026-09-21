@@ -17,7 +17,7 @@ const employeeId = '40000000-0000-4000-8000-000000000001'
 const recordId = '50000000-0000-4000-8000-000000000001'
 const key = '70000000-0000-4000-8000-000000000001'
 const now = '2026-08-27T08:00:00.000Z'
-const record = { id: recordId, employeeId, date: '2026-08-27', shiftId: null, clockInTime: now, clockOutTime: now, totalHours: '8.00', expectedHours: '8.00', status: 'PRESENT', lateMinutes: 0, earlyDepartureMinutes: 0, overtimeHours: '0.00', overtimeType: null, overtimeAmount: '0.00', absenceDeduction: '0.00', lateDeduction: '0.00', workedOnRestDay: false, restDaySubstitute: false, missingClockOut: false, isRamadanDay: false, periodClosed: false, evidenceFlags: [], sourceDigest: 'a'.repeat(64), sourceStale: false, calculationVersion: 1, updatedAt: now }
+const record = { id: recordId, employeeId, date: '2026-08-27', shiftId: null, clockInTime: now, clockOutTime: now, totalHours: '8.00', expectedHours: '8.00', status: 'PRESENT', resolutionType: null, lateMinutes: 0, earlyDepartureMinutes: 0, overtimeHours: '0.00', overtimeType: null, overtimeAmount: '0.00', overtimeApproved: false, absenceDeduction: '0.00', lateDeduction: '0.00', workedOnRestDay: false, restDaySubstitute: false, missingClockOut: false, isRamadanDay: false, periodClosed: false, evidenceFlags: [], sourceDigest: 'a'.repeat(64), sourceStale: false, calculationVersion: 1, updatedAt: now }
 const page = { limit: 20, nextCursor: null, hasMore: false }
 const repositoryDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 

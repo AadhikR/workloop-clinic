@@ -12,7 +12,6 @@
  */
 
 import { supabase } from '../lib/supabase';
-import { ATTENDANCE_STATUS } from './attendanceEngine';
 
 async function getSessionUser() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -256,115 +255,32 @@ export async function closeAttendancePeriod(period, closedBy) {
 // ── REGULARISATION REQUESTS ───────────────────────────────────────────────────
 
 export async function getRegularisationRequests(filters = {}) {
-  const user = await getSessionUser();
-  if (!user) return [];
-  let query = supabase.from('regularisation_requests').select('*').eq('user_id', user.id).order('submitted_at', { ascending: false });
-  if (filters.employeeId) query = query.eq('employee_id', filters.employeeId);
-  if (filters.status)     query = query.eq('status', filters.status);
-  const { data, error } = await query;
-  if (error) { console.error('getRegularisationRequests:', error); return []; }
-  return (data || []).map(row => ({
-    id:               row.id,
-    employeeId:       row.employee_id,
-    attendanceDate:   row.attendance_date,
-    correctClockIn:   row.correct_clock_in,
-    correctClockOut:  row.correct_clock_out,
-    reason:           row.reason,
-    status:           row.status,
-    approvedBy:       row.approved_by,
-    approvedAt:       row.approved_at,
-    rejectionReason:  row.rejection_reason,
-    originalClockIn:  row.original_clock_in,
-    originalClockOut: row.original_clock_out,
-    submittedAt:      row.submitted_at,
-  }));
+  void filters;
+  throw new Error('Attendance corrections have moved to the migration attendance exceptions screen.');
 }
 
 export async function submitRegularisationRequest({ employeeId, attendanceDate, correctClockIn, correctClockOut, reason, originalClockIn, originalClockOut }) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-  const { data, error } = await supabase.from('regularisation_requests').insert({
-    user_id:           user.id,
-    employee_id:       employeeId,
-    attendance_date:   attendanceDate,
-    correct_clock_in:  correctClockIn,
-    correct_clock_out: correctClockOut,
-    reason,
-    original_clock_in:  originalClockIn || null,
-    original_clock_out: originalClockOut || null,
-    status:            'Pending',
-  }).select().single();
-  if (error) throw error;
-  return data;
+  void employeeId; void attendanceDate; void correctClockIn; void correctClockOut;
+  void reason; void originalClockIn; void originalClockOut;
+  throw new Error('Attendance corrections have moved to the migration attendance exceptions screen.');
 }
 
 export async function approveRegularisationRequest(id, approvedBy) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-
-  // Fetch the request first so we have the corrected clock times
-  const { data: req, error: fetchErr } = await supabase
-    .from('regularisation_requests')
-    .select('employee_id, attendance_date, correct_clock_in, correct_clock_out')
-    .eq('id', id)
-    .single();
-  if (fetchErr || !req) throw fetchErr || new Error('Regularisation request not found');
-
-  // Mark the request as approved
-  const { data, error } = await supabase.from('regularisation_requests')
-    .update({ status: 'Approved', approved_by: approvedBy || user.email, approved_at: new Date().toISOString() })
-    .eq('id', id)
-    .select()
-    .single();
-  if (error) throw error;
-
-  // Apply the corrected clock times to the attendance record
-  const clockIn  = req.correct_clock_in  || null;
-  const clockOut = req.correct_clock_out || null;
-  const totalMs  = clockIn && clockOut ? (new Date(clockOut) - new Date(clockIn)) : 0;
-  const breakMs  = 60 * 60 * 1000;
-  const totalHours = Math.max(0, totalMs > breakMs ? (totalMs - breakMs) / 3600000 : totalMs / 3600000);
-  let status = ATTENDANCE_STATUS.ABSENT;
-  if (clockIn && clockOut) status = ATTENDANCE_STATUS.PRESENT;
-  else if (clockIn)        status = ATTENDANCE_STATUS.MISSING_CLOCK_OUT;
-
-  await supabase.from('attendance_records').upsert({
-    user_id:        user.id,
-    employee_id:    req.employee_id,
-    date:           req.attendance_date,
-    clock_in_time:  clockIn,
-    clock_out_time: clockOut,
-    total_hours:    totalHours,
-    status,
-  }, { onConflict: 'user_id,employee_id,date' });
-
-  return data;
+  void id; void approvedBy;
+  throw new Error('Attendance corrections have moved to the migration attendance exceptions screen.');
 }
 
 export async function rejectRegularisationRequest(id, rejectionReason, rejectedBy) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-  const { error } = await supabase.from('regularisation_requests')
-    .update({ status: 'Rejected', rejection_reason: rejectionReason, approved_by: rejectedBy || user.email })
-    .eq('id', id);
-  if (error) throw error;
+  void id; void rejectionReason; void rejectedBy;
+  throw new Error('Attendance corrections have moved to the migration attendance exceptions screen.');
 }
 
 // ── AUDIT LOG ─────────────────────────────────────────────────────────────────
 
 export async function addAttendanceAuditLog({ employeeId, attendanceDate, action, actor, oldValue, newValue, reason }) {
-  const user = await getSessionUser();
-  if (!user) return;
-  await supabase.from('attendance_audit_log').insert({
-    user_id:         user.id,
-    employee_id:     employeeId,
-    attendance_date: attendanceDate || null,
-    action,
-    actor:           actor || user.email || user.id,
-    old_value:       String(oldValue ?? ''),
-    new_value:       String(newValue ?? ''),
-    reason:          reason || '',
-  });
+  void employeeId; void attendanceDate; void action; void actor;
+  void oldValue; void newValue; void reason;
+  throw new Error('Attendance audit writes have moved to the migration attendance exceptions screen.');
 }
 
 // ── PAYROLL INTEGRATION ───────────────────────────────────────────────────────

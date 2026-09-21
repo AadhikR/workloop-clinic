@@ -23,7 +23,8 @@ def test_phase10c_clock_event_metadata_matches_the_migration() -> None:
     )
     assert (
         str(indexes["uq_clock_events_method_minute"].dialect_options["postgresql"]["where"])
-        == "method = ANY (ARRAY['MANUAL'::text, 'BIOMETRIC'::text])"
+        == "method = ANY (ARRAY['MANUAL'::text, 'BIOMETRIC'::text]) "
+        "AND superseded_by IS NULL"
     )
     assert str(indexes["ix_clock_events_scope_employee_time"].expressions[-2]) == (
         "event_time DESC"

@@ -7,7 +7,7 @@ Phase 9 implementation and verification are complete at commit
 `35350832324` passed on 2026-09-18, and Alembic has one head at `f4b8d2e6a901`.
 The project owner signed off Phase 9 and authorized 10A on 2026-09-18. The owner directed 10A to
 settle bounded Phase 10 decisions with best judgment, commit its approved contract artifacts, and
-continue into 10B without an intermediate authorization pause. Parts 10A through 10C are complete.
+continue into 10B without an intermediate authorization pause. Parts 10A through 10E are complete.
 
 This document splits Phase 10 into ten parts, 10A through 10J. The completed authorization covered
 10A through 10C. The owner also authorized sequential work from 10D through 10J, with a separate
@@ -79,8 +79,8 @@ last part reviews the complete boundary independently.
 | 10B | Attendance settings, shift templates, and effective-dated shift assignment | Complete |
 | 10C | Manual and biometric event ingestion, badge mappings, provenance, and deduplication | Complete |
 | 10D | Server attendance calculation, administrator reads, and employee self reads | Complete |
-| 10E | Regularisation, absence resolution, overtime approval, and attendance audit | Next; authorized |
-| 10F | Atomic period close and the closed attendance payroll projection | Planned; authorized after verified 10E handoff |
+| 10E | Regularisation, absence resolution, overtime approval, and attendance audit | Complete |
+| 10F | Atomic period close and the closed attendance payroll projection | Next; authorized |
 | 10G | Roster drafts, leave conflicts, staffing gates, and compliance overrides | Planned; authorized after verified 10F handoff |
 | 10H | Roster publication, employee schedules, actual-hours authority, and payroll projection | Planned; authorized after verified 10G handoff |
 | 10I | Shift-swap requests, cancellation, rejection, and protected execution | Planned; authorized after verified 10H handoff |
