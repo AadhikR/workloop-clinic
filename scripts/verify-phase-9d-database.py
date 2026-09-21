@@ -95,7 +95,7 @@ async def main() -> None:
     fixture_run_ids = [row.values["id"] for row in rows if row.table == "payroll_runs"]
     with migration_engine.begin() as connection:
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "c9e5a7d1f642"
+            "d0f6b8e2a753"
         )
         connection.execute(
             text("DELETE FROM public.idempotency_records WHERE replay_resource_kind='payroll_run'")

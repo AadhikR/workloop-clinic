@@ -9,7 +9,7 @@ verify_revision() {
   compose run --rm --no-deps \
     --volume ./scripts:/verification:ro \
     --entrypoint python migrate \
-    /verification/verify-phase-10e-revision.py "$1"
+    /verification/verify-phase-10f-revision.py "$1"
 }
 
 restore_head() {
@@ -17,12 +17,13 @@ restore_head() {
 }
 
 trap restore_head EXIT HUP INT TERM
-compose run --rm migrate alembic -c /app/alembic.ini downgrade c9e5a7d1f642
+compose run --rm migrate alembic -c /app/alembic.ini downgrade d0f6b8e2a753
 head_hash="$(verify_revision head)"
-compose run --rm migrate alembic -c /app/alembic.ini downgrade f2d4a8c6b901
+compose run --rm migrate alembic -c /app/alembic.ini downgrade c9e5a7d1f642
 test "$(verify_revision predecessor)" = "$head_hash"
-restore_head
+compose run --rm migrate alembic -c /app/alembic.ini upgrade d0f6b8e2a753
 test "$(verify_revision head)" = "$head_hash"
+restore_head
 trap - EXIT HUP INT TERM
 
-echo "Phase 10E exact predecessor rollback and replay passed."
+echo "Phase 10F exact predecessor rollback and replay passed."

@@ -212,7 +212,7 @@ def _automatic_source(
     *,
     source_type: str,
     source_id: uuid.UUID,
-    source_version: datetime,
+    source_version: datetime | str,
     period: str,
     direction: Literal["addition", "deduction"],
     amount: Decimal,
@@ -225,7 +225,9 @@ def _automatic_source(
         "period": period,
         "sourceId": str(source_id),
         "sourceType": source_type,
-        "sourceVersion": _iso(source_version),
+        "sourceVersion": source_version
+        if isinstance(source_version, str)
+        else _iso(source_version),
     }
 
 
@@ -648,10 +650,13 @@ class PayrollService:
             period_end=end,
         )
         leave_by_employee: defaultdict[uuid.UUID, list[RowMapping]] = defaultdict(list)
+        attendance_by_employee: dict[uuid.UUID, RowMapping] = {}
         expense_by_employee: defaultdict[uuid.UUID, list[RowMapping]] = defaultdict(list)
         advance_by_employee: defaultdict[uuid.UUID, list[RowMapping]] = defaultdict(list)
         for item in leave_inputs:
             leave_by_employee[item["employee_id"]].append(item)
+        for item in attendance_inputs or []:
+            attendance_by_employee[item["employee_id"]] = item
         for item in expense_inputs:
             expense_by_employee[item["employee_id"]].append(item)
         for item in advance_inputs:
@@ -701,6 +706,79 @@ class PayrollService:
                 explanations.append(
                     f"Approved {leave['leave_type_code']} leave deducted AED {amount:.2f}."
                 )
+
+            attendance = attendance_by_employee.get(employee["id"])
+            if attendance is not None:
+                source_rows = [str(value) for value in attendance["source_row_ids"]]
+                deduction_amount = money(
+                    Decimal(attendance["absence_amount"]) + Decimal(attendance["late_amount"])
+                )
+                overtime_amount = money(
+                    Decimal(attendance["standard_overtime_amount"])
+                    + Decimal(attendance["rest_day_overtime_amount"])
+                )
+                if deduction_amount > ZERO:
+                    source_id = uuid.uuid5(
+                        AUTOMATIC_NAMESPACE,
+                        f"attendance:{attendance['period_version_id']}:{employee['id']}:deduction",
+                    )
+                    deductions.append(
+                        automatic_adjustment(
+                            "attendance", source_id, "Attendance deductions", deduction_amount
+                        )
+                    )
+                    automatic_inputs.append(
+                        _automatic_source(
+                            source_type="attendance",
+                            source_id=source_id,
+                            source_version=attendance["source_version"],
+                            period=period,
+                            direction="deduction",
+                            amount=deduction_amount,
+                            calculation_inputs={
+                                "absenceAmount": f"{Decimal(attendance['absence_amount']):.2f}",
+                                "absenceDays": f"{Decimal(attendance['absence_days']):.2f}",
+                                "closedAt": _iso(attendance["closed_at"]),
+                                "lateAmount": f"{Decimal(attendance['late_amount']):.2f}",
+                                "lateMinutes": int(attendance["late_minutes"]),
+                                "sourceRowIds": source_rows,
+                            },
+                        )
+                    )
+                    explanations.append(f"Attendance deducted AED {deduction_amount:.2f}.")
+                if overtime_amount > ZERO:
+                    rest_amount = f"{Decimal(attendance['rest_day_overtime_amount']):.2f}"
+                    rest_hours = f"{Decimal(attendance['rest_day_overtime_hours']):.2f}"
+                    standard_amount = f"{Decimal(attendance['standard_overtime_amount']):.2f}"
+                    standard_hours = f"{Decimal(attendance['standard_overtime_hours']):.2f}"
+                    source_id = uuid.uuid5(
+                        AUTOMATIC_NAMESPACE,
+                        f"attendance:{attendance['period_version_id']}:{employee['id']}:overtime",
+                    )
+                    additions.append(
+                        automatic_adjustment(
+                            "attendance", source_id, "Attendance overtime", overtime_amount
+                        )
+                    )
+                    automatic_inputs.append(
+                        _automatic_source(
+                            source_type="attendance",
+                            source_id=source_id,
+                            source_version=attendance["source_version"],
+                            period=period,
+                            direction="addition",
+                            amount=overtime_amount,
+                            calculation_inputs={
+                                "closedAt": _iso(attendance["closed_at"]),
+                                "restDayOvertimeAmount": rest_amount,
+                                "restDayOvertimeHours": rest_hours,
+                                "sourceRowIds": source_rows,
+                                "standardOvertimeAmount": standard_amount,
+                                "standardOvertimeHours": standard_hours,
+                            },
+                        )
+                    )
+                    explanations.append(f"Attendance overtime added AED {overtime_amount:.2f}.")
 
             for expense in expense_by_employee[employee["id"]]:
                 amount = money(expense["amount"])

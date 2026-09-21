@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import uuid
 from datetime import date
@@ -395,8 +396,109 @@ FOR UPDATE OF request
     async def attendance_input_projection(
         self, *, company_id: uuid.UUID, branch_id: uuid.UUID, period: str
     ) -> list[RowMapping] | None:
-        del company_id, branch_id, period
-        return None
+        version = (
+            (
+                await self.connection.execute(
+                    text(
+                        """
+SELECT period_row.current_version_id AS period_version_id,
+       period_row.source_version,version.closed_at,version.record_count,
+       version.source_canonical
+FROM public.attendance_periods period_row
+JOIN public.attendance_period_versions version
+  ON version.id=period_row.current_version_id
+ AND version.attendance_period_id=period_row.id
+ AND version.company_id=period_row.company_id
+ AND version.branch_id=period_row.branch_id
+ AND version.period=period_row.period
+ AND version.version=period_row.version
+WHERE period_row.company_id=:company_id AND period_row.branch_id=:branch_id
+  AND period_row.period=:period AND period_row.status='closed'
+  AND period_row.payroll_ready AND version.payroll_ready
+FOR UPDATE OF period_row
+"""
+                    ),
+                    {"company_id": company_id, "branch_id": branch_id, "period": period},
+                )
+            )
+            .mappings()
+            .one_or_none()
+        )
+        if version is None:
+            return None
+        evidence_locked = (
+            await self.connection.execute(
+                text(
+                    "SELECT public.phase10f_lock_period_evidence("
+                    ":company_id,:branch_id,:version_id)"
+                ),
+                {
+                    "company_id": company_id,
+                    "branch_id": branch_id,
+                    "version_id": version["period_version_id"],
+                },
+            )
+        ).scalar_one()
+        if evidence_locked is not True:
+            return None
+        computed_version = (
+            "sha256:" + hashlib.sha256(version["source_canonical"].encode()).hexdigest()
+        )
+        if version["source_version"] != computed_version:
+            return None
+        locked = list(
+            (
+                await self.connection.execute(
+                    text(
+                        "SELECT id FROM public.attendance_period_record_snapshots "
+                        "WHERE period_version_id=:version_id AND company_id=:company_id "
+                        "AND branch_id=:branch_id ORDER BY id"
+                    ),
+                    {
+                        "version_id": version["period_version_id"],
+                        "company_id": company_id,
+                        "branch_id": branch_id,
+                    },
+                )
+            ).mappings()
+        )
+        if len(locked) != int(version["record_count"]):
+            return None
+        return list(
+            (
+                await self.connection.execute(
+                    text(
+                        """
+SELECT CAST(:version_id AS uuid) AS period_version_id,
+       CAST(:source_version AS text) AS source_version,
+       CAST(:closed_at AS timestamptz) AS closed_at,
+       snapshot.employee_id,
+       sum(snapshot.absence_days)::numeric(6,2) AS absence_days,
+       sum(snapshot.absence_amount)::numeric(14,2) AS absence_amount,
+       sum(snapshot.late_minutes)::bigint AS late_minutes,
+       sum(snapshot.late_amount)::numeric(14,2) AS late_amount,
+       sum(snapshot.standard_overtime_hours)::numeric(7,2) AS standard_overtime_hours,
+       sum(snapshot.standard_overtime_amount)::numeric(14,2) AS standard_overtime_amount,
+       sum(snapshot.rest_day_overtime_hours)::numeric(7,2) AS rest_day_overtime_hours,
+       sum(snapshot.rest_day_overtime_amount)::numeric(14,2) AS rest_day_overtime_amount,
+       array_agg(snapshot.source_record_id ORDER BY snapshot.source_record_id) AS source_row_ids
+FROM public.attendance_period_record_snapshots snapshot
+WHERE snapshot.period_version_id=:version_id AND snapshot.company_id=:company_id
+  AND snapshot.branch_id=:branch_id
+GROUP BY snapshot.employee_id
+ORDER BY snapshot.employee_id
+"""
+                    ),
+                    {
+                        "version_id": version["period_version_id"],
+                        "source_version": version["source_version"],
+                        "closed_at": version["closed_at"],
+                        "company_id": company_id,
+                        "branch_id": branch_id,
+                    },
+                )
+            ).mappings()
+        )
 
     async def roster_input_projection(
         self, *, company_id: uuid.UUID, branch_id: uuid.UUID, period: str

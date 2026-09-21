@@ -14,6 +14,7 @@ from app.advance_api import router as advance_router
 from app.attendance_configuration_api import router as attendance_configuration_router
 from app.attendance_exceptions_api import router as attendance_exceptions_router
 from app.attendance_ingestion_api import router as attendance_ingestion_router
+from app.attendance_periods_api import router as attendance_periods_router
 from app.attendance_records_api import router as attendance_records_router
 from app.auth.access_token import AccessTokenVerifier
 from app.auth.application_user import ApplicationUserResolver
@@ -228,6 +229,7 @@ def create_app(
     application.include_router(attendance_ingestion_router)
     application.include_router(attendance_records_router)
     application.include_router(attendance_exceptions_router)
+    application.include_router(attendance_periods_router)
     application.include_router(idempotency_router)
     application.include_router(leave_configuration_router)
     application.include_router(leave_balance_router)

@@ -45,6 +45,26 @@ class AttendanceIngestionRepository:
             await self.connection.exec_driver_sql("SELECT public.workloop_business_date()")
         ).scalar_one()
 
+    async def lock_open_period(
+        self, company_id: uuid.UUID, branch_id: uuid.UUID, period: str
+    ) -> bool:
+        await self.connection.exec_driver_sql(
+            "INSERT INTO public.attendance_periods(company_id,branch_id,period) "
+            "VALUES (%s,%s,%s) ON CONFLICT (branch_id,period) DO NOTHING",
+            (company_id, branch_id, period),
+        )
+        status = (
+            await self.connection.execute(
+                text(
+                    "SELECT status FROM public.attendance_periods "
+                    "WHERE company_id=:company_id AND branch_id=:branch_id "
+                    "AND period=:period FOR UPDATE"
+                ),
+                {"company_id": company_id, "branch_id": branch_id, "period": period},
+            )
+        ).scalar_one()
+        return status == "open"
+
     async def employee(
         self,
         company_id: uuid.UUID,

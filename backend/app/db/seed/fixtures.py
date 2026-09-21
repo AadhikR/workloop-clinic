@@ -1645,7 +1645,7 @@ def _attendance_rows() -> list[Row]:
                     "status": "closed",
                     "closed_at": c.CLOCK_TIMESTAMP,
                     "closed_by_app_user_id": c.ADMIN_APP_USER[c.HORIZON],
-                    "payroll_ready": True,
+                    "payroll_ready": False,
                     "open_items": 0,
                 },
             ),

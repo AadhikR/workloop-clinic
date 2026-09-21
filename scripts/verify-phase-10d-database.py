@@ -76,7 +76,7 @@ async def main() -> None:
     rows = build_rows()
     with migration_engine.begin() as connection:
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "c9e5a7d1f642"
+            "d0f6b8e2a753"
         )
         connection.execute(text("DELETE FROM public.clock_events WHERE notes LIKE '10D %'"))
         connection.execute(

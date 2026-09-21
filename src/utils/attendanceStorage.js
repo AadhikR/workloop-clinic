@@ -207,49 +207,17 @@ export async function computeAndSaveAttendance({
 // ── ATTENDANCE PERIODS ────────────────────────────────────────────────────────
 
 export async function getAttendancePeriod(period) {
-  const user = await getSessionUser();
-  if (!user) return null;
-  const { data, error } = await supabase
-    .from('attendance_periods')
-    .select('*')
-    .eq('user_id', user.id)
-    .eq('period', period)
-    .maybeSingle();
-  if (error) { console.error('getAttendancePeriod:', error); return null; }
-  return data ? { id: data.id, period: data.period, status: data.status, closedAt: data.closed_at, closedBy: data.closed_by, payrollReady: data.payroll_ready, openItems: data.open_items } : null;
+  void period;
+  throw new Error('Attendance period reads have moved to the migration attendance close screen.');
 }
 
 export async function getAttendancePeriods() {
-  const user = await getSessionUser();
-  if (!user) return [];
-  const { data, error } = await supabase
-    .from('attendance_periods')
-    .select('*')
-    .eq('user_id', user.id)
-    .order('period', { ascending: false });
-  if (error) { console.error('getAttendancePeriods:', error); return []; }
-  return (data || []).map(row => ({ id: row.id, period: row.period, status: row.status, closedAt: row.closed_at, closedBy: row.closed_by, payrollReady: row.payroll_ready, openItems: row.open_items }));
+  throw new Error('Attendance period reads have moved to the migration attendance close screen.');
 }
 
 export async function closeAttendancePeriod(period, closedBy) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-  const { error } = await supabase.from('attendance_periods').upsert({
-    user_id:       user.id,
-    period,
-    status:        'closed',
-    closed_at:     new Date().toISOString(),
-    closed_by:     closedBy || user.email || user.id,
-    payroll_ready: true,
-  }, { onConflict: 'user_id,period' });
-  if (error) throw error;
-  // Lock all attendance records for this period
-  const [y, m] = period.split('-').map(Number);
-  await supabase.from('attendance_records')
-    .update({ period_closed: true })
-    .eq('user_id', user.id)
-    .gte('date', `${y}-${String(m).padStart(2,'0')}-01`)
-    .lte('date', `${y}-${String(m).padStart(2,'0')}-${new Date(y, m, 0).getDate()}`);
+  void period; void closedBy;
+  throw new Error('Attendance period close has moved to the migration attendance close screen.');
 }
 
 // ── REGULARISATION REQUESTS ───────────────────────────────────────────────────
@@ -291,21 +259,8 @@ export async function addAttendanceAuditLog({ employeeId, attendanceDate, action
  * Returns absence deductions, overtime earnings, late deductions per employee.
  */
 export async function getAttendancePayrollData(period) {
-  const periodData = await getAttendancePeriod(period);
-  const records    = await getAttendanceRecords({ period });
-
-  // Group by employee
-  const byEmployee = {};
-  for (const rec of records) {
-    if (!byEmployee[rec.employeeId]) byEmployee[rec.employeeId] = [];
-    byEmployee[rec.employeeId].push(rec);
-  }
-
-  return {
-    periodClosed:  periodData?.status === 'closed',
-    payrollReady:  periodData?.payrollReady ?? false,
-    byEmployee,
-  };
+  void period;
+  throw new Error('Attendance payroll input is available only through the migration payroll service.');
 }
 
 // ── ROSTER ASSIGNMENTS (Feature 8) ───────────────────────────────────────────

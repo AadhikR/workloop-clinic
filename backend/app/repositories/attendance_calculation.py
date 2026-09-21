@@ -411,6 +411,24 @@ class AttendanceCalculationRepository:
         attendance_date: date,
         values: dict[str, object],
     ) -> RowMapping:
+        await self.connection.exec_driver_sql(
+            "INSERT INTO public.attendance_periods(company_id,branch_id,period) "
+            "VALUES (%s,%s,%s) ON CONFLICT (branch_id,period) DO NOTHING",
+            (company_id, branch_id, attendance_date.strftime("%Y-%m")),
+        )
+        period_status = (
+            await self.connection.execute(
+                select(AttendancePeriod.status)
+                .where(
+                    AttendancePeriod.company_id == company_id,
+                    AttendancePeriod.branch_id == branch_id,
+                    AttendancePeriod.period == attendance_date.strftime("%Y-%m"),
+                )
+                .with_for_update()
+            )
+        ).scalar_one()
+        if period_status != "open":
+            raise ResourceNotFoundError
         current = await self.today_record(company_id, branch_id, employee_id, attendance_date)
         expected_digest = values.pop("expected_digest")
         expected_version = values.pop("expected_version")

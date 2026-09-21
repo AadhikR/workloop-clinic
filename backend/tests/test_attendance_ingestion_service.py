@@ -54,6 +54,7 @@ class FakeRepository:
         self.badges: dict[str, uuid.UUID] = {"A-1": EMPLOYEE_ID}
         self.duplicates: set[str] = set()
         self.manual_duplicate = False
+        self.period_open = True
         self.created_events: list[dict[str, object]] = []
         self.outcomes: list[tuple[int, str, str | None, uuid.UUID | None]] = []
         self.mapping_row: dict[str, object] = {
@@ -66,6 +67,9 @@ class FakeRepository:
 
     async def business_date(self) -> date:
         return date(2026, 8, 27)
+
+    async def lock_open_period(self, *_args: object) -> bool:
+        return self.period_open
 
     async def employee(self, *_args: object, **_kwargs: object) -> dict[str, object]:
         return self.employee_row
@@ -244,6 +248,23 @@ async def test_manual_event_rejects_out_of_window_and_ineligible_employee() -> N
     repository.manual_duplicate = True
     with pytest.raises(ServiceExecutionError, match="clock_event_conflict"):
         await ingestion.manual(principal(), BRANCH_ID, manual_request("2026-08-27T12:00:20+04:00"))
+
+
+@pytest.mark.asyncio
+async def test_ingestion_rejects_a_closed_attendance_period() -> None:
+    repository = FakeRepository()
+    repository.period_open = False
+    ingestion = service(repository)
+    with pytest.raises(ServiceExecutionError, match="state_conflict"):
+        await ingestion.manual(principal(), BRANCH_ID, manual_request("2026-08-27T12:00:00+04:00"))
+    request = BiometricImportRequest.model_validate(
+        {
+            "sourceBytes": 120,
+            "candidates": [candidate("A-1", "CLOCK_IN", "2026-08-27T08:00:00+04:00")],
+        }
+    )
+    with pytest.raises(ServiceExecutionError, match="state_conflict"):
+        await ingestion.import_candidates(principal(), BRANCH_ID, request)
 
 
 @pytest.mark.asyncio

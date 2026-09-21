@@ -80,8 +80,8 @@ last part reviews the complete boundary independently.
 | 10C | Manual and biometric event ingestion, badge mappings, provenance, and deduplication | Complete |
 | 10D | Server attendance calculation, administrator reads, and employee self reads | Complete |
 | 10E | Regularisation, absence resolution, overtime approval, and attendance audit | Complete |
-| 10F | Atomic period close and the closed attendance payroll projection | Next; authorized |
-| 10G | Roster drafts, leave conflicts, staffing gates, and compliance overrides | Planned; authorized after verified 10F handoff |
+| 10F | Atomic period close and the closed attendance payroll projection | Complete |
+| 10G | Roster drafts, leave conflicts, staffing gates, and compliance overrides | Next; authorized |
 | 10H | Roster publication, employee schedules, actual-hours authority, and payroll projection | Planned; authorized after verified 10G handoff |
 | 10I | Shift-swap requests, cancellation, rejection, and protected execution | Planned; authorized after verified 10H handoff |
 | 10J | Independent review, complete cutover proof, and Phase 10 gate | Planned; authorized after verified 10I handoff |

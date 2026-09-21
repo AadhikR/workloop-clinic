@@ -102,7 +102,7 @@ async def main() -> None:
     idempotency_key = uuid.uuid4()
     with migration_engine.begin() as connection:
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "c9e5a7d1f642"
+            "d0f6b8e2a753"
         )
         clean(connection, rows)
         apply_rows(connection, rows)

@@ -787,12 +787,31 @@ class AttendancePeriod(Base):
             ondelete="RESTRICT",
         ),
         ForeignKeyConstraint(["closed_by_app_user_id"], ["app_users.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(
+            ["current_version_id"],
+            ["attendance_period_versions.id"],
+            name="fk_attendance_periods_current_version_id_attendance_period_versions",
+            ondelete="RESTRICT",
+            use_alter=True,
+        ),
         UniqueConstraint("branch_id", "period", name="uq_attendance_periods_branch_id_period"),
         CheckConstraint("status IN ('open', 'closed')", name="status"),
         CheckConstraint("open_items >= 0", name="open_items"),
         CheckConstraint(
+            "period ~ '^(19|20)[0-9]{2}-(0[1-9]|1[0-2])$'",
+            name="phase10f_period_format",
+        ),
+        CheckConstraint(
             "status <> 'closed' OR (closed_by_app_user_id IS NOT NULL AND closed_at IS NOT NULL)",
             name="closed_fields",
+        ),
+        CheckConstraint(
+            "(status='open' AND NOT payroll_ready AND version=0 AND current_version_id IS NULL "
+            "AND source_version IS NULL) OR (status='closed' AND version >= 0 "
+            "AND ((NOT payroll_ready AND current_version_id IS NULL AND source_version IS NULL) "
+            "OR (payroll_ready AND version >= 1 AND current_version_id IS NOT NULL "
+            "AND source_version ~ '^sha256:[0-9a-f]{64}$')))",
+            name="phase10f_period_state",
         ),
         Index("ix_attendance_periods_branch_id_period", "branch_id", "period"),
     )
@@ -811,7 +830,192 @@ class AttendancePeriod(Base):
     payroll_ready: Mapped[bool] = mapped_column(
         Boolean(), nullable=False, server_default=text("false")
     )
+    version: Mapped[int] = mapped_column(Integer(), nullable=False, server_default=text("0"))
+    current_version_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    source_version: Mapped[str | None] = mapped_column(Text(), nullable=True)
     open_items: Mapped[int] = mapped_column(Integer(), nullable=False, server_default=text("0"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class AttendancePeriodVersion(Base):
+    __tablename__ = "attendance_period_versions"
+    __table_args__ = (
+        ForeignKeyConstraint(["company_id"], ["companies.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(
+            ["branch_id", "company_id"],
+            ["branches.id", "branches.company_id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["attendance_period_id"], ["attendance_periods.id"], ondelete="RESTRICT"
+        ),
+        ForeignKeyConstraint(
+            ["prior_version_id"], ["attendance_period_versions.id"], ondelete="RESTRICT"
+        ),
+        ForeignKeyConstraint(["closed_by_app_user_id"], ["app_users.id"], ondelete="RESTRICT"),
+        UniqueConstraint(
+            "attendance_period_id", "version", name="uq_attendance_period_versions_period_version"
+        ),
+        UniqueConstraint("source_version", name="uq_attendance_period_versions_source_version"),
+        CheckConstraint("period ~ '^(19|20)[0-9]{2}-(0[1-9]|1[0-2])$'", name="period"),
+        CheckConstraint("version >= 1", name="version"),
+        CheckConstraint("source_version ~ '^sha256:[0-9a-f]{64}$'", name="source_version"),
+        CheckConstraint("record_count >= 0", name="record_count"),
+        CheckConstraint(
+            "jsonb_typeof(source_payload)='object' AND source_canonical::jsonb=source_payload",
+            name="source_payload",
+        ),
+        CheckConstraint(
+            "(version=1 AND prior_version_id IS NULL AND amendment_reason='') OR "
+            "(version>1 AND prior_version_id IS NOT NULL "
+            "AND octet_length(btrim(amendment_reason)) BETWEEN 3 AND 500)",
+            name="amendment",
+        ),
+        Index(
+            "ix_attendance_period_versions_scope_period_version",
+            "company_id",
+            "branch_id",
+            "period",
+            "version",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    branch_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    attendance_period_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    prior_version_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    period: Mapped[str] = mapped_column(Text(), nullable=False)
+    version: Mapped[int] = mapped_column(Integer(), nullable=False)
+    payroll_ready: Mapped[bool] = mapped_column(
+        Boolean(), nullable=False, server_default=text("true")
+    )
+    source_version: Mapped[str] = mapped_column(Text(), nullable=False)
+    source_canonical: Mapped[str] = mapped_column(Text(), nullable=False)
+    source_payload: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB, "postgresql"), nullable=False
+    )
+    record_count: Mapped[int] = mapped_column(Integer(), nullable=False)
+    amendment_reason: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("''"))
+    closed_by_app_user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    closed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class AttendancePeriodRecordSnapshot(Base):
+    __tablename__ = "attendance_period_record_snapshots"
+    __table_args__ = (
+        ForeignKeyConstraint(["company_id"], ["companies.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(
+            ["branch_id", "company_id"],
+            ["branches.id", "branches.company_id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["period_version_id"], ["attendance_period_versions.id"], ondelete="RESTRICT"
+        ),
+        ForeignKeyConstraint(["source_record_id"], ["attendance_records.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(
+            ["employee_id", "company_id", "branch_id"],
+            ["employees.id", "employees.company_id", "employees.branch_id"],
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint(
+            "period_version_id",
+            "source_record_id",
+            name="uq_attendance_period_record_snapshots_version_record",
+        ),
+        CheckConstraint(
+            "absence_days >= 0 AND absence_amount >= 0 AND late_minutes >= 0 "
+            "AND late_amount >= 0 AND standard_overtime_hours >= 0 "
+            "AND standard_overtime_amount >= 0 AND rest_day_overtime_hours >= 0 "
+            "AND rest_day_overtime_amount >= 0 AND calculation_version >= 1",
+            name="nonnegative",
+        ),
+        CheckConstraint(
+            "source_digest ~ '^[0-9a-f]{64}$' AND salary_source_version <> '' "
+            "AND jsonb_typeof(source_payload)='object'",
+            name="source",
+        ),
+        Index(
+            "ix_attendance_period_snapshots_version_employee",
+            "period_version_id",
+            "employee_id",
+            "date",
+            "source_record_id",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    branch_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    period_version_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    source_record_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    employee_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    date: Mapped[date_type] = mapped_column(Date(), nullable=False)
+    absence_days: Mapped[Decimal] = mapped_column(Numeric(4, 2), nullable=False)
+    absence_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    late_minutes: Mapped[int] = mapped_column(Integer(), nullable=False)
+    late_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    standard_overtime_hours: Mapped[Decimal] = mapped_column(Numeric(5, 2), nullable=False)
+    standard_overtime_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    rest_day_overtime_hours: Mapped[Decimal] = mapped_column(Numeric(5, 2), nullable=False)
+    rest_day_overtime_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    calculation_version: Mapped[int] = mapped_column(Integer(), nullable=False)
+    source_digest: Mapped[str] = mapped_column(Text(), nullable=False)
+    source_clock_event_ids: Mapped[list[uuid.UUID]] = mapped_column(
+        ARRAY(UUID(as_uuid=True)), nullable=False
+    )
+    salary_source_version: Mapped[str] = mapped_column(Text(), nullable=False)
+    source_payload: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB, "postgresql"), nullable=False
+    )
+
+
+class AttendancePeriodAuditLog(Base):
+    __tablename__ = "attendance_period_audit_log"
+    __table_args__ = (
+        ForeignKeyConstraint(["company_id"], ["companies.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(
+            ["branch_id", "company_id"],
+            ["branches.id", "branches.company_id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["period_version_id"], ["attendance_period_versions.id"], ondelete="RESTRICT"
+        ),
+        ForeignKeyConstraint(["actor_app_user_id"], ["app_users.id"], ondelete="RESTRICT"),
+        CheckConstraint("action IN ('PERIOD_CLOSED','PERIOD_AMENDED')", name="action"),
+        CheckConstraint("octet_length(btrim(reason)) BETWEEN 3 AND 500", name="reason"),
+        Index(
+            "ix_attendance_period_audit_scope_period",
+            "company_id",
+            "branch_id",
+            "period",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    branch_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    period_version_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    period: Mapped[str] = mapped_column(Text(), nullable=False)
+    action: Mapped[str] = mapped_column(Text(), nullable=False)
+    actor_app_user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    reason: Mapped[str] = mapped_column(Text(), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )

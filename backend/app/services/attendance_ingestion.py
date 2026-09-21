@@ -168,6 +168,10 @@ class AttendanceIngestionService:
         local = request.event_time.astimezone(_DUBAI).date()
         if local < business_date - timedelta(days=31) or local > business_date + timedelta(days=1):
             raise ServiceExecutionError("validation_failed")
+        if not await self.repository.lock_open_period(
+            principal.company_id, branch_id, local.strftime("%Y-%m")
+        ):
+            raise ServiceExecutionError("state_conflict")
         if await self.repository.minute_duplicate(
             principal.company_id,
             branch_id,
@@ -322,6 +326,19 @@ class AttendanceIngestionService:
                 rejected_count=sum(item.outcome in {"invalid", "unknown_badge"} for item in saved),
                 outcomes=saved,
             )
+        business_date = await self.repository.business_date()
+        candidate_periods = sorted(
+            {
+                local.strftime("%Y-%m")
+                for candidate in request.candidates
+                if business_date - timedelta(days=31)
+                <= (local := candidate.event_time.astimezone(_DUBAI).date())
+                <= business_date + timedelta(days=1)
+            }
+        )
+        for period in candidate_periods:
+            if not await self.repository.lock_open_period(principal.company_id, branch_id, period):
+                raise ServiceExecutionError("state_conflict")
         batch = await self.repository.create_batch(
             principal.company_id,
             branch_id,
@@ -330,7 +347,6 @@ class AttendanceIngestionService:
             len(request.candidates),
             request.source_bytes,
         )
-        business_date = await self.repository.business_date()
         outcomes: list[ImportRowOutcome] = []
         accepted = duplicates = rejected = 0
         ordered = sorted(
