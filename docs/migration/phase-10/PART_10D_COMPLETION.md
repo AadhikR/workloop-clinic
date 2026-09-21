@@ -37,8 +37,8 @@ The final database-sensitive gate ran in the fresh `workloop-phase10d-gate` stac
 - FastAPI and Keycloak authentication, the browser journey, database and storage persistence,
   signing-key persistence, health, synthetic cleanup, and service-log safety passed after restart.
 
-The routed GitHub result is reported in the task handoff after the single push. This pre-push record
-does not contain a pending workflow URL.
+The routed GitHub result is reported in the task handoff after the final push. This local gate record
+does not contain a workflow URL.
 
 ## Resource boundary
 

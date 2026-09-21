@@ -52,6 +52,8 @@ const currentHeadVerifierPaths = [
   'scripts/verify-phase-9g-database.py',
   'scripts/verify-phase-9g-lifecycle.py',
   'scripts/verify-phase-10b-database.py',
+  'scripts/verify-phase-10c-database.py',
+  'scripts/verify-phase-10d-database.py',
 ]
 
 function readText(filePath) {
@@ -169,6 +171,6 @@ test('routes exact Phase 9H rollback and tracks the current Alembic head', () =>
   assert.match(revisionVerifier, /HEAD = "f4b8d2e6a901"/)
   assert.match(revisionVerifier, /PREDECESSOR = "e3a7c9d1f5b2"/)
   for (const verifierPath of currentHeadVerifierPaths) {
-    assert.match(readText(path.join(repositoryDirectory, verifierPath)), /b7d9e1f3a5c6/)
+    assert.match(readText(path.join(repositoryDirectory, verifierPath)), /f2d4a8c6b901/)
   }
 })

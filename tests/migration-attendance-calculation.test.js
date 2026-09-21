@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import test from 'node:test'
+import { fileURLToPath } from 'node:url'
 
 import {
   calculateAttendance,
@@ -16,6 +19,7 @@ const key = '70000000-0000-4000-8000-000000000001'
 const now = '2026-08-27T08:00:00.000Z'
 const record = { id: recordId, employeeId, date: '2026-08-27', shiftId: null, clockInTime: now, clockOutTime: now, totalHours: '8.00', expectedHours: '8.00', status: 'PRESENT', lateMinutes: 0, earlyDepartureMinutes: 0, overtimeHours: '0.00', overtimeType: null, overtimeAmount: '0.00', absenceDeduction: '0.00', lateDeduction: '0.00', workedOnRestDay: false, restDaySubstitute: false, missingClockOut: false, isRamadanDay: false, periodClosed: false, evidenceFlags: [], sourceDigest: 'a'.repeat(64), sourceStale: false, calculationVersion: 1, updatedAt: now }
 const page = { limit: 20, nextCursor: null, hasMore: false }
+const repositoryDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
 function client(response) {
   const requests = []
@@ -41,4 +45,14 @@ test('validates self-only today and history responses', async () => {
 
 test('rejects unexpected calculated-record response fields', async () => {
   await assert.rejects(readAttendanceRecords(client({ data: [{ ...record, internalSnapshot: {} }], page }), branchId), /invalid attendance calculation response/i)
+})
+
+test('routes Phase 10D rollback and isolates the historical Phase 10C revision', () => {
+  const workflow = readFileSync(path.join(repositoryDirectory, '.github', 'workflows', 'migration-foundation.yml'), 'utf8')
+  const phase10c = readFileSync(path.join(repositoryDirectory, 'scripts', 'verify-phase-10c-revision.sh'), 'utf8')
+  const phase10d = readFileSync(path.join(repositoryDirectory, 'scripts', 'verify-phase-10d-revision.sh'), 'utf8')
+  assert.match(workflow, /sh scripts\/verify-phase-10d-revision\.sh/)
+  assert.match(phase10d, /downgrade b7d9e1f3a5c6/)
+  assert.match(phase10c, /downgrade b7d9e1f3a5c6/)
+  assert.match(phase10c, /upgrade b7d9e1f3a5c6/)
 })

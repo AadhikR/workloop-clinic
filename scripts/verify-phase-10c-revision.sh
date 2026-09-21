@@ -17,11 +17,13 @@ restore_head() {
 }
 
 trap restore_head EXIT HUP INT TERM
+compose run --rm migrate alembic -c /app/alembic.ini downgrade b7d9e1f3a5c6
 head_hash="$(verify_revision head)"
 compose run --rm migrate alembic -c /app/alembic.ini downgrade a6c8e0f2b4d7
 test "$(verify_revision predecessor)" = "$head_hash"
-restore_head
+compose run --rm migrate alembic -c /app/alembic.ini upgrade b7d9e1f3a5c6
 test "$(verify_revision head)" = "$head_hash"
+restore_head
 trap - EXIT HUP INT TERM
 
 echo "Phase 10C exact predecessor rollback and replay passed."
