@@ -111,12 +111,29 @@ async def main() -> None:
             text("SELECT timezone('Asia/Dubai',statement_timestamp())::date")
         )
         today = raw_today if isinstance(raw_today, date) else date.fromisoformat(str(raw_today))
-        correction_date = today - timedelta(days=1)
-        closed_date = today - timedelta(days=2)
-        unauthorised_date = today - timedelta(days=4)
-        wfh_date = today - timedelta(days=5)
-        leave_date = today - timedelta(days=6)
-        overtime_date = today - timedelta(days=7)
+        raw_working_days = connection.scalar(
+            text(
+                "SELECT working_days FROM public.attendance_settings "
+                "WHERE company_id=:company AND branch_id=:branch"
+            ),
+            {"company": COMPANY_ID, "branch": BRANCH_ID},
+        )
+        assert isinstance(raw_working_days, list)
+        working_days = set(raw_working_days)
+        verification_dates: list[date] = []
+        candidate = today - timedelta(days=1)
+        while len(verification_dates) < 6:
+            if candidate.strftime("%a") in working_days:
+                verification_dates.append(candidate)
+            candidate -= timedelta(days=1)
+        (
+            correction_date,
+            closed_date,
+            unauthorised_date,
+            wfh_date,
+            leave_date,
+            overtime_date,
+        ) = verification_dates
         dynamic_dates.extend(
             [
                 correction_date,
@@ -230,9 +247,16 @@ async def main() -> None:
             await calculate(leave_date),
             await calculate(overtime_date),
         )
-        assert absence_record.status == wfh_record.status == leave_record.status == (
-            "UNEXPLAINED_ABSENCE"
+        absence_statuses = (
+            absence_record.status,
+            wfh_record.status,
+            leave_record.status,
         )
+        assert absence_statuses == (
+            "UNEXPLAINED_ABSENCE",
+            "UNEXPLAINED_ABSENCE",
+            "UNEXPLAINED_ABSENCE",
+        ), absence_statuses
         assert overtime_record.status == "OVERTIME" and overtime_record.overtime_hours > 0
 
         submit_body = RegularisationSubmitRequest.model_validate(
@@ -617,7 +641,10 @@ async def main() -> None:
                 text(
                     "INSERT INTO public.attendance_periods"
                     "(company_id,branch_id,period,status,closed_by_app_user_id,closed_at) "
-                    "VALUES (:company,:branch,:period,'closed',:actor,now())"
+                    "VALUES (:company,:branch,:period,'closed',:actor,now()) "
+                    "ON CONFLICT (branch_id,period) DO UPDATE SET status='closed',"
+                    "closed_by_app_user_id=EXCLUDED.closed_by_app_user_id,"
+                    "closed_at=EXCLUDED.closed_at"
                 ),
                 {
                     "company": COMPANY_ID,
