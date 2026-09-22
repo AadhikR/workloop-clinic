@@ -80,13 +80,14 @@ CURRENT_TARGET_TABLES = PHASE_5G_TARGET_TABLES | {
     "roster_publication_memberships",
     "roster_actual_hours_evidence",
     "roster_overtime_approvals",
+    "shift_swap_history",
 }
 
 
 def test_metadata_contains_exactly_the_current_target_tables() -> None:
     assert len(PHASE_4_TARGET_TABLES) == 54
     assert len(PHASE_5G_TARGET_TABLES) == 56
-    assert len(CURRENT_TARGET_TABLES) == 69
+    assert len(CURRENT_TARGET_TABLES) == 70
     assert set(Base.metadata.tables) == CURRENT_TARGET_TABLES
 
 

@@ -188,6 +188,10 @@ jobs:
         run: |
           node --test tests/migration-roster-drafts.test.js tests/phase-10g-legacy-freeze.test.js
           node scripts/cutover-record-validator.mjs docs/migration/phase-10/cutover/roster-drafting.json
+      - name: Verify Phase 10I shift-swap contract
+        run: |
+          node --test tests/migration-shift-swaps.test.js tests/phase-10i-legacy-freeze.test.js
+          node scripts/cutover-record-validator.mjs docs/migration/phase-10/cutover/shift-swaps.json
       - name: Verify empty-schema downgrade boundary
         if: needs.changes.outputs.database_deep == 'true'
         run: |
@@ -260,6 +264,9 @@ jobs:
       - name: Verify Phase 10H exact predecessor
         if: needs.changes.outputs.database_deep == 'true'
         run: sh scripts/verify-phase-10h-revision.sh
+      - name: Verify Phase 10I exact predecessor
+        if: needs.changes.outputs.database_deep == 'true'
+        run: sh scripts/verify-phase-10i-revision.sh
       - name: Verify Phase 10C exact predecessor
         if: needs.changes.outputs.database_deep == 'true'
         run: sh scripts/verify-phase-10c-revision.sh
@@ -326,6 +333,7 @@ jobs:
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-10f-database.py
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-10g-database.py
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-10h-database.py
+          docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-10i-database.py
       - name: Verify service health
         run: |
           curl --fail --silent --show-error http://127.0.0.1:8000/health | jq --exit-status '.status == "ok" and .database == "ok"'

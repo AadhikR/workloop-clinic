@@ -352,19 +352,8 @@ function dbToRosterAssignment(row) {
 // ── SHIFT SWAP REQUESTS (Feature 8) ──────────────────────────────────────────
 
 export async function getShiftSwapRequests(filters = {}, companyId = null) {
-  let query = supabase
-    .from('shift_swap_requests')
-    .select('*')
-    .order('created_at', { ascending: false });
-
-  if (filters.status) query = query.eq('status', filters.status);
-  if (companyId) {
-    query = query.or(`company_id.eq.${companyId},company_id.is.null`);
-  }
-
-  const { data, error } = await query;
-  if (error) { console.error('getShiftSwapRequests:', error); return []; }
-  return (data || []).map(dbToShiftSwapRequest);
+  void filters; void companyId;
+  throw new Error('Shift swap queues have moved to the migration roster workspace.');
 }
 
 /**
@@ -380,66 +369,8 @@ export async function getShiftSwapRequests(filters = {}, companyId = null) {
  * but they'll see a warning message explaining the roster wasn't rewritten.
  */
 export async function updateShiftSwapRequest(id, status, rejectionReason = '') {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-
-  if (status === 'approved') {
-    const { error: rpcError } = await supabase.rpc('admin_execute_shift_swap', {
-      p_swap_id: id,
-    });
-    if (rpcError) {
-      // Undeployed RPC on an older Supabase environment — surface a specific
-      // error so the admin knows to apply migration 052 rather than blaming
-      // the swap itself.
-      if (/function .* does not exist/i.test(rpcError.message || '')) {
-        throw new Error(
-          'Swap approval requires SQL migration 052 (admin_execute_shift_swap). ' +
-          'Apply sql/052_shift_swap_execution.sql in Supabase and retry.',
-        );
-      }
-      throw rpcError;
-    }
-    // Re-read the row so callers get the freshest admin_approved_* fields.
-    const { data, error } = await supabase
-      .from('shift_swap_requests')
-      .select('*')
-      .eq('id', id)
-      .single();
-    if (error) throw error;
-    return dbToShiftSwapRequest(data);
-  }
-
-  // Rejection / cancellation: status-only, no roster impact.
-  const { data, error } = await supabase
-    .from('shift_swap_requests')
-    .update({
-      status,
-      rejection_reason:  rejectionReason,
-      admin_approved_at: ['approved', 'rejected'].includes(status) ? new Date().toISOString() : null,
-      admin_approved_by: user.email || user.id,
-    })
-    .eq('id', id)
-    .select()
-    .single();
-
-  if (error) throw error;
-  return dbToShiftSwapRequest(data);
-}
-
-function dbToShiftSwapRequest(row) {
-  return {
-    id:                  row.id,
-    requesterEmployeeId: row.requester_employee_id,
-    targetEmployeeId:    row.target_employee_id,
-    requesterDate:       row.requester_date,
-    targetDate:          row.target_date,
-    reason:              row.reason || '',
-    status:              row.status,
-    adminApprovedAt:     row.admin_approved_at,
-    adminApprovedBy:     row.admin_approved_by || '',
-    rejectionReason:     row.rejection_reason || '',
-    createdAt:           row.created_at,
-  };
+  void id; void status; void rejectionReason;
+  throw new Error('Shift swap decisions have moved to the migration roster workspace.');
 }
 
 // ── EMPLOYEE PORTAL — ROSTER & SWAPS ─────────────────────────────────────────
@@ -458,22 +389,13 @@ export async function getMyRoster(dateFrom, dateTo) {
  * Used to populate the "swap with" dropdown.
  */
 export async function getMyColleagues() {
-  const { data, error } = await supabase.rpc('employee_get_colleagues');
-  if (error) { console.error('getMyColleagues:', error); return []; }
-  return (data || []).map(r => ({ id: r.id, name: r.name, jobTitle: r.job_title }));
+  throw new Error('Shift swap colleagues are available only in the migration employee workspace.');
 }
 
 /**
  * Employee submits a shift swap request via SECURITY DEFINER RPC.
  */
 export async function requestShiftSwap({ requesterDate, targetEmployeeId, targetDate, reason }) {
-  const { data, error } = await supabase.rpc('employee_request_shift_swap', {
-    p_target_employee_id: targetEmployeeId,
-    p_requester_date:     requesterDate,
-    p_target_date:        targetDate || null,
-    p_reason:             reason || '',
-  });
-  if (error) throw error;
-  if (!data?.success) throw new Error(data?.error || 'Swap request failed');
-  return data;
+  void requesterDate; void targetEmployeeId; void targetDate; void reason;
+  throw new Error('Shift swap requests have moved to the migration employee workspace.');
 }

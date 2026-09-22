@@ -53,6 +53,7 @@ from app.services.employees import EmployeeCursorCodec
 from app.services.execution import AuthorizedServiceExecutor
 from app.services.idempotency import RecoveryKey, RecoveryNamespaces
 from app.services.organization import BranchCursorCodec
+from app.shift_swap_api import router as shift_swap_router
 from app.storage import ObjectStorage, create_object_storage
 from app.storage.proof_api import (
     StorageProofResponse,
@@ -236,6 +237,7 @@ def create_app(
     application.include_router(roster_router)
     application.include_router(roster_publication_router)
     application.include_router(roster_schedule_router)
+    application.include_router(shift_swap_router)
     application.include_router(idempotency_router)
     application.include_router(leave_configuration_router)
     application.include_router(leave_balance_router)

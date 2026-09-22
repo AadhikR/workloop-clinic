@@ -87,7 +87,7 @@ async def main() -> None:
     assignments = [uuid.uuid4(), uuid.uuid4()]
     with migration_engine.begin() as connection:
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "b4d7f9a2c816"
+            "c6e8a1b3d927"
         )
         clean(connection, rows)
         apply_rows(connection, rows)

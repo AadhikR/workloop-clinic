@@ -1153,6 +1153,23 @@ class ShiftSwapRequest(Base):
         ForeignKeyConstraint(
             ["admin_approved_by_app_user_id"], ["app_users.id"], ondelete="RESTRICT"
         ),
+        ForeignKeyConstraint(["decided_by_app_user_id"], ["app_users.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(
+            ["source_publication_version_id"],
+            ["roster_publication_versions.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["approved_publication_version_id"],
+            ["roster_publication_versions.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["requester_assignment_id"], ["roster_assignments.id"], ondelete="RESTRICT"
+        ),
+        ForeignKeyConstraint(
+            ["target_assignment_id"], ["roster_assignments.id"], ondelete="RESTRICT"
+        ),
         CheckConstraint("requester_employee_id <> target_employee_id", name="distinct_employees"),
         CheckConstraint(
             "status IN ('pending', 'approved', 'rejected', 'cancelled')", name="status"
@@ -1167,9 +1184,55 @@ class ShiftSwapRequest(Base):
             "AND admin_approved_at IS NOT NULL AND btrim(rejection_reason) <> '')",
             name="rejected_fields",
         ),
+        CheckConstraint(
+            "(contract_version=0 AND expected_roster_source_version IS NULL AND "
+            "source_publication_version_id IS NULL AND requester_assignment_id IS NULL AND "
+            "target_assignment_id IS NULL AND expected_requester_assignment_version IS NULL AND "
+            "expected_target_assignment_version IS NULL AND "
+            "approved_publication_version_id IS NULL "
+            "AND decided_at IS NULL AND decided_by_app_user_id IS NULL AND version=1) OR "
+            "(contract_version=1 AND target_date IS NOT NULL AND requester_date<>target_date AND "
+            "octet_length(btrim(reason)) BETWEEN 3 AND 500 AND "
+            "expected_roster_source_version~'^sha256:[0-9a-f]{64}$' AND "
+            "source_publication_version_id IS NOT NULL AND requester_assignment_id IS NOT NULL AND "
+            "target_assignment_id IS NOT NULL AND "
+            "requester_assignment_id<>target_assignment_id AND "
+            "expected_requester_assignment_version>=1 AND "
+            "expected_target_assignment_version>=1 AND version>=1)",
+            name="phase10i_contract",
+        ),
+        CheckConstraint(
+            "contract_version=0 OR ((status='pending' AND decided_at IS NULL AND "
+            "decided_by_app_user_id IS NULL AND approved_publication_version_id IS NULL AND "
+            "rejection_reason='') OR (status='approved' AND decided_at IS NOT NULL AND "
+            "decided_by_app_user_id IS NOT NULL AND approved_publication_version_id IS NOT NULL "
+            "AND rejection_reason='') OR (status='rejected' AND decided_at IS NOT NULL AND "
+            "decided_by_app_user_id IS NOT NULL AND approved_publication_version_id IS NULL AND "
+            "octet_length(btrim(rejection_reason)) BETWEEN 3 AND 500) OR "
+            "(status='cancelled' AND decided_at IS NOT NULL AND decided_by_app_user_id IS NOT NULL "
+            "AND approved_publication_version_id IS NULL AND rejection_reason=''))",
+            name="phase10i_decision",
+        ),
         Index("ix_shift_swap_requests_branch_id", "branch_id"),
         Index("ix_shift_swap_requests_status", "status"),
         Index("ix_shift_swap_requests_requester_employee_id", "requester_employee_id"),
+        Index(
+            "ix_shift_swap_requests_phase10i_scope_status",
+            "company_id",
+            "branch_id",
+            "status",
+            "created_at",
+            "id",
+        ),
+        Index(
+            "uq_shift_swap_requests_phase10i_pending_pair",
+            "company_id",
+            "branch_id",
+            text("LEAST(requester_assignment_id,target_assignment_id)"),
+            text("GREATEST(requester_assignment_id,target_assignment_id)"),
+            unique=True,
+            postgresql_where=text("contract_version=1 AND status='pending'"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -1190,10 +1253,86 @@ class ShiftSwapRequest(Base):
         UUID(as_uuid=True), nullable=True
     )
     rejection_reason: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("''"))
+    contract_version: Mapped[int] = mapped_column(
+        Integer(), nullable=False, server_default=text("0")
+    )
+    expected_roster_source_version: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    source_publication_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
+    requester_assignment_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    target_assignment_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    expected_requester_assignment_version: Mapped[int | None] = mapped_column(Integer())
+    expected_target_assignment_version: Mapped[int | None] = mapped_column(Integer())
+    approved_publication_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    decided_by_app_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
+    version: Mapped[int] = mapped_column(Integer(), nullable=False, server_default=text("1"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
     updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class ShiftSwapHistory(Base):
+    __tablename__ = "shift_swap_history"
+    __table_args__ = (
+        ForeignKeyConstraint(["company_id"], ["companies.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(
+            ["branch_id", "company_id"],
+            ["branches.id", "branches.company_id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["shift_swap_request_id"], ["shift_swap_requests.id"], ondelete="RESTRICT"
+        ),
+        ForeignKeyConstraint(["actor_app_user_id"], ["app_users.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(
+            ["publication_version_id"],
+            ["roster_publication_versions.id"],
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint("action IN ('requested','cancelled','rejected','approved')", name="action"),
+        CheckConstraint(
+            "to_status IN ('pending','cancelled','rejected','approved') AND "
+            "(from_status IS NULL OR from_status='pending')",
+            name="status",
+        ),
+        CheckConstraint("octet_length(btrim(reason)) BETWEEN 3 AND 500", name="reason"),
+        CheckConstraint(
+            "(action='approved')=(publication_version_id IS NOT NULL)", name="publication"
+        ),
+        Index(
+            "ix_shift_swap_history_scope_request",
+            "company_id",
+            "branch_id",
+            "shift_swap_request_id",
+            "created_at",
+            "id",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    branch_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    shift_swap_request_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    action: Mapped[str] = mapped_column(Text(), nullable=False)
+    from_status: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    to_status: Mapped[str] = mapped_column(Text(), nullable=False)
+    actor_app_user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    publication_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
+    reason: Mapped[str] = mapped_column(Text(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
 

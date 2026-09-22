@@ -15,6 +15,7 @@ import AttendancePeriods from './AttendancePeriods.jsx'
 import RosterDrafts from './RosterDrafts.jsx'
 import PersonalAttendance from './PersonalAttendance.jsx'
 import PersonalSchedule from './PersonalSchedule.jsx'
+import ShiftSwapQueue from './ShiftSwapQueue.jsx'
 import { readCurrentAccount } from './sampleApi.js'
 import OrganizationSettings from './OrganizationSettings.jsx'
 import LeaveConfiguration from './LeaveConfiguration.jsx'
@@ -91,6 +92,7 @@ function OrganizationSummary({ account, authentication }) {
           <AttendanceExceptions authentication={authentication} branchId={organization.selectedBranch.id} />
           <AttendancePeriods authentication={authentication} branchId={organization.selectedBranch.id} />
           <RosterDrafts authentication={authentication} branchId={organization.selectedBranch.id} />
+          <ShiftSwapQueue authentication={authentication} branchId={organization.selectedBranch.id} />
           <DepartmentManager
             authentication={authentication}
             branchId={organization.selectedBranch.id}

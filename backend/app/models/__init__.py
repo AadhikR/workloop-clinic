@@ -15,6 +15,7 @@ from app.models.attendance import (
     RosterAssignment,
     Shift,
     ShiftAssignment,
+    ShiftSwapHistory,
     ShiftSwapRequest,
 )
 from app.models.idempotency import IdempotencyRecord
@@ -140,6 +141,7 @@ __all__ = [
     "SalaryAdvance",
     "Shift",
     "ShiftAssignment",
+    "ShiftSwapHistory",
     "ShiftSwapRequest",
     "StorageOperation",
     "TrainingRecord",
