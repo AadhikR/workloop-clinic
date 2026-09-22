@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-# Phase 4C schema gate. Proves the 57 business tables exist, that a connected row
+# Phase 4C schema gate. Proves the 60 business tables exist, that a connected row
 # graph spanning every business domain satisfies the foreign-key and scope
 # constraints end to end, and that a cross-tenant branch and cross-branch
 # employee reference are both rejected. The runtime grant boundary moved to
@@ -21,8 +21,8 @@ BEGIN
       'alembic_version', 'audit_events', 'idempotency_records',
       'storage_operations', 'leave_attachments'
     );
-  IF table_count <> 57 THEN
-    RAISE EXCEPTION 'expected 57 target tables, found %', table_count;
+  IF table_count <> 60 THEN
+    RAISE EXCEPTION 'expected 60 target tables, found %', table_count;
   END IF;
 
   -- Identity and organization seed (two tenants, one branch each).
@@ -57,8 +57,16 @@ BEGIN
     VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011');
   INSERT INTO shift_assignments (company_id, branch_id, employee_id, shift_id, effective_from)
     VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000021', '00000000-0000-0000-0000-000000000201', '2026-01-01');
-  INSERT INTO roster_assignments (company_id, branch_id, employee_id, shift_id, date)
-    VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000021', '00000000-0000-0000-0000-000000000201', '2026-01-02');
+  INSERT INTO roster_assignments (
+    company_id, branch_id, employee_id, shift_id, date, planned_hours
+  ) VALUES (
+    '00000000-0000-0000-0000-000000000001',
+    '00000000-0000-0000-0000-000000000011',
+    '00000000-0000-0000-0000-000000000021',
+    '00000000-0000-0000-0000-000000000201',
+    '2026-01-02',
+    8
+  );
   INSERT INTO attendance_records (company_id, branch_id, employee_id, date)
     VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000021', '2026-01-02');
   INSERT INTO attendance_periods (company_id, branch_id, period)

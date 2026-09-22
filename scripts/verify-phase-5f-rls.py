@@ -931,10 +931,10 @@ def verify_protected_shift_swap(runtime: psycopg.Connection[Any], engine: Any) -
             text(
                 """
 INSERT INTO roster_assignments (
-  id, company_id, branch_id, employee_id, shift_id, date, published
+  id, company_id, branch_id, employee_id, shift_id, date, published, planned_hours
 ) VALUES
-  (:first_id, :company, :branch, :first_employee, :shift, '2027-01-04', true),
-  (:second_id, :company, :branch, :second_employee, :shift, '2027-01-05', true)
+  (:first_id, :company, :branch, :first_employee, :shift, '2027-01-04', true, 8),
+  (:second_id, :company, :branch, :second_employee, :shift, '2027-01-05', true, 8)
 """
             ),
             {

@@ -52,18 +52,10 @@ BEGIN
     (SELECT * FROM expected EXCEPT SELECT * FROM actual)
     UNION ALL
     (SELECT * FROM actual EXCEPT SELECT * FROM expected)
-  ), expected_table_triggers AS (
-    SELECT 1
-    FROM pg_catalog.pg_trigger t
-    JOIN pg_catalog.pg_class c ON c.oid = t.tgrelid
-    JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
-    WHERE n.nspname = 'public'
-      AND NOT t.tgisinternal
-      AND c.relname IN (SELECT table_name FROM expected)
   )
   SELECT
     (SELECT count(*) FROM differences),
-    (SELECT count(*) FROM expected_table_triggers)
+    (SELECT count(*) FROM actual)
   INTO mismatch_count, actual_count;
 
   IF mismatch_count <> 0 OR actual_count <> 19 THEN

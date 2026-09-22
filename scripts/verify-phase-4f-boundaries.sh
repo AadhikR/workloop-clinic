@@ -107,7 +107,9 @@ BEGIN
       'appraisal_sections', 'cme_requirements', 'incident_reports',
       'letter_requests', 'audit_events', 'idempotency_records',
       'storage_operations', 'leave_attachments', 'expense_receipts',
-      'attendance_import_batches', 'attendance_import_row_outcomes'
+      'attendance_import_batches', 'attendance_import_row_outcomes',
+      'attendance_period_versions', 'attendance_period_record_snapshots',
+      'attendance_period_audit_log'
     );
   IF mismatch_count <> 0 THEN
     RAISE EXCEPTION 'row-level security is enabled outside the approved migration tables';

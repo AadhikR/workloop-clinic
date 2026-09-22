@@ -182,7 +182,9 @@ def verify_catalog(engine: Any) -> None:
                     "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname='public' "
                     "AND tablename NOT IN ('alembic_version','idempotency_records',"
                     "'storage_operations','leave_attachments','expense_receipts',"
-                    "'attendance_import_batches','attendance_import_row_outcomes')"
+                    "'attendance_import_batches','attendance_import_row_outcomes',"
+                    "'attendance_period_versions','attendance_period_record_snapshots',"
+                    "'attendance_period_audit_log')"
                 )
             ).scalars()
         )
@@ -275,7 +277,9 @@ SELECT count(*) FROM pg_catalog.pg_policies
 WHERE schemaname='public' AND policyname NOT LIKE 'phase5%'
   AND tablename NOT IN (
     'idempotency_records','storage_operations','leave_attachments','expense_receipts',
-    'attendance_import_batches','attendance_import_row_outcomes'
+    'attendance_import_batches','attendance_import_row_outcomes',
+    'attendance_period_versions','attendance_period_record_snapshots',
+    'attendance_period_audit_log'
   )
   AND policyname NOT IN (
     'phase7g_user_profiles_select_branch_runtime',
@@ -293,7 +297,7 @@ WHERE schemaname='public' AND policyname NOT LIKE 'phase5%'
             row[0]: row[1]
             for row in connection.execute(
                 text(
-                    "SELECT object.relname,object.relrowsecurity FROM pg_catalog.pg_class AS object JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid=object.relnamespace WHERE namespace.nspname='public' AND object.relkind='r' AND object.relname NOT IN ('idempotency_records','storage_operations','leave_attachments','expense_receipts','attendance_import_batches','attendance_import_row_outcomes')"
+                    "SELECT object.relname,object.relrowsecurity FROM pg_catalog.pg_class AS object JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid=object.relnamespace WHERE namespace.nspname='public' AND object.relkind='r' AND object.relname NOT IN ('idempotency_records','storage_operations','leave_attachments','expense_receipts','attendance_import_batches','attendance_import_row_outcomes','attendance_period_versions','attendance_period_record_snapshots','attendance_period_audit_log')"
                 )
             )
         }

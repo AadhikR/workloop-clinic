@@ -427,6 +427,9 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')
                 "idempotency_records",
                 "storage_operations",
                 "leave_attachments",
+                "attendance_period_versions",
+                "attendance_period_record_snapshots",
+                "attendance_period_audit_log",
             }
         )
 
