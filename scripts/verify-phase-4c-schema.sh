@@ -19,7 +19,7 @@ BEGIN
   WHERE schemaname = 'public'
     AND tablename NOT IN (
       'alembic_version', 'audit_events', 'idempotency_records',
-      'storage_operations', 'leave_attachments'
+      'storage_operations', 'leave_attachments', 'file_security_scans'
     );
   IF table_count <> 66 THEN
     RAISE EXCEPTION 'expected 66 target tables, found %', table_count;

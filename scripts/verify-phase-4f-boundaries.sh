@@ -107,6 +107,7 @@ BEGIN
       'appraisal_sections', 'cme_requirements', 'incident_reports',
       'letter_requests', 'audit_events', 'idempotency_records',
       'storage_operations', 'leave_attachments', 'expense_receipts',
+      'file_security_scans',
       'attendance_import_batches', 'attendance_import_row_outcomes',
       'attendance_period_versions', 'attendance_period_record_snapshots',
       'attendance_period_audit_log', 'roster_months',

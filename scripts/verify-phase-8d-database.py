@@ -10,28 +10,28 @@ import uuid
 from datetime import timedelta
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
-from sqlalchemy.engine import URL
-from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
-
 from app.auth.access_token import AccessTokenClaims
-from app.auth.application_user import ApplicationUserResolver, AuthorizationPrincipal
+from app.auth.application_user import ApplicationUserResolver
 from app.db.authorization_context import AuthorizationTransactionFactory
 from app.db.seed import constants as seed
 from app.db.seed.fixtures import build_rows
 from app.db.seed.runner import apply_rows, clean, validate
-from app.models.identity import AppRole
 from app.schemas.leave_attachment import AttachmentSubmissionRequest
 from app.services.execution import AuthorizedServiceExecutor, ServiceExecutionError
 from app.services.leave_attachment import LeaveAttachmentService, ValidatedUpload
 from app.storage.base import StorageError, StorageNotFoundError
+from app.storage.malware import SyntheticMalwareScanner
 from app.storage.reconciler import (
     claim_operation,
     complete_operation,
     run_maintenance,
     run_once,
 )
+from app.storage.scanner_worker import run_once as run_scanner_once
 from app.storage.synthetic import SyntheticObjectStorage
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import URL
+from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
 BRANCH_ID = uuid.UUID("20000000-0000-4000-8000-000000000001")
 REQUEST_ID = uuid.UUID("7a2fde23-dc8c-560c-937c-4ef631aff6b2")
@@ -97,9 +97,9 @@ async def main() -> None:
         apply_rows(connection, seed_rows)
         validate(connection, seed_rows)
     with migration_engine.begin() as connection:
-        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
-            "c6e8a1b3d927"
-        )
+        assert connection.execute(
+            text("SELECT version_num FROM alembic_version")
+        ).scalar_one() == ("d8f0a2c4e6b1")
         role = connection.execute(
             text(
                 "SELECT rolcanlogin,rolinherit,rolsuper,rolcreatedb,rolcreaterole,"
@@ -108,13 +108,16 @@ async def main() -> None:
             )
         ).one()
         assert role == (True, False, False, False, False, False, False)
-        assert connection.execute(
-            text(
-                "SELECT count(*) FROM pg_catalog.pg_class "
-                "WHERE oid IN ('public.storage_operations'::regclass,"
-                "'public.leave_attachments'::regclass) AND relrowsecurity AND relforcerowsecurity"
-            )
-        ).scalar_one() == 2
+        assert (
+            connection.execute(
+                text(
+                    "SELECT count(*) FROM pg_catalog.pg_class "
+                    "WHERE oid IN ('public.storage_operations'::regclass,"
+                    "'public.leave_attachments'::regclass) AND relrowsecurity AND relforcerowsecurity"
+                )
+            ).scalar_one()
+            == 2
+        )
         reconciler_tables = set(
             connection.execute(
                 text(
@@ -146,34 +149,48 @@ async def main() -> None:
             "completed_at",
             "updated_at",
         }
-        assert connection.execute(
-            text(
-                "SELECT has_function_privilege('workloop_storage_reconciler',"
-                "'public.append_audit_event(text,text,uuid,text[],text,jsonb)','EXECUTE')"
-            )
-        ).scalar_one() is False
-        assert connection.execute(
-            text(
-                "SELECT has_table_privilege('workloop_runtime',"
-                "'public.leave_attachments','DELETE')"
-            )
-        ).scalar_one() is False
+        assert (
+            connection.execute(
+                text(
+                    "SELECT has_function_privilege('workloop_storage_reconciler',"
+                    "'public.append_audit_event(text,text,uuid,text[],text,jsonb)','EXECUTE')"
+                )
+            ).scalar_one()
+            is False
+        )
+        assert (
+            connection.execute(
+                text(
+                    "SELECT has_table_privilege('workloop_runtime',"
+                    "'public.leave_attachments','DELETE')"
+                )
+            ).scalar_one()
+            is False
+        )
         stale_ids = list(
             connection.execute(
-                text("SELECT id FROM public.leave_attachments WHERE leave_request_id=:id"),
+                text(
+                    "SELECT id FROM public.leave_attachments WHERE leave_request_id=:id"
+                ),
                 {"id": REQUEST_ID},
             ).scalars()
         )
         for stale_id in stale_ids:
             connection.execute(
-                text("DELETE FROM public.audit_events WHERE entity_id=:id"), {"id": stale_id}
+                text("DELETE FROM public.audit_events WHERE entity_id=:id"),
+                {"id": stale_id},
             )
             connection.execute(
                 text("DELETE FROM public.storage_operations WHERE entity_id=:id"),
                 {"id": stale_id},
             )
             connection.execute(
-                text("DELETE FROM public.leave_attachments WHERE id=:id"), {"id": stale_id}
+                text("DELETE FROM public.leave_attachments WHERE id=:id"),
+                {"id": stale_id},
+            )
+            connection.execute(
+                text("DELETE FROM public.file_security_scans WHERE entity_id=:id"),
+                {"id": stale_id},
             )
         connection.execute(
             text(
@@ -183,6 +200,9 @@ async def main() -> None:
         )
     runtime_engine = create_async_engine(
         database_url("workloop_runtime", "WORKLOOP_RUNTIME_PASSWORD")
+    )
+    scanner_engine = create_async_engine(
+        database_url("workloop_file_scanner", "WORKLOOP_FILE_SCANNER_PASSWORD")
     )
     resolver = ApplicationUserResolver(
         engine=runtime_engine, issuer=seed.SEED_ISSUER, timeout_seconds=5
@@ -235,7 +255,10 @@ async def main() -> None:
     claimed = await run(
         RAVI,
         lambda service, principal: service.claim_upload(
-            principal, BRANCH_ID, submission.id, upload  # type: ignore[attr-defined]
+            principal,
+            BRANCH_ID,
+            submission.id,
+            upload,  # type: ignore[attr-defined]
         ),
     )
     storage_root = Path(os.environ.get("PHASE8D_STORAGE_PATH", "/tmp/phase8d-objects"))
@@ -255,12 +278,22 @@ async def main() -> None:
         lambda service, principal: service.complete_upload(principal, claimed, upload),
     )
     assert attachment.id == submission.id  # type: ignore[attr-defined]
+    assert (
+        await run_scanner_once(
+            scanner_engine,
+            storage,
+            SyntheticMalwareScanner(signing_key=b"s" * 32),
+        )
+        is True
+    )
 
     for subject, admin_branch in ((RAVI, None), (AISHA, None), (ADMIN, BRANCH_ID)):
         row = await run(
             subject,
             lambda service, principal: service.load_for_download(
-                principal, BRANCH_ID, attachment.id  # type: ignore[attr-defined]
+                principal,
+                BRANCH_ID,
+                attachment.id,  # type: ignore[attr-defined]
             ),
             admin_branch=admin_branch,
         )
@@ -282,7 +315,9 @@ async def main() -> None:
     delegated = await run(
         FATIMA,
         lambda service, principal: service.load_for_download(
-            principal, BRANCH_ID, attachment.id  # type: ignore[attr-defined]
+            principal,
+            BRANCH_ID,
+            attachment.id,  # type: ignore[attr-defined]
         ),
     )
     assert delegated["sha256"] == digest  # type: ignore[index]
@@ -300,7 +335,9 @@ async def main() -> None:
             run(
                 subject,
                 lambda service, principal: service.load_for_download(
-                    principal, BRANCH_ID, attachment.id  # type: ignore[attr-defined]
+                    principal,
+                    BRANCH_ID,
+                    attachment.id,  # type: ignore[attr-defined]
                 ),
             ),
         )
@@ -310,7 +347,9 @@ async def main() -> None:
         run(
             MARIA,
             lambda service, principal: service.load_for_download(
-                principal, BRANCH_ID, attachment.id  # type: ignore[attr-defined]
+                principal,
+                BRANCH_ID,
+                attachment.id,  # type: ignore[attr-defined]
             ),
         ),
     )
@@ -319,7 +358,10 @@ async def main() -> None:
         run(
             RAVI,
             lambda service, principal: service.claim_upload(
-                principal, BRANCH_ID, submission.id, upload  # type: ignore[attr-defined]
+                principal,
+                BRANCH_ID,
+                submission.id,
+                upload,  # type: ignore[attr-defined]
             ),
         ),
     )
@@ -335,7 +377,10 @@ async def main() -> None:
     cleanup = await run(
         RAVI,
         lambda service, principal: service.request_cleanup(
-            principal, BRANCH_ID, attachment.id, "missing_object"  # type: ignore[attr-defined]
+            principal,
+            BRANCH_ID,
+            attachment.id,
+            "missing_object",  # type: ignore[attr-defined]
         ),
     )
     await storage.delete_object(key=cleanup.object_key)  # type: ignore[attr-defined]
@@ -361,10 +406,13 @@ async def main() -> None:
             {"id": attachment.id},  # type: ignore[attr-defined]
         ).scalar_one()
         assert cleanup_event == 1
-        assert connection.execute(
-            text("SELECT status FROM public.leave_attachments WHERE id=:id"),
-            {"id": attachment.id},  # type: ignore[attr-defined]
-        ).scalar_one() == "removed"
+        assert (
+            connection.execute(
+                text("SELECT status FROM public.leave_attachments WHERE id=:id"),
+                {"id": attachment.id},  # type: ignore[attr-defined]
+            ).scalar_one()
+            == "removed"
+        )
         legacy_url = connection.execute(
             text("SELECT attachment_url FROM public.leave_requests WHERE id=:id"),
             {"id": REQUEST_ID},
@@ -380,6 +428,10 @@ async def main() -> None:
         )
         connection.execute(
             text("DELETE FROM public.leave_attachments WHERE id=:id"),
+            {"id": attachment.id},  # type: ignore[attr-defined]
+        )
+        connection.execute(
+            text("DELETE FROM public.file_security_scans WHERE entity_id=:id"),
             {"id": attachment.id},  # type: ignore[attr-defined]
         )
         connection.execute(
@@ -399,7 +451,9 @@ async def main() -> None:
     employee_id = principals[RAVI].employee_id
     assert employee_id is not None
 
-    def insert_operation(operation_id: uuid.UUID, operation: str, object_key: str) -> None:
+    def insert_operation(
+        operation_id: uuid.UUID, operation: str, object_key: str
+    ) -> None:
         with migration_engine.begin() as connection:
             connection.execute(
                 text(
@@ -432,10 +486,13 @@ async def main() -> None:
     )
     assert await run_once(reconciler_engine, storage) is True
     with migration_engine.connect() as connection:
-        assert connection.execute(
-            text("SELECT status FROM public.storage_operations WHERE id=:id"),
-            {"id": orphan_id},
-        ).scalar_one() == "reconciled"
+        assert (
+            connection.execute(
+                text("SELECT status FROM public.storage_operations WHERE id=:id"),
+                {"id": orphan_id},
+            ).scalar_one()
+            == "reconciled"
+        )
     try:
         await storage.head_object(key=orphan_key)
     except StorageNotFoundError:
@@ -450,7 +507,9 @@ async def main() -> None:
     )
     claimed_race = first or second
     assert claimed_race is not None and (first is None) != (second is None)
-    await complete_operation(reconciler_engine, claimed_race, status="reconciled", error_code="")
+    await complete_operation(
+        reconciler_engine, claimed_race, status="reconciled", error_code=""
+    )
 
     failing = FailingStorage(
         root=storage_root,
@@ -510,7 +569,9 @@ async def main() -> None:
             assert row.status == "failed" and row.attempt_count == expected_attempt
             assert (row.next_attempt_at is None) is (expected_attempt == 8)
             if expected_attempt < 8:
-                assert row.next_attempt_at - row.updated_at == delays[expected_attempt - 1]
+                assert (
+                    row.next_attempt_at - row.updated_at == delays[expected_attempt - 1]
+                )
 
     purge_id = uuid.uuid4()
     with migration_engine.begin() as connection:
@@ -536,15 +597,19 @@ async def main() -> None:
         )
     await run_maintenance(reconciler_engine)
     with migration_engine.begin() as connection:
-        assert connection.execute(
-            text("SELECT count(*) FROM public.storage_operations WHERE id=:id"),
-            {"id": purge_id},
-        ).scalar_one() == 0
+        assert (
+            connection.execute(
+                text("SELECT count(*) FROM public.storage_operations WHERE id=:id"),
+                {"id": purge_id},
+            ).scalar_one()
+            == 0
+        )
         connection.execute(
             text("DELETE FROM public.storage_operations WHERE id=ANY(:ids)"),
             {"ids": [orphan_id, race_id, *retry_ids]},
         )
     await reconciler_engine.dispose()
+    await scanner_engine.dispose()
     await runtime_engine.dispose()
     with migration_engine.begin() as connection:
         clean(connection, seed_rows)

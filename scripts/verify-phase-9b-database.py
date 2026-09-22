@@ -8,6 +8,7 @@ import hashlib
 import os
 import uuid
 from datetime import date, timedelta
+from pathlib import Path
 
 from app.auth.access_token import AccessTokenClaims
 from app.auth.application_user import ApplicationUserResolver
@@ -24,8 +25,15 @@ from app.services.employees import EmployeeCursorCodec
 from app.services.execution import AuthorizedServiceExecutor, ServiceExecutionError
 from app.services.expense_receipt import ClaimedReceiptCleanup, ExpenseReceiptService
 from app.services.expenses import ExpenseListQuery, ExpenseService
-from app.services.idempotency import IdempotencyCommand, IdempotencyCoordinator, IdempotentResponse
+from app.services.idempotency import (
+    IdempotencyCommand,
+    IdempotencyCoordinator,
+    IdempotentResponse,
+)
 from app.services.leave_attachment import ValidatedUpload
+from app.storage.malware import SyntheticMalwareScanner
+from app.storage.scanner_worker import run_once as run_scanner_once
+from app.storage.synthetic import SyntheticObjectStorage
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import URL
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
@@ -39,7 +47,9 @@ RAVI = "ravi.employee@horizon.test"
 MARIA = "maria.employee@horizon.test"
 RAVI_ID = uuid.UUID("21000000-0000-4000-8000-000000000002")
 MARIA_ID = uuid.UUID("21000000-0000-4000-8000-000000000003")
-CREATE_KEYS = [uuid.UUID(f"9b000000-0000-4000-8000-{value:012d}") for value in range(101, 105)]
+CREATE_KEYS = [
+    uuid.UUID(f"9b000000-0000-4000-8000-{value:012d}") for value in range(101, 105)
+]
 DECISION_KEY = uuid.UUID("9b000000-0000-4000-8000-000000000201")
 OBJECT_KEY_HMAC = b"9" * 32
 
@@ -85,7 +95,7 @@ async def main() -> None:
     rows = build_rows()
     with migration_engine.begin() as connection:
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "c6e8a1b3d927"
+            "d8f0a2c4e6b1"
         )
         apply_rows(connection, rows)
         validate(connection, rows)
@@ -96,6 +106,9 @@ async def main() -> None:
 
     runtime_engine = create_async_engine(
         database_url("workloop_runtime", "WORKLOOP_RUNTIME_PASSWORD")
+    )
+    scanner_engine = create_async_engine(
+        database_url("workloop_file_scanner", "WORKLOOP_FILE_SCANNER_PASSWORD")
     )
     resolver = ApplicationUserResolver(
         engine=runtime_engine, issuer=seed.SEED_ISSUER, timeout_seconds=5
@@ -132,7 +145,9 @@ async def main() -> None:
         principal = principals[subject]
 
         async def invoke(connection: AsyncConnection) -> object:
-            service = ExpenseReceiptService(connection, object_key_hmac_key=OBJECT_KEY_HMAC)
+            service = ExpenseReceiptService(
+                connection, object_key_hmac_key=OBJECT_KEY_HMAC
+            )
             return await callback(service, principal)  # type: ignore[operator]
 
         selected = branch_id if subject == ADMIN else None
@@ -143,7 +158,9 @@ async def main() -> None:
             operation=invoke,
         )
 
-    async def idempotent_create(key: uuid.UUID, body: ExpenseCreateRequest) -> IdempotentResponse:
+    async def idempotent_create(
+        key: uuid.UUID, body: ExpenseCreateRequest
+    ) -> IdempotentResponse:
         principal = principals[RAVI]
         operation_id = "create_self_expense"
         body_values = body.model_dump(mode="json", by_alias=True)
@@ -169,13 +186,17 @@ async def main() -> None:
                 result = await service.create(principal, body)
                 return IdempotentResponse(
                     status=201,
-                    body=DataResponse(data=result).model_dump(mode="json", by_alias=True),
+                    body=DataResponse(data=result).model_dump(
+                        mode="json", by_alias=True
+                    ),
                     location=f"/api/v1/expenses/self/{result.id}",
                     resource_kind="expense_claim",
                     resource_id=result.id,
                 )
 
-            return await IdempotencyCoordinator(IdempotencyRepository(connection)).execute(
+            return await IdempotencyCoordinator(
+                IdempotencyRepository(connection)
+            ).execute(
                 principal=principal,
                 command=command,
                 authorize_replay=lambda kind, resource_id: service.authorize_replay(
@@ -184,7 +205,9 @@ async def main() -> None:
                 mutation=mutate,
             )
 
-        return await executor.execute(claims=claims(RAVI), principal=principal, operation=invoke)
+        return await executor.execute(
+            claims=claims(RAVI), principal=principal, operation=invoke
+        )
 
     async def idempotent_admin_approve(
         claim_id: uuid.UUID, body: ExpenseDecisionRequest
@@ -217,13 +240,17 @@ async def main() -> None:
                 )
                 return IdempotentResponse(
                     status=200,
-                    body=DataResponse(data=result).model_dump(mode="json", by_alias=True),
+                    body=DataResponse(data=result).model_dump(
+                        mode="json", by_alias=True
+                    ),
                     location=None,
                     resource_kind="expense_claim",
                     resource_id=claim_id,
                 )
 
-            return await IdempotencyCoordinator(IdempotencyRepository(connection)).execute(
+            return await IdempotencyCoordinator(
+                IdempotencyRepository(connection)
+            ).execute(
                 principal=principal,
                 command=command,
                 authorize_replay=lambda kind, resource_id: service.authorize_replay(
@@ -262,11 +289,32 @@ async def main() -> None:
             upload,  # type: ignore[union-attr]
         ),
     )
+    storage = SyntheticObjectStorage(
+        root=Path(os.environ.get("PHASE9B_STORAGE_PATH", "/tmp/phase9b-objects")),
+        signing_key=b"9" * 32,
+        base_url="http://127.0.0.1:28000",
+    )
+    await storage.put_object(
+        key=claimed_upload.object_key,  # type: ignore[union-attr]
+        body=pdf,
+        content_type=upload.content_type,
+        sha256=upload.sha256,
+    )
     receipt = await run_receipt(
         RAVI,
-        lambda service, principal: service.complete_upload(principal, claimed_upload, upload),
+        lambda service, principal: service.complete_upload(
+            principal, claimed_upload, upload
+        ),
     )
     assert receipt.expires_at is not None  # type: ignore[union-attr]
+    assert (
+        await run_scanner_once(
+            scanner_engine,
+            storage,
+            SyntheticMalwareScanner(signing_key=b"s" * 32),
+        )
+        is True
+    )
     assert str(submission.id) not in claimed_upload.object_key  # type: ignore[union-attr]
     assert RAVI_ID.hex not in claimed_upload.object_key  # type: ignore[union-attr]
 
@@ -279,7 +327,9 @@ async def main() -> None:
     )
     created = await idempotent_create(CREATE_KEYS[0], receipt_body)
     replayed = await idempotent_create(CREATE_KEYS[0], receipt_body)
-    assert created.body is not None and replayed.replayed and replayed.body == created.body
+    assert (
+        created.body is not None and replayed.replayed and replayed.body == created.body
+    )
     receipt_claim_id = uuid.UUID(created.body["data"]["id"])  # type: ignore[index]
     await expect_code(
         "idempotency_conflict",
@@ -290,11 +340,17 @@ async def main() -> None:
     )
 
     self_items, _ = await run_expense(
-        RAVI, lambda service, principal: service.list_self(principal, ExpenseListQuery(limit=100))
+        RAVI,
+        lambda service, principal: service.list_self(
+            principal, ExpenseListQuery(limit=100)
+        ),
     )
     assert receipt_claim_id in {item.id for item in self_items}  # type: ignore[union-attr]
     maria_items, _ = await run_expense(
-        MARIA, lambda service, principal: service.list_self(principal, ExpenseListQuery(limit=100))
+        MARIA,
+        lambda service, principal: service.list_self(
+            principal, ExpenseListQuery(limit=100)
+        ),
     )
     assert receipt_claim_id not in {item.id for item in maria_items}  # type: ignore[union-attr]
 
@@ -376,7 +432,9 @@ async def main() -> None:
             approve=True,
         ),
     )
-    final_body = ExpenseDecisionRequest(expected_updated_at=approved_by_manager.updated_at)  # type: ignore[union-attr]
+    final_body = ExpenseDecisionRequest(
+        expected_updated_at=approved_by_manager.updated_at
+    )  # type: ignore[union-attr]
     approved = await idempotent_admin_approve(receipt_claim_id, final_body)
     replayed_approval = await idempotent_admin_approve(receipt_claim_id, final_body)
     assert approved.body is not None and replayed_approval.replayed
@@ -384,7 +442,8 @@ async def main() -> None:
     await expect_code(
         "idempotency_conflict",
         idempotent_admin_approve(
-            receipt_claim_id, final_body.model_copy(update={"reason": "Changed payload"})
+            receipt_claim_id,
+            final_body.model_copy(update={"reason": "Changed payload"}),
         ),
     )
 
@@ -397,7 +456,9 @@ async def main() -> None:
     )
     assert receipt_claim_id not in {item.id for item in wrong_branch}  # type: ignore[union-attr]
 
-    async def create_plain(key: uuid.UUID, description: str) -> tuple[uuid.UUID, object]:
+    async def create_plain(
+        key: uuid.UUID, description: str
+    ) -> tuple[uuid.UUID, object]:
         outcome = await idempotent_create(
             key,
             ExpenseCreateRequest(
@@ -622,7 +683,9 @@ async def main() -> None:
             {"claim_ids": generated_claim_ids, "receipt_ids": receipt_ids},
         )
         connection.execute(
-            text("DELETE FROM public.idempotency_records WHERE idempotency_key=ANY(:keys)"),
+            text(
+                "DELETE FROM public.idempotency_records WHERE idempotency_key=ANY(:keys)"
+            ),
             {"keys": [*CREATE_KEYS, DECISION_KEY]},
         )
         connection.execute(
@@ -634,9 +697,14 @@ async def main() -> None:
             {"ids": receipt_ids},
         )
         connection.execute(
+            text("DELETE FROM public.file_security_scans WHERE entity_id=ANY(:ids)"),
+            {"ids": receipt_ids},
+        )
+        connection.execute(
             text("DELETE FROM public.expense_claims WHERE id=ANY(:ids)"),
             {"ids": generated_claim_ids},
         )
+    await scanner_engine.dispose()
     await runtime_engine.dispose()
     with migration_engine.begin() as connection:
         clean(connection, rows)
