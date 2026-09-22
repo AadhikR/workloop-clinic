@@ -21,6 +21,45 @@ LOCK_SIGNATURE = "public.lock_payroll_run(uuid)"
 TRANSITION_SIGNATURE = "public.transition_payroll_run(uuid,text,text,timestamp with time zone)"
 FINALIZE_SIGNATURE = "public.finalize_payroll_run(uuid,numeric,integer,timestamp with time zone)"
 
+PHASE5F_HUMAN_CONTEXT = """
+current_user = 'workloop_runtime'
+AND session_user = 'workloop_runtime'
+AND public.workloop_actor_kind() = 'human'
+AND public.workloop_actor_key() IS NULL
+AND public.workloop_business_date() IS NOT NULL
+AND EXISTS (
+  SELECT 1
+  FROM public.resolve_workloop_principal() AS principal
+  WHERE principal.app_user_id = public.workloop_app_user_id()
+    AND principal.account_status = 'active'
+    AND principal.profile_app_user_id = principal.app_user_id
+    AND principal.role = public.workloop_role()
+    AND principal.profile_company_id = public.workloop_company_id()
+    AND principal.company_id = principal.profile_company_id
+    AND (
+      (
+        principal.role = 'admin'
+        AND principal.profile_employee_id IS NULL
+        AND principal.employee_id IS NULL
+        AND principal.branch_id IS NULL
+        AND public.workloop_employee_id() IS NULL
+      )
+      OR
+      (
+        principal.role IN ('manager', 'employee')
+        AND principal.profile_employee_id = public.workloop_employee_id()
+        AND principal.employee_id = principal.profile_employee_id
+        AND principal.employee_company_id = principal.profile_company_id
+        AND principal.employee_branch_id = public.workloop_branch_id()
+        AND principal.employee_active
+        AND principal.employment_status IN ('Active', 'Probation', 'On Leave')
+        AND principal.branch_id = principal.employee_branch_id
+        AND principal.branch_company_id = principal.profile_company_id
+      )
+    )
+)
+""".strip()
+
 ADMIN_CONTEXT = """
 session_user='workloop_runtime'
 AND public.workloop_actor_kind()='human'
@@ -439,23 +478,19 @@ $block$
     op.execute("DROP FUNCTION public.reject_immutable_payroll_evidence_mutation()")
     op.execute("DROP POLICY phase5f_payslips_select_runtime ON public.payslips")
     op.execute(
-        """
+        f"""
 CREATE POLICY phase5f_payslips_select_runtime ON public.payslips
 FOR SELECT TO workloop_runtime
 USING (
-  session_user='workloop_runtime'
-  AND public.workloop_actor_kind()='human'
-  AND public.workloop_actor_key() IS NULL
-  AND public.workloop_business_date() IS NOT NULL
-  AND public.workloop_app_user_id() IS NOT NULL
-  AND public.workloop_company_id() IS NOT NULL
-  AND public.workloop_branch_id() IS NOT NULL
-  AND company_id=public.workloop_company_id()
-  AND branch_id=public.workloop_branch_id()
+  {PHASE5F_HUMAN_CONTEXT}
+  AND company_id = public.workloop_company_id()
+  AND branch_id = public.workloop_branch_id()
   AND (
-    public.workloop_role()='admin'
-    OR (public.workloop_role() IN ('manager','employee')
-        AND employee_id=public.workloop_employee_id())
+    public.workloop_role() = 'admin'
+    OR (
+      public.workloop_role() IN ('manager', 'employee')
+      AND employee_id = public.workloop_employee_id()
+    )
   )
 )
 """

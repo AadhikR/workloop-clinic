@@ -21,6 +21,45 @@ depends_on: str | Sequence[str] | None = None
 PHASE10I_REPLAY = """(replay_resource_kind IN ('branch','employee','department','user_profile','leave_request','expense_claim','salary_advance','payroll_run','compliance_override','nafis_snapshot','attendance_settings','shift','shift_assignment','clock_event','biometric_mapping','attendance_import_batch','attendance_record','regularisation_request','attendance_period','roster_assignment','roster_publication_version','shift_swap_request') AND replay_resource_id IS NOT NULL) OR (replay_resource_kind = 'tenant' AND replay_resource_id IS NULL) OR replay_resource_kind IS NULL"""
 PHASE10H_REPLAY = """(replay_resource_kind IN ('branch','employee','department','user_profile','leave_request','expense_claim','salary_advance','payroll_run','compliance_override','nafis_snapshot','attendance_settings','shift','shift_assignment','clock_event','biometric_mapping','attendance_import_batch','attendance_record','regularisation_request','attendance_period','roster_assignment','roster_publication_version') AND replay_resource_id IS NOT NULL) OR (replay_resource_kind = 'tenant' AND replay_resource_id IS NULL) OR replay_resource_kind IS NULL"""
 
+PHASE5F_HUMAN_CONTEXT = """
+current_user = 'workloop_runtime'
+AND session_user = 'workloop_runtime'
+AND public.workloop_actor_kind() = 'human'
+AND public.workloop_actor_key() IS NULL
+AND public.workloop_business_date() IS NOT NULL
+AND EXISTS (
+  SELECT 1
+  FROM public.resolve_workloop_principal() AS principal
+  WHERE principal.app_user_id = public.workloop_app_user_id()
+    AND principal.account_status = 'active'
+    AND principal.profile_app_user_id = principal.app_user_id
+    AND principal.role = public.workloop_role()
+    AND principal.profile_company_id = public.workloop_company_id()
+    AND principal.company_id = principal.profile_company_id
+    AND (
+      (
+        principal.role = 'admin'
+        AND principal.profile_employee_id IS NULL
+        AND principal.employee_id IS NULL
+        AND principal.branch_id IS NULL
+        AND public.workloop_employee_id() IS NULL
+      )
+      OR
+      (
+        principal.role IN ('manager', 'employee')
+        AND principal.profile_employee_id = public.workloop_employee_id()
+        AND principal.employee_id = principal.profile_employee_id
+        AND principal.employee_company_id = principal.profile_company_id
+        AND principal.employee_branch_id = public.workloop_branch_id()
+        AND principal.employee_active
+        AND principal.employment_status IN ('Active', 'Probation', 'On Leave')
+        AND principal.branch_id = principal.employee_branch_id
+        AND principal.branch_company_id = principal.profile_company_id
+      )
+    )
+)
+""".strip()
+
 HUMAN_CONTEXT = """
 current_user='workloop_runtime' AND session_user='workloop_runtime'
 AND public.workloop_actor_kind()='human' AND public.workloop_actor_key() IS NULL
@@ -747,19 +786,48 @@ END $$;
         op.drop_column("shift_swap_requests", column)
     op.execute(f"""
 CREATE POLICY phase5f_shift_swap_requests_select_runtime ON public.shift_swap_requests
-FOR SELECT TO workloop_runtime USING ({HUMAN_CONTEXT} AND (
-  public.workloop_role()='admin' OR (public.workloop_role() IN ('manager','employee')
-    AND public.workloop_employee_id() IN (requester_employee_id,target_employee_id))));
+FOR SELECT TO workloop_runtime USING ({PHASE5F_HUMAN_CONTEXT}
+AND company_id = public.workloop_company_id()
+AND branch_id = public.workloop_branch_id()
+AND (
+  public.workloop_role() = 'admin'
+  OR (
+    public.workloop_role() IN ('manager', 'employee')
+    AND public.workloop_employee_id() IN (
+      requester_employee_id, target_employee_id
+    )
+  )
+));
 CREATE POLICY phase5f_shift_swap_requests_insert_runtime ON public.shift_swap_requests
-FOR INSERT TO workloop_runtime WITH CHECK ({HUMAN_CONTEXT}
-  AND public.workloop_role() IN ('manager','employee')
-  AND requester_employee_id=public.workloop_employee_id()
-  AND target_employee_id<>public.workloop_employee_id() AND status='pending');
+FOR INSERT TO workloop_runtime WITH CHECK ({PHASE5F_HUMAN_CONTEXT}
+AND public.workloop_role() IN ('manager', 'employee')
+AND company_id = public.workloop_company_id()
+AND branch_id = public.workloop_branch_id()
+AND requester_employee_id = public.workloop_employee_id()
+AND target_employee_id <> public.workloop_employee_id()
+AND status = 'pending');
 CREATE POLICY phase5f_shift_swap_requests_update_runtime ON public.shift_swap_requests
-FOR UPDATE TO workloop_runtime USING ({HUMAN_CONTEXT} AND status='pending' AND (
-  public.workloop_role()='admin' OR (public.workloop_role() IN ('manager','employee')
-    AND requester_employee_id=public.workloop_employee_id())))
-WITH CHECK ({HUMAN_CONTEXT} AND status<>'approved' AND (
-  public.workloop_role()='admin' OR (public.workloop_role() IN ('manager','employee')
-    AND requester_employee_id=public.workloop_employee_id() AND status='cancelled')));
+FOR UPDATE TO workloop_runtime USING ({PHASE5F_HUMAN_CONTEXT}
+AND company_id = public.workloop_company_id()
+AND branch_id = public.workloop_branch_id()
+AND status = 'pending'
+AND (
+  public.workloop_role() = 'admin'
+  OR (
+    public.workloop_role() IN ('manager', 'employee')
+    AND requester_employee_id = public.workloop_employee_id()
+  )
+))
+WITH CHECK ({PHASE5F_HUMAN_CONTEXT}
+AND company_id = public.workloop_company_id()
+AND branch_id = public.workloop_branch_id()
+AND status <> 'approved'
+AND (
+  public.workloop_role() = 'admin'
+  OR (
+    public.workloop_role() IN ('manager', 'employee')
+    AND requester_employee_id = public.workloop_employee_id()
+    AND status = 'cancelled'
+  )
+));
 """)

@@ -25,9 +25,9 @@ AND public.workloop_actor_key()='file_security_scan'
 
 
 def _replace_actor_key_reader(*, include_scanner: bool) -> None:
-    values = "'expiry_processing','storage_reconciliation'"
+    values = "'expiry_processing', 'storage_reconciliation'"
     if include_scanner:
-        values += ",'file_security_scan'"
+        values += ", 'file_security_scan'"
     op.execute(f"""
 CREATE OR REPLACE FUNCTION public.workloop_actor_key()
 RETURNS text
