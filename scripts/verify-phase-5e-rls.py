@@ -435,6 +435,7 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')
                 "roster_publication_memberships",
                 "roster_actual_hours_evidence",
                 "roster_overtime_approvals",
+                "shift_swap_history",
             }
         )
 

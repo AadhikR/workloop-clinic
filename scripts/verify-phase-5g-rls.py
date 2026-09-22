@@ -186,7 +186,8 @@ def verify_catalog(engine: Any) -> None:
                     "'attendance_period_versions','attendance_period_record_snapshots',"
                     "'attendance_period_audit_log','roster_months',"
                     "'roster_publication_versions','roster_publication_memberships',"
-                    "'roster_actual_hours_evidence','roster_overtime_approvals')"
+                    "'roster_actual_hours_evidence','roster_overtime_approvals',"
+                    "'shift_swap_history')"
                 )
             ).scalars()
         )
@@ -283,14 +284,17 @@ WHERE schemaname='public' AND policyname NOT LIKE 'phase5%'
     'attendance_period_versions','attendance_period_record_snapshots',
     'attendance_period_audit_log','roster_months','roster_publication_versions',
     'roster_publication_memberships','roster_actual_hours_evidence',
-    'roster_overtime_approvals'
+    'roster_overtime_approvals','shift_swap_history'
   )
   AND policyname NOT IN (
     'phase7g_user_profiles_select_branch_runtime',
     'phase7g_user_profiles_update_role_branch_runtime',
     'phase8e_leave_settings_lock_runtime',
     'phase8e_leave_types_lock_runtime',
-    'phase8e_prior_leave_requests_update_runtime'
+    'phase8e_prior_leave_requests_update_runtime',
+    'phase10i_shift_swap_requests_select_runtime',
+    'phase10i_shift_swap_requests_insert_runtime',
+    'phase10i_shift_swap_requests_update_runtime'
   )
 """
             )
@@ -301,7 +305,7 @@ WHERE schemaname='public' AND policyname NOT LIKE 'phase5%'
             row[0]: row[1]
             for row in connection.execute(
                 text(
-                    "SELECT object.relname,object.relrowsecurity FROM pg_catalog.pg_class AS object JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid=object.relnamespace WHERE namespace.nspname='public' AND object.relkind='r' AND object.relname NOT IN ('idempotency_records','storage_operations','leave_attachments','expense_receipts','attendance_import_batches','attendance_import_row_outcomes','attendance_period_versions','attendance_period_record_snapshots','attendance_period_audit_log','roster_months','roster_publication_versions','roster_publication_memberships','roster_actual_hours_evidence','roster_overtime_approvals')"
+                    "SELECT object.relname,object.relrowsecurity FROM pg_catalog.pg_class AS object JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid=object.relnamespace WHERE namespace.nspname='public' AND object.relkind='r' AND object.relname NOT IN ('idempotency_records','storage_operations','leave_attachments','expense_receipts','attendance_import_batches','attendance_import_row_outcomes','attendance_period_versions','attendance_period_record_snapshots','attendance_period_audit_log','roster_months','roster_publication_versions','roster_publication_memberships','roster_actual_hours_evidence','roster_overtime_approvals','shift_swap_history')"
                 )
             )
         }

@@ -21,8 +21,8 @@ BEGIN
       'alembic_version', 'audit_events', 'idempotency_records',
       'storage_operations', 'leave_attachments'
     );
-  IF table_count <> 65 THEN
-    RAISE EXCEPTION 'expected 65 target tables, found %', table_count;
+  IF table_count <> 66 THEN
+    RAISE EXCEPTION 'expected 66 target tables, found %', table_count;
   END IF;
 
   -- Identity and organization seed (two tenants, one branch each).

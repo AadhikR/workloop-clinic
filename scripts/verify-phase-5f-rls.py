@@ -76,7 +76,9 @@ def clean_phase5g_audit(connection: Any) -> None:
         )
 
 
-def expected_policies() -> set[tuple[str, str, str, str]]:
+def expected_policies(
+    *, phase10i_shift_swap: bool = False
+) -> set[tuple[str, str, str, str]]:
     return {
         (
             table,
@@ -85,6 +87,7 @@ def expected_policies() -> set[tuple[str, str, str, str]]:
             "workloop_runtime",
         )
         for table, commands in COMMANDS.items()
+        if not (phase10i_shift_swap and table == "shift_swap_requests")
         for command in commands
     }
 
@@ -149,6 +152,9 @@ def rollback_human_context(
 
 def verify_catalog(engine: Any) -> None:
     with engine.connect() as connection:
+        phase10i_shift_swap = connection.execute(
+            text("SELECT to_regclass('public.shift_swap_history') IS NOT NULL")
+        ).scalar_one()
         policies = {
             (row.tablename, row.policyname, row.cmd, row.roles[0])
             for row in connection.execute(
@@ -161,8 +167,10 @@ WHERE schemaname = 'public' AND policyname LIKE 'phase5f_%'
                 )
             )
         }
-        assert policies == expected_policies()
-        assert len(policies) == 77
+        assert policies == expected_policies(
+            phase10i_shift_swap=phase10i_shift_swap
+        )
+        assert len(policies) == (74 if phase10i_shift_swap else 77)
 
         policy_rows = connection.execute(
             text(
@@ -217,7 +225,10 @@ WHERE table_schema = 'public'
             {"tables": list(COMMANDS)},
         ):
             actual_grants[row.table_name].add(row.privilege_type)
-        assert actual_grants == GRANTS
+        expected_grants = {table: set(grants) for table, grants in GRANTS.items()}
+        if phase10i_shift_swap:
+            expected_grants["shift_swap_requests"].discard("INSERT")
+        assert actual_grants == expected_grants
 
         expiry_access = connection.execute(
             text(
@@ -984,7 +995,7 @@ INSERT INTO shift_swap_requests (
                     "SELECT admin_execute_shift_swap(%s, %s)",
                     (swap_id, c.ADMIN_APP_USER[c.HORIZON]),
                 )
-        except psycopg.errors.RaiseException:
+        except (psycopg.errors.RaiseException, psycopg.errors.InsufficientPrivilege):
             pass
         else:
             raise AssertionError("shift swap accepted a forged actor")
