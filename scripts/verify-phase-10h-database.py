@@ -195,7 +195,9 @@ async def main() -> None:
         initial = await run_admin(
             lambda service, actor: service.detail(actor, BRANCH_ID, PERIOD)
         )
-        assert initial.status == "draft" and initial.version == 0
+        assert initial.id is None and initial.status == "draft" and initial.version == 0
+        with migration_engine.connect() as connection:
+            assert connection.scalar(text("SELECT count(*) FROM public.roster_months")) == 0
 
         await expect_code(
             "state_conflict",
@@ -368,7 +370,9 @@ async def main() -> None:
             lambda service, actor: service.detail(actor, OTHER_BRANCH_ID, PERIOD),
             branch_id=OTHER_BRANCH_ID,
         )
-        assert other.status == "draft" and other.record_count == 0
+        assert other.id is None and other.status == "draft" and other.record_count == 0
+        with migration_engine.connect() as connection:
+            assert connection.scalar(text("SELECT count(*) FROM public.roster_months")) == 1
 
         async def mutate_version(connection: AsyncConnection) -> None:
             await connection.execute(

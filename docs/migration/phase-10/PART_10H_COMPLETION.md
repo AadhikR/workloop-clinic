@@ -32,9 +32,10 @@ Shift-swap mutations remain disabled until Part 10I.
 The inherited implementation was reviewed before completion. The review aligned the model foreign
 key and publication timestamp with the migration, added complete client-side pagination before an
 exact publication, and repaired every historical deep verifier to assert the current 10H head while
-leaving exact-predecessor proofs unchanged. These corrections closed a schema-drift report, a
-possible partial publication above 100 assignments, and a gate that would otherwise fail after the
-new head was applied.
+leaving exact-predecessor proofs unchanged. It also removed a hidden write from publication-state
+reads, so visiting an unpublished roster no longer creates an orphan month or blocks branch cleanup.
+These corrections closed a schema-drift report, a possible partial publication above 100
+assignments, and verification failures after the new head was applied.
 
 ## Gate evidence
 

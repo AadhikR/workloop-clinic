@@ -129,6 +129,13 @@ test('rejects malformed queries, hours, readiness, and violation arithmetic', as
 })
 
 test('publishes an exact version and records actual-hours and overtime evidence', async () => {
+  const draftPublication = {
+    id: null, period: '2026-09', status: 'draft', version: 0,
+    currentVersionId: null, sourceVersion: null, publishedAt: null,
+    publishedByAppUserId: null, recordCount: 0,
+  }
+  assert.equal((await readRosterPublication(client({ data: draftPublication }), branchId, '2026-09')).id, null)
+
   const publication = {
     id: overrideId, period: '2026-09', status: 'published', version: 3,
     currentVersionId: ruleId, sourceVersion, publishedAt: '2026-09-22T02:00:00.000Z',

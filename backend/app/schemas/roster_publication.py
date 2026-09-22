@@ -5,7 +5,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import Field, field_serializer, field_validator
+from pydantic import Field, field_serializer, field_validator, model_validator
 
 from app.http.schemas import ApiSchema, StrictRequestSchema
 from app.schemas.roster import validate_roster_period
@@ -66,7 +66,7 @@ class RosterOvertimeApprovalRequest(StrictRequestSchema):
 
 
 class RosterPublicationResponse(ApiSchema):
-    id: uuid.UUID
+    id: uuid.UUID | None
     period: str
     status: Literal["draft", "published"]
     version: int = Field(ge=0)
@@ -80,6 +80,21 @@ class RosterPublicationResponse(ApiSchema):
     @classmethod
     def valid_period(cls, value: str) -> str:
         return validate_roster_period(value)
+
+    @model_validator(mode="after")
+    def valid_state(self) -> RosterPublicationResponse:
+        draft = self.status == "draft"
+        if draft != (
+            self.id is None
+            and self.version == 0
+            and self.current_version_id is None
+            and self.source_version is None
+            and self.published_at is None
+            and self.published_by_app_user_id is None
+            and self.record_count == 0
+        ):
+            raise ValueError("publication state is inconsistent")
+        return self
 
     @field_serializer("published_at")
     def serialize_instant(self, value: datetime | None) -> str | None:

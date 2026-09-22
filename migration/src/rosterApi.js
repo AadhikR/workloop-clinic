@@ -49,9 +49,9 @@ function parseOverride(value) {
 
 function parsePublication(value) {
   const keys = ['id', 'period', 'status', 'version', 'currentVersionId', 'sourceVersion', 'publishedAt', 'publishedByAppUserId', 'recordCount']
-  if (!exact(value, keys) || !uuid.test(value.id) || !periodPattern.test(value.period) || !['draft', 'published'].includes(value.status) || !Number.isInteger(value.version) || value.version < 0 || !Number.isInteger(value.recordCount) || value.recordCount < 0 || !nullable(value.currentVersionId, (item) => uuid.test(item)) || !nullable(value.sourceVersion, (item) => digest.test(item)) || !nullable(value.publishedAt, (item) => instant.test(item)) || !nullable(value.publishedByAppUserId, (item) => uuid.test(item))) throw invalid()
+  if (!exact(value, keys) || !nullable(value.id, (item) => uuid.test(item)) || !periodPattern.test(value.period) || !['draft', 'published'].includes(value.status) || !Number.isInteger(value.version) || value.version < 0 || !Number.isInteger(value.recordCount) || value.recordCount < 0 || !nullable(value.currentVersionId, (item) => uuid.test(item)) || !nullable(value.sourceVersion, (item) => digest.test(item)) || !nullable(value.publishedAt, (item) => instant.test(item)) || !nullable(value.publishedByAppUserId, (item) => uuid.test(item))) throw invalid()
   const draft = value.status === 'draft'
-  if (draft !== (value.version === 0 && value.currentVersionId === null && value.sourceVersion === null && value.publishedAt === null && value.publishedByAppUserId === null)) throw invalid()
+  if (draft !== (value.id === null && value.version === 0 && value.currentVersionId === null && value.sourceVersion === null && value.publishedAt === null && value.publishedByAppUserId === null && value.recordCount === 0)) throw invalid()
   return Object.freeze({ ...value })
 }
 

@@ -98,9 +98,19 @@ class RosterPublicationRepository:
     async def detail(
         self, company_id: uuid.UUID, branch_id: uuid.UUID, period: str
     ) -> RosterPublicationResponse:
-        await self._ensure_month(company_id, branch_id, period)
         row = await self._month(company_id, branch_id, period)
-        assert row is not None
+        if row is None:
+            return RosterPublicationResponse(
+                id=None,
+                period=period,
+                status="draft",
+                version=0,
+                current_version_id=None,
+                source_version=None,
+                published_at=None,
+                published_by_app_user_id=None,
+                record_count=0,
+            )
         return _publication(row)
 
     async def _lock_publish_inputs(
