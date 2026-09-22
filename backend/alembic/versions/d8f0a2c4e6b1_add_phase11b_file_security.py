@@ -583,4 +583,10 @@ def downgrade() -> None:
     op.execute("DROP FUNCTION public.append_file_security_audit(uuid,text,text)")
     op.execute("DROP FUNCTION public._file_security_scan_transition_phase11b()")
     op.execute("REVOKE EXECUTE ON FUNCTION public.workloop_actor_key() FROM workloop_file_scanner")
+    op.execute(
+        "REVOKE EXECUTE ON FUNCTION public.workloop_actor_kind(),"
+        "public.workloop_company_id(),public.workloop_branch_id() "
+        "FROM workloop_file_scanner"
+    )
+    op.execute("REVOKE USAGE ON SCHEMA public FROM workloop_file_scanner")
     _replace_actor_key_reader(include_scanner=False)
