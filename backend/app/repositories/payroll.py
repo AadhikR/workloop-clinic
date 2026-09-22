@@ -503,8 +503,186 @@ ORDER BY snapshot.employee_id
     async def roster_input_projection(
         self, *, company_id: uuid.UUID, branch_id: uuid.UUID, period: str
     ) -> list[RowMapping] | None:
-        del company_id, branch_id, period
-        return None
+        version = (
+            (
+                await self.connection.execute(
+                    text(
+                        "SELECT month.current_version_id publication_version_id,"
+                        "month.source_version,month.published_at,version.record_count,"
+                        "version.source_canonical FROM public.roster_months month "
+                        "JOIN public.roster_publication_versions version "
+                        "ON version.id=month.current_version_id "
+                        "AND version.roster_month_id=month.id "
+                        "AND version.company_id=month.company_id "
+                        "AND version.branch_id=month.branch_id "
+                        "AND version.period=month.period AND version.version=month.version "
+                        "WHERE month.company_id=:company_id AND month.branch_id=:branch_id "
+                        "AND month.period=:period AND month.status='published' "
+                        "FOR UPDATE OF month"
+                    ),
+                    {"company_id": company_id, "branch_id": branch_id, "period": period},
+                )
+            )
+            .mappings()
+            .one_or_none()
+        )
+        if version is None:
+            return None
+        computed_version = (
+            "sha256:" + hashlib.sha256(version["source_canonical"].encode()).hexdigest()
+        )
+        if version["source_version"] != computed_version:
+            return None
+        locked = list(
+            (
+                await self.connection.execute(
+                    text(
+                        "SELECT membership.* FROM public.roster_publication_memberships "
+                        "membership WHERE membership.company_id=:company_id "
+                        "AND membership.branch_id=:branch_id "
+                        "AND membership.publication_version_id=:version_id "
+                        "ORDER BY membership.source_assignment_id FOR SHARE OF membership"
+                    ),
+                    {
+                        "company_id": company_id,
+                        "branch_id": branch_id,
+                        "version_id": version["publication_version_id"],
+                    },
+                )
+            ).mappings()
+        )
+        if len(locked) != int(version["record_count"]):
+            return None
+        for membership in locked:
+            actual_hours = membership["actual_hours"]
+            planned_hours = membership["planned_hours"]
+            assignment_current = await self.connection.scalar(
+                text(
+                    "SELECT EXISTS(SELECT 1 FROM public.roster_assignments roster "
+                    "WHERE roster.id=:assignment AND roster.company_id=:company "
+                    "AND roster.branch_id=:branch AND roster.employee_id=:employee "
+                    "AND roster.shift_id=:shift AND roster.date=:day AND roster.published "
+                    "AND roster.version=:assignment_version "
+                    "AND roster.planned_hours=:planned_hours AND roster.notes=:notes)"
+                ),
+                {
+                    "assignment": membership["source_assignment_id"],
+                    "company": company_id,
+                    "branch": branch_id,
+                    "employee": membership["employee_id"],
+                    "shift": membership["shift_id"],
+                    "day": membership["date"],
+                    "assignment_version": membership["source_assignment_version"],
+                    "planned_hours": planned_hours,
+                    "notes": membership["notes"],
+                },
+            )
+            if (
+                actual_hours is None
+                or membership["actual_evidence_id"] is None
+                or not assignment_current
+            ):
+                return None
+            evidence_current = await self.connection.scalar(
+                text(
+                    "SELECT EXISTS(SELECT 1 FROM public.roster_actual_hours_evidence evidence "
+                    "WHERE evidence.id=:evidence AND evidence.company_id=:company "
+                    "AND evidence.branch_id=:branch AND evidence.employee_id=:employee "
+                    "AND evidence.source_assignment_id=:assignment "
+                    "AND evidence.actual_hours=:actual_hours)"
+                ),
+                {
+                    "evidence": membership["actual_evidence_id"],
+                    "company": company_id,
+                    "branch": branch_id,
+                    "employee": membership["employee_id"],
+                    "assignment": membership["source_assignment_id"],
+                    "actual_hours": actual_hours,
+                },
+            )
+            if not evidence_current or Decimal(membership["attendance_overlap_hours"]) != 0:
+                return None
+            if Decimal(actual_hours) > Decimal(planned_hours):
+                approval_current = await self.connection.scalar(
+                    text(
+                        "SELECT EXISTS(SELECT 1 FROM public.roster_overtime_approvals approval "
+                        "JOIN public.employees employee ON employee.id=approval.employee_id "
+                        "AND employee.company_id=approval.company_id "
+                        "AND employee.branch_id=approval.branch_id "
+                        "WHERE approval.id=:approval AND approval.company_id=:company "
+                        "AND approval.branch_id=:branch AND approval.employee_id=:employee "
+                        "AND approval.source_assignment_id=:assignment "
+                        "AND approval.actual_evidence_id=:evidence "
+                        "AND approval.overtime_hours=:hours AND approval.overtime_amount=:amount "
+                        "AND approval.attendance_overlap_hours=0 "
+                        "AND approval.salary_source_version=to_char("
+                        "employee.updated_at AT TIME ZONE 'UTC',"
+                        '\'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"\'))'
+                    ),
+                    {
+                        "approval": membership["overtime_approval_id"],
+                        "company": company_id,
+                        "branch": branch_id,
+                        "employee": membership["employee_id"],
+                        "assignment": membership["source_assignment_id"],
+                        "evidence": membership["actual_evidence_id"],
+                        "hours": membership["overtime_hours"],
+                        "amount": membership["overtime_amount"],
+                    },
+                )
+                attendance_overlap = await self.connection.scalar(
+                    text(
+                        "SELECT coalesce(sum(record.overtime_hours),0) "
+                        "FROM public.attendance_records record "
+                        "WHERE record.company_id=:company AND record.branch_id=:branch "
+                        "AND record.employee_id=:employee AND record.date=:day"
+                    ),
+                    {
+                        "company": company_id,
+                        "branch": branch_id,
+                        "employee": membership["employee_id"],
+                        "day": membership["date"],
+                    },
+                )
+                if not approval_current or Decimal(attendance_overlap) != 0:
+                    return None
+            elif (
+                membership["overtime_approval_id"] is not None
+                or Decimal(membership["overtime_hours"]) != 0
+                or Decimal(membership["overtime_amount"]) != 0
+            ):
+                return None
+        return list(
+            (
+                await self.connection.execute(
+                    text(
+                        "SELECT CAST(:version_id AS uuid) publication_version_id,"
+                        "CAST(:source_version AS text) source_version,"
+                        "CAST(:published_at AS timestamptz) published_at,employee_id,"
+                        "sum(actual_hours)::numeric(8,2) actual_hours,"
+                        "sum(overtime_hours)::numeric(8,2) overtime_hours,"
+                        "sum(overtime_amount)::numeric(14,2) overtime_amount,"
+                        "array_agg(source_assignment_id ORDER BY source_assignment_id) "
+                        "source_row_ids,"
+                        "array_agg(actual_evidence_id ORDER BY source_assignment_id) "
+                        "actual_evidence_ids,"
+                        "array_remove(array_agg(overtime_approval_id "
+                        "ORDER BY source_assignment_id),NULL) overtime_approval_ids "
+                        "FROM public.roster_publication_memberships "
+                        "WHERE company_id=:company_id AND branch_id=:branch_id "
+                        "AND publication_version_id=:version_id GROUP BY employee_id "
+                        "ORDER BY employee_id"
+                    ),
+                    {
+                        "version_id": version["publication_version_id"],
+                        "source_version": version["source_version"],
+                        "published_at": version["published_at"],
+                        "company_id": company_id,
+                        "branch_id": branch_id,
+                    },
+                )
+            ).mappings()
+        )
 
     async def lock_expense_inputs(
         self,

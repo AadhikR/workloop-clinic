@@ -53,6 +53,7 @@ ERROR_REGISTRY: dict[str, ErrorSpec] = {
         409, "Attendance settings prevent this operation"
     ),
     "attendance_period_not_ready": ErrorSpec(409, "Attendance period is not ready to close"),
+    "roster_publication_not_ready": ErrorSpec(409, "Roster month is not ready to publish"),
     "payroll_input_not_ready": ErrorSpec(409, "Payroll input is not ready"),
     "clock_event_conflict": ErrorSpec(409, "A matching clock event already exists"),
     "shift_conflict": ErrorSpec(409, "Shift state prevents this operation"),

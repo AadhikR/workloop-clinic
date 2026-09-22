@@ -273,32 +273,8 @@ export async function getAttendancePayrollData(period) {
  * Returns: { [employeeId]: { overtimeHours, plannedHours, actualHours } }
  */
 export async function getOvertimeFromRoster(year, month) {
-  const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
-  const lastDay    = new Date(year, month, 0).getDate();
-  const monthEnd   = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-
-  const { data, error } = await supabase
-    .from('roster_assignments')
-    .select('employee_id, planned_hours, actual_hours')
-    .gte('date', monthStart)
-    .lte('date', monthEnd)
-    .not('actual_hours', 'is', null);
-
-  if (error) { console.error('getOvertimeFromRoster:', error); return {}; }
-
-  const result = {};
-  for (const row of data || []) {
-    const planned = parseFloat(row.planned_hours) || 0;
-    const actual  = parseFloat(row.actual_hours)  || 0;
-    const ot      = Math.max(0, actual - planned);
-    if (!result[row.employee_id]) {
-      result[row.employee_id] = { overtimeHours: 0, plannedHours: 0, actualHours: 0 };
-    }
-    result[row.employee_id].overtimeHours += ot;
-    result[row.employee_id].plannedHours  += planned;
-    result[row.employee_id].actualHours   += actual;
-  }
-  return result;
+  void year; void month;
+  throw new Error('Roster payroll input is available only through the migration payroll service.');
 }
 
 /**
@@ -353,26 +329,8 @@ export async function deleteRosterAssignment(employeeId, date) {
  * Scoped to the active company when `companyId` is provided.
  */
 export async function publishRoster(year, month, companyId = null) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-
-  const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
-  const lastDay    = new Date(year, month, 0).getDate();
-  const monthEnd   = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-
-  let q = supabase
-    .from('roster_assignments')
-    .update({ published: true })
-    .eq('user_id', user.id)
-    .gte('date', monthStart)
-    .lte('date', monthEnd);
-
-  if (companyId) {
-    q = q.or(`company_id.eq.${companyId},company_id.is.null`);
-  }
-
-  const { error } = await q;
-  if (error) throw error;
+  void year; void month; void companyId;
+  throw new Error('Roster publication has moved to the migration roster screen.');
 }
 
 function dbToRosterAssignment(row) {
@@ -491,59 +449,8 @@ function dbToShiftSwapRequest(row) {
  * Falls back to [] if the SQL migration hasn't been applied yet.
  */
 export async function getMyRoster(dateFrom, dateTo) {
-  // Try RPC first
-  const { data, error } = await supabase.rpc('employee_get_my_roster', {
-    p_date_from: dateFrom,
-    p_date_to:   dateTo,
-  });
-  if (!error && data && data.length > 0) {
-    return data.map(row => ({
-      id:            row.id,
-      shiftId:       row.shift_id,
-      date:          row.date,
-      published:     row.published,
-      notes:         row.notes,
-      shiftName:     row.shift_name  || '—',
-      shiftColor:    row.shift_color || '#6366f1',
-      startTime:     row.start_time  || null,
-      endTime:       row.end_time    || null,
-      expectedHours: parseFloat(row.expected_hours) || 8,
-    }));
-  }
-  if (error) console.warn('getMyRoster RPC failed, trying direct query:', error.message);
-
-  // Fallback: direct query via RLS policy roster_assignments_employee_read
-  // Uses !left hint on shifts so rows still come back even if shifts RLS blocks the join
-  const user = await getSessionUser();
-  if (!user) return [];
-  const { data: empRows } = await supabase
-    .from('employees')
-    .select('id')
-    .eq('auth_user_id', user.id)
-    .limit(1);
-  const empId = empRows?.[0]?.id;
-  if (!empId) return [];
-
-  const { data: rows, error: err2 } = await supabase
-    .from('roster_assignments')
-    .select('id, shift_id, date, published, notes, shifts!left(name, color, start_time, end_time, expected_hours)')
-    .eq('employee_id', empId)
-    .eq('published', true)
-    .gte('date', dateFrom)
-    .lte('date', dateTo);
-  if (err2) { console.error('getMyRoster fallback:', err2); return []; }
-  return (rows || []).map(r => ({
-    id:            r.id,
-    shiftId:       r.shift_id,
-    date:          r.date,
-    published:     r.published,
-    notes:         r.notes,
-    shiftName:     r.shifts?.name   || '—',
-    shiftColor:    r.shifts?.color  || '#6366f1',
-    startTime:     r.shifts?.start_time  || null,
-    endTime:       r.shifts?.end_time    || null,
-    expectedHours: parseFloat(r.shifts?.expected_hours) || 8,
-  }));
+  void dateFrom; void dateTo;
+  throw new Error('Personal schedules have moved to the migration employee workspace.');
 }
 
 /**

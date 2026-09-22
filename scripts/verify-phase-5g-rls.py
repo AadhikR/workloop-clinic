@@ -184,7 +184,9 @@ def verify_catalog(engine: Any) -> None:
                     "'storage_operations','leave_attachments','expense_receipts',"
                     "'attendance_import_batches','attendance_import_row_outcomes',"
                     "'attendance_period_versions','attendance_period_record_snapshots',"
-                    "'attendance_period_audit_log')"
+                    "'attendance_period_audit_log','roster_months',"
+                    "'roster_publication_versions','roster_publication_memberships',"
+                    "'roster_actual_hours_evidence','roster_overtime_approvals')"
                 )
             ).scalars()
         )
@@ -279,7 +281,9 @@ WHERE schemaname='public' AND policyname NOT LIKE 'phase5%'
     'idempotency_records','storage_operations','leave_attachments','expense_receipts',
     'attendance_import_batches','attendance_import_row_outcomes',
     'attendance_period_versions','attendance_period_record_snapshots',
-    'attendance_period_audit_log'
+    'attendance_period_audit_log','roster_months','roster_publication_versions',
+    'roster_publication_memberships','roster_actual_hours_evidence',
+    'roster_overtime_approvals'
   )
   AND policyname NOT IN (
     'phase7g_user_profiles_select_branch_runtime',
@@ -297,7 +301,7 @@ WHERE schemaname='public' AND policyname NOT LIKE 'phase5%'
             row[0]: row[1]
             for row in connection.execute(
                 text(
-                    "SELECT object.relname,object.relrowsecurity FROM pg_catalog.pg_class AS object JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid=object.relnamespace WHERE namespace.nspname='public' AND object.relkind='r' AND object.relname NOT IN ('idempotency_records','storage_operations','leave_attachments','expense_receipts','attendance_import_batches','attendance_import_row_outcomes','attendance_period_versions','attendance_period_record_snapshots','attendance_period_audit_log')"
+                    "SELECT object.relname,object.relrowsecurity FROM pg_catalog.pg_class AS object JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid=object.relnamespace WHERE namespace.nspname='public' AND object.relkind='r' AND object.relname NOT IN ('idempotency_records','storage_operations','leave_attachments','expense_receipts','attendance_import_batches','attendance_import_row_outcomes','attendance_period_versions','attendance_period_record_snapshots','attendance_period_audit_log','roster_months','roster_publication_versions','roster_publication_memberships','roster_actual_hours_evidence','roster_overtime_approvals')"
                 )
             )
         }

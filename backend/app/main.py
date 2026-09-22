@@ -46,6 +46,8 @@ from app.organization_api import router as organization_router
 from app.payroll_api import payslip_router
 from app.payroll_api import router as payroll_router
 from app.roster_api import router as roster_router
+from app.roster_publication_api import publication_router as roster_publication_router
+from app.roster_publication_api import schedule_router as roster_schedule_router
 from app.sample_api import get_current_account, get_public_status
 from app.services.employees import EmployeeCursorCodec
 from app.services.execution import AuthorizedServiceExecutor
@@ -232,6 +234,8 @@ def create_app(
     application.include_router(attendance_exceptions_router)
     application.include_router(attendance_periods_router)
     application.include_router(roster_router)
+    application.include_router(roster_publication_router)
+    application.include_router(roster_schedule_router)
     application.include_router(idempotency_router)
     application.include_router(leave_configuration_router)
     application.include_router(leave_balance_router)

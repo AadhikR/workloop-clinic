@@ -651,12 +651,15 @@ class PayrollService:
         )
         leave_by_employee: defaultdict[uuid.UUID, list[RowMapping]] = defaultdict(list)
         attendance_by_employee: dict[uuid.UUID, RowMapping] = {}
+        roster_by_employee: dict[uuid.UUID, RowMapping] = {}
         expense_by_employee: defaultdict[uuid.UUID, list[RowMapping]] = defaultdict(list)
         advance_by_employee: defaultdict[uuid.UUID, list[RowMapping]] = defaultdict(list)
         for item in leave_inputs:
             leave_by_employee[item["employee_id"]].append(item)
         for item in attendance_inputs or []:
             attendance_by_employee[item["employee_id"]] = item
+        for item in roster_inputs or []:
+            roster_by_employee[item["employee_id"]] = item
         for item in expense_inputs:
             expense_by_employee[item["employee_id"]].append(item)
         for item in advance_inputs:
@@ -779,6 +782,41 @@ class PayrollService:
                         )
                     )
                     explanations.append(f"Attendance overtime added AED {overtime_amount:.2f}.")
+
+            roster = roster_by_employee.get(employee["id"])
+            if roster is not None:
+                roster_amount = money(roster["overtime_amount"])
+                source_id = uuid.uuid5(
+                    AUTOMATIC_NAMESPACE,
+                    f"roster:{roster['publication_version_id']}:{employee['id']}:overtime",
+                )
+                if roster_amount > ZERO:
+                    additions.append(
+                        automatic_adjustment("roster", source_id, "Roster overtime", roster_amount)
+                    )
+                    explanations.append(f"Roster overtime added AED {roster_amount:.2f}.")
+                automatic_inputs.append(
+                    _automatic_source(
+                        source_type="roster",
+                        source_id=source_id,
+                        source_version=roster["source_version"],
+                        period=period,
+                        direction="addition",
+                        amount=roster_amount,
+                        calculation_inputs={
+                            "actualEvidenceIds": [
+                                str(value) for value in roster["actual_evidence_ids"]
+                            ],
+                            "actualHours": f"{Decimal(roster['actual_hours']):.2f}",
+                            "overtimeApprovalIds": [
+                                str(value) for value in roster["overtime_approval_ids"]
+                            ],
+                            "overtimeHours": f"{Decimal(roster['overtime_hours']):.2f}",
+                            "publishedAt": _iso(roster["published_at"]),
+                            "sourceRowIds": [str(value) for value in roster["source_row_ids"]],
+                        },
+                    )
+                )
 
             for expense in expense_by_employee[employee["id"]]:
                 amount = money(expense["amount"])

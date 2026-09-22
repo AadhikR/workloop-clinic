@@ -6,8 +6,13 @@ import {
   createRosterDraft,
   createRosterOverride,
   deleteRosterDraft,
+  approveRosterOvertime,
+  publishRosterMonth,
+  readAllRosterMonth,
+  readRosterPublication,
   readRosterMonth,
   readRosterValidation,
+  recordRosterActualHours,
   replaceRosterDraft,
 } from './rosterApi.js'
 
@@ -20,7 +25,9 @@ export default function RosterDrafts({ authentication, branchId }) {
   const [employees, setEmployees] = useState([])
   const [shifts, setShifts] = useState([])
   const [assignments, setAssignments] = useState([])
+  const [publicationAssignments, setPublicationAssignments] = useState([])
   const [validation, setValidation] = useState(null)
+  const [publication, setPublication] = useState(null)
   const [department, setDepartment] = useState('')
   const [employeeFilter, setEmployeeFilter] = useState('')
   const [draft, setDraft] = useState(empty)
@@ -29,11 +36,13 @@ export default function RosterDrafts({ authentication, branchId }) {
 
   const departments = useMemo(() => [...new Set(employees.map((item) => item.department).filter(Boolean))].sort(), [employees])
   const load = useCallback(async () => {
-    const [month, gates] = await Promise.all([
+    const [month, allAssignments, gates, state] = await Promise.all([
       readRosterMonth(authentication, branchId, period, { department, employeeId: employeeFilter, limit: 100 }),
+      readAllRosterMonth(authentication, branchId, period),
       readRosterValidation(authentication, branchId, period),
+      readRosterPublication(authentication, branchId, period),
     ])
-    setAssignments(month.data); setValidation(gates)
+    setAssignments(month.data); setPublicationAssignments(allAssignments); setValidation(gates); setPublication(state)
   }, [authentication, branchId, department, employeeFilter, period])
 
   useEffect(() => {
@@ -75,10 +84,38 @@ export default function RosterDrafts({ authentication, branchId }) {
     catch { setMessage('The violation changed or the override could not be recorded.') }
   }
 
+  const publish = async () => {
+    if (!validation?.ready || publicationAssignments.length === 0) return
+    try {
+      await publishRosterMonth(authentication, branchId, period, publicationAssignments, publication?.sourceVersion ?? null, { idempotencyKey: crypto.randomUUID() })
+      await load(); setMessage('Roster published. Employees can now see their schedules.')
+    } catch { setMessage('Publication failed because a gate or roster row changed. Reload and review the month.') }
+  }
+
+  const actualHours = async (item) => {
+    const hours = window.prompt(`Actual hours worked by ${item.employeeName} on ${item.date}:`, item.plannedHours)
+    if (hours === null) return
+    const reason = window.prompt('Evidence note:', 'Manager-confirmed timesheet')
+    if (!reason) return
+    try {
+      await recordRosterActualHours(authentication, branchId, period, item.id, hours, 'manager_attestation', reason, publication.sourceVersion, { idempotencyKey: crypto.randomUUID() })
+      await load(); setMessage('Actual-hours evidence recorded in a new roster version.')
+    } catch { setMessage('Actual hours were not recorded. The published source may have changed.') }
+  }
+
+  const approveOvertime = async (item) => {
+    const reason = window.prompt('Reason for approving roster overtime:', 'Approved against the roster timesheet')
+    if (!reason) return
+    try {
+      await approveRosterOvertime(authentication, branchId, period, item.id, reason, publication.sourceVersion, [], { idempotencyKey: crypto.randomUUID() })
+      await load(); setMessage('Roster overtime approved in a new source version.')
+    } catch { setMessage('Overtime is not ready. Record actual hours first and resolve attendance overlap.') }
+  }
+
   return (
     <section className="roster-drafts" aria-labelledby="roster-drafts-title">
       <h2 id="roster-drafts-title">Roster drafts</h2>
-      <p>Build a selected-branch month, review leave and staffing gates, and record exact compliance exceptions. Publication remains disabled.</p>
+      <p>Build a selected-branch month, clear its publication gates, publish an immutable version, and record actual-hours evidence separately.</p>
       <div className="roster-filters">
         <label>Month<input type="month" value={period} onChange={(event) => setPeriod(event.target.value)} /></label>
         <label>Department<select value={department} onChange={(event) => setDepartment(event.target.value)}><option value="">All departments</option>{departments.map((item) => <option key={item}>{item}</option>)}</select></label>
@@ -94,9 +131,10 @@ export default function RosterDrafts({ authentication, branchId }) {
         {editing && <button type="button" className="secondary" onClick={() => { setEditing(null); setDraft(empty) }}>Cancel</button>}
       </form>
       <ul className="roster-list">
-        {assignments.map((item) => <li key={item.id}><span><strong>{item.date} — {item.employeeName}</strong><small>{item.shiftCode ?? item.shiftName}, {item.plannedHours} hours · {item.department}{item.leaveConflict ? ' · Leave conflict' : ''}</small></span><span><button type="button" disabled={item.published} onClick={() => { setEditing(item); setDraft({ employeeId: item.employeeId, shiftId: item.shiftId, date: item.date, plannedHours: item.plannedHours, notes: item.notes }) }}>Edit</button><button type="button" className="secondary" disabled={item.published} onClick={() => remove(item)}>Delete</button></span></li>)}
+        {assignments.map((item) => <li key={item.id}><span><strong>{item.date} — {item.employeeName}</strong><small>{item.shiftCode ?? item.shiftName}, {item.plannedHours} hours · {item.department}{item.leaveConflict ? ' · Leave conflict' : ''}</small></span><span><button type="button" disabled={item.published} onClick={() => { setEditing(item); setDraft({ employeeId: item.employeeId, shiftId: item.shiftId, date: item.date, plannedHours: item.plannedHours, notes: item.notes }) }}>Edit</button><button type="button" className="secondary" disabled={item.published} onClick={() => remove(item)}>Delete</button>{item.published && <><button type="button" onClick={() => actualHours(item)}>Actual hours</button><button type="button" className="secondary" onClick={() => approveOvertime(item)}>Approve overtime</button></>}</span></li>)}
       </ul>
       {validation && <section className="roster-gates"><h3>Publication gates</h3>{validation.leaveConflicts.map((item) => <p key={`${item.rosterAssignmentId}-${item.leaveRequestId}`}>{item.employeeName} has {item.leaveStatus.toLowerCase()} leave on {item.date}. {item.overridden ? <strong>Override recorded</strong> : <button type="button" onClick={() => override(item)}>Record override</button>}</p>)}{validation.staffingViolations === null ? <p>Staffing enforcement is disabled for this branch.</p> : validation.staffingViolations.map((item) => <p key={item.violationDigest}>{item.date}: {item.department} {item.shiftCategory} needs {item.required}; {item.assigned} assigned. {item.overridden ? <strong>Override recorded</strong> : <button type="button" onClick={() => override(item)}>Record override</button>}</p>)}<p><strong>{validation.ready ? 'All current gates pass.' : 'The roster is not ready for publication.'}</strong></p></section>}
+      <section className="roster-publication"><h3>Publication</h3><p>{publication?.status === 'published' ? `Version ${publication.version} · ${publication.recordCount} assignments · ${publication.sourceVersion}` : 'This month is still a draft.'}</p><button type="button" disabled={!validation?.ready || publicationAssignments.length === 0 || publication?.status === 'published'} onClick={publish}>Publish exact roster</button></section>
       {message && <p role="status">{message}</p>}
     </section>
   )

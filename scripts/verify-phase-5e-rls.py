@@ -430,6 +430,11 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')
                 "attendance_period_versions",
                 "attendance_period_record_snapshots",
                 "attendance_period_audit_log",
+                "roster_months",
+                "roster_publication_versions",
+                "roster_publication_memberships",
+                "roster_actual_hours_evidence",
+                "roster_overtime_approvals",
             }
         )
 

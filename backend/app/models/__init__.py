@@ -64,6 +64,13 @@ from app.models.records import (
     OffboardingTaskTemplate,
     TrainingRecord,
 )
+from app.models.roster_publication import (
+    RosterActualHoursEvidence,
+    RosterMonth,
+    RosterOvertimeApproval,
+    RosterPublicationMembership,
+    RosterPublicationVersion,
+)
 from app.models.storage import StorageOperation
 
 __all__ = [
@@ -124,7 +131,12 @@ __all__ = [
     "Payslip",
     "PublicHoliday",
     "RegularisationRequest",
+    "RosterActualHoursEvidence",
     "RosterAssignment",
+    "RosterMonth",
+    "RosterOvertimeApproval",
+    "RosterPublicationMembership",
+    "RosterPublicationVersion",
     "SalaryAdvance",
     "Shift",
     "ShiftAssignment",

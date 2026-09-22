@@ -86,7 +86,7 @@ async def main() -> None:
     created_ids: list[uuid.UUID] = []
     with migration_engine.begin() as connection:
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "a1c3e5f7b902"
+            "b4d7f9a2c816"
         )
         clean(connection, rows)
         apply_rows(connection, rows)

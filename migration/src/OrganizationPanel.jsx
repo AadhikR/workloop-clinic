@@ -14,6 +14,7 @@ import AttendanceExceptions from './AttendanceExceptions.jsx'
 import AttendancePeriods from './AttendancePeriods.jsx'
 import RosterDrafts from './RosterDrafts.jsx'
 import PersonalAttendance from './PersonalAttendance.jsx'
+import PersonalSchedule from './PersonalSchedule.jsx'
 import { readCurrentAccount } from './sampleApi.js'
 import OrganizationSettings from './OrganizationSettings.jsx'
 import LeaveConfiguration from './LeaveConfiguration.jsx'
@@ -80,6 +81,7 @@ function OrganizationSummary({ account, authentication }) {
         branchId={organization.selectedBranch.id}
       />
       {account.role !== 'admin' && <PersonalAttendance authentication={authentication} />}
+      {account.role !== 'admin' && <PersonalSchedule authentication={authentication} />}
       {account.role === 'admin' && (
         <>
           <LeaveConfiguration authentication={authentication} branchId={organization.selectedBranch.id} />

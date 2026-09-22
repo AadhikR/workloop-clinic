@@ -109,7 +109,9 @@ BEGIN
       'storage_operations', 'leave_attachments', 'expense_receipts',
       'attendance_import_batches', 'attendance_import_row_outcomes',
       'attendance_period_versions', 'attendance_period_record_snapshots',
-      'attendance_period_audit_log'
+      'attendance_period_audit_log', 'roster_months',
+      'roster_publication_versions', 'roster_publication_memberships',
+      'roster_actual_hours_evidence', 'roster_overtime_approvals'
     );
   IF mismatch_count <> 0 THEN
     RAISE EXCEPTION 'row-level security is enabled outside the approved migration tables';

@@ -75,13 +75,18 @@ CURRENT_TARGET_TABLES = PHASE_5G_TARGET_TABLES | {
     "attendance_period_versions",
     "attendance_period_record_snapshots",
     "attendance_period_audit_log",
+    "roster_months",
+    "roster_publication_versions",
+    "roster_publication_memberships",
+    "roster_actual_hours_evidence",
+    "roster_overtime_approvals",
 }
 
 
 def test_metadata_contains_exactly_the_current_target_tables() -> None:
     assert len(PHASE_4_TARGET_TABLES) == 54
     assert len(PHASE_5G_TARGET_TABLES) == 56
-    assert len(CURRENT_TARGET_TABLES) == 64
+    assert len(CURRENT_TARGET_TABLES) == 69
     assert set(Base.metadata.tables) == CURRENT_TARGET_TABLES
 
 
