@@ -67,6 +67,7 @@ PHASE_4_TARGET_TABLES = frozenset(
 )
 PHASE_5G_TARGET_TABLES = PHASE_4_TARGET_TABLES | {"audit_events", "idempotency_records"}
 CURRENT_TARGET_TABLES = PHASE_5G_TARGET_TABLES | {
+    "file_security_scans",
     "storage_operations",
     "leave_attachments",
     "expense_receipts",
@@ -87,7 +88,7 @@ CURRENT_TARGET_TABLES = PHASE_5G_TARGET_TABLES | {
 def test_metadata_contains_exactly_the_current_target_tables() -> None:
     assert len(PHASE_4_TARGET_TABLES) == 54
     assert len(PHASE_5G_TARGET_TABLES) == 56
-    assert len(CURRENT_TARGET_TABLES) == 70
+    assert len(CURRENT_TARGET_TABLES) == 71
     assert set(Base.metadata.tables) == CURRENT_TARGET_TABLES
 
 

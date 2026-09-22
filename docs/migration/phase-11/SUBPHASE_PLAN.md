@@ -58,9 +58,9 @@ consumes is stable. The last part reviews the whole boundary independently.
 
 | Part | Scope | Status |
 | --- | --- | --- |
-| 11A | Contracts, dependency inventory, golden cases, amendments, and cutover decisions | Implemented and locally verified; awaiting contract approval and GitHub |
-| 11B | Common private storage, malware boundary, recovery, backup, and operator proof | Sequentially authorized after 11A approval and green GitHub result |
-| 11C | Employee documents, insurance, and employment-contract lifecycle | Sequentially authorized |
+| 11A | Contracts, dependency inventory, golden cases, amendments, and cutover decisions | Complete; approved on 2026-09-22; GitHub run `35745180197` passed |
+| 11B | Common private storage, malware boundary, recovery, backup, and operator proof | Implemented and locally verified; awaiting routed GitHub result |
+| 11C | Employee documents, insurance, and employment-contract lifecycle | Next after the 11B routed GitHub result passes |
 | 11D | Assets, training, certifications, certificate files, and CME | Sequentially authorized |
 | 11E | Appraisals and clinical incidents | Sequentially authorized |
 | 11F | Letter and custom requests, decisions, and print projection | Sequentially authorized |

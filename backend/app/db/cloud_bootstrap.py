@@ -31,6 +31,7 @@ BOOTSTRAPS = (
             DatabaseRole("workloop_runtime"),
             DatabaseRole("workloop_expiry_processing", inherit=False),
             DatabaseRole("workloop_storage_reconciler", inherit=False),
+            DatabaseRole("workloop_file_scanner", inherit=False),
         ),
     ),
     DatabaseBootstrap(

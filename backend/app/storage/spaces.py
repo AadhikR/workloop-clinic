@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import re
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
-from typing import Protocol, cast
+from typing import Literal, Protocol, cast
 
 import boto3
 from botocore.client import Config
@@ -18,6 +17,7 @@ from app.storage.base import (
     StorageNotFoundError,
     StoredObject,
     StoredObjectMetadata,
+    validate_object_write,
 )
 
 
@@ -70,6 +70,7 @@ class SpacesObjectStorage:
         bucket: str,
         access_key: str,
         secret_key: str,
+        addressing_style: Literal["virtual", "path"] = "virtual",
         client: S3Client | None = None,
     ) -> None:
         self._bucket = bucket
@@ -86,7 +87,7 @@ class SpacesObjectStorage:
                     connect_timeout=2,
                     read_timeout=5,
                     retries={"max_attempts": 2, "mode": "standard"},
-                    s3={"addressing_style": "virtual"},
+                    s3={"addressing_style": addressing_style},
                 ),
             ),
         )
@@ -100,13 +101,13 @@ class SpacesObjectStorage:
         sha256: str,
         if_absent: bool = True,
     ) -> None:
-        if hashlib.sha256(body).hexdigest() != sha256:
-            raise StorageError
+        validate_object_write(body=body, content_type=content_type, sha256=sha256)
         arguments: dict[str, object] = {
             "Bucket": self._bucket,
             "Key": key,
             "Body": body,
             "ContentType": content_type,
+            "CacheControl": "private, no-store",
             "Metadata": {"sha256": sha256},
         }
         if if_absent:
@@ -160,6 +161,7 @@ class SpacesObjectStorage:
                         "Key": key,
                         "ResponseContentDisposition": f'attachment; filename="{download_name}"',
                         "ResponseContentType": content_type,
+                        "ResponseCacheControl": "private, no-store",
                     },
                     ExpiresIn=expires_in_seconds,
                 )

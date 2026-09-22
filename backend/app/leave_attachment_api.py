@@ -71,6 +71,7 @@ def _service(request: Request, connection: AsyncConnection) -> LeaveAttachmentSe
     return LeaveAttachmentService(
         connection,
         object_key_hmac_key=(request.app.state.settings.decoded_attachment_object_key_hmac_key()),
+        scanner_definition=request.app.state.settings.malware_scanner_definition,
     )
 
 

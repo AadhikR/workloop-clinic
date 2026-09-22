@@ -360,6 +360,16 @@ class LeaveAttachment(Base):
             ["leave_requests.id", "leave_requests.company_id", "leave_requests.branch_id"],
             ondelete="RESTRICT",
         ),
+        ForeignKeyConstraint(
+            ["file_security_scan_id", "company_id", "branch_id"],
+            [
+                "file_security_scans.id",
+                "file_security_scans.company_id",
+                "file_security_scans.branch_id",
+            ],
+            name="fk_leave_attachments_file_security_scan_scope",
+            ondelete="RESTRICT",
+        ),
         UniqueConstraint("leave_request_id", name="uq_leave_attachments_leave_request_id"),
         UniqueConstraint(
             "submission_token_digest", name="uq_leave_attachments_submission_token_digest"
@@ -446,6 +456,9 @@ class LeaveAttachment(Base):
     size_bytes: Mapped[int | None] = mapped_column(BigInteger(), nullable=True)
     sha256: Mapped[str | None] = mapped_column(Text(), nullable=True)
     object_key: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    file_security_scan_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
     status: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("'pending'"))
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     token_consumed_at: Mapped[datetime | None] = mapped_column(

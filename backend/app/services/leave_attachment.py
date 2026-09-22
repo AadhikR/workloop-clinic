@@ -182,9 +182,16 @@ def parse_upload(content_type_header: str, body: bytes) -> ValidatedUpload:
 
 
 class LeaveAttachmentService:
-    def __init__(self, connection: AsyncConnection, *, object_key_hmac_key: bytes) -> None:
+    def __init__(
+        self,
+        connection: AsyncConnection,
+        *,
+        object_key_hmac_key: bytes,
+        scanner_definition: str = "synthetic-v1",
+    ) -> None:
         self._connection = connection
         self._object_key_hmac_key = object_key_hmac_key
+        self._scanner_definition = scanner_definition
 
     async def create_submission(
         self,
@@ -386,7 +393,8 @@ WHERE id=:operation_id AND status='pending'
             await self._connection.execute(
                 text(
                     """
-SELECT leave_request_id FROM public.leave_attachments
+SELECT leave_request_id,company_id,branch_id,employee_id,created_by_app_user_id
+FROM public.leave_attachments
 WHERE id=:id AND company_id=:company_id AND created_by_app_user_id=:creator
   AND status='uploading'
 FOR UPDATE
@@ -402,6 +410,32 @@ FOR UPDATE
         if row is None:
             raise ServiceExecutionError("attachment_submission_unavailable")
         attached = row.leave_request_id is not None
+        scan_id = (
+            await self._connection.execute(
+                text(
+                    """
+INSERT INTO public.file_security_scans(
+  company_id,branch_id,employee_id,created_by_app_user_id,entity_type,entity_id,
+  object_key,content_type,size_bytes,sha256,scanner_definition)
+VALUES(:company_id,:branch_id,:employee_id,:creator,'leave_attachment',:entity_id,
+       :object_key,:content_type,:size_bytes,:sha256,:scanner_definition)
+RETURNING id
+"""
+                ),
+                {
+                    "company_id": row.company_id,
+                    "branch_id": row.branch_id,
+                    "employee_id": row.employee_id,
+                    "creator": row.created_by_app_user_id,
+                    "entity_id": claimed.attachment_id,
+                    "object_key": claimed.object_key,
+                    "content_type": upload.content_type,
+                    "size_bytes": len(upload.body),
+                    "sha256": upload.sha256,
+                    "scanner_definition": self._scanner_definition,
+                },
+            )
+        ).scalar_one()
         result = (
             (
                 await self._connection.execute(
@@ -409,7 +443,7 @@ FOR UPDATE
                         """
 UPDATE public.leave_attachments
 SET file_name=:file_name,content_type=:content_type,size_bytes=:size_bytes,
-    sha256=:sha256,object_key=:object_key,status=:status,
+    sha256=:sha256,object_key=:object_key,file_security_scan_id=:scan_id,status=:status,
     uploaded_at=statement_timestamp(),
     attached_at=CASE WHEN :attached THEN statement_timestamp() ELSE NULL END,
     expires_at=CASE WHEN :attached THEN NULL
@@ -426,6 +460,7 @@ RETURNING id,file_name,content_type,size_bytes,sha256,uploaded_at,expires_at
                         "size_bytes": len(upload.body),
                         "sha256": upload.sha256,
                         "object_key": claimed.object_key,
+                        "scan_id": scan_id,
                         "status": "attached" if attached else "staged",
                         "attached": attached,
                     },
@@ -477,17 +512,23 @@ WHERE id=:id AND status='claimed'
                 await self._connection.execute(
                     text(
                         """
-SELECT id,file_name,content_type,size_bytes,sha256,object_key,status,expires_at,
-       employee_id,created_by_app_user_id
-FROM public.leave_attachments
-WHERE id=:id AND company_id=:company_id AND branch_id=:branch_id
-  AND status IN ('staged','attached')
+SELECT attachment.id,attachment.file_name,attachment.content_type,attachment.size_bytes,
+       attachment.sha256,attachment.object_key,attachment.status,attachment.expires_at,
+       attachment.employee_id,attachment.created_by_app_user_id,
+       public.file_security_scan_allows_download(
+         attachment.file_security_scan_id,'leave_attachment',attachment.id,
+         attachment.object_key,attachment.content_type,attachment.size_bytes,
+         attachment.sha256,:scanner_definition) AS scan_released
+FROM public.leave_attachments AS attachment
+WHERE attachment.id=:id AND attachment.company_id=:company_id
+  AND attachment.branch_id=:branch_id AND attachment.status IN ('staged','attached')
 """
                     ),
                     {
                         "id": attachment_id,
                         "company_id": principal.company_id,
                         "branch_id": branch_id,
+                        "scanner_definition": self._scanner_definition,
                     },
                 )
             )
@@ -496,6 +537,8 @@ WHERE id=:id AND company_id=:company_id AND branch_id=:branch_id
         )
         if row is None:
             raise ServiceExecutionError("resource_not_found")
+        if not row["scan_released"]:
+            raise ServiceExecutionError("service_unavailable")
         return dict(row)
 
     async def request_cleanup(

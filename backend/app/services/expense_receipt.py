@@ -38,9 +38,16 @@ class ClaimedReceiptCleanup:
 
 
 class ExpenseReceiptService:
-    def __init__(self, connection: AsyncConnection, *, object_key_hmac_key: bytes) -> None:
+    def __init__(
+        self,
+        connection: AsyncConnection,
+        *,
+        object_key_hmac_key: bytes,
+        scanner_definition: str = "synthetic-v1",
+    ) -> None:
         self.connection = connection
         self.object_key_hmac_key = object_key_hmac_key
+        self.scanner_definition = scanner_definition
 
     async def create_submission(
         self,
@@ -244,7 +251,8 @@ WHERE id=:id AND status='pending'
             await self.connection.execute(
                 text(
                     """
-SELECT expense_claim_id FROM public.expense_receipts
+SELECT expense_claim_id,company_id,branch_id,employee_id,created_by_app_user_id
+FROM public.expense_receipts
 WHERE id=:id AND company_id=:company_id AND created_by_app_user_id=:creator
   AND status='uploading'
 FOR UPDATE
@@ -260,6 +268,32 @@ FOR UPDATE
         if row is None:
             raise ServiceExecutionError("attachment_submission_unavailable")
         attached = row.expense_claim_id is not None
+        scan_id = (
+            await self.connection.execute(
+                text(
+                    """
+INSERT INTO public.file_security_scans(
+  company_id,branch_id,employee_id,created_by_app_user_id,entity_type,entity_id,
+  object_key,content_type,size_bytes,sha256,scanner_definition)
+VALUES(:company_id,:branch_id,:employee_id,:creator,'expense_receipt',:entity_id,
+       :object_key,:content_type,:size_bytes,:sha256,:scanner_definition)
+RETURNING id
+"""
+                ),
+                {
+                    "company_id": row.company_id,
+                    "branch_id": row.branch_id,
+                    "employee_id": row.employee_id,
+                    "creator": row.created_by_app_user_id,
+                    "entity_id": claimed.receipt_id,
+                    "object_key": claimed.object_key,
+                    "content_type": upload.content_type,
+                    "size_bytes": len(upload.body),
+                    "sha256": upload.sha256,
+                    "scanner_definition": self.scanner_definition,
+                },
+            )
+        ).scalar_one()
         result = (
             (
                 await self.connection.execute(
@@ -267,7 +301,7 @@ FOR UPDATE
                         """
 UPDATE public.expense_receipts
 SET file_name=:file_name,content_type=:content_type,size_bytes=:size_bytes,
-    sha256=:sha256,object_key=:object_key,status=:status,
+    sha256=:sha256,object_key=:object_key,file_security_scan_id=:scan_id,status=:status,
     uploaded_at=statement_timestamp(),
     attached_at=CASE WHEN :attached THEN statement_timestamp() ELSE NULL END,
     expires_at=CASE WHEN :attached THEN NULL ELSE statement_timestamp()+interval '24 hours' END,
@@ -283,6 +317,7 @@ RETURNING id,file_name,content_type,size_bytes,sha256,uploaded_at,expires_at
                         "size_bytes": len(upload.body),
                         "sha256": upload.sha256,
                         "object_key": claimed.object_key,
+                        "scan_id": scan_id,
                         "status": "attached" if attached else "staged",
                         "attached": attached,
                     },
@@ -338,7 +373,11 @@ WHERE id=:id AND status='claimed'
 SELECT receipt.id,receipt.file_name,receipt.content_type,receipt.size_bytes,
        receipt.sha256,receipt.object_key,receipt.status,receipt.expires_at,
        receipt.employee_id,receipt.created_by_app_user_id,receipt.expense_claim_id,
-       employee.reporting_manager_id
+       employee.reporting_manager_id,
+       public.file_security_scan_allows_download(
+         receipt.file_security_scan_id,'expense_receipt',receipt.id,
+         receipt.object_key,receipt.content_type,receipt.size_bytes,
+         receipt.sha256,:scanner_definition) AS scan_released
 FROM public.expense_receipts AS receipt
 JOIN public.employees AS employee
   ON employee.id=receipt.employee_id AND employee.company_id=receipt.company_id
@@ -351,6 +390,7 @@ WHERE receipt.id=:id AND receipt.company_id=:company_id AND receipt.branch_id=:b
                         "id": receipt_id,
                         "company_id": principal.company_id,
                         "branch_id": branch_id,
+                        "scanner_definition": self.scanner_definition,
                     },
                 )
             )
@@ -368,6 +408,8 @@ WHERE receipt.id=:id AND receipt.company_id=:company_id AND receipt.branch_id=:b
             ) or row["employee_id"] == principal.employee_id
         if not authorized:
             raise ServiceExecutionError("resource_not_found")
+        if not row["scan_released"]:
+            raise ServiceExecutionError("service_unavailable")
         return dict(row)
 
     async def request_cleanup(

@@ -3,6 +3,7 @@ $postgresPath = Join-Path $parent ".env.postgres"
 $apiPath = Join-Path $parent ".env.api"
 $migrationPath = Join-Path $parent ".env.migration"
 $keycloakPath = Join-Path $parent ".env.keycloak"
+$scannerPath = Join-Path $parent ".env.file-scanner"
 
 if (-not (Test-Path -LiteralPath $parent)) {
     throw "Expected backend directory was not found."
@@ -85,6 +86,23 @@ if (Test-Path -LiteralPath $postgresPath) {
             (New-Object System.Text.UTF8Encoding($false))
         )
     }
+    $fileScannerLine = [System.IO.File]::ReadLines($postgresPath) | Where-Object {
+        $_.StartsWith("WORKLOOP_FILE_SCANNER_PASSWORD=")
+    }
+    if ($fileScannerLine) {
+        $fileScannerPassword = $fileScannerLine.Substring($fileScannerLine.IndexOf("=") + 1)
+    }
+    else {
+        $fileScannerPassword = New-LocalSecret
+        $postgresLines = @([System.IO.File]::ReadAllLines($postgresPath)) + @(
+            "WORKLOOP_FILE_SCANNER_PASSWORD=$fileScannerPassword"
+        )
+        [System.IO.File]::WriteAllLines(
+            $postgresPath,
+            $postgresLines,
+            (New-Object System.Text.UTF8Encoding($false))
+        )
+    }
     $keycloakDatabaseLine = [System.IO.File]::ReadLines($postgresPath) | Where-Object {
         $_.StartsWith("KEYCLOAK_DB_PASSWORD=")
     }
@@ -100,6 +118,7 @@ else {
     $migrationPassword = New-LocalSecret
     $expiryProcessingPassword = New-LocalSecret
     $storageReconcilerPassword = New-LocalSecret
+    $fileScannerPassword = New-LocalSecret
     $keycloakDatabasePassword = New-LocalSecret
     $postgresLines = @(
         "POSTGRES_PASSWORD=$(New-LocalSecret)"
@@ -107,6 +126,7 @@ else {
         "WORKLOOP_RUNTIME_PASSWORD=$runtimePassword"
         "WORKLOOP_EXPIRY_PROCESSING_PASSWORD=$expiryProcessingPassword"
         "WORKLOOP_STORAGE_RECONCILER_PASSWORD=$storageReconcilerPassword"
+        "WORKLOOP_FILE_SCANNER_PASSWORD=$fileScannerPassword"
         "KEYCLOAK_DB_PASSWORD=$keycloakDatabasePassword"
     )
     [System.IO.File]::WriteAllLines(
@@ -152,6 +172,22 @@ $reconcilerLines = @(
 [System.IO.File]::WriteAllLines(
     $reconcilerPath,
     $reconcilerLines,
+    (New-Object System.Text.UTF8Encoding($false))
+)
+
+$scannerLines = @(
+    "DATABASE_URL=postgresql+psycopg://workloop_file_scanner:${fileScannerPassword}@postgres:5432/workloop"
+    "STORAGE_BACKEND=synthetic"
+    "STORAGE_SIGNING_KEY=$($apiLines | Where-Object { $_.StartsWith('STORAGE_SIGNING_KEY=') } | ForEach-Object { $_.Substring($_.IndexOf('=') + 1) })"
+    "ATTACHMENT_OBJECT_KEY_HMAC_KEY=$($apiLines | Where-Object { $_.StartsWith('ATTACHMENT_OBJECT_KEY_HMAC_KEY=') } | ForEach-Object { $_.Substring($_.IndexOf('=') + 1) })"
+    "SYNTHETIC_STORAGE_PATH=/var/lib/workloop-storage"
+    "MALWARE_SCANNER_BACKEND=synthetic"
+    "MALWARE_SCANNER_DEFINITION=synthetic-v1"
+    "MALWARE_SCANNER_SIGNING_KEY=$(New-LocalSecret)"
+)
+[System.IO.File]::WriteAllLines(
+    $scannerPath,
+    $scannerLines,
     (New-Object System.Text.UTF8Encoding($false))
 )
 
@@ -203,4 +239,4 @@ else {
     (New-Object System.Text.UTF8Encoding($false))
 )
 
-"Local PostgreSQL, API, migration, Keycloak, and storage reconciler environment files are ready; no secret values were displayed."
+"Local PostgreSQL, API, migration, Keycloak, storage reconciler, and file scanner environment files are ready; no secret values were displayed."

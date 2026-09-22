@@ -12,6 +12,7 @@ DEFAULT_RECOVERY_KEY_ID = "00000000"
 DEFAULT_RECOVERY_KEY = "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA"
 DEFAULT_STORAGE_SIGNING_KEY = "MTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTE"
 DEFAULT_ATTACHMENT_OBJECT_KEY_HMAC_KEY = "MjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjI"
+DEFAULT_SCANNER_SIGNING_KEY = "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM"
 
 
 def _to_camel(value: str) -> str:
@@ -111,6 +112,16 @@ class Settings(BaseSettings):
     spaces_bucket: str | None = Field(default=None, validation_alias="SPACES_BUCKET")
     spaces_access_key: SecretStr | None = Field(default=None, validation_alias="SPACES_ACCESS_KEY")
     spaces_secret_key: SecretStr | None = Field(default=None, validation_alias="SPACES_SECRET_KEY")
+    malware_scanner_backend: Literal["disabled", "synthetic"] = Field(
+        default="disabled", validation_alias="MALWARE_SCANNER_BACKEND"
+    )
+    malware_scanner_definition: str = Field(
+        default="synthetic-v1", validation_alias="MALWARE_SCANNER_DEFINITION"
+    )
+    malware_scanner_signing_key: SecretStr = Field(
+        default=SecretStr(DEFAULT_SCANNER_SIGNING_KEY),
+        validation_alias="MALWARE_SCANNER_SIGNING_KEY",
+    )
 
     @model_validator(mode="after")
     def validate_database_settings(self) -> Self:
@@ -191,6 +202,7 @@ class Settings(BaseSettings):
         ):
             raise ValueError("TRUSTED_PROXY must identify DigitalOcean App Platform when deployed")
         self._validate_storage_settings()
+        self._validate_scanner_settings()
         return self
 
     @staticmethod
@@ -308,6 +320,24 @@ class Settings(BaseSettings):
         return self._decode_32_byte_key(
             self.attachment_object_key_hmac_key.get_secret_value(),
             "ATTACHMENT_OBJECT_KEY_HMAC_KEY",
+        )
+
+    def _validate_scanner_settings(self) -> None:
+        if not re.fullmatch(r"[a-z0-9][a-z0-9._-]{0,63}", self.malware_scanner_definition):
+            raise ValueError("MALWARE_SCANNER_DEFINITION is invalid")
+        if self.malware_scanner_backend == "disabled":
+            return
+        if self.app_env not in {"local", "test"}:
+            raise ValueError("MALWARE_SCANNER_BACKEND synthetic is limited to local and test")
+        self._decode_32_byte_key(
+            self.malware_scanner_signing_key.get_secret_value(),
+            "MALWARE_SCANNER_SIGNING_KEY",
+        )
+
+    def decoded_malware_scanner_signing_key(self) -> bytes:
+        return self._decode_32_byte_key(
+            self.malware_scanner_signing_key.get_secret_value(),
+            "MALWARE_SCANNER_SIGNING_KEY",
         )
 
     @property

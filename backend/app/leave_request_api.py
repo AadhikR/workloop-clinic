@@ -241,6 +241,7 @@ async def _finish_cleanup(
                 object_key_hmac_key=(
                     request.app.state.settings.decoded_attachment_object_key_hmac_key()
                 ),
+                scanner_definition=request.app.state.settings.malware_scanner_definition,
             ).complete_cleanup(claimed),
         )
     except Exception:

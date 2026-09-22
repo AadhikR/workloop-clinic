@@ -623,6 +623,12 @@ function cleanupFixtures() {
         { company_id: companyId },
       ))
       cleanup(() => psql(
+        "SET SESSION AUTHORIZATION workloop_migration; "
+          + "DELETE FROM file_security_scans WHERE company_id = :'company_id'; "
+          + "RESET SESSION AUTHORIZATION",
+        { company_id: companyId },
+      ))
+      cleanup(() => psql(
         "DELETE FROM leave_audit_log WHERE company_id = :'company_id'",
         { company_id: companyId },
       ))
@@ -706,6 +712,7 @@ function cleanupFixtures() {
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM employees'), '0'))
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM employee_job_history'), '0'))
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM leave_attachments'), '0'))
+  verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM file_security_scans'), '0'))
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM storage_operations'), '0'))
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM leave_requests'), '0'))
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM leave_approval_delegates'), '0'))
@@ -875,6 +882,21 @@ async function assertLeaveAttachmentJourney(page) {
       { company_id: companyId },
     ),
     '1',
+  )
+
+  stage('employee leave attachment malware scan')
+  run([
+    '--profile', 'tools', 'run', '--rm', '--no-deps',
+    '--env', 'FILE_SCANNER_ONCE=1', 'file-scanner',
+  ])
+  assert.equal(
+    psql(
+      "SELECT scan.status FROM file_security_scans AS scan "
+        + "JOIN leave_attachments AS attachment ON attachment.file_security_scan_id = scan.id "
+        + "WHERE attachment.leave_request_id = :'request_id'",
+      { request_id: browserLeaveRequestId },
+    ),
+    'clean',
   )
 
   stage('employee signed leave attachment download')

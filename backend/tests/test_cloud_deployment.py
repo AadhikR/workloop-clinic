@@ -52,6 +52,7 @@ def test_cloud_bootstrap_grants_only_approved_database_connections() -> None:
         ("workloop_runtime", True),
         ("workloop_expiry_processing", False),
         ("workloop_storage_reconciler", False),
+        ("workloop_file_scanner", False),
     ]
     assert bootstraps["keycloak"].connect_roles == ()
 

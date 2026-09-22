@@ -129,6 +129,10 @@ jobs:
     timeout-minutes: 25
     env:
       COMPOSE_PROJECT_NAME: workloop-clinic
+      COMPOSE_FILE: docker-compose.yml:docker-compose.phase11b.yml
+      PHASE11B_SCANNER_DB_PASSWORD: phase11b-ci-scanner-only
+      PHASE11B_S3_ACCESS_KEY: phase11b-ci-access
+      PHASE11B_S3_SECRET_KEY: phase11b-ci-secret-key
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
@@ -145,11 +149,13 @@ jobs:
       - name: Validate Compose configuration
         run: docker compose --profile tools config --quiet
       - name: Start local stack
-        run: docker compose up --build --detach --wait postgres backend keycloak
+        run: docker compose up --build --detach --wait postgres backend keycloak seaweed-s3
       - name: Run Alembic
         run: docker compose --profile tools run --rm migrate
       - name: Verify repeatable migration
         run: docker compose --profile tools run --rm migrate
+      - name: Verify Phase 11B local storage contract
+        run: docker compose run --rm --no-deps --env PYTHONPATH=/app --volume ./scripts:/verification:ro backend python /verification/verify-phase-11b-storage.py
       - name: Verify Phase 8D attachment contract
         run: python scripts/verify-phase-8d-attachments.py
       - name: Verify Phase 8E submission contract
@@ -253,6 +259,13 @@ jobs:
             alembic -c /app/alembic.ini check
           '
           docker compose exec -T backend python -c "import os, psycopg; url=os.environ['DATABASE_URL'].replace('postgresql+psycopg://', 'postgresql://', 1); connection=psycopg.connect(url); cursor=connection.cursor(); cursor.execute('SELECT current_user'); assert cursor.fetchone() == ('workloop_runtime',); connection.close()"
+      - name: Verify Phase 11B exact predecessor
+        if: needs.changes.outputs.database_deep == 'true'
+        run: |
+          docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini downgrade c6e8a1b3d927
+          docker compose --profile tools run --rm --env PYTHONPATH=/app --volume ./scripts:/verification:ro migrate python /verification/verify-phase-11b-revision.py predecessor
+          docker compose --profile tools run --rm migrate
+          docker compose --profile tools run --rm --env PYTHONPATH=/app --volume ./scripts:/verification:ro migrate python /verification/verify-phase-11b-revision.py head
       - name: Verify Phase 9H exact predecessor
         if: needs.changes.outputs.database_deep == 'true'
         run: sh scripts/verify-phase-9h-revision.sh
@@ -342,6 +355,7 @@ jobs:
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-10g-database.py
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-10h-database.py
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-10i-database.py
+          docker compose run --rm --no-deps --env PYTHONPATH=/app --volume ./scripts:/verification:ro backend python /verification/verify-phase-11b-database.py
       - name: Verify service health
         run: |
           curl --fail --silent --show-error http://127.0.0.1:8000/health | jq --exit-status '.status == "ok" and .database == "ok"'
@@ -360,6 +374,7 @@ jobs:
       - name: Record persisted state
         run: |
           docker compose --profile tools run --rm --no-deps --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python storage-reconciler /verification/verify-phase-8d-storage-restart.py prepare
+          docker compose run --rm --no-deps --env-from-file ./backend/.env.migration --env PYTHONPATH=/app --volume ./scripts:/verification:ro backend python /verification/verify-phase-11b-restart.py prepare
           sh scripts/database-persistence-fingerprint.sh > /tmp/workloop-database-fingerprint
           curl --fail --silent --show-error http://127.0.0.1:8080/realms/workloop-dev/protocol/openid-connect/certs | jq -r '.keys[].kid' | sort > /tmp/workloop-signing-key-ids
       - name: Recreate local stack without removing data
@@ -368,13 +383,14 @@ jobs:
         run: |
           docker compose down
           docker volume inspect workloop-clinic_postgres_data >/dev/null
-          docker compose up --detach --wait postgres backend keycloak
+          docker compose up --detach --wait postgres backend keycloak seaweed-s3
           docker compose --profile tools run --rm migrate
           sh scripts/database-persistence-fingerprint.sh > /tmp/workloop-restarted-database-fingerprint
           diff /tmp/workloop-database-fingerprint /tmp/workloop-restarted-database-fingerprint
           curl --fail --silent --show-error http://127.0.0.1:8080/realms/workloop-dev/protocol/openid-connect/certs | jq -r '.keys[].kid' | sort > /tmp/workloop-restarted-signing-key-ids
           diff /tmp/workloop-signing-key-ids /tmp/workloop-restarted-signing-key-ids
           docker compose --profile tools run --rm --no-deps --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python storage-reconciler /verification/verify-phase-8d-storage-restart.py verify
+          docker compose run --rm --no-deps --env-from-file ./backend/.env.migration --env PYTHONPATH=/app --volume ./scripts:/verification:ro backend python /verification/verify-phase-11b-restart.py verify
           if [ "$DATABASE_DEEP" = "true" ]; then
             sh scripts/verify-phase-5d-context.sh
           fi

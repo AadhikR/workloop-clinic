@@ -48,10 +48,10 @@ test('Phase 11A contract documents exist and close every planned domain', () => 
   assert.match(contract, /production-policy stop/i);
   assert.match(contract, /Phase 12 owns/i);
   assert.match(contract, /Phase 13 owns/i);
-  assert.match(completion, /awaiting project-owner contract\s+approval/i);
+  assert.match(completion, /project owner approved decisions/i);
 });
 
-test('Phase 11A cutover records are preparation-only and retain legacy authority', () => {
+test('Phase 11 cutover records reflect only completed implementation parts', () => {
   const goldenCaseCount = read(documents.golden).match(/`11A-G-[A-Z]+-\d+`/g)?.length ?? 0;
   assert.equal(goldenCaseCount, 45);
 
@@ -61,11 +61,13 @@ test('Phase 11A cutover records are preparation-only and retain legacy authority
     const evidence = JSON.parse(read(record.refresh.lastRefresh.evidence.path));
     assert.equal(record.featureId, featureId);
     assert.equal(record.dataClassification, 'synthetic');
-    assert.equal(record.status.current, 'preparation');
+    const implemented = featureId === 'common-storage-recovery';
+    assert.equal(record.status.current, implemented ? 'completed' : 'preparation');
+    const authority = implemented ? 'migration-fastapi' : 'legacy-supabase';
     assert.deepEqual(record.authority, {
-      readSystem: 'legacy-supabase',
-      writeSystem: 'legacy-supabase',
-      writableSystems: ['legacy-supabase'],
+      readSystem: authority,
+      writeSystem: authority,
+      writableSystems: [authority],
     });
     assert.notEqual(record.freeze.read.system, record.authority.readSystem);
     assert.notEqual(record.freeze.write.system, record.authority.writeSystem);

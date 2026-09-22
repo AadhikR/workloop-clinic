@@ -72,7 +72,7 @@ from app.models.roster_publication import (
     RosterPublicationMembership,
     RosterPublicationVersion,
 )
-from app.models.storage import StorageOperation
+from app.models.storage import FileSecurityScan, StorageOperation
 
 __all__ = [
     "AdvanceRepayment",
@@ -109,6 +109,7 @@ __all__ = [
     "EmployeeJobHistory",
     "ExpenseClaim",
     "ExpenseReceipt",
+    "FileSecurityScan",
     "IdempotencyRecord",
     "IncidentReport",
     "InsuranceDependant",

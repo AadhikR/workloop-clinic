@@ -1,7 +1,7 @@
 # Part 11A completion
 
-Status: implementation and local documentation gate complete; awaiting project-owner contract
-approval and the routed GitHub result before 11B.
+Status: complete. The project owner approved decisions `11A-D1` through `11A-D18` on 2026-09-22,
+and GitHub Migration foundation run `35745180197` passed.
 
 ## Result
 
@@ -12,7 +12,8 @@ and indirect notification, task, dashboard, report, print, and Supabase consumer
 The contract fixes role scope, list order, pagination, safe errors, idempotency, optimistic locking,
 file validation, signing, malware quarantine, recovery, domain lifecycles, decimal behavior,
 retention guards, and reverse rollback order. Eighteen decisions define the implementation boundary.
-Ten cutover records remain in `preparation`, with legacy Supabase as the only read and write authority.
+The common storage record is complete after Part 11B. The other nine records remain in
+`preparation`, with legacy Supabase as their only read and write authority.
 
 The amendment proposal reserves one append-only revision per implementation part. It proposes a
 file-security scan queue and dedicated scanner login, scan links for all private-file domains,
@@ -29,7 +30,7 @@ The legacy settlement code contains contradictory service-date comments, unappro
 and binary floating-point arithmetic. It is not the Phase 11 settlement contract. Part 11G
 calculation remains blocked until the project owner approves jurisdiction, gratuity, leave
 encashment, notice, final salary, deduction, advance, asset, rounding, negative-net, and reviewer
-rules. Parts 11B through 11F can proceed after this contract is approved.
+rules. Parts 11B through 11F may proceed under the approved sequential authorization.
 
 ## Local verification
 
@@ -44,6 +45,6 @@ route, storage object, credential, or cutover authority changed.
 
 ## Rollback and next step
 
-Revert the Part 11A documents, verifier, and preparation records if the contract is rejected. No data
-rollback is needed. Do not start 11B until the documentation commit is pushed, its routed GitHub
-workflow passes, and the project owner explicitly approves decisions `11A-D1` through `11A-D18`.
+Revert the Part 11A documents, verifier, and preparation records if the approved contract is
+withdrawn. No data rollback is needed. Part 11B began only after its predecessor commit and routed
+GitHub workflow passed and the project owner approved decisions `11A-D1` through `11A-D18`.

@@ -22,7 +22,7 @@ from app.storage.base import (
     StoredObject,
     StoredObjectMetadata,
 )
-from app.storage.proof import PROOF_CONTENT, PROOF_CONTENT_TYPE, PROOF_SHA256
+from app.storage.proof import PROOF_CONTENT, PROOF_SHA256
 from app.storage.spaces import S3Client, SpacesObjectStorage
 from tests.test_http_boundary import make_settings
 
@@ -238,6 +238,8 @@ class FakeS3Client:
 
 @pytest.mark.asyncio
 async def test_spaces_adapter_uses_private_bucket_contract() -> None:
+    body = b"%PDF-1.7\nPhase 11B S3 adapter proof\n%%EOF\n"
+    digest = hashlib.sha256(body).hexdigest()
     client = FakeS3Client()
     storage = SpacesObjectStorage(
         endpoint_url="https://fra1.digitaloceanspaces.com",
@@ -249,18 +251,18 @@ async def test_spaces_adapter_uses_private_bucket_contract() -> None:
     )
 
     with pytest.raises(StorageNotFoundError):
-        await storage.head_object(key="phase-6g/proof.txt")
+        await storage.head_object(key="phase-11b/proof.pdf")
     await storage.put_object(
-        key="phase-6g/proof.txt",
-        body=PROOF_CONTENT,
-        content_type=PROOF_CONTENT_TYPE,
-        sha256=PROOF_SHA256,
+        key="phase-11b/proof.pdf",
+        body=body,
+        content_type="application/pdf",
+        sha256=digest,
     )
-    stored = await storage.get_object(key="phase-6g/proof.txt")
-    await storage.delete_object(key="phase-6g/proof.txt")
+    stored = await storage.get_object(key="phase-11b/proof.pdf")
+    await storage.delete_object(key="phase-11b/proof.pdf")
     await storage.close()
 
-    assert stored.body == PROOF_CONTENT
-    assert stored.metadata.sha256 == PROOF_SHA256
+    assert stored.body == body
+    assert stored.metadata.sha256 == digest
     assert client.objects == {}
     assert client.closed is True

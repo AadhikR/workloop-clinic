@@ -1,3 +1,5 @@
+import hashlib
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
@@ -17,6 +19,20 @@ class StorageIntegrityError(StorageError):
 
 class StorageConflictError(StorageError):
     pass
+
+
+MAX_PRIVATE_OBJECT_BYTES = 10_485_760
+PRIVATE_CONTENT_TYPES = frozenset({"application/pdf", "image/png", "image/jpeg"})
+
+
+def validate_object_write(*, body: bytes, content_type: str, sha256: str) -> None:
+    if (
+        not 1 <= len(body) <= MAX_PRIVATE_OBJECT_BYTES
+        or content_type not in PRIVATE_CONTENT_TYPES
+        or re.fullmatch(r"[0-9a-f]{64}", sha256) is None
+        or hashlib.sha256(body).hexdigest() != sha256
+    ):
+        raise StorageIntegrityError
 
 
 @dataclass(frozen=True, slots=True)

@@ -19,6 +19,7 @@ from app.storage.base import (
     StorageNotFoundError,
     StoredObject,
     StoredObjectMetadata,
+    validate_object_write,
 )
 
 KEY_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9/_-]{0,1023}")
@@ -48,8 +49,7 @@ class SyntheticObjectStorage:
         if_absent: bool = True,
     ) -> None:
         body_path, metadata_path = self._paths(key)
-        if hashlib.sha256(body).hexdigest() != sha256:
-            raise StorageError
+        validate_object_write(body=body, content_type=content_type, sha256=sha256)
         body_path.parent.mkdir(parents=True, exist_ok=True)
         temporary_suffix = f".{os.urandom(8).hex()}.tmp"
         temporary_body = body_path.with_suffix(body_path.suffix + temporary_suffix)
