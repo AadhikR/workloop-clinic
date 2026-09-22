@@ -40,8 +40,8 @@ new head was applied.
 
 The final database-sensitive gate ran against the isolated `workloop-phase10h-gate` stack:
 
-- All 565 backend tests and all 212 frontend unit tests passed. Backend Ruff checks, changed-file
-  ESLint, backend formatting, and the migration production build passed.
+- All 565 backend tests and all 212 frontend unit tests passed. Backend Ruff checks, strict Pyright,
+  changed-file ESLint, backend formatting, and the migration production build passed.
 - Historical schema, migration round-trip, trigger, seed, repository, context, RLS, grant, security,
   and boundary checks passed at the current head.
 - Deep database checks from employee lifecycle through Phase 10H passed. The 10H proof covered exact

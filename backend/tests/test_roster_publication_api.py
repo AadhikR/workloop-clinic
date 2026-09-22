@@ -148,12 +148,18 @@ class RecordingExecutor:
 async def client_for(role: AppRole) -> AsyncGenerator[AsyncClient, None]:
     from app.main import create_app
 
+    def service_factory(_connection: AsyncConnection) -> StubService:
+        return StubService()
+
+    def idempotency_factory(_connection: AsyncConnection) -> ImmediateIdempotency:
+        return ImmediateIdempotency()
+
     application = create_app(settings=make_settings(api_request_timeout_seconds=1))
     application.state.authorized_service_executor = RecordingExecutor(
         BRANCH if role is AppRole.ADMIN else None
     )
-    application.state.roster_publication_service_factory = lambda _: StubService()
-    application.state.idempotency_coordinator_factory = lambda _: ImmediateIdempotency()
+    application.state.roster_publication_service_factory = service_factory
+    application.state.idempotency_coordinator_factory = idempotency_factory
     application.dependency_overrides[require_access_token] = claims
     application.dependency_overrides[require_authorization_principal] = lambda: principal(role)
     async with AsyncClient(

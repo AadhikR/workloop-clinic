@@ -5,7 +5,7 @@ import json
 import uuid
 from datetime import UTC, date, datetime
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import bindparam, text
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
@@ -531,9 +531,10 @@ class RosterPublicationRepository:
         attendance_overlap = sum(
             (Decimal(row["overtime_hours"]) for row in attendance_rows), start=ZERO
         )
-        attendance_ids = sorted(
-            {value for row in attendance_rows for value in (row["source_clock_event_ids"] or [])}
-        )
+        attendance_id_set: set[uuid.UUID] = set()
+        for row in attendance_rows:
+            attendance_id_set.update(cast(list[uuid.UUID], row["source_clock_event_ids"] or []))
+        attendance_ids = sorted(attendance_id_set)
         if attendance_overlap != ZERO or request.attendance_source_ids != attendance_ids:
             raise ServiceExecutionError("payroll_input_not_ready")
         employee = (

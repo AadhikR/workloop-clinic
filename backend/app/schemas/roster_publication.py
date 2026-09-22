@@ -54,7 +54,7 @@ class RosterActualHoursRequest(StrictRequestSchema):
 class RosterOvertimeApprovalRequest(StrictRequestSchema):
     reason: str = Field(min_length=3, max_length=500)
     expected_source_version: str
-    attendance_source_ids: list[uuid.UUID] = Field(default_factory=list, max_length=500)
+    attendance_source_ids: list[uuid.UUID] = Field(default_factory=list[uuid.UUID], max_length=500)
 
     @field_validator("reason")
     @classmethod
