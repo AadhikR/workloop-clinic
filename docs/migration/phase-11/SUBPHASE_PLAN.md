@@ -6,15 +6,14 @@ Phase 10 is complete at commit `bd0145d03b466b1831af2b1ac6fa4503a35d4932`. GitHu
 foundation run `35712919139` passed on 2026-09-22, and the project owner signed off Phase 10 on
 2026-09-22.
 
-The project owner authorized preparation of this Phase 11 subphase plan on 2026-09-22. This planning
-authorization does not authorize Phase 11 implementation, a schema change, a cutover, a cloud
-resource, a paid service, production data, a real employee file, or a legal-policy decision. Part
-11A is the next proposed part and requires explicit implementation authorization.
+The project owner authorized sequential execution of the consolidated Phase 11 parts 11A through
+11H on 2026-09-22. This standing authorization covers local implementation, synthetic verification,
+cutover preparation, commits, pushes, and routed GitHub checks. It does not authorize a cloud
+resource, paid service, production data, real employee file, or legal-policy decision.
 
-This document splits Phase 11 into twelve parts, 11A through 11L. Each implementation part must
-finish its focused verification, boundary-matched local gate, commit, push, and routed GitHub checks
-before the next part starts. A later standing authorization may allow sequential execution, but this
-plan does not grant it.
+This document splits Phase 11 into eight parts, 11A through 11H. Each part must finish its focused
+verification, boundary-matched local gate, commit, push, and routed GitHub checks before the next
+part starts. Execution is sequential, not concurrent.
 
 ## Why Phase 11 needs subphases
 
@@ -59,18 +58,14 @@ consumes is stable. The last part reviews the whole boundary independently.
 
 | Part | Scope | Status |
 | --- | --- | --- |
-| 11A | Contracts, dependency inventory, golden cases, amendments, and cutover decisions | Planned; implementation unauthorized |
-| 11B | Common private storage, malware boundary, recovery, backup, and operator proof | Planned; implementation unauthorized |
-| 11C | Employee documents, upload, review, signing, retention, and deletion | Planned; implementation unauthorized |
-| 11D | Insurance policies, employee coverage, dependants, and self-service reads | Planned; implementation unauthorized |
-| 11E | Employment-contract history, renewal, conversion, and non-renewal | Planned; implementation unauthorized |
-| 11F | Assets, assignment, return, state transitions, and retained history | Planned; implementation unauthorized |
-| 11G | Training, certifications, certificate files, review, and CME | Planned; implementation unauthorized |
-| 11H | Appraisal cycles, sections, reviews, ratings, calibration, and closure | Planned; implementation unauthorized |
-| 11I | Clinical incidents, investigation, corrective action, and closure | Planned; implementation unauthorized |
-| 11J | Letter and custom requests, employee submission, decisions, and print projection | Planned; implementation unauthorized |
-| 11K | Offboarding, checklist execution, final settlement, and completion | Planned; implementation unauthorized |
-| 11L | Independent review, complete cutover proof, and Phase 11 gate | Planned; implementation unauthorized |
+| 11A | Contracts, dependency inventory, golden cases, amendments, and cutover decisions | Authorized next; not started |
+| 11B | Common private storage, malware boundary, recovery, backup, and operator proof | Sequentially authorized |
+| 11C | Employee documents, insurance, and employment-contract lifecycle | Sequentially authorized |
+| 11D | Assets, training, certifications, certificate files, and CME | Sequentially authorized |
+| 11E | Appraisals and clinical incidents | Sequentially authorized |
+| 11F | Letter and custom requests, decisions, and print projection | Sequentially authorized |
+| 11G | Offboarding, checklist execution, final settlement, and completion | Sequentially authorized |
+| 11H | Independent review, complete cutover proof, and Phase 11 gate | Sequentially authorized |
 
 ## Rules shared by every part
 
@@ -148,7 +143,7 @@ a route or changing a writer.
 
 - Inventory every legacy reader, writer, RPC, converter, calculator, bucket path, signed URL,
   component, task, notification, dashboard, report, print path, and indirect caller in Phase 11.
-- Trace every dependency to Parts 11B through 11K or to an explicit Phase 12 or 13 owner. Include
+- Trace every dependency to Parts 11B through 11G or to an explicit Phase 12 or 13 owner. Include
   Phase 8 leave attachments and Phase 9 receipts in shared recovery ownership.
 - Define strict request and response contracts for administrators, managers, employees, storage
   workers, and approved scheduled jobs. Fix filters, sort order, pagination, nulls, dates, decimals,
@@ -218,7 +213,7 @@ Disable new provider traffic before restoring the previously approved adapter co
 Preserve domain metadata and operation rows. The shared adapter cannot roll back independently while
 any Phase 8, 9, or 11 consumer still depends on it.
 
-## 11C: Employee documents
+## 11C: Employee documents, insurance, and employment contracts
 
 ### Objective
 
@@ -251,7 +246,7 @@ Disable migration upload and signing before restoring the legacy document path. 
 metadata, review history, object state, and cleanup operations. Never delete a verified object merely
 to simplify rollback.
 
-## 11D: Insurance
+## Insurance work within 11C
 
 ### Objective
 
@@ -281,7 +276,7 @@ dependants, stale updates, concurrency, branch isolation, redaction, and forced 
 Disable migration insurance mutations before restoring legacy writers. Preserve current coverage and
 dependants. Roll back insurance before employee documents only if the approved UI joins the two.
 
-## 11E: Employment contracts
+## Employment-contract work within 11C
 
 ### Objective
 
@@ -312,7 +307,7 @@ Disable migration contract mutations before restoring legacy writers. Preserve a
 and job-history rows. Never delete a contract event or reverse current employee fields without a
 separately authorized compensating workflow.
 
-## 11F: Assets and assignments
+## 11D: Assets, training, certifications, and CME
 
 ### Objective
 
@@ -344,7 +339,7 @@ Disable migration assignment and state writers before restoring legacy paths. Pr
 history and current custody. Roll back offboarding before assets because offboarding may consume
 unreturned-asset state.
 
-## 11G: Training, certifications, and CME
+## Training, certification, and CME work within 11D
 
 ### Objective
 
@@ -377,7 +372,7 @@ cleanup, and rollback pass.
 Disable migration file and certification mutations before training and CME writers. Preserve verified
 certifications, completed training, object state, review history, and CME evidence.
 
-## 11H: Appraisals
+## 11E: Appraisals and clinical incidents
 
 ### Objective
 
@@ -409,7 +404,7 @@ review, calibration, closure, guarded delete, stale state, concurrency, retentio
 Disable migration calibration, review, rating, and cycle writers in that order before restoring
 legacy paths. Preserve closed cycles, appraisals, sections, ratings, actors, and timestamps.
 
-## 11I: Clinical incidents
+## Clinical-incident work within 11E
 
 ### Objective
 
@@ -441,7 +436,7 @@ Disable migration incident mutations before restoring legacy paths. Preserve eve
 investigation, corrective action, closer, and closure date. Never reopen or delete an incident during
 technical rollback.
 
-## 11J: Letter and custom requests
+## 11F: Letter and custom requests
 
 ### Objective
 
@@ -473,7 +468,7 @@ safe print projection, stale state, replay, concurrent decision, redaction, and 
 Disable migration request decisions and submissions before restoring legacy paths. Preserve completed
 and rejected requests and their trusted snapshots. Do not change a decided request during rollback.
 
-## 11K: Offboarding and final settlement
+## 11G: Offboarding and final settlement
 
 ### Objective
 
@@ -515,7 +510,7 @@ paths only under the cutover record. Preserve completed checklists, settlements,
 employment history, repayments, asset history, actors, and audit. Never undo a completed offboarding
 by deleting evidence.
 
-## 11L: Independent review and completion gate
+## 11H: Independent review and completion gate
 
 ### Objective
 
@@ -562,7 +557,7 @@ writable, and never delete retained evidence to simplify rollback.
 
 ## Recommended execution order
 
-Execute `11A -> 11B -> 11C -> 11D -> 11E -> 11F -> 11G -> 11H -> 11I -> 11J -> 11K -> 11L`.
+Execute `11A -> 11B -> 11C -> 11D -> 11E -> 11F -> 11G -> 11H`.
 
 The contract settles before storage or domain changes. Shared storage and recovery settle before new
 file consumers. Documents, insurance, contracts, assets, and training settle before offboarding may

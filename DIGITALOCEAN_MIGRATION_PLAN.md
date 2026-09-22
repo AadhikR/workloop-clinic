@@ -1006,7 +1006,7 @@ Convert private files and the remaining domain modules.
 
 The detailed execution split is in
 [`docs/migration/phase-11/SUBPHASE_PLAN.md`](docs/migration/phase-11/SUBPHASE_PLAN.md). The project
-owner authorized planning on 2026-09-22; implementation still requires separate authorization.
+owner authorized sequential execution of the consolidated Parts 11A through 11H on 2026-09-22.
 
 ### DigitalOcean Spaces Design
 

@@ -10,13 +10,13 @@ settle bounded Phase 10 decisions with best judgment, commit its approved contra
 continue into 10B without an intermediate authorization pause. Parts 10A through 10J are complete.
 The project owner signed off Phase 10 on 2026-09-22 after commit
 `bd0145d03b466b1831af2b1ac6fa4503a35d4932` and GitHub Migration foundation run
-`35712919139` passed. Phase 11 planning is authorized; Phase 11 implementation remains
-unauthorized.
+`35712919139` passed. The project owner subsequently authorized sequential execution of the
+consolidated Phase 11 Parts 11A through 11H on 2026-09-22.
 
 This document splits Phase 10 into ten parts, 10A through 10J. The completed authorization covered
 10A through 10C. The owner also authorized sequential work from 10D through 10J, with a separate
-task and verified handoff for each part. Phase 11 implementation remains outside that
-authorization. The
+task and verified handoff for each part. That Phase 10 authorization did not include Phase 11. The
+later Phase 11 authorization is recorded in `docs/migration/phase-11/SUBPHASE_PLAN.md`. The
 authorization does not include production data, external biometric devices, paid services, cloud
 resources, or the preserved PostgreSQL volume.
 
