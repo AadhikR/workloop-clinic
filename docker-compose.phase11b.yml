@@ -5,6 +5,8 @@ services:
         required: true
       - path: ./backend/.env.postgres
         required: true
+    environment:
+      WORKLOOP_FILE_SCANNER_PASSWORD: ${PHASE11B_SCANNER_DB_PASSWORD:?set PHASE11B_SCANNER_DB_PASSWORD}
 
   backend:
     env_file:

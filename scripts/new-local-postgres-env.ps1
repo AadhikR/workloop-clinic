@@ -136,6 +136,26 @@ else {
     )
 }
 
+$explicitFileScannerPassword = [Environment]::GetEnvironmentVariable(
+    "PHASE11B_SCANNER_DB_PASSWORD"
+)
+if (-not [string]::IsNullOrEmpty($explicitFileScannerPassword)) {
+    $fileScannerPassword = $explicitFileScannerPassword
+    $postgresLines = [System.IO.File]::ReadAllLines($postgresPath) | ForEach-Object {
+        if ($_.StartsWith("WORKLOOP_FILE_SCANNER_PASSWORD=")) {
+            "WORKLOOP_FILE_SCANNER_PASSWORD=$fileScannerPassword"
+        }
+        else {
+            $_
+        }
+    }
+    [System.IO.File]::WriteAllLines(
+        $postgresPath,
+        $postgresLines,
+        (New-Object System.Text.UTF8Encoding($false))
+    )
+}
+
 $apiLines = @(
     "APP_ENV=local"
     "APP_BASE_URL=http://127.0.0.1:8000"
