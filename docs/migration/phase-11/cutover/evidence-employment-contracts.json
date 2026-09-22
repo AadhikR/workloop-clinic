@@ -1,0 +1,1 @@
+{"featureId":"employment-contracts","command":"node --test tests/phase-11a-contract.test.js","refreshedAt":"2026-09-22T08:00:00Z","sourceDigest":"sha256:05a3a237ddd714b020771bb6cf3b45ad481155b53713c57502eb19f3a8339713","sourceRecordCount":45,"targetRecordCount":45,"result":"preparation","proof":["Phase 11A contract only; authority remains legacy Supabase"]}
