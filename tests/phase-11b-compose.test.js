@@ -7,6 +7,7 @@ const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf
 test('Phase 11B uses one scanner database password across generated environments', () => {
   const compose = read('docker-compose.phase11b.yml');
   const generator = read('scripts/new-local-postgres-env.ps1');
+  const workflow = read('.github/workflows/migration-foundation.yml');
   const migrateService = compose.split('\n  backend:', 1)[0];
 
   assert.match(
@@ -21,4 +22,7 @@ test('Phase 11B uses one scanner database password across generated environments
     generator,
     /"WORKLOOP_FILE_SCANNER_PASSWORD=\$fileScannerPassword"/,
   );
+  assert.doesNotMatch(workflow, /^\s+PHASE11B_SCANNER_DB_PASSWORD:/m);
+  assert.match(workflow, /PHASE11B_SCANNER_DB_PASSWORD=\$scannerPassword/);
+  assert.match(workflow, /Add-Content -LiteralPath \$env:GITHUB_ENV/);
 });
