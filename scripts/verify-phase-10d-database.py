@@ -33,6 +33,7 @@ BRANCH_ID = seed.BRANCH_DXB
 OTHER_BRANCH_ID = seed.BRANCH_AUH
 EMPLOYEE_ID = uuid.UUID("21000000-0000-4000-8000-000000000002")
 ATTENDANCE_DATE = "2026-08-27"
+ABSENCE_DATES = ("2026-08-20", "2026-08-23", "2026-08-24")
 
 
 def database_url(user: str, password_name: str) -> URL:
@@ -86,6 +87,14 @@ async def main() -> None:
             ),
             {"employee": EMPLOYEE_ID, "attendance_date": ATTENDANCE_DATE},
         )
+        for absence_date in ABSENCE_DATES:
+            connection.execute(
+                text(
+                    "DELETE FROM public.attendance_records "
+                    "WHERE employee_id=:employee AND date=:attendance_date"
+                ),
+                {"employee": EMPLOYEE_ID, "attendance_date": absence_date},
+            )
         clean(connection, rows)
         apply_rows(connection, rows)
         validate(connection, rows)
@@ -156,6 +165,24 @@ async def main() -> None:
         {"employeeId": str(EMPLOYEE_ID), "attendanceDate": ATTENDANCE_DATE}
     )
     try:
+        absences = []
+        for absence_date in ABSENCE_DATES:
+            absence_request = AttendanceCalculationRequest.model_validate(
+                {"employeeId": str(EMPLOYEE_ID), "attendanceDate": absence_date}
+            )
+            absences.append(
+                await run_service(
+                    ADMIN,
+                    lambda service, principal, item=absence_request: service.calculate_one(
+                        principal, BRANCH_ID, item
+                    ),
+                    branch_id=BRANCH_ID,
+                )
+            )
+        assert all(item.status == "UNEXPLAINED_ABSENCE" for item in absences)
+        assert "consecutive_unexplained_absence" not in absences[1].evidence_flags
+        assert "consecutive_unexplained_absence" in absences[2].evidence_flags
+
         calculated = await run_service(
             ADMIN,
             lambda service, principal: service.calculate_one(principal, BRANCH_ID, request),
@@ -359,6 +386,14 @@ async def main() -> None:
                 ),
                 {"employee": EMPLOYEE_ID, "attendance_date": ATTENDANCE_DATE},
             )
+            for absence_date in ABSENCE_DATES:
+                connection.execute(
+                    text(
+                        "DELETE FROM public.attendance_records "
+                        "WHERE employee_id=:employee AND date=:attendance_date"
+                    ),
+                    {"employee": EMPLOYEE_ID, "attendance_date": absence_date},
+                )
             clean(connection, rows)
         migration_engine.dispose()
 

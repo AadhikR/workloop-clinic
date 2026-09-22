@@ -42,17 +42,17 @@ function client(response) {
 }
 
 test('reads strict selected-branch period readiness and detail', async () => {
-  const listClient = client({ data: [open, closed], page })
+  const listClient = client({ status: 200, data: [open, closed], correlationId: key, location: null, page, replayed: false })
   assert.deepEqual(await readAttendancePeriods(listClient, branchId, { limit: 20 }), { data: [open, closed], page })
   assert.equal(listClient.requests[0][0], '/api/v1/attendance/periods?limit=20')
   assert.equal(listClient.requests[0][1].headers['X-Workloop-Branch-ID'], branchId)
 
-  const detailClient = client({ data: closed })
+  const detailClient = client({ status: 200, data: closed, correlationId: key, location: null, page: null, replayed: false })
   assert.equal((await readAttendancePeriod(detailClient, branchId, '2026-08')).sourceVersion, closed.sourceVersion)
 })
 
 test('closes and amends only with exact versioned idempotent bodies', async () => {
-  const closeClient = client({ data: closed })
+  const closeClient = client({ status: 200, data: closed, correlationId: key, location: null, page: null, replayed: false })
   await closeAttendancePeriod(closeClient, branchId, '2026-08', { expectedVersion: 0 }, { idempotencyKey: key })
   assert.deepEqual(closeClient.requests[0][1].json, { expectedVersion: 0, amendmentReason: null })
   assert.equal(closeClient.requests[0][1].headers['Idempotency-Key'], key)

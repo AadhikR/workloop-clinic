@@ -29,11 +29,11 @@ function client(response) {
 }
 
 test('uses self-only correction history and strict submission bodies', async () => {
-  const historyClient = client({ data: [regularisation], page })
+  const historyClient = client({ status: 200, data: [regularisation], correlationId: key, location: null, page, replayed: false })
   assert.deepEqual(await readPersonalRegularisations(historyClient, { status: 'Pending', limit: 20 }), { data: [regularisation], page })
   assert.equal(historyClient.requests[0][0], '/api/v1/attendance/regularisations/me?status=Pending&limit=20')
 
-  const submissionClient = client({ data: regularisation })
+  const submissionClient = client({ status: 201, data: regularisation, correlationId: key, location: `/api/v1/attendance/regularisations/${requestId}`, page: null, replayed: false })
   await submitRegularisation(submissionClient, { attendanceDate: '2026-09-20', correctClockIn: '2026-09-20T08:00:00+04:00', correctClockOut: '2026-09-20T17:00:00+04:00', reason: '  Missed biometric punch  ' }, { idempotencyKey: key })
   assert.deepEqual(submissionClient.requests[0][1].json, { attendanceDate: '2026-09-20', correctClockIn: '2026-09-20T08:00:00+04:00', correctClockOut: '2026-09-20T17:00:00+04:00', reason: 'Missed biometric punch' })
   assert.equal(submissionClient.requests[0][1].headers['Idempotency-Key'], key)

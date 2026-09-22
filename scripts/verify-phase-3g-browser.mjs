@@ -76,10 +76,19 @@ const browserManagerApprovalRequestId = '00000000-0000-4000-8000-000000000083'
 const browserPayrollRunId = '00000000-0000-4000-8000-000000000090'
 const browserPayrollEntryId = '00000000-0000-4000-8000-000000000091'
 const browserPayslipId = '00000000-0000-4000-8000-000000000092'
+const browserShiftId = '00000000-0000-4000-8000-000000000093'
+const browserManagerRosterId = '00000000-0000-4000-8000-000000000094'
+const browserEmployeeRosterId = '00000000-0000-4000-8000-000000000095'
+const browserRosterMonthId = '00000000-0000-4000-8000-000000000096'
+const browserRosterVersionId = '00000000-0000-4000-8000-000000000097'
+const browserRosterSourceVersion = `sha256:${'b'.repeat(64)}`
 const createdIdentityIds = []
 const financialJourney = {
   advanceId: null,
   expenseId: null,
+}
+const phase10Journey = {
+  swapId: null,
 }
 let activeStage = 'startup'
 
@@ -285,6 +294,98 @@ function createFixtures() {
     )
     createdRows.profiles.push(persona.appUserId)
   }
+  stage('synthetic Phase 10 attendance and roster fixture creation')
+  psql(
+    "INSERT INTO attendance_settings (company_id,branch_id) "
+      + "VALUES (:'company_id',:'branch_id')",
+    { company_id: companyId, branch_id: branchId },
+  )
+  psql(
+    "INSERT INTO shifts (id,company_id,branch_id,name,shift_type,start_time,end_time,"
+      + "break_minutes,expected_hours,color,code,shift_category,min_staff) VALUES "
+      + "(:'id',:'company_id',:'branch_id','Phase 10J day','fixed','08:00','17:00',"
+      + "60,8.00,'#3366AA','P10J-DAY','morning',1)",
+    { id: browserShiftId, company_id: companyId, branch_id: branchId },
+  )
+  for (const [id, employeeId] of [
+    ['00000000-0000-4000-8000-000000000098', personas[1].employeeId],
+    ['00000000-0000-4000-8000-000000000099', personas[2].employeeId],
+  ]) {
+    psql(
+      "INSERT INTO shift_assignments (id,company_id,branch_id,employee_id,shift_id,effective_from) "
+        + "VALUES (:'id',:'company_id',:'branch_id',:'employee_id',:'shift_id','2026-01-01')",
+      { id, company_id: companyId, branch_id: branchId, employee_id: employeeId, shift_id: browserShiftId },
+    )
+  }
+  for (const [id, employeeId, date, note] of [
+    [browserManagerRosterId, personas[1].employeeId, '2026-11-04', 'Phase 10J manager'],
+    [browserEmployeeRosterId, personas[2].employeeId, '2026-11-03', 'Phase 10J employee'],
+  ]) {
+    psql(
+      "INSERT INTO roster_assignments "
+        + "(id,company_id,branch_id,employee_id,shift_id,date,published,notes,planned_hours,version) "
+        + "VALUES (:'id',:'company_id',:'branch_id',:'employee_id',:'shift_id',:'date',true,:'note',8.00,2)",
+      { id, company_id: companyId, branch_id: branchId, employee_id: employeeId, shift_id: browserShiftId, date, note },
+    )
+  }
+  psql(
+    "INSERT INTO roster_months (id,company_id,branch_id,period) "
+      + "VALUES (:'id',:'company_id',:'branch_id','2026-11')",
+    { id: browserRosterMonthId, company_id: companyId, branch_id: branchId },
+  )
+  psql(
+    "INSERT INTO roster_publication_versions "
+      + "(id,company_id,branch_id,roster_month_id,period,version,kind,source_version,"
+      + "source_canonical,source_payload,affected_row_digest,record_count,actor_app_user_id,reason) "
+      + "VALUES (:'id',:'company_id',:'branch_id',:'month_id','2026-11',1,'publication',"
+      + ":'source_version','{}','{}'::jsonb,:'affected_digest',2,:'actor','')",
+    {
+      id: browserRosterVersionId,
+      company_id: companyId,
+      branch_id: branchId,
+      month_id: browserRosterMonthId,
+      source_version: browserRosterSourceVersion,
+      affected_digest: `sha256:${'c'.repeat(64)}`,
+      actor: personas[0].appUserId,
+    },
+  )
+  for (const [assignmentId, employeeId, employeeName, date, note] of [
+    [browserManagerRosterId, personas[1].employeeId, 'Phase manager', '2026-11-04', 'Phase 10J manager'],
+    [browserEmployeeRosterId, personas[2].employeeId, 'Phase employee', '2026-11-03', 'Phase 10J employee'],
+  ]) {
+    psql(
+      "INSERT INTO roster_publication_memberships "
+        + "(company_id,branch_id,publication_version_id,source_assignment_id,"
+        + "source_assignment_version,employee_id,employee_name,department,shift_id,shift_name,"
+        + "shift_code,shift_category,date,planned_hours,notes,source_payload) VALUES "
+        + "(:'company_id',:'branch_id',:'version_id',:'assignment_id',2,:'employee_id',"
+        + ":'employee_name','Clinical',:'shift_id','Phase 10J day','P10J-DAY','morning',"
+        + ":'date',8.00,:'note',jsonb_build_object('date',:'date','employeeId',:'employee_id',"
+        + "'rosterAssignmentId',:'assignment_id','shiftId',:'shift_id','plannedHours','8.00'))",
+      {
+        company_id: companyId,
+        branch_id: branchId,
+        version_id: browserRosterVersionId,
+        assignment_id: assignmentId,
+        employee_id: employeeId,
+        employee_name: employeeName,
+        shift_id: browserShiftId,
+        date,
+        note,
+      },
+    )
+  }
+  psql(
+    "UPDATE roster_months SET status='published',version=1,current_version_id=:'version_id',"
+      + "source_version=:'source_version',published_at=statement_timestamp(),"
+      + "published_by_app_user_id=:'actor' WHERE id=:'id'",
+    {
+      version_id: browserRosterVersionId,
+      source_version: browserRosterSourceVersion,
+      actor: personas[0].appUserId,
+      id: browserRosterMonthId,
+    },
+  )
   psql(
     "INSERT INTO employee_job_history "
       + "(id, company_id, branch_id, employee_id, changed_at, change_type, old_value, "
@@ -472,6 +573,30 @@ function cleanupFixtures() {
       ))
       cleanup(() => psql(
         "SET SESSION AUTHORIZATION workloop_migration; "
+          + "DELETE FROM shift_swap_history WHERE company_id = :'company_id'; "
+          + "DELETE FROM shift_swap_requests WHERE company_id = :'company_id'; "
+          + "UPDATE roster_months SET status='draft',version=0,current_version_id=NULL,"
+          + "source_version=NULL,published_at=NULL,published_by_app_user_id=NULL "
+          + "WHERE company_id = :'company_id'; "
+          + "DELETE FROM roster_publication_memberships WHERE company_id = :'company_id'; "
+          + "DELETE FROM roster_overtime_approvals WHERE company_id = :'company_id'; "
+          + "DELETE FROM roster_actual_hours_evidence WHERE company_id = :'company_id'; "
+          + "DELETE FROM roster_publication_versions WHERE company_id = :'company_id'; "
+          + "DELETE FROM roster_months WHERE company_id = :'company_id'; "
+          + "DELETE FROM roster_assignments WHERE company_id = :'company_id'; "
+          + "DELETE FROM attendance_import_row_outcomes WHERE company_id = :'company_id'; "
+          + "DELETE FROM clock_events WHERE company_id = :'company_id'; "
+          + "DELETE FROM attendance_import_batches WHERE company_id = :'company_id'; "
+          + "DELETE FROM biometric_mappings WHERE company_id = :'company_id'; "
+          + "DELETE FROM shift_assignments WHERE company_id = :'company_id'; "
+          + "DELETE FROM shifts WHERE company_id = :'company_id'; "
+          + "DELETE FROM attendance_periods WHERE company_id = :'company_id'; "
+          + "DELETE FROM attendance_settings WHERE company_id = :'company_id'; "
+          + "RESET SESSION AUTHORIZATION",
+        { company_id: companyId },
+      ))
+      cleanup(() => psql(
+        "SET SESSION AUTHORIZATION workloop_migration; "
           + "DELETE FROM compliance_overrides WHERE company_id = :'company_id'; "
           + "DELETE FROM payslips WHERE company_id = :'company_id'; "
           + "DELETE FROM payroll_approval_log WHERE company_id = :'company_id'; "
@@ -592,6 +717,14 @@ function cleanupFixtures() {
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM payroll_entries'), '0'))
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM payslips'), '0'))
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM nafis_reports'), '0'))
+  verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM shift_swap_requests'), '0'))
+  verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM roster_publication_versions'), '0'))
+  verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM roster_assignments'), '0'))
+  verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM clock_events'), '0'))
+  verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM biometric_mappings'), '0'))
+  verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM shifts'), '0'))
+  verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM attendance_periods'), '0'))
+  verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM attendance_settings'), '0'))
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM companies'), '0'))
   verifyCleanup(() => run(['exec', '-T', 'keycloak', 'rm', '-f', kcadmConfig]))
   verifyCleanup(() => run(['exec', '-T', 'keycloak', 'test', '!', '-e', kcadmConfig]))
@@ -1648,6 +1781,136 @@ async function assertPhase9BrowserJourney(page, persona) {
   assert.equal(result.nafisCount, 1)
 }
 
+async function assertPhase10BrowserJourney(page, persona) {
+  stage(`${persona.role} Phase 10 attendance and roster journey`)
+  const result = await page.evaluate(async ({ role, branchId, managerId, employeeId }) => {
+    const { authenticationSession } = await import('/src/authSession.js')
+    const {
+      readPersonalSchedule,
+      readRosterColleagues,
+      readRosterMonth,
+      readRosterPublication,
+    } = await import('/src/rosterApi.js')
+    const {
+      approveShiftSwap,
+      readAdminShiftSwaps,
+      readPersonalShiftSwaps,
+      submitShiftSwap,
+    } = await import('/src/shiftSwapApi.js')
+    const authentication = authenticationSession()
+
+    if (role === 'employee') {
+      const schedule = await readPersonalSchedule(authentication, '2026-11')
+      const colleagues = await readRosterColleagues(authentication, '2026-11-04')
+      const own = schedule.find((item) => item.date === '2026-11-03')
+      const target = colleagues.find((item) => item.employeeId === managerId)
+      if (!own || !target) throw new Error('Phase 10J employee roster fixture is unavailable')
+      const submitted = await submitShiftSwap(authentication, {
+        requesterDate: own.date,
+        targetEmployeeId: managerId,
+        targetDate: target.date,
+        reason: 'Phase 10J browser coverage exchange',
+        expectedSourceVersion: own.sourceVersion,
+      }, { idempotencyKey: crypto.randomUUID() })
+      const personal = await readPersonalShiftSwaps(authentication, { status: 'pending' })
+      return {
+        scheduleCount: schedule.length,
+        colleagueCount: colleagues.length,
+        swapId: submitted.id,
+        swapStatus: submitted.status,
+        personalCount: personal.length,
+      }
+    }
+
+    if (role === 'manager') {
+      const schedule = await readPersonalSchedule(authentication, '2026-11')
+      const personal = await readPersonalShiftSwaps(authentication, { status: 'pending' })
+      return {
+        scheduleCount: schedule.length,
+        pendingSwapId: personal[0]?.id ?? null,
+        targetEmployeeId: personal[0]?.targetEmployeeId ?? null,
+      }
+    }
+
+    const { readAttendanceSettings, updateAttendanceSettings } = await import(
+      '/src/attendanceConfigurationApi.js'
+    )
+    const {
+      importBiometricCandidates,
+      readBiometricMappings,
+      readClockEvents,
+      replaceBiometricMapping,
+    } = await import('/src/attendanceIngestionApi.js')
+    const settings = await readAttendanceSettings(authentication, branchId)
+    const savedSettings = await updateAttendanceSettings(authentication, branchId, {
+      ...settings,
+      lateGraceMinutes: 11,
+    }, { idempotencyKey: crypto.randomUUID() })
+    await replaceBiometricMapping(authentication, branchId, 'P10J-EMPLOYEE', {
+      employeeId,
+      deviceName: 'Phase 10J browser reader',
+    }, { idempotencyKey: crypto.randomUUID() })
+    const imported = await importBiometricCandidates(authentication, branchId, {
+      sourceBytes: 96,
+      candidates: [{
+        badgeNo: 'P10J-EMPLOYEE',
+        eventType: 'CLOCK_IN',
+        eventTime: '2026-09-22T04:00:00.000Z',
+        deviceName: 'Phase 10J browser reader',
+      }],
+    }, { idempotencyKey: crypto.randomUUID() })
+    const mappings = await readBiometricMappings(authentication, branchId)
+    const events = await readClockEvents(authentication, branchId, { employeeId })
+    const queue = await readAdminShiftSwaps(authentication, branchId, { status: 'pending' })
+    if (queue.length !== 1) throw new Error('Phase 10J shift-swap queue is unavailable')
+    const approved = await approveShiftSwap(authentication, branchId, queue[0], {
+      idempotencyKey: crypto.randomUUID(),
+    })
+    const publication = await readRosterPublication(authentication, branchId, '2026-11')
+    const roster = await readRosterMonth(authentication, branchId, '2026-11')
+    return {
+      settingsGrace: savedSettings.data.lateGraceMinutes,
+      acceptedCount: imported.acceptedCount,
+      mappingCount: mappings.data.length,
+      eventMethods: events.data.map((item) => item.method),
+      approvedSwapId: approved.id,
+      approvedStatus: approved.status,
+      publicationVersion: publication.version,
+      rosterOwners: roster.data.map((item) => item.employeeId).sort(),
+    }
+  }, {
+    role: persona.role,
+    branchId,
+    managerId: personas[1].employeeId,
+    employeeId: personas[2].employeeId,
+  })
+
+  if (persona.role === 'employee') {
+    assert.equal(result.scheduleCount, 1, 'employee schedule count')
+    assert.equal(result.colleagueCount, 1, 'employee colleague count')
+    assert.equal(result.swapStatus, 'pending', 'submitted swap status')
+    assert.equal(result.personalCount, 1, 'employee pending swap count')
+    phase10Journey.swapId = result.swapId
+  } else if (persona.role === 'manager') {
+    assert.equal(result.scheduleCount, 1, 'manager schedule count')
+    assert.equal(result.pendingSwapId, phase10Journey.swapId, 'manager pending swap id')
+    assert.equal(result.targetEmployeeId, personas[1].employeeId, 'manager target employee')
+  } else {
+    assert.equal(result.settingsGrace, 11, 'attendance grace minutes')
+    assert.equal(result.acceptedCount, 1, 'accepted biometric row count')
+    assert.equal(result.mappingCount, 1, 'biometric mapping count')
+    assert.deepEqual(result.eventMethods, ['BIOMETRIC'], 'clock event methods')
+    assert.equal(result.approvedSwapId, phase10Journey.swapId, 'approved swap id')
+    assert.equal(result.approvedStatus, 'approved', 'approved swap status')
+    assert.equal(result.publicationVersion, 2, 'successor publication version')
+    assert.deepEqual(
+      result.rosterOwners,
+      [personas[1].employeeId, personas[2].employeeId].sort(),
+      'post-swap roster owners',
+    )
+  }
+}
+
 async function browserChecks(viteServer) {
   const browser = await chromium.launch({ headless: true })
   try {
@@ -1739,6 +2002,7 @@ async function browserChecks(viteServer) {
       }
       await assertEmployeeApi(page, persona)
       await assertPhase9BrowserJourney(page, persona)
+      await assertPhase10BrowserJourney(page, persona)
       const afterEmployeeWorkflows = businessFingerprint()
       await assertDepartmentApi(page, persona)
       assert.equal(businessFingerprint(), afterEmployeeWorkflows)

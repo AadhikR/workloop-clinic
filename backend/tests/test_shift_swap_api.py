@@ -195,6 +195,8 @@ async def test_admin_lists_rejects_and_approves_selected_branch_swaps() -> None:
             json={"expectedVersion": 1, "expectedSourceVersion": SOURCE},
         )
     assert listing.status_code == rejected.status_code == approved.status_code == 200
+    assert "location" not in rejected.headers
+    assert "location" not in approved.headers
 
 
 @pytest.mark.asyncio

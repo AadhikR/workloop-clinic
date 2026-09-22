@@ -107,7 +107,9 @@ async def _mutation(
             return IdempotentResponse(
                 status=status_code,
                 body=DataResponse(data=item).model_dump(mode="json", by_alias=True),
-                location=f"/api/v1/roster/shift-swaps/{item.id}",
+                location=(
+                    f"/api/v1/roster/shift-swaps/{item.id}" if status_code in {201, 202} else None
+                ),
                 resource_kind="shift_swap_request",
                 resource_id=item.id,
             )
@@ -145,7 +147,7 @@ async def _mutation(
         status_code=outcome.status,
         headers={
             "Cache-Control": "no-store",
-            "Location": outcome.location or "",
+            **({"Location": outcome.location} if outcome.location else {}),
             **({"Idempotency-Replayed": "true"} if outcome.replayed else {}),
         },
     )

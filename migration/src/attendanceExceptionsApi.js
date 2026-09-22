@@ -37,7 +37,7 @@ function parseAudit(value) {
 }
 
 function parseCollection(result, parser) {
-  if (!exact(result, ['data', 'page']) || !Array.isArray(result.data)) throw invalid()
+  if (!Array.isArray(result.data)) throw invalid()
   return Object.freeze({ data: Object.freeze(result.data.map(parser)), page: page(result.page) })
 }
 

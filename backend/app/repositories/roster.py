@@ -113,8 +113,10 @@ class RosterRepository:
                     "AND shift.company_id=roster.company_id AND shift.branch_id=roster.branch_id "
                     "WHERE roster.company_id=:company AND roster.branch_id=:branch "
                     "AND roster.date BETWEEN :start AND :end "
-                    "AND (:department IS NULL OR employee.department=:department) "
-                    "AND (:employee IS NULL OR roster.employee_id=:employee) "
+                    "AND (CAST(:department AS text) IS NULL "
+                    "OR employee.department=CAST(:department AS text)) "
+                    "AND (CAST(:employee AS uuid) IS NULL "
+                    "OR roster.employee_id=CAST(:employee AS uuid)) "
                     + marker
                     + "ORDER BY roster.date,roster.employee_id,roster.id LIMIT :limit"
                 ),

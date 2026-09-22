@@ -30,14 +30,13 @@ export async function readAttendancePeriods(authentication, branchId, query = {}
     if (value !== undefined && value !== null && value !== '') params.set(key, String(value))
   }
   const result = await authentication.request(`/api/v1/attendance/periods${params.size ? `?${params}` : ''}`, options(branchId))
-  if (!exact(result, ['data', 'page']) || !Array.isArray(result.data)) throw invalid()
+  if (!Array.isArray(result.data)) throw invalid()
   return Object.freeze({ data: Object.freeze(result.data.map(parsePeriod)), page: page(result.page) })
 }
 
 export async function readAttendancePeriod(authentication, branchId, period) {
   if (!periodPattern.test(period)) throw new TypeError('Invalid attendance period')
   const result = await authentication.request(`/api/v1/attendance/periods/${period}`, options(branchId))
-  if (!exact(result, ['data'])) throw invalid()
   return parsePeriod(result.data)
 }
 
@@ -47,6 +46,5 @@ export async function closeAttendancePeriod(authentication, branchId, period, va
   const amendmentReason = values.amendmentReason === undefined || values.amendmentReason === null ? null : String(values.amendmentReason).trim()
   if (!Number.isInteger(expectedVersion) || expectedVersion < 0 || expectedVersion === 0 && amendmentReason !== null || expectedVersion > 0 && (amendmentReason === null || amendmentReason.length < 3 || amendmentReason.length > 500)) throw new TypeError('Invalid attendance period close')
   const result = await authentication.request(`/api/v1/attendance/periods/${period}/close`, options(branchId, { method: 'POST', json: { expectedVersion, amendmentReason }, headers: { 'X-Workloop-Branch-ID': branchId, 'Idempotency-Key': idempotencyKey } }))
-  if (!exact(result, ['data'])) throw invalid()
   return parsePeriod(result.data)
 }

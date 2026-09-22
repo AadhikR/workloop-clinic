@@ -49,7 +49,7 @@ function client(response) {
 }
 
 test('reads strict personal and selected-branch swap collections', async () => {
-  const personal = client({ data: [swap], page: { limit: 100, nextCursor: null, hasMore: false } })
+  const personal = client({ status: 200, data: [swap], correlationId: key, location: null, page: { limit: 100, nextCursor: null, hasMore: false }, replayed: false })
   assert.equal((await readPersonalShiftSwaps(personal))[0].id, swapId)
   assert.equal(personal.requests[0][0], '/api/v1/roster/shift-swaps/self?limit=100')
 
@@ -60,7 +60,7 @@ test('reads strict personal and selected-branch swap collections', async () => {
 })
 
 test('submits and cancels only exact personal swap commands', async () => {
-  const submitClient = client({ data: swap })
+  const submitClient = client({ status: 201, data: swap, correlationId: key, location: `/api/v1/roster/shift-swaps/${swapId}`, page: null, replayed: false })
   await submitShiftSwap(submitClient, {
     requesterDate: swap.requesterDate,
     targetEmployeeId: targetId,

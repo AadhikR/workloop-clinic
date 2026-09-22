@@ -37,6 +37,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 ADMIN = "hr.admin@horizon.test"
 MANAGER = "aisha.manager@horizon.test"
 EMPLOYEE = "ravi.employee@horizon.test"
+COMPANY_ID = seed.COMPANY_ID[seed.HORIZON]
 BRANCH_ID = seed.BRANCH_DXB
 OTHER_BRANCH_ID = seed.BRANCH_AUH
 EMPLOYEE_ID = uuid.UUID("21000000-0000-4000-8000-000000000002")
@@ -106,6 +107,13 @@ async def main() -> None:
         connection.execute(
             text("DELETE FROM public.biometric_mappings WHERE badge_no=:badge"),
             {"badge": BADGE},
+        )
+        connection.execute(
+            text(
+                "DELETE FROM public.attendance_periods "
+                "WHERE company_id=:company AND current_version_id IS NULL"
+            ),
+            {"company": COMPANY_ID},
         )
         apply_rows(connection, rows)
         validate(connection, rows)
@@ -376,6 +384,13 @@ async def main() -> None:
             connection.execute(
                 text("DELETE FROM public.biometric_mappings WHERE badge_no=:badge"),
                 {"badge": BADGE},
+            )
+            connection.execute(
+                text(
+                    "DELETE FROM public.attendance_periods "
+                    "WHERE company_id=:company AND current_version_id IS NULL"
+                ),
+                {"company": COMPANY_ID},
             )
             clean(connection, rows)
         migration_engine.dispose()

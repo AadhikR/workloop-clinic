@@ -61,7 +61,7 @@ function sequenceClient(responses) {
 }
 
 test('reads strict selected-branch roster drafts and publication gates', async () => {
-  const monthClient = client({ data: [assignment], page })
+  const monthClient = client({ status: 200, data: [assignment], correlationId: key, location: null, page, replayed: false })
   const month = await readRosterMonth(monthClient, branchId, '2026-09', { department: 'Clinical', employeeId, limit: 20 })
   assert.equal(month.data[0].plannedHours, '8.00')
   assert.equal(monthClient.requests[0][0], `/api/v1/roster/months/2026-09?department=Clinical&employeeId=${employeeId}&limit=20`)
@@ -143,7 +143,7 @@ test('publishes an exact version and records actual-hours and overtime evidence'
   }
   assert.equal((await readRosterPublication(client({ data: publication }), branchId, '2026-09')).sourceVersion, sourceVersion)
 
-  const publishClient = client({ data: publication })
+  const publishClient = client({ status: 200, data: publication, correlationId: key, location: null, page: null, replayed: false })
   await publishRosterMonth(publishClient, branchId, '2026-09', [assignment], null, { idempotencyKey: key })
   assert.deepEqual(publishClient.requests[0][1].json, { assignments: [{ id: assignmentId, expectedVersion: 1 }], expectedSourceVersion: null })
 
@@ -164,7 +164,7 @@ test('reads only strict personal schedule and safe colleague fields', async () =
     actualHours: '12.00', overtimeHours: '4.00', notes: '', sourceVersion,
     publicationVersion: 3, publishedAt: '2026-09-22T02:00:00.000Z',
   }
-  const scheduleClient = client({ data: [schedule], page: { limit: 1, nextCursor: null, hasMore: false } })
+  const scheduleClient = client({ status: 200, data: [schedule], correlationId: key, location: null, page: { limit: 1, nextCursor: null, hasMore: false }, replayed: false })
   assert.equal((await readPersonalSchedule(scheduleClient, '2026-09'))[0].employeeId, employeeId)
   assert.deepEqual(scheduleClient.requests[0][1], { access: 'protected' })
 

@@ -192,6 +192,13 @@ jobs:
         run: |
           node --test tests/migration-shift-swaps.test.js tests/phase-10i-legacy-freeze.test.js
           node scripts/cutover-record-validator.mjs docs/migration/phase-10/cutover/shift-swaps.json
+      - name: Verify Phase 10J completion boundary
+        run: |
+          node --test tests/phase-10j-boundary.test.js
+          for record in docs/migration/phase-10/cutover/*.json; do
+            case "$record" in */evidence-*) continue ;; esac
+            node scripts/cutover-record-validator.mjs "$record"
+          done
       - name: Verify empty-schema downgrade boundary
         if: needs.changes.outputs.database_deep == 'true'
         run: |
@@ -328,6 +335,7 @@ jobs:
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --volume ./scripts:/verification:ro --entrypoint python migrate -c "import runpy; runpy.run_path('/verification/verify-phase-9g-database.py', run_name='__main__')"
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --volume ./scripts:/verification:ro --entrypoint python migrate -c "import runpy; runpy.run_path('/verification/verify-phase-9g-lifecycle.py', run_name='__main__')"
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-10b-database.py
+          docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-10c-database.py
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-10d-database.py
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-10e-database.py
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-10f-database.py

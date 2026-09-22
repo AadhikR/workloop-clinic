@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import uuid
 from collections.abc import Awaitable, Callable
@@ -43,6 +44,8 @@ PERIOD = "2026-12"
 RAVI_DAY = "2026-12-03"
 MARIA_DAY = "2026-12-04"
 PREFIX = "Phase 10I verification"
+PAYROLL_RUN_ID = uuid.UUID("10f00000-0000-4000-8000-000000000001")
+PAYROLL_ENTRY_ID = uuid.UUID("10f00000-0000-4000-8000-000000000002")
 
 
 def database_url(user: str, password_name: str) -> URL:
@@ -80,6 +83,14 @@ async def expect_code(code: str, operation: Awaitable[object]) -> None:
 
 
 def cleanup_verification_rows(connection: Connection) -> None:
+    connection.execute(
+        text("DELETE FROM public.payroll_entries WHERE id=:id"),
+        {"id": PAYROLL_ENTRY_ID},
+    )
+    connection.execute(
+        text("DELETE FROM public.payroll_runs WHERE id=:id"),
+        {"id": PAYROLL_RUN_ID},
+    )
     connection.execute(text("DELETE FROM public.audit_events WHERE action='shift_swap_approved'"))
     connection.execute(text("DELETE FROM public.shift_swap_history"))
     connection.execute(text("DELETE FROM public.shift_swap_requests WHERE contract_version=1"))
@@ -323,11 +334,31 @@ async def main() -> None:
                 text("SELECT count(*) FROM public.roster_publication_versions")
             ) == 1
 
-        approved = await run_admin(
-            lambda service, actor: service.approve(
-                actor, BRANCH_ID, submitted.id, approve_request
-            )
+        approval_outcomes = await asyncio.gather(
+            run_admin(
+                lambda service, actor: service.approve(
+                    actor, BRANCH_ID, submitted.id, approve_request
+                )
+            ),
+            run_admin(
+                lambda service, actor: service.approve(
+                    actor, BRANCH_ID, submitted.id, approve_request
+                )
+            ),
+            return_exceptions=True,
         )
+        approval_winners = [
+            outcome for outcome in approval_outcomes if not isinstance(outcome, Exception)
+        ]
+        approval_conflicts = [
+            outcome
+            for outcome in approval_outcomes
+            if isinstance(outcome, ServiceExecutionError) and outcome.code == "state_conflict"
+        ]
+        assert len(approval_winners) == len(approval_conflicts) == 1, tuple(
+            repr(outcome) for outcome in approval_outcomes
+        )
+        approved = approval_winners[0]
         assert approved.status == "approved" and approved.version == 2
         assert approved.approved_publication_version_id is not None
         with migration_engine.connect() as connection:
@@ -369,7 +400,7 @@ async def main() -> None:
                 text("SELECT source_version FROM public.roster_months WHERE period=:period"),
                 {"period": PERIOD},
             ).scalar_one()
-        cancelled_request = await run_staff(
+        frozen_request = await run_staff(
             RAVI,
             lambda service, actor: service.submit(
                 actor,
@@ -378,17 +409,95 @@ async def main() -> None:
                         "requesterDate": MARIA_DAY,
                         "targetEmployeeId": str(MARIA_ID),
                         "targetDate": RAVI_DAY,
-                        "reason": "Coverage exchange",
+                        "reason": "Payroll-frozen coverage exchange",
                         "expectedSourceVersion": current_source,
                     }
                 ),
             ),
         )
+        with migration_engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO public.payroll_runs("
+                    "id,company_id,branch_id,period,payment_date,sequence_no,"
+                    "scr_bank_routing_code,description,status,run_by_app_user_id,total_disbursed,"
+                    "employee_count,wps_status,approval_status,submitted_for_approval_at,"
+                    "submitted_by_app_user_id,approved_by_app_user_id,approved_at,"
+                    "source_snapshot_digest) "
+                    "VALUES (:id,:company,:branch,:period,'2026-12-25','10I1','999000001',"
+                    ":description,'generated',:actor,0,1,'draft','approved',statement_timestamp(),"
+                    ":actor,:actor,statement_timestamp(),:digest)"
+                ),
+                {
+                    "id": PAYROLL_RUN_ID,
+                    "company": COMPANY_ID,
+                    "branch": BRANCH_ID,
+                    "period": PERIOD,
+                    "description": f"{PREFIX} frozen source",
+                    "actor": principals[ADMIN].app_user_id,
+                    "digest": "f" * 64,
+                },
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO public.payroll_entries("
+                    "id,payroll_run_id,company_id,branch_id,employee_id,basic_salary,"
+                    "housing_allowance,transport_allowance,allowance,additional_allowances,"
+                    "deductions,source_snapshot,excluded,wps_payment_status) "
+                    "VALUES (:id,:run,:company,:branch,:employee,0,0,0,0,'[]','[]',"
+                    "CAST(:snapshot AS jsonb),false,'pending')"
+                ),
+                {
+                    "id": PAYROLL_ENTRY_ID,
+                    "run": PAYROLL_RUN_ID,
+                    "company": COMPANY_ID,
+                    "branch": BRANCH_ID,
+                    "employee": RAVI_ID,
+                    "snapshot": json.dumps(
+                        {
+                            "automaticInputs": [
+                                {"sourceType": "roster", "sourceVersion": current_source}
+                            ]
+                        },
+                        separators=(",", ":"),
+                    ),
+                },
+            )
+        await expect_code(
+            "state_conflict",
+            run_admin(
+                lambda service, actor: service.approve(
+                    actor,
+                    BRANCH_ID,
+                    frozen_request.id,
+                    ShiftSwapApproveRequest(
+                        expected_version=1,
+                        expected_source_version=current_source,
+                    ),
+                )
+            ),
+        )
+        with migration_engine.begin() as connection:
+            assert connection.scalar(
+                text("SELECT status FROM public.shift_swap_requests WHERE id=:id"),
+                {"id": frozen_request.id},
+            ) == "pending"
+            assert connection.scalar(
+                text("SELECT count(*) FROM public.roster_publication_versions")
+            ) == 2
+            connection.execute(
+                text("DELETE FROM public.payroll_entries WHERE id=:id"),
+                {"id": PAYROLL_ENTRY_ID},
+            )
+            connection.execute(
+                text("DELETE FROM public.payroll_runs WHERE id=:id"),
+                {"id": PAYROLL_RUN_ID},
+            )
         cancelled = await run_staff(
             RAVI,
             lambda service, actor: service.cancel(
                 actor,
-                cancelled_request.id,
+                frozen_request.id,
                 ShiftSwapTransitionRequest(expected_version=1),
             ),
         )

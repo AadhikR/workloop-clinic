@@ -20,7 +20,7 @@ function parseSwap(value) {
 }
 
 function parseCollection(result) {
-  if (!exact(result, ['data', 'page']) || !Array.isArray(result.data) || !exact(result.page, ['limit', 'nextCursor', 'hasMore']) || !Number.isInteger(result.page.limit) || result.page.limit < 1 || result.page.limit > 100 || result.page.nextCursor !== null || result.page.hasMore !== false) throw invalid()
+  if (!Array.isArray(result.data) || !exact(result.page, ['limit', 'nextCursor', 'hasMore']) || !Number.isInteger(result.page.limit) || result.page.limit < 1 || result.page.limit > 100 || result.page.nextCursor !== null || result.page.hasMore !== false) throw invalid()
   return Object.freeze(result.data.map(parseSwap))
 }
 
@@ -54,14 +54,12 @@ export async function submitShiftSwap(authentication, values, { idempotencyKey }
   if (!uuid.test(values.targetEmployeeId) || !datePattern.test(values.requesterDate) || !datePattern.test(values.targetDate) || values.requesterDate === values.targetDate || values.requesterDate.slice(0, 7) !== values.targetDate.slice(0, 7) || reason.length < 3 || reason.length > 500 || !digest.test(values.expectedSourceVersion)) throw new TypeError('Invalid shift swap request')
   const body = { requesterDate: values.requesterDate, targetEmployeeId: values.targetEmployeeId, targetDate: values.targetDate, reason, expectedSourceVersion: values.expectedSourceVersion }
   const result = await authentication.request('/api/v1/roster/shift-swaps', mutation(idempotencyKey, body))
-  if (!exact(result, ['data'])) throw invalid()
   return parseSwap(result.data)
 }
 
 export async function cancelShiftSwap(authentication, swap, { idempotencyKey } = {}) {
   if (!uuid.test(swap.id) || !Number.isInteger(swap.version) || swap.version < 1) throw new TypeError('Invalid shift swap request')
   const result = await authentication.request(`/api/v1/roster/shift-swaps/${swap.id}/cancel`, mutation(idempotencyKey, { expectedVersion: swap.version, reason: null }))
-  if (!exact(result, ['data'])) throw invalid()
   return parseSwap(result.data)
 }
 
@@ -69,13 +67,11 @@ export async function rejectShiftSwap(authentication, branchId, swap, reason, { 
   const normalized = String(reason).trim()
   if (!uuid.test(swap.id) || !Number.isInteger(swap.version) || swap.version < 1 || normalized.length < 3 || normalized.length > 500) throw new TypeError('Invalid shift swap rejection')
   const result = await authentication.request(`/api/v1/roster/shift-swaps/${swap.id}/reject`, mutation(idempotencyKey, { expectedVersion: swap.version, reason: normalized }, branchId))
-  if (!exact(result, ['data'])) throw invalid()
   return parseSwap(result.data)
 }
 
 export async function approveShiftSwap(authentication, branchId, swap, { idempotencyKey } = {}) {
   if (!uuid.test(swap.id) || !Number.isInteger(swap.version) || swap.version < 1 || !digest.test(swap.expectedSourceVersion)) throw new TypeError('Invalid shift swap approval')
   const result = await authentication.request(`/api/v1/roster/shift-swaps/${swap.id}/approve`, mutation(idempotencyKey, { expectedVersion: swap.version, expectedSourceVersion: swap.expectedSourceVersion }, branchId))
-  if (!exact(result, ['data'])) throw invalid()
   return parseSwap(result.data)
 }

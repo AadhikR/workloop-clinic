@@ -53,6 +53,24 @@ def test_phase10d_late_deduction_rounds_once() -> None:
     )
 
 
+def test_phase10d_per_occurrence_late_deduction_charges_once() -> None:
+    result = calculate(
+        replace(
+            _snapshot(
+                ("CLOCK_IN", datetime(2026, 8, 27, 8, 16, tzinfo=DXB)),
+                ("CLOCK_OUT", datetime(2026, 8, 27, 17, tzinfo=DXB)),
+            ),
+            late_deduction_policy="per_occurrence",
+            late_deduction_amount=Decimal("25.00"),
+        )
+    )
+    assert (result.status, result.late_minutes, result.late_deduction) == (
+        "LATE",
+        6,
+        Decimal("25.00"),
+    )
+
+
 def test_phase10d_missing_out_is_a_blocker() -> None:
     result = calculate(_snapshot(("CLOCK_IN", datetime(2026, 8, 27, 8, tzinfo=DXB))))
     assert result.status == "MISSING_CLOCK_OUT"
