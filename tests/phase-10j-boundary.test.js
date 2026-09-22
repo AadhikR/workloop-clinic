@@ -138,10 +138,11 @@ test('routes every Phase 10 exact predecessor and database verifier', () => {
   assert.match(workflow, /tests\/phase-10j-boundary\.test\.js/)
 })
 
-test('records a clean Phase 10 completion boundary without authorizing Phase 11', () => {
+test('records Phase 10 signoff without authorizing Phase 11 implementation', () => {
   const review = readText(reviewPath)
   const plan = readText(planPath)
-  assert.match(review, /Phase 11 remains unauthorized/)
+  assert.match(review, /signed off Phase 10 on 2026-09-22/)
+  assert.match(review, /Phase 11 implementation remains\nunauthorized/)
   assert.match(plan, /\| 10J \| Independent review, complete cutover proof, and Phase 10 gate \| Complete \|/)
-  assert.match(plan, /Phase 10 awaits project-owner signoff/)
+  assert.match(plan, /signed off Phase 10 on 2026-09-22/)
 })

@@ -1,6 +1,6 @@
 # Part 10J completion
 
-Status: complete.
+Status: complete and signed off by the project owner on 2026-09-22.
 
 ## Result
 
@@ -199,4 +199,7 @@ review for direct language, concrete claims, sentence-case headings, and consist
 
 ## Authorization boundary
 
-Phase 10 awaits project-owner signoff. Phase 11 remains unauthorized.
+The project owner signed off Phase 10 on 2026-09-22 after commit
+`bd0145d03b466b1831af2b1ac6fa4503a35d4932` and GitHub Migration foundation run
+`35712919139` passed. Phase 11 planning is authorized. Phase 11 implementation remains
+unauthorized.

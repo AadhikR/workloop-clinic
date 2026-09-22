@@ -1004,6 +1004,10 @@ A complete synthetic month can move from roster through clock events, attendance
 
 Convert private files and the remaining domain modules.
 
+The detailed execution split is in
+[`docs/migration/phase-11/SUBPHASE_PLAN.md`](docs/migration/phase-11/SUBPHASE_PLAN.md). The project
+owner authorized planning on 2026-09-22; implementation still requires separate authorization.
+
 ### DigitalOcean Spaces Design
 
 - Use a private Space.

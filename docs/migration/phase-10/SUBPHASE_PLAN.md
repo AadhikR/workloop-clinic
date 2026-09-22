@@ -8,11 +8,15 @@ Phase 9 implementation and verification are complete at commit
 The project owner signed off Phase 9 and authorized 10A on 2026-09-18. The owner directed 10A to
 settle bounded Phase 10 decisions with best judgment, commit its approved contract artifacts, and
 continue into 10B without an intermediate authorization pause. Parts 10A through 10J are complete.
-Phase 10 awaits project-owner signoff. Phase 11 remains unauthorized.
+The project owner signed off Phase 10 on 2026-09-22 after commit
+`bd0145d03b466b1831af2b1ac6fa4503a35d4932` and GitHub Migration foundation run
+`35712919139` passed. Phase 11 planning is authorized; Phase 11 implementation remains
+unauthorized.
 
 This document splits Phase 10 into ten parts, 10A through 10J. The completed authorization covered
 10A through 10C. The owner also authorized sequential work from 10D through 10J, with a separate
-task and verified handoff for each part. Phase 11 remains outside that authorization. The
+task and verified handoff for each part. Phase 11 implementation remains outside that
+authorization. The
 authorization does not include production data, external biometric devices, paid services, cloud
 resources, or the preserved PostgreSQL volume.
 
