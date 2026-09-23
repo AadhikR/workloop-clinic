@@ -28,6 +28,7 @@ import RecordsBenefits from './RecordsBenefits.jsx'
 import DevelopmentAssets from './DevelopmentAssets.jsx'
 import AppraisalsIncidents from './AppraisalsIncidents.jsx'
 import LetterRequests from './LetterRequests.jsx'
+import Offboarding from './Offboarding.jsx'
 
 function OrganizationSummary({ account, authentication }) {
   const organization = useCompanyContext()
@@ -101,6 +102,11 @@ function OrganizationSummary({ account, authentication }) {
         branchId={organization.selectedBranch.id}
       />
       <LetterRequests
+        account={account}
+        authentication={authentication}
+        branchId={organization.selectedBranch.id}
+      />
+      <Offboarding
         account={account}
         authentication={authentication}
         branchId={organization.selectedBranch.id}

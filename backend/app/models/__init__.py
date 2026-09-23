@@ -55,6 +55,7 @@ from app.models.records import (
     EmployeeContract,
     EmployeeDocument,
     EmployeeInsurance,
+    FinalSettlement,
     IncidentReport,
     InsuranceDependant,
     InsurancePolicy,
@@ -63,6 +64,7 @@ from app.models.records import (
     OffboardingChecklist,
     OffboardingTask,
     OffboardingTaskTemplate,
+    SettlementPolicyVersion,
     TrainingRecord,
 )
 from app.models.roster_publication import (
@@ -110,6 +112,7 @@ __all__ = [
     "ExpenseClaim",
     "ExpenseReceipt",
     "FileSecurityScan",
+    "FinalSettlement",
     "IdempotencyRecord",
     "IncidentReport",
     "InsuranceDependant",
@@ -140,6 +143,7 @@ __all__ = [
     "RosterPublicationMembership",
     "RosterPublicationVersion",
     "SalaryAdvance",
+    "SettlementPolicyVersion",
     "Shift",
     "ShiftAssignment",
     "ShiftSwapHistory",

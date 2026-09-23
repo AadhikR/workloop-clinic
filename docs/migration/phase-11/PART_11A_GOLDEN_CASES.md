@@ -78,15 +78,15 @@ after snapshots.
 | `11A-G-OFF-02` | Add custom task, then delete it before completion | Provenance is `custom`; deletion succeeds. A template task delete is denied. |
 | `11A-G-OFF-03` | Complete with one required task open or one open asset assignment | `409 offboarding_blocked`. Checklist, employee, assets, tasks, settlement, audit, and idempotency remain unchanged. |
 | `11A-G-OFF-04` | Visa state moves from initiated back to not started | `409 state_conflict`. Technical rollback does not reverse business state. |
-| `11A-G-SET-01` | Preview before settlement policy approval | `409 settlement_policy_unavailable`. The response names missing policy IDs, not calculated amounts. No settlement row is inserted. |
-| `11A-G-SET-02` | Source snapshot with salary `10000.00`, allowance `2500.00`, leave balance `7.50`, advance balance `333.34`, one finalized payroll source, and no open asset | Snapshot preserves exact strings, source row IDs, versions, and digest. No gratuity, leave, notice, or net amount is calculated before approval. |
+| `11A-G-SET-01` | Preview for an unsupported free-zone or UAE-national record | `409 settlement_policy_unavailable`. No settlement row is inserted. |
+| `11A-G-SET-02` | Source snapshot with salary `10000.00`, annual leave balance `7.50`, advance balance `333.34`, one approved generated unpaid payroll source with net `12500.00`, 2,190 paid service days, and no open asset | Gratuity is `45000.00`, leave encashment is `2500.00`, gross is `60000.00`, deductions are `333.34`, and net is `59666.66`. Snapshot preserves exact strings, source row IDs, versions, policy version, and digest. |
 | `11A-G-SET-03` | One source version changes after preview | Completion returns `409 state_conflict` and changes nothing. |
+| `11A-G-SET-04` | Basic salary `10000.00` with 364, 365, 1,825, and 2,190 paid service days | Gratuity is `0.00`, `7000.00`, `35000.00`, and `45000.00` respectively. |
+| `11A-G-SET-05` | Basic salary `10000.00` with 36,500 paid service days | Raw gratuity exceeds the cap. Payable gratuity is `240000.00`. |
+| `11A-G-SET-06` | Basic salary `10000.00` with 366 paid service days | Half-up component rounding produces `7019.18`. |
+| `11A-G-SET-07` | Deductions exceed gross earnings | `409 offboarding_blocked`. The service does not persist a settlement or receivable. |
+| `11A-G-SET-08` | The checklist initializer attempts completion | `409 offboarding_blocked`. A different administrator must review and complete it. |
 
-## Settlement cases that require owner values
-
-The implementation verifier will add exact monetary outcomes after the owner approves the settlement
-policy. At minimum it must cover less than one year, exactly one year, exactly five years, more than
-five years, resignation, termination, any approved jurisdiction variant, the approved cap, leave
-encashment, notice pay, advance deduction, final payroll treatment, rounding boundaries, a negative
-net result, stale source versions, and concurrent completion. These cases are blocked by the
-production-policy stop in `11A-D16`; legacy browser outputs are not expected values.
+Policy `1.0.0` applies no resignation reduction. Notice and other manual adjustments require a reason
+and enter the exact gross or deduction side supplied by the reviewer. Paid termination-month payroll
+contributes zero final salary. An unpaid approved generated payslip contributes its exact net pay.

@@ -1,1 +1,50 @@
-{"$schema":"./cutover-record.schema.json","schemaVersion":1,"featureId":"offboarding-final-settlement","dataClassification":"synthetic","status":{"current":"preparation","changedAt":"2026-09-22T08:00:00Z","history":[{"state":"preparation","at":"2026-09-22T08:00:00Z","reason":"The 11A offboarding source contract is drafted; legacy offboarding remains authoritative and settlement calculation awaits owner policy."}]},"dependencies":{"inventorySource":"docs/migration/phase-11/PART_11A_DEPENDENCY_INVENTORY.md","requiredIds":["offboarding-final-settlement"],"declared":[{"id":"offboarding-final-settlement","system":"legacy-supabase","kind":"module","locator":"src/components/OffboardingModal.jsx","cutoverDisposition":"replace"}]},"authority":{"readSystem":"legacy-supabase","writeSystem":"legacy-supabase","writableSystems":["legacy-supabase"]},"freeze":{"read":{"system":"migration-fastapi","condition":"Migration offboarding and settlement reads stay disabled until 11G passes and policy is approved.","releaseCondition":"11G activates strict checklist, settlement, and letter-source projections.","verificationCommand":"node --test tests/phase-11a-contract.test.js"},"write":{"system":"migration-fastapi","condition":"Migration checklist and settlement writes stay disabled until 11G passes and policy is approved.","releaseCondition":"11G activates migration writes after freezing legacy offboarding and browser calculators.","verificationCommand":"node --test tests/phase-11a-contract.test.js"}},"refresh":{"mode":"synthetic-only","source":{"kind":"tracked-fixture","locator":"docs/migration/phase-11/PART_11A_GOLDEN_CASES.md","digest":"sha256:05a3a237ddd714b020771bb6cf3b45ad481155b53713c57502eb19f3a8339713"},"command":"node --test tests/phase-11a-contract.test.js","lastRefresh":{"timestamp":"2026-09-22T08:00:00Z","command":"node --test tests/phase-11a-contract.test.js","sourceDigest":"sha256:05a3a237ddd714b020771bb6cf3b45ad481155b53713c57502eb19f3a8339713","evidence":{"path":"docs/migration/phase-11/cutover/evidence-offboarding-final-settlement.json","sha256":"sha256:6b24c6c55f5523938c053856b480acdc6c94a2ac826b5942950e801757a5dfce"}}},"identityMapping":{"mode":"synthetic-only","legacyIdField":"legacySupabaseUserId","applicationIdField":"applicationUserId","requiredLegacyUserIds":["11111111-1111-4111-8111-111111111111"],"mappings":[{"legacySupabaseUserId":"11111111-1111-4111-8111-111111111111","applicationUserId":"10000000-0000-4000-8000-000000000001","synthetic":true}]},"rollback":{"trigger":"The 11G offboarding boundary fails after cutover.","owner":"phase-owner","targetAuthority":{"readSystem":"legacy-supabase","writeSystem":"legacy-supabase","writableSystems":["legacy-supabase"]},"steps":[{"id":"freeze-migration-writes","action":"Disable migration completion and settlement, then task and checklist writes.","verificationCommand":"node --test tests/phase-11a-contract.test.js"},{"id":"restore-legacy-writes","action":"Restore legacy offboarding writes as sole writers without deleting completed evidence.","verificationCommand":"node --test tests/phase-11a-contract.test.js"},{"id":"restore-legacy-reads","action":"Restore legacy offboarding reads while rendered output stays outside Phase 11.","verificationCommand":"node --test tests/phase-11a-contract.test.js"},{"id":"verify-authority","action":"Verify one offboarding writer and reader.","verificationCommand":"node --test tests/phase-11a-contract.test.js"},{"id":"verify-data","action":"Compare checklists, tasks, visa state, settlements, source snapshots, employment history, assets, advances, and audit.","verificationCommand":"node --test tests/phase-11a-contract.test.js"}]},"validation":{"asOf":"2026-09-22T08:00:00Z","refreshMaxAgeHours":24}}
+{
+  "$schema": "./cutover-record.schema.json",
+  "schemaVersion": 1,
+  "featureId": "offboarding-final-settlement",
+  "dataClassification": "synthetic",
+  "status": {
+    "current": "completed",
+    "changedAt": "2026-09-23T17:01:07Z",
+    "history": [
+      {"state": "preparation", "at": "2026-09-22T08:00:00Z", "reason": "The 11A offboarding source contract is drafted; legacy offboarding remains authoritative and settlement calculation awaits owner policy."},
+      {"state": "active-cutover", "at": "2026-09-23T17:01:06Z", "reason": "Phase 11G offboarding API, policy, database, authorization, atomic completion, rollback, and frontend checks passed with synthetic data."},
+      {"state": "completed", "at": "2026-09-23T17:01:07Z", "reason": "Migration offboarding reads and commands are authoritative; matching legacy paths fail closed."}
+    ]
+  },
+  "dependencies": {
+    "inventorySource": "docs/migration/phase-11/PART_11A_DEPENDENCY_INVENTORY.md",
+    "requiredIds": ["offboarding-final-settlement"],
+    "declared": [{"id": "offboarding-final-settlement", "system": "legacy-supabase", "kind": "module", "locator": "src/components/OffboardingModal.jsx", "cutoverDisposition": "replace"}]
+  },
+  "authority": {"readSystem": "migration-fastapi", "writeSystem": "migration-fastapi", "writableSystems": ["migration-fastapi"]},
+  "freeze": {
+    "read": {"system": "legacy-supabase", "condition": "Legacy offboarding reads fail closed; migration reads have no legacy fallback.", "releaseCondition": "Rollback disables migration offboarding reads before restoring legacy readers.", "verificationCommand": "node --test tests/phase-11g-legacy-freeze.test.js"},
+    "write": {"system": "legacy-supabase", "condition": "Legacy checklist and settlement writes fail closed; migration commands are the sole writers.", "releaseCondition": "Rollback disables migration commands before restoring one legacy writer.", "verificationCommand": "node --test tests/phase-11g-legacy-freeze.test.js"}
+  },
+  "refresh": {
+    "mode": "synthetic-only",
+    "source": {"kind": "tracked-fixture", "locator": "docs/migration/phase-11/PART_11A_GOLDEN_CASES.md", "digest": "sha256:c84b7618d33308ee8d7d45c2c411935995f2c9aa5462c3e1f0799fb07208fe9f"},
+    "command": "python scripts/verify-phase-11g-database.py",
+    "lastRefresh": {
+      "timestamp": "2026-09-23T17:01:07Z",
+      "command": "python scripts/verify-phase-11g-database.py",
+      "sourceDigest": "sha256:c84b7618d33308ee8d7d45c2c411935995f2c9aa5462c3e1f0799fb07208fe9f",
+      "evidence": {"path": "docs/migration/phase-11/cutover/evidence-offboarding-final-settlement.json", "sha256": "sha256:d9485e4fca4e8c6192462824097c1ba3cbde10446e22110370286524c4fd71e4"}
+    }
+  },
+  "identityMapping": {"mode": "synthetic-only", "legacyIdField": "legacySupabaseUserId", "applicationIdField": "applicationUserId", "requiredLegacyUserIds": ["11111111-1111-4111-8111-111111111111"], "mappings": [{"legacySupabaseUserId": "11111111-1111-4111-8111-111111111111", "applicationUserId": "10000000-0000-4000-8000-000000000001", "synthetic": true}]},
+  "rollback": {
+    "trigger": "The 11G offboarding boundary fails after cutover.",
+    "owner": "phase-owner",
+    "targetAuthority": {"readSystem": "legacy-supabase", "writeSystem": "legacy-supabase", "writableSystems": ["legacy-supabase"]},
+    "steps": [
+      {"id": "freeze-migration-writes", "action": "Disable migration completion and settlement, then task and checklist writes.", "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-11/cutover/offboarding-final-settlement.json"},
+      {"id": "restore-legacy-writes", "action": "Restore legacy offboarding writes as sole writers without deleting completed evidence.", "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-11/cutover/offboarding-final-settlement.json"},
+      {"id": "restore-legacy-reads", "action": "Restore legacy offboarding reads while rendered output stays outside Phase 11.", "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-11/cutover/offboarding-final-settlement.json"},
+      {"id": "verify-authority", "action": "Verify one offboarding writer and reader.", "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-11/cutover/offboarding-final-settlement.json"},
+      {"id": "verify-data", "action": "Compare checklists, tasks, visa state, settlements, source snapshots, employment history, assets, advances, and audit.", "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-11/cutover/offboarding-final-settlement.json"}
+    ]
+  },
+  "validation": {"asOf": "2026-09-23T17:01:07Z", "refreshMaxAgeHours": 24}
+}

@@ -148,7 +148,7 @@ async def main() -> None:
         apply_rows(connection, rows)
         validate(connection, rows)
         assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
-            "b2d4f6a8c0e5"
+            "c3e5a7b9d1f6"
         )
         type_rows = dict(
             connection.execute(

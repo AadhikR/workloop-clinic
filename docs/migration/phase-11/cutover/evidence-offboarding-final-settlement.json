@@ -1,1 +1,16 @@
-{"featureId":"offboarding-final-settlement","command":"node --test tests/phase-11a-contract.test.js","refreshedAt":"2026-09-22T08:00:00Z","sourceDigest":"sha256:05a3a237ddd714b020771bb6cf3b45ad481155b53713c57502eb19f3a8339713","sourceRecordCount":45,"targetRecordCount":45,"result":"preparation","proof":["Phase 11A contract only; authority remains legacy Supabase"]}
+{
+  "featureId": "offboarding-final-settlement",
+  "command": "python scripts/verify-phase-11g-database.py",
+  "refreshedAt": "2026-09-23T17:01:07Z",
+  "sourceDigest": "sha256:c84b7618d33308ee8d7d45c2c411935995f2c9aa5462c3e1f0799fb07208fe9f",
+  "sourceRecordCount": 50,
+  "targetRecordCount": 50,
+  "result": "completed",
+  "proof": [
+    "checklist initialization creates the canonical task template once and records its initializer",
+    "task, visa-cancellation, preview, and completion commands are tenant-scoped, administrator-only, and audited",
+    "the approved versioned policy calculates final salary, leave encashment, gratuity, advance deductions, and exact totals from immutable source evidence",
+    "completion requires a different reviewer, verifies the preview digest, settles salary advances, archives the employee, and records the final settlement atomically",
+    "legacy offboarding reads and writes fail closed while migration projections omit tenant internals"
+  ]
+}

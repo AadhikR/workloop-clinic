@@ -52,6 +52,7 @@ from app.leave_balance_api import router as leave_balance_router
 from app.leave_configuration_api import router as leave_configuration_router
 from app.leave_request_api import router as leave_request_router
 from app.letter_request_api import router as letter_request_router
+from app.offboarding_api import router as offboarding_router
 from app.organization_api import router as organization_router
 from app.payroll_api import payslip_router
 from app.payroll_api import router as payroll_router
@@ -267,6 +268,7 @@ def create_app(
     application.include_router(leave_approval_router)
     application.include_router(leave_request_router)
     application.include_router(letter_request_router)
+    application.include_router(offboarding_router)
     application.add_api_route(
         "/_synthetic-storage/v1/{token}",
         download_synthetic_object,

@@ -2256,6 +2256,18 @@ def _contract_offboarding_and_request_rows() -> list[Row]:
             "task_name": name,
             "completed": completed,
             "sort_order": order,
+            "source": "template" if name in default_tasks else "custom",
+            "template_id": (
+                _id(
+                    "offboarding_task_templates",
+                    emp.company,
+                    "dubai",
+                    "none",
+                    name.lower().replace(" ", "-"),
+                )
+                if name in default_tasks
+                else None
+            ),
         }
         if completed:
             values["completed_at"] = c.CLOCK_TIMESTAMP

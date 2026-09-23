@@ -41,6 +41,10 @@ ERROR_REGISTRY: dict[str, ErrorSpec] = {
     "not_acceptable": ErrorSpec(406, "Requested response type is not available"),
     "state_conflict": ErrorSpec(409, "Resource state changed"),
     "stale_financial_state": ErrorSpec(409, "Financial state changed"),
+    "offboarding_blocked": ErrorSpec(409, "Offboarding requirements are not complete"),
+    "settlement_policy_unavailable": ErrorSpec(
+        409, "Settlement policy does not cover this employee"
+    ),
     "attachment_submission_unavailable": ErrorSpec(409, "Attachment submission unavailable"),
     "branch_conflict": ErrorSpec(409, "Branch state prevents this operation"),
     "employee_conflict": ErrorSpec(409, "Employee state prevents this operation"),

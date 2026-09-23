@@ -29,7 +29,7 @@ period, recovery point objective, recovery time objective, or legal interpretati
 | `11A-D13` | Clinical incidents | Only selected-branch administrators can read or mutate incidents. Reports are retained after creation. Investigation, corrective action, and closure are named commands. Free text and involved people never enter logs, task payloads, or generic errors. |
 | `11A-D14` | Letter and custom requests | Employees and managers submit and read only their own requests. Administrators decide selected-branch requests. Completed requests expose a strict source projection. Phase 12 owns templates, print windows, PDF, and other output bytes. |
 | `11A-D15` | Offboarding checklist | Administrators initialize one checklist per employee from immutable templates, add a provenance-marked custom task, complete or reopen an incomplete task, move visa state forward, and complete only after every required task and blocker passes. Template tasks cannot be deleted. Custom-task deletion is allowed only before completion and only after provenance exists. |
-| `11A-D16` | Final settlement | Phase 11 records a locked source snapshot for employment, salary, contract, leave, finalized payroll, advances, assets, and approved manual adjustments. The repository does not contain an approved legal basis for gratuity, leave encashment, notice, final salary, or rounding. Calculation and 11G cutover remain blocked until the project owner approves those rules. |
+| `11A-D16` | Final settlement | Phase 11 records a locked source snapshot for employment, salary, contract, leave, finalized payroll, advances, assets, and approved manual adjustments. Settlement policy `1.0.0` in `PART_11G_SETTLEMENT_POLICY.md` defines the supported legal and product rules. Unsupported cases fail closed. |
 | `11A-D17` | Schema amendment | Add file-security scan state, missing private-file metadata, optimistic-lock timestamps, offboarding task provenance, and immutable final-settlement tables as specified in the amendment proposal. Reuse existing Phase 5 roles and policies where possible. Add one scanner login with no business-table grant. |
 | `11A-D18` | Cutover and rollback | Use ten independent cutover records. Each names exactly one reader and writer, freezes the other path, and preserves retained evidence. Rollback disables migration writes before legacy writes return. Reverse dependency order is mandatory. |
 
@@ -266,7 +266,7 @@ The print source never accepts a browser template.
 | `POST /api/v1/offboarding/{checklistId}/tasks/{taskId}/reopen` | Administrator. Reopen only before checklist completion. |
 | `DELETE /api/v1/offboarding/{checklistId}/tasks/{taskId}` | Administrator. Incomplete custom task only. |
 | `POST /api/v1/offboarding/{checklistId}/visa` | Administrator. Forward-only visa transition with trusted date. |
-| `POST /api/v1/offboarding/{checklistId}/settlement/preview` | Administrator. Return locked source identities and policy-stop errors until rules are approved. Persist nothing. |
+| `POST /api/v1/offboarding/{checklistId}/settlement/preview` | Administrator. Return locked source identities, exact amounts, and the source digest. Persist nothing. |
 | `POST /api/v1/offboarding/{checklistId}/complete` | Administrator. Persist one immutable approved settlement, complete employment through Phase 7, then complete checklist in one transaction. |
 | `GET /api/v1/offboarding/{checklistId}/letter-source` | Administrator. Strict source data only. Phase 12 renders bytes. |
 
@@ -276,26 +276,18 @@ contract event, leave balance, latest finalized payroll snapshot, active advance
 and policy configuration in that order. It stores every source ID, version, amount, policy version,
 intermediate value, and final amount.
 
-### Production-policy stop for settlement
+### Settlement policy
 
-The legacy browser code contradicts itself about inclusive service dates and contains unapproved
-legal claims. It also uses binary floating point. It is not an acceptable basis for a final
-settlement.
+The legacy browser calculator remains outside the migration build. It contains obsolete resignation
+reductions, contradictory service-date handling, and binary floating-point arithmetic.
 
-The owner must approve all items below before 11G calculation work begins:
-
-- governing jurisdiction and whether DIFC, ADGM, free-zone, or mainland rules differ;
-- service-day convention and eligibility threshold;
-- gratuity tiers, resignation or termination treatment, exclusion rules, and cap;
-- leave types and balances eligible for encashment, daily-rate basis, and negative-balance handling;
-- final salary period, included pay components, notice pay, asset deductions, manual deductions,
-  advance settlement, and treatment of payroll already finalized;
-- rounding mode and the stage at which each component and total rounds;
-- whether negative net settlement is rejected, recorded as receivable, or capped at zero; and
-- required reviewer or separation of duty before completion.
-
-Until approval, `settlement/preview` returns `409 settlement_policy_unavailable`, the completion
-command cannot persist a settlement, and the legacy calculator remains outside the migration build.
+`PART_11G_SETTLEMENT_POLICY.md` defines policy `1.0.0`. The service supports foreign, full-time UAE
+mainland private-sector employees under the traditional gratuity scheme. It uses inclusive calendar
+service days minus approved unpaid leave, a 365-day year, the statutory 21-day and 30-day tiers, the
+24-month cap, annual leave at basic salary divided by 30, approved termination-month payroll, exact
+advance settlement, reviewed manual adjustments, half-up cent rounding, negative-net rejection, and
+separation between checklist initializer and completer. Other jurisdictions or worker schemes return
+`409 settlement_policy_unavailable`.
 
 ## Phase boundaries
 

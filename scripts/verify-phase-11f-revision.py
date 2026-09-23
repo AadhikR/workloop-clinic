@@ -9,8 +9,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 REVISION = ROOT / "backend/alembic/versions/b2d4f6a8c0e5_add_phase11f_letter_requests.py"
-REVISION_ID = "b2d4f6a8c0e5"
 PREDECESSOR = "a1c3e5f7b9d4"
+CURRENT_HEAD = "c3e5a7b9d1f6"
 
 
 def require(path: Path, *fragments: str) -> str:
@@ -86,7 +86,7 @@ def verify_database(mode: str) -> None:
             assert "employee_name_snapshot" not in columns
             assert "updated_at" not in columns
         elif mode == "head":
-            assert version == REVISION_ID
+            assert version == CURRENT_HEAD
             assert {
                 "employee_name_snapshot",
                 "job_title_snapshot",

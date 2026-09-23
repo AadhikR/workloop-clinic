@@ -15,7 +15,7 @@ rollback and empty-schema replay.
 | 11D | `f0b2c4d6e8a3` | `e9a1b3d5f7c2` | Asset, training, certification, CME lock fields and private-file linkage. |
 | 11E | `a1c3e5f7b9d4` | `f0b2c4d6e8a3` | Appraisal template identity, mutable timestamps, incident actions, and audit coverage. |
 | 11F | `b2d4f6a8c0e5` | `a1c3e5f7b9d4` | Request snapshot and optimistic-lock fields. |
-| 11G | `c3e5a7b9d1f6` | `b2d4f6a8c0e5` | Task provenance and immutable settlement records. This revision is blocked until settlement policy approval. |
+| 11G | `c3e5a7b9d1f6` | `b2d4f6a8c0e5` | Task provenance and immutable settlement records under settlement policy `1.0.0`. |
 
 ## 11B file-security scan queue
 
@@ -189,10 +189,10 @@ only an incomplete custom task while its checklist is in progress.
 Add `updated_at` to `offboarding_checklists`. Add one-to-one nullable
 `final_settlement_id` only after the settlement table exists.
 
-Create append-only `settlement_policy_versions` after the owner supplies the missing legal and
-product values. Each row contains scope or jurisdiction key, semantic version, effective date,
-canonical JSON policy, `sha256:` digest, approver application user, approval time, and creation time.
-No row can update or delete.
+Create append-only `settlement_policy_versions`. Each row contains a jurisdiction key, semantic
+version, effective date, canonical JSON policy, `sha256:` digest, approval authority, approval time,
+and creation time. Policy `1.0.0` records the project owner's delegated decision. No row can update
+or delete.
 
 Create `final_settlements` after policy approval:
 
@@ -203,7 +203,7 @@ Create `final_settlements` after policy approval:
 | Earnings | `final_salary`, `leave_encashment`, `gratuity`, `notice_pay`, `other_earnings`, each `numeric(14,2)` nonnegative. |
 | Deductions | `advance_deduction`, `asset_deduction`, `notice_deduction`, `other_deductions`, each `numeric(14,2)` nonnegative. |
 | Totals | `gross_amount`, `total_deductions`, and `net_amount` as `numeric(14,2)`. Gross and deductions are nonnegative. Net behavior waits for owner approval. |
-| Evidence | `calculation_breakdown jsonb`, `completed_by_app_user_id uuid`, `completed_at timestamptz`, all required. Reviewer fields wait for the separation-of-duty decision. |
+| Evidence | `calculation_breakdown jsonb`, `completed_by_app_user_id uuid`, `reviewed_by_app_user_id uuid`, and `completed_at timestamptz`, all required. The reviewer and completer are the same second administrator and must differ from the checklist initializer. |
 
 Use restrictive same-scope FKs and unique checklist ID. Runtime gets INSERT and SELECT through the
 named completion workflow only. No UPDATE or DELETE grant or policy exists. A protected audit action

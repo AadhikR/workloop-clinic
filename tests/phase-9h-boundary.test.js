@@ -173,6 +173,6 @@ test('routes exact Phase 9H rollback and tracks the current Alembic head', () =>
   assert.match(revisionVerifier, /HEAD = "f4b8d2e6a901"/)
   assert.match(revisionVerifier, /PREDECESSOR = "e3a7c9d1f5b2"/)
   for (const verifierPath of currentHeadVerifierPaths) {
-    assert.match(readText(path.join(repositoryDirectory, verifierPath)), /b2d4f6a8c0e5/)
+    assert.match(readText(path.join(repositoryDirectory, verifierPath)), /c3e5a7b9d1f6/)
   }
 })

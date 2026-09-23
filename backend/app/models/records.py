@@ -401,7 +401,18 @@ class OffboardingChecklist(Base):
             ondelete="RESTRICT",
         ),
         ForeignKeyConstraint(["completed_by_app_user_id"], ["app_users.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(["initialized_by_app_user_id"], ["app_users.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(
+            ["final_settlement_id"],
+            ["final_settlements.id"],
+            name="fk_offboarding_checklists_final_settlement_id",
+            ondelete="RESTRICT",
+            use_alter=True,
+        ),
         UniqueConstraint("employee_id", name="uq_offboarding_checklists_employee_id"),
+        UniqueConstraint(
+            "final_settlement_id", name="uq_offboarding_checklists_final_settlement_id"
+        ),
         UniqueConstraint(
             "id",
             "company_id",
@@ -442,6 +453,13 @@ class OffboardingChecklist(Base):
     completed_by_app_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), nullable=True
     )
+    initialized_by_app_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
+    final_settlement_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("statement_timestamp()")
+    )
 
 
 class OffboardingTask(Base):
@@ -463,12 +481,34 @@ class OffboardingTask(Base):
             ondelete="RESTRICT",
         ),
         ForeignKeyConstraint(["completed_by_app_user_id"], ["app_users.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(
+            ["template_id", "company_id", "branch_id"],
+            [
+                "offboarding_task_templates.id",
+                "offboarding_task_templates.company_id",
+                "offboarding_task_templates.branch_id",
+            ],
+            ondelete="RESTRICT",
+        ),
         CheckConstraint(
             "NOT completed OR (completed_by_app_user_id IS NOT NULL AND completed_at IS NOT NULL)",
             name="completed_fields",
         ),
+        CheckConstraint("source IN ('template', 'custom')", name="source"),
+        CheckConstraint(
+            "(source='template' AND template_id IS NOT NULL) OR "
+            "(source='custom' AND template_id IS NULL)",
+            name="source_template",
+        ),
         Index("ix_offboarding_tasks_checklist_id_sort_order", "checklist_id", "sort_order"),
         Index("ix_offboarding_tasks_company_id_branch_id", "company_id", "branch_id"),
+        Index(
+            "uq_offboarding_tasks_checklist_template",
+            "checklist_id",
+            "template_id",
+            unique=True,
+            postgresql_where=text("template_id IS NOT NULL"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -488,6 +528,11 @@ class OffboardingTask(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
+    source: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("'template'"))
+    template_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("statement_timestamp()")
+    )
 
 
 class OffboardingTaskTemplate(Base):
@@ -502,6 +547,9 @@ class OffboardingTaskTemplate(Base):
         UniqueConstraint(
             "branch_id", "task_name", name="uq_offboarding_task_templates_branch_id_task_name"
         ),
+        UniqueConstraint(
+            "id", "company_id", "branch_id", name="uq_offboarding_task_templates_id_scope"
+        ),
         Index("ix_offboarding_task_templates_branch_id", "branch_id"),
     )
 
@@ -514,6 +562,111 @@ class OffboardingTaskTemplate(Base):
     default_order: Mapped[int] = mapped_column(Integer(), nullable=False, server_default=text("0"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class SettlementPolicyVersion(Base):
+    __tablename__ = "settlement_policy_versions"
+    __table_args__ = (
+        UniqueConstraint(
+            "jurisdiction_key", "semantic_version", name="uq_settlement_policy_version"
+        ),
+        CheckConstraint("jsonb_typeof(policy)='object'", name="policy_object"),
+        CheckConstraint("digest ~ '^sha256:[0-9a-f]{64}$'", name="digest"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    jurisdiction_key: Mapped[str] = mapped_column(Text(), nullable=False)
+    semantic_version: Mapped[str] = mapped_column(Text(), nullable=False)
+    effective_date: Mapped[date] = mapped_column(Date(), nullable=False)
+    policy: Mapped[dict[str, object]] = mapped_column(JSONB(), nullable=False)
+    digest: Mapped[str] = mapped_column(Text(), nullable=False)
+    approval_authority: Mapped[str] = mapped_column(Text(), nullable=False)
+    approved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("statement_timestamp()")
+    )
+
+
+class FinalSettlement(Base):
+    __tablename__ = "final_settlements"
+    __table_args__ = (
+        ForeignKeyConstraint(["company_id"], ["companies.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(
+            ["branch_id", "company_id"],
+            ["branches.id", "branches.company_id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["employee_id", "company_id", "branch_id"],
+            ["employees.id", "employees.company_id", "employees.branch_id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["checklist_id", "company_id", "branch_id"],
+            [
+                "offboarding_checklists.id",
+                "offboarding_checklists.company_id",
+                "offboarding_checklists.branch_id",
+            ],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(["policy_version_id"], ["settlement_policy_versions.id"]),
+        ForeignKeyConstraint(["completed_by_app_user_id"], ["app_users.id"]),
+        ForeignKeyConstraint(["reviewed_by_app_user_id"], ["app_users.id"]),
+        UniqueConstraint("checklist_id", name="uq_final_settlements_checklist_id"),
+        UniqueConstraint("id", "company_id", "branch_id", name="uq_final_settlements_id_scope"),
+        CheckConstraint("source_digest ~ '^sha256:[0-9a-f]{64}$'", name="source_digest"),
+        CheckConstraint("jsonb_typeof(source_snapshot)='object'", name="source_snapshot_object"),
+        CheckConstraint("jsonb_typeof(calculation_breakdown)='object'", name="breakdown_object"),
+        CheckConstraint(
+            "final_salary>=0 AND leave_encashment>=0 AND gratuity>=0 AND notice_pay>=0 "
+            "AND other_earnings>=0 AND advance_deduction>=0 AND asset_deduction>=0 "
+            "AND notice_deduction>=0 AND other_deductions>=0 AND gross_amount>=0 "
+            "AND total_deductions>=0 AND net_amount>=0",
+            name="nonnegative_money",
+        ),
+        CheckConstraint(
+            "gross_amount=final_salary+leave_encashment+gratuity+notice_pay+other_earnings "
+            "AND total_deductions=advance_deduction+asset_deduction+notice_deduction+"
+            "other_deductions "
+            "AND net_amount=gross_amount-total_deductions",
+            name="exact_totals",
+        ),
+        CheckConstraint("completed_by_app_user_id=reviewed_by_app_user_id", name="review_actor"),
+        Index(
+            "ix_final_settlements_employee_id_completed_at",
+            "employee_id",
+            text("completed_at DESC"),
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    branch_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    employee_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    checklist_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    policy_version_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    source_snapshot: Mapped[dict[str, object]] = mapped_column(JSONB(), nullable=False)
+    source_digest: Mapped[str] = mapped_column(Text(), nullable=False)
+    source_captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    final_salary: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    leave_encashment: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    gratuity: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    notice_pay: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    other_earnings: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    advance_deduction: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    asset_deduction: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    notice_deduction: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    other_deductions: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    gross_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    total_deductions: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    net_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    calculation_breakdown: Mapped[dict[str, object]] = mapped_column(JSONB(), nullable=False)
+    completed_by_app_user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    reviewed_by_app_user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    completed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("statement_timestamp()")
     )
 
 

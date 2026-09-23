@@ -61,16 +61,16 @@
     "source": {
       "kind": "tracked-fixture",
       "locator": "docs/migration/phase-11/PART_11A_GOLDEN_CASES.md",
-      "digest": "sha256:05a3a237ddd714b020771bb6cf3b45ad481155b53713c57502eb19f3a8339713"
+      "digest": "sha256:c84b7618d33308ee8d7d45c2c411935995f2c9aa5462c3e1f0799fb07208fe9f"
     },
     "command": "python scripts/verify-phase-11b-database.py && python scripts/verify-phase-11b-storage.py",
     "lastRefresh": {
       "timestamp": "2026-09-22T16:45:00Z",
       "command": "python scripts/verify-phase-11b-database.py && python scripts/verify-phase-11b-storage.py",
-      "sourceDigest": "sha256:05a3a237ddd714b020771bb6cf3b45ad481155b53713c57502eb19f3a8339713",
+      "sourceDigest": "sha256:c84b7618d33308ee8d7d45c2c411935995f2c9aa5462c3e1f0799fb07208fe9f",
       "evidence": {
         "path": "docs/migration/phase-11/cutover/evidence-common-storage-recovery.json",
-        "sha256": "sha256:455b2b95cd6eec24f0d6bcf07354e103f09192239caaba76b41665abf62332ee"
+        "sha256": "sha256:db8da1a7e49d1df1b96460f9c8088ea402109a69ef50de8b7e35eda4f016f8aa"
       }
     }
   },

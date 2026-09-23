@@ -14,7 +14,7 @@ REVISION = (
 )
 REVISION_ID = "a1c3e5f7b9d4"
 PREDECESSOR = "f0b2c4d6e8a3"
-CURRENT_HEAD = "b2d4f6a8c0e5"
+CURRENT_HEAD = "c3e5a7b9d1f6"
 
 
 def require(path: Path, *fragments: str) -> str:
