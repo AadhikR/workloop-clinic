@@ -1172,6 +1172,34 @@ class LetterRequest(Base):
             "AND char_length(btrim(purpose)) BETWEEN 5 AND 2000)",
             name="custom_lengths",
         ),
+        CheckConstraint(
+            "request_kind <> 'letter' OR (letter_type IN "
+            "('salary_certificate_bank','salary_certificate_embassy','noc',"
+            "'salary_transfer_letter','employment_confirmation') "
+            "AND octet_length(purpose)<=500 AND (letter_type='employment_confirmation' "
+            "OR octet_length(purpose)>=5))",
+            name="phase11f_letter_fields",
+        ),
+        CheckConstraint(
+            "basic_salary_snapshot IS NULL OR basic_salary_snapshot>=0",
+            name="phase11f_basic_salary",
+        ),
+        CheckConstraint(
+            "allowance_snapshot IS NULL OR allowance_snapshot>=0",
+            name="phase11f_allowance",
+        ),
+        CheckConstraint(
+            "((request_kind='letter' AND letter_type IN "
+            "('salary_certificate_bank','salary_certificate_embassy','salary_transfer_letter')) "
+            "AND basic_salary_snapshot IS NOT NULL AND allowance_snapshot IS NOT NULL) "
+            "OR (basic_salary_snapshot IS NULL AND allowance_snapshot IS NULL))",
+            name="phase11f_salary_snapshot",
+        ),
+        CheckConstraint(
+            "status='pending' OR (btrim(employee_name_snapshot)<>'' "
+            "AND btrim(branch_name_snapshot)<>'')",
+            name="phase11f_decided_snapshot",
+        ),
         Index("ix_letter_requests_employee_id", "employee_id"),
         Index("ix_letter_requests_branch_id_status", "branch_id", "status"),
     )
@@ -1187,6 +1215,21 @@ class LetterRequest(Base):
     )
     letter_type: Mapped[str] = mapped_column(Text(), nullable=False)
     purpose: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("''"))
+    employee_name_snapshot: Mapped[str] = mapped_column(
+        Text(), nullable=False, server_default=text("''")
+    )
+    job_title_snapshot: Mapped[str] = mapped_column(
+        Text(), nullable=False, server_default=text("''")
+    )
+    department_snapshot: Mapped[str] = mapped_column(
+        Text(), nullable=False, server_default=text("''")
+    )
+    employment_start_date_snapshot: Mapped[date | None] = mapped_column(Date(), nullable=True)
+    branch_name_snapshot: Mapped[str] = mapped_column(
+        Text(), nullable=False, server_default=text("''")
+    )
+    basic_salary_snapshot: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    allowance_snapshot: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     status: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("'pending'"))
     notes: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("''"))
     rejection_reason: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("''"))
@@ -1197,6 +1240,9 @@ class LetterRequest(Base):
     actioned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     actioned_by_app_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), nullable=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("statement_timestamp()")
     )
 
 

@@ -27,6 +27,7 @@ import WpsNafis from './WpsNafis.jsx'
 import RecordsBenefits from './RecordsBenefits.jsx'
 import DevelopmentAssets from './DevelopmentAssets.jsx'
 import AppraisalsIncidents from './AppraisalsIncidents.jsx'
+import LetterRequests from './LetterRequests.jsx'
 
 function OrganizationSummary({ account, authentication }) {
   const organization = useCompanyContext()
@@ -95,6 +96,11 @@ function OrganizationSummary({ account, authentication }) {
         branchId={organization.selectedBranch.id}
       />
       <AppraisalsIncidents
+        account={account}
+        authentication={authentication}
+        branchId={organization.selectedBranch.id}
+      />
+      <LetterRequests
         account={account}
         authentication={authentication}
         branchId={organization.selectedBranch.id}

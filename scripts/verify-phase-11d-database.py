@@ -93,7 +93,7 @@ async def main() -> None:
             connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            == "a1c3e5f7b9d4"
+            == "b2d4f6a8c0e5"
         )
         columns = set(
             connection.execute(

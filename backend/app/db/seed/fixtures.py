@@ -122,6 +122,8 @@ _BRANCHES = [
     ),
 ]
 
+_BRANCH_NAME_BY_ID = {row.values["id"]: row.values["name"] for row in _BRANCHES}
+
 # --- Employee specifications ------------------------------------------------
 # Each row is (emp_no, id, company_key, branch_id, name, seq, role, manager_emp_no,
 # status, active, contract_type, extra_overrides).
@@ -2288,7 +2290,19 @@ def _contract_offboarding_and_request_rows() -> list[Row]:
             else "Confirm the synthetic shift arrangement",
             "status": status,
             "requested_at": c.CLOCK_TIMESTAMP,
+            "employee_name_snapshot": emp.name,
+            "job_title_snapshot": emp.extra.get("job_title", ""),
+            "department_snapshot": emp.extra.get("department", ""),
+            "employment_start_date_snapshot": emp.extra.get("employment_start_date"),
+            "branch_name_snapshot": _BRANCH_NAME_BY_ID[emp.branch],
         }
+        if request_kind == "letter" and letter_type in {
+            "salary_certificate_bank",
+            "salary_certificate_embassy",
+            "salary_transfer_letter",
+        }:
+            values["basic_salary_snapshot"] = emp.extra.get("basic_salary", Decimal("10000.00"))
+            values["allowance_snapshot"] = emp.extra.get("allowance", Decimal("300.00"))
         if status in {"completed", "rejected"}:
             values["actioned_at"] = c.CLOCK_TIMESTAMP
             values["actioned_by_app_user_id"] = c.ADMIN_APP_USER[emp.company]

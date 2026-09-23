@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Mail, Clock, CheckCircle, XCircle, Send, Download } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
-import { getMyLetterRequests } from '../../utils/letterStorage';
+import { getMyLetterRequests, submitLetterRequest } from '../../utils/letterStorage';
 import { LETTER_TYPES, printLetter } from '../../utils/letterTemplates';
 import { formatDateUAE } from '../../utils/uaeValidators';
 import { getMyEmployeeRecord, getMyCompany } from '../../utils/profileStorage';
@@ -65,16 +64,7 @@ export default function EmpRequests() {
     }
     setSubmitting(true);
     try {
-      const { error } = form.kind === REQUEST_KINDS.CUSTOM
-        ? await supabase.rpc('employee_request_custom', {
-            p_subject: form.subject.trim(),
-            p_details: form.details.trim(),
-          })
-        : await supabase.rpc('employee_request_letter', {
-            p_letter_type: form.type,
-            p_purpose:     form.purpose,
-          });
-      if (error) throw error;
+      await submitLetterRequest();
       setForm({ kind: form.kind, type: LETTER_TYPES[0], purpose: '', subject: '', details: '' });
       await load();
       showToast('success', form.kind === REQUEST_KINDS.CUSTOM

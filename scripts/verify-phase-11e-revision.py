@@ -14,6 +14,7 @@ REVISION = (
 )
 REVISION_ID = "a1c3e5f7b9d4"
 PREDECESSOR = "f0b2c4d6e8a3"
+CURRENT_HEAD = "b2d4f6a8c0e5"
 
 
 def require(path: Path, *fragments: str) -> str:
@@ -117,7 +118,7 @@ def verify_database(mode: str) -> None:
             assert "updated_at" not in section_columns
             assert "template_version" not in appraisal_columns
         elif mode == "head":
-            assert version == REVISION_ID
+            assert version == CURRENT_HEAD
             assert "updated_at" in cycle_columns
             assert "updated_at" in section_columns
             assert "template_version" in appraisal_columns

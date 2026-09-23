@@ -134,6 +134,24 @@ def verify_database() -> None:
             .lower()
         )
         wrapped_audit_function = audit_function
+        if "_append_audit_event_phase11f_prior" in wrapped_audit_function:
+            for action in (
+                "letter_submitted",
+                "letter_completed",
+                "letter_rejected",
+            ):
+                assert action in wrapped_audit_function
+            wrapped_audit_function = (
+                connection.execute(
+                    text(
+                        "SELECT pg_catalog.pg_get_functiondef("
+                        "'public._append_audit_event_phase11f_prior"
+                        "(text,text,uuid,text[],text,jsonb)'::regprocedure)"
+                    )
+                )
+                .scalar_one()
+                .lower()
+            )
         if "_append_audit_event_phase11e_prior" in wrapped_audit_function:
             for action in (
                 "appraisal_cycle_created",
@@ -415,6 +433,7 @@ def verify_database() -> None:
         assert "branch_created" in audit_predecessor and "branch_deleted" in audit_predecessor
         assert "employee_branch_corrected" in audit_predecessor
         for signature in (
+            "public._append_audit_event_phase11f_prior(text,text,uuid,text[],text,jsonb)",
             "public._append_audit_event_phase11e_prior(text,text,uuid,text[],text,jsonb)",
             "public._append_audit_event_phase11d_prior(text,text,uuid,text[],text,jsonb)",
             "public._append_audit_event_phase11c_prior(text,text,uuid,text[],text,jsonb)",

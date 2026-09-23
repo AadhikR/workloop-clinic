@@ -51,7 +51,7 @@ test('Phase 11A contract documents exist and close every planned domain', () => 
   assert.match(completion, /project owner approved decisions/i);
 });
 
-test('Phase 11 cutover records reflect implementation through Part 11E', () => {
+test('Phase 11 cutover records reflect implementation through Part 11F', () => {
   const goldenCaseCount = read(documents.golden).match(/`11A-G-[A-Z]+-\d+`/g)?.length ?? 0;
   assert.equal(goldenCaseCount, 45);
 
@@ -70,6 +70,7 @@ test('Phase 11 cutover records reflect implementation through Part 11E', () => {
       'training-certifications-cme',
       'appraisals',
       'clinical-incidents',
+      'letter-requests',
     ]).has(featureId);
     assert.equal(record.status.current, implemented ? 'completed' : 'preparation');
     const authority = implemented ? 'migration-fastapi' : 'legacy-supabase';
