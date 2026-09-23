@@ -298,7 +298,7 @@ jobs:
           docker compose --profile tools run --rm --env PYTHONPATH=/app --volume ./scripts:/verification:ro migrate python /verification/verify-phase-11c-revision.py predecessor
           docker compose --profile tools run --rm migrate
           docker compose --profile tools run --rm --env PYTHONPATH=/app --volume ./scripts:/verification:ro migrate python /verification/verify-phase-11c-revision.py head
-      - name: Verify Phase 11D exact predecessor
+      - name: Verify Phase 11D exact predecessor and head
         if: needs.changes.outputs.database_deep == 'true'
         run: |
           docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini downgrade e9a1b3d5f7c2
