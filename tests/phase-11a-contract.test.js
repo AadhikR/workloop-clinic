@@ -61,7 +61,12 @@ test('Phase 11 cutover records reflect only completed implementation parts', () 
     const evidence = JSON.parse(read(record.refresh.lastRefresh.evidence.path));
     assert.equal(record.featureId, featureId);
     assert.equal(record.dataClassification, 'synthetic');
-    const implemented = featureId === 'common-storage-recovery';
+    const implemented = new Set([
+      'common-storage-recovery',
+      'employee-documents',
+      'insurance',
+      'employment-contracts',
+    ]).has(featureId);
     assert.equal(record.status.current, implemented ? 'completed' : 'preparation');
     const authority = implemented ? 'migration-fastapi' : 'legacy-supabase';
     assert.deepEqual(record.authority, {

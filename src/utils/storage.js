@@ -244,27 +244,8 @@ export async function createPayslipRecords(payroll) {
  * Returns all documents for a specific employee, each with a 1-hour signed URL.
  */
 export async function getEmployeeDocuments(employeeId) {
-  const { data, error } = await supabase
-    .from('employee_documents')
-    .select('*')
-    .eq('employee_id', employeeId)
-    .order('uploaded_at', { ascending: false });
-
-  if (error) { console.error('getEmployeeDocuments:', error); return []; }
-
-  // Generate a signed URL for each file so the browser can open/download it.
-  const docs = await Promise.all((data || []).map(async row => {
-    const doc = dbToDocument(row);
-    if (row.storage_path) {
-      const { data: signed } = await supabase.storage
-        .from('employee-documents')
-        .createSignedUrl(row.storage_path, 3600); // valid for 1 hour
-      doc.signedUrl = signed?.signedUrl ?? '';
-    }
-    return doc;
-  }));
-
-  return docs;
+  void employeeId;
+  throw new Error('Employee documents have moved to the migration records and benefits workspace.');
 }
 
 /**
@@ -306,55 +287,16 @@ export async function getAllJobHistory() {
  * Returns the saved document record (with signedUrl populated).
  */
 export async function uploadEmployeeDocument(employeeId, file, documentType, expiryDate, notes, documentNumber) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-
-  // Sanitise filename and build a unique storage path scoped to this admin's user_id.
-  const safeName    = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const storagePath = `${user.id}/${employeeId}/${Date.now()}_${safeName}`;
-
-  const { error: uploadErr } = await supabase.storage
-    .from('employee-documents')
-    .upload(storagePath, file, { cacheControl: '3600', upsert: false });
-
-  if (uploadErr) throw uploadErr;
-
-  const { data, error } = await supabase
-    .from('employee_documents')
-    .insert({
-      user_id:         user.id,
-      employee_id:     employeeId,
-      document_type:   documentType,
-      document_number: documentNumber || '',
-      file_name:       file.name,
-      file_size:       file.size,
-      storage_path:    storagePath,
-      expiry_date:     expiryDate || null,
-      notes:           notes || '',
-    })
-    .select()
-    .single();
-
-  if (error) throw error;
-
-  const doc = dbToDocument(data);
-  const { data: signed } = await supabase.storage
-    .from('employee-documents')
-    .createSignedUrl(storagePath, 3600);
-  doc.signedUrl = signed?.signedUrl ?? '';
-
-  return doc;
+  void employeeId; void file; void documentType; void expiryDate; void notes; void documentNumber;
+  throw new Error('Employee documents have moved to the migration records and benefits workspace.');
 }
 
 /**
  * Deletes a document from both Supabase Storage and the employee_documents table.
  */
 export async function deleteEmployeeDocument(id, storagePath) {
-  if (storagePath) {
-    await supabase.storage.from('employee-documents').remove([storagePath]);
-  }
-  const { error } = await supabase.from('employee_documents').delete().eq('id', id);
-  if (error) throw error;
+  void id; void storagePath;
+  throw new Error('Employee documents have moved to the migration records and benefits workspace.');
 }
 
 function dbToDocument(row) {
@@ -378,20 +320,14 @@ function dbToDocument(row) {
 
 /** HR verifies a pending employee-submitted document. */
 export async function verifyEmployeeDocument(docId) {
-  const { error } = await supabase
-    .from('employee_documents')
-    .update({ status: 'verified', rejection_reason: '' })
-    .eq('id', docId);
-  if (error) throw error;
+  void docId;
+  throw new Error('Employee documents have moved to the migration records and benefits workspace.');
 }
 
 /** HR rejects a pending employee-submitted document with a reason. */
 export async function rejectEmployeeDocument(docId, reason) {
-  const { error } = await supabase
-    .from('employee_documents')
-    .update({ status: 'rejected', rejection_reason: reason || '' })
-    .eq('id', docId);
-  if (error) throw error;
+  void docId; void reason;
+  throw new Error('Employee documents have moved to the migration records and benefits workspace.');
 }
 
 // ─── INSURANCE POLICIES ─────────────────────────────────────────────────────
@@ -412,40 +348,16 @@ export async function getInsurancePolicies() {
  * Saves (upserts) an insurance policy. Returns the saved record.
  */
 export async function saveInsurancePolicy(policy) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-
-  const row = {
-    user_id:        user.id,
-    insurer_name:   policy.insurerName ?? '',
-    policy_number:  policy.policyNumber ?? '',
-    tier_name:      policy.tierName ?? '',
-    annual_premium: parseFloat(policy.annualPremium) || 0,
-    renewal_date:   policy.renewalDate || null,
-    broker_name:    policy.brokerName ?? '',
-    broker_contact: policy.brokerContact ?? '',
-    notes:          policy.notes ?? '',
-  };
-
-  if (policy.id) {
-    const { data, error } = await supabase
-      .from('insurance_policies').update(row).eq('id', policy.id).select().single();
-    if (error) throw error;
-    return dbToInsurancePolicy(data);
-  } else {
-    const { data, error } = await supabase
-      .from('insurance_policies').insert(row).select().single();
-    if (error) throw error;
-    return dbToInsurancePolicy(data);
-  }
+  void policy;
+  throw new Error('Insurance administration has moved to the migration records and benefits workspace.');
 }
 
 /**
  * Deletes an insurance policy by id.
  */
 export async function deleteInsurancePolicy(id) {
-  const { error } = await supabase.from('insurance_policies').delete().eq('id', id);
-  if (error) throw error;
+  void id;
+  throw new Error('Insurance administration has moved to the migration records and benefits workspace.');
 }
 
 // ─── EMPLOYEE INSURANCE ──────────────────────────────────────────────────────
@@ -466,13 +378,8 @@ export async function getAllEmployeeInsurance() {
  * Returns the insurance record for a specific employee (or null if not assigned).
  */
 export async function getEmployeeInsurance(employeeId) {
-  const { data, error } = await supabase
-    .from('employee_insurance')
-    .select('*')
-    .eq('employee_id', employeeId)
-    .maybeSingle();
-  if (error) { console.error('getEmployeeInsurance:', error); return null; }
-  return data ? dbToEmployeeInsurance(data) : null;
+  void employeeId;
+  throw new Error('Insurance administration has moved to the migration records and benefits workspace.');
 }
 
 /**
@@ -480,27 +387,8 @@ export async function getEmployeeInsurance(employeeId) {
  * Uses UNIQUE (user_id, employee_id) — one record per employee.
  */
 export async function saveEmployeeInsurance(insurance) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-
-  const row = {
-    user_id:        user.id,
-    employee_id:    insurance.employeeId,
-    policy_id:      insurance.policyId || null,
-    member_id:      insurance.memberId ?? '',
-    card_number:    insurance.cardNumber ?? '',
-    effective_date: insurance.effectiveDate || null,
-    expiry_date:    insurance.expiryDate || null,
-    tier_name:      insurance.tierName ?? '',
-  };
-
-  const { data, error } = await supabase
-    .from('employee_insurance')
-    .upsert(row, { onConflict: 'user_id,employee_id' })
-    .select()
-    .single();
-  if (error) throw error;
-  return dbToEmployeeInsurance(data);
+  void insurance;
+  throw new Error('Insurance administration has moved to the migration records and benefits workspace.');
 }
 
 // ─── INSURANCE DEPENDANTS ────────────────────────────────────────────────────
@@ -509,50 +397,24 @@ export async function saveEmployeeInsurance(insurance) {
  * Returns all dependants for a specific employee.
  */
 export async function getInsuranceDependants(employeeId) {
-  const { data, error } = await supabase
-    .from('insurance_dependants')
-    .select('*')
-    .eq('employee_id', employeeId)
-    .order('created_at', { ascending: true });
-  if (error) { console.error('getInsuranceDependants:', error); return []; }
-  return (data || []).map(dbToInsuranceDependant);
+  void employeeId;
+  throw new Error('Insurance administration has moved to the migration records and benefits workspace.');
 }
 
 /**
  * Saves (inserts or updates) an insurance dependant.
  */
 export async function saveInsuranceDependant(dependant) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-
-  const row = {
-    user_id:       user.id,
-    employee_id:   dependant.employeeId,
-    name:          dependant.name ?? '',
-    relationship:  dependant.relationship ?? '',
-    date_of_birth: dependant.dateOfBirth || null,
-    card_number:   dependant.cardNumber ?? '',
-  };
-
-  if (dependant.id) {
-    const { data, error } = await supabase
-      .from('insurance_dependants').update(row).eq('id', dependant.id).select().single();
-    if (error) throw error;
-    return dbToInsuranceDependant(data);
-  } else {
-    const { data, error } = await supabase
-      .from('insurance_dependants').insert(row).select().single();
-    if (error) throw error;
-    return dbToInsuranceDependant(data);
-  }
+  void dependant;
+  throw new Error('Insurance administration has moved to the migration records and benefits workspace.');
 }
 
 /**
  * Deletes an insurance dependant by id.
  */
 export async function deleteInsuranceDependant(id) {
-  const { error } = await supabase.from('insurance_dependants').delete().eq('id', id);
-  if (error) throw error;
+  void id;
+  throw new Error('Insurance administration has moved to the migration records and benefits workspace.');
 }
 
 function dbToInsurancePolicy(row) {
@@ -897,13 +759,8 @@ function dbToOffboardingTask(row) {
  * Returns the contract history for a specific employee, newest first.
  */
 export async function getEmployeeContracts(employeeId) {
-  const { data, error } = await supabase
-    .from('employee_contracts')
-    .select('*')
-    .eq('employee_id', employeeId)
-    .order('created_at', { ascending: false });
-  if (error) { console.error('getEmployeeContracts:', error); return []; }
-  return (data || []).map(dbToContract);
+  void employeeId;
+  throw new Error('Employment contracts have moved to the migration records and benefits workspace.');
 }
 
 /**
@@ -911,28 +768,8 @@ export async function getEmployeeContracts(employeeId) {
  * action: 'new' | 'renewed' | 'converted' | 'not_renewed'
  */
 export async function saveEmployeeContract(contract) {
-  const user = await getSessionUser();
-  if (!user) throw new Error('Not authenticated');
-
-  const row = {
-    user_id:       user.id,
-    employee_id:   contract.employeeId,
-    contract_type: contract.contractType ?? 'Limited',
-    start_date:    contract.startDate || null,
-    end_date:      contract.endDate || null,
-    renewed_at:    new Date().toISOString(),
-    renewed_by:    contract.renewedBy || user.email || user.id,
-    action:        contract.action ?? 'new',
-    notes:         contract.notes ?? '',
-  };
-
-  const { data, error } = await supabase
-    .from('employee_contracts')
-    .insert(row)
-    .select()
-    .single();
-  if (error) throw error;
-  return dbToContract(data);
+  void contract;
+  throw new Error('Employment contracts have moved to the migration records and benefits workspace.');
 }
 
 function dbToContract(row) {

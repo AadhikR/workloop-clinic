@@ -24,6 +24,7 @@ import LeaveOverview from './LeaveOverview.jsx'
 import Payroll from './Payroll.jsx'
 import Payslips from './Payslips.jsx'
 import WpsNafis from './WpsNafis.jsx'
+import RecordsBenefits from './RecordsBenefits.jsx'
 
 function OrganizationSummary({ account, authentication }) {
   const organization = useCompanyContext()
@@ -77,6 +78,11 @@ function OrganizationSummary({ account, authentication }) {
       />
       <Payslips account={account} authentication={authentication} />
       <WpsNafis
+        account={account}
+        authentication={authentication}
+        branchId={organization.selectedBranch.id}
+      />
+      <RecordsBenefits
         account={account}
         authentication={authentication}
         branchId={organization.selectedBranch.id}

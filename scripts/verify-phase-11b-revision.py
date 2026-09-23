@@ -11,6 +11,7 @@ from sqlalchemy import create_engine, inspect, text
 
 REVISION = "d8f0a2c4e6b1"
 PREDECESSOR = "c6e8a1b3d927"
+CURRENT_HEAD = "e9a1b3d5f7c2"
 
 
 def verify_static(repository: Path) -> None:
@@ -73,7 +74,7 @@ def verify_database(mode: str) -> None:
             assert "file_security_scan_id" not in receipt_columns
             assert "file_security_scan" not in actor_key
         elif mode == "head":
-            assert version == REVISION
+            assert version == CURRENT_HEAD
             assert "file_security_scans" in tables
             assert "file_security_scan_id" in leave_columns
             assert "file_security_scan_id" in receipt_columns

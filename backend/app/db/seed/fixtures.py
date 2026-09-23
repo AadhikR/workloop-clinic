@@ -1701,9 +1701,9 @@ def _document_and_benefit_rows() -> list[Row]:
             "employee_id": emp.id,
             "document_type": doc_type,
             "document_number": f"SYNTH-DOC-{index + 1:03d}",
-            "file_name": "fake-document.pdf",
-            "file_size": 512,
-            "storage_path": f"fixtures/{emp.company}/{employee}/{doc_type}/fake-document.pdf",
+            "file_name": None,
+            "file_size": None,
+            "storage_path": None,
             "expiry_date": expiry,
             "status": status,
             "submitted_by": "employee" if status == "pending_verification" else "hr",
@@ -1715,7 +1715,6 @@ def _document_and_benefit_rows() -> list[Row]:
         if status == "rejected":
             values["rejection_reason"] = "The uploaded copy is unreadable"
         if doc_type == "other":
-            values["storage_path"] = "fixtures/missing-object/fake-document.pdf"
             values["notes"] = "Metadata-only missing-object control"
         rows.append(Row("employee_documents", values))
 

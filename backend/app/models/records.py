@@ -39,6 +39,20 @@ class EmployeeDocument(Base):
             ondelete="RESTRICT",
         ),
         ForeignKeyConstraint(["reviewed_by_app_user_id"], ["app_users.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(
+            ["file_security_scan_id", "company_id", "branch_id"],
+            [
+                "file_security_scans.id",
+                "file_security_scans.company_id",
+                "file_security_scans.branch_id",
+            ],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["created_by_app_user_id", "company_id"],
+            ["user_profiles.app_user_id", "user_profiles.company_id"],
+            ondelete="RESTRICT",
+        ),
         CheckConstraint("file_size >= 0", name="file_size"),
         CheckConstraint(
             "status IN ('pending_verification', 'verified', 'rejected')", name="status"
@@ -64,9 +78,17 @@ class EmployeeDocument(Base):
     employee_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     document_type: Mapped[str] = mapped_column(Text(), nullable=False)
     document_number: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("''"))
-    file_name: Mapped[str] = mapped_column(Text(), nullable=False)
-    file_size: Mapped[int] = mapped_column(Integer(), nullable=False, server_default=text("0"))
-    storage_path: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("''"))
+    file_name: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    file_size: Mapped[int | None] = mapped_column(Integer(), nullable=True)
+    storage_path: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    content_type: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    sha256: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    file_security_scan_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
+    created_by_app_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
     expiry_date: Mapped[date | None] = mapped_column(Date(), nullable=True)
     notes: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("''"))
     status: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("'verified'"))
@@ -78,6 +100,15 @@ class EmployeeDocument(Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     uploaded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("statement_timestamp()")
+    )
+    cleanup_requested_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    upload_claimed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )
 
 
@@ -114,6 +145,9 @@ class InsurancePolicy(Base):
     notes: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("''"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("statement_timestamp()")
     )
 
 
@@ -163,6 +197,9 @@ class EmployeeInsurance(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("statement_timestamp()")
+    )
 
 
 class InsuranceDependant(Base):
@@ -194,6 +231,9 @@ class InsuranceDependant(Base):
     card_number: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("''"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("statement_timestamp()")
     )
 
 

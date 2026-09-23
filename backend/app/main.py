@@ -25,6 +25,8 @@ from app.db.authorization_context import AuthorizationTransactionFactory
 from app.db.engine import create_database_engine, probe_database
 from app.department_api import router as department_router
 from app.employee_api import router as employee_router
+from app.employee_document_api import router as employee_document_router
+from app.employment_contract_api import router as employment_contract_router
 from app.expense_api import router as expense_router
 from app.http.errors import (
     api_error,
@@ -37,6 +39,7 @@ from app.http.rate_limit import ConfigurableRateLimiter, RateLimiter
 from app.http.sample_schemas import CurrentAccountResponse, PublicStatusResponse
 from app.http.schemas import DataResponse
 from app.idempotency_api import router as idempotency_router
+from app.insurance_api import router as insurance_router
 from app.leave_approval_api import router as leave_approval_router
 from app.leave_attachment_api import router as leave_attachment_router
 from app.leave_balance_api import router as leave_balance_router
@@ -222,6 +225,9 @@ def create_app(
     )
     application.include_router(organization_router)
     application.include_router(employee_router)
+    application.include_router(employee_document_router)
+    application.include_router(employment_contract_router)
+    application.include_router(insurance_router)
     application.include_router(expense_router)
     application.include_router(advance_router)
     application.include_router(payroll_router)
