@@ -147,8 +147,8 @@ BEGIN
     VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000021', 'Schema certification', 'Schema authority', 'pending_review');
   INSERT INTO cme_requirements (company_id, branch_id, employee_id, year)
     VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000021', 2026);
-  INSERT INTO incident_reports (company_id, branch_id, incident_date)
-    VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', '2026-01-06');
+  INSERT INTO incident_reports (company_id, branch_id, incident_date, description)
+    VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', '2026-01-06', 'Schema incident');
   INSERT INTO letter_requests (company_id, branch_id, employee_id, letter_type)
     VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000021', 'salary_certificate');
   INSERT INTO appraisal_cycles (id, company_id, branch_id, name, review_from, review_to)
