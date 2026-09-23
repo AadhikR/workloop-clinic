@@ -131,11 +131,14 @@ def validate(
         if got != want:
             raise RuntimeError(f"{table_name}: expected {want} fixture rows, found {got}")
 
-    _validate_scope_controls(connection)
+    _validate_scope_controls(connection, available_columns)
     _validate_notification_dedup(connection, rows)
 
 
-def _validate_scope_controls(connection: Connection) -> None:
+def _validate_scope_controls(
+    connection: Connection,
+    available_columns: Mapping[str, Collection[str]] | None = None,
+) -> None:
     employees = Base.metadata.tables["employees"]
     incidents = Base.metadata.tables["incident_reports"]
     rosters = Base.metadata.tables["roster_assignments"]
@@ -193,10 +196,13 @@ def _validate_scope_controls(connection: Connection) -> None:
         },
     ]
     table = Base.metadata.tables["letter_requests"]
+    columns = None if available_columns is None else available_columns["letter_requests"]
     for values in probes:
         try:
             with connection.begin_nested():
-                connection.execute(insert(table).values(**_coerce("letter_requests", values)))
+                connection.execute(
+                    insert(table).values(**_coerce("letter_requests", values, columns))
+                )
         except IntegrityError:
             continue
         raise RuntimeError("a cross-scope fixture row bypassed the composite employee constraint")
