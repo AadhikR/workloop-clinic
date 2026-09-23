@@ -193,7 +193,8 @@ corrected three-role browser journey, cleanup, and safe logs. All 605 backend te
 tests passed. The isolated stack preserved its database fingerprint, Keycloak signing keys, stored
 objects, and scan state across restart before the browser journey ran.
 
-GitHub must still pass every routed job before Phase 11 signoff is requested.
+GitHub Migration foundation run `35911809133` passed every routed job on 2026-09-24. The remaining
+Phase 11 completion condition is explicit project-owner signoff.
 
 Only synthetic local data and disposable Phase 11H resources are permitted. The protected
 `workloop-clinic_postgres_data` volume must not be attached, modified, deleted, or recreated.
