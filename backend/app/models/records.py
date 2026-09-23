@@ -852,6 +852,10 @@ class AppraisalCycle(Base):
             "status <> 'closed' OR (closed_by_app_user_id IS NOT NULL AND closed_at IS NOT NULL)",
             name="closed_fields",
         ),
+        CheckConstraint(
+            "octet_length(btrim(name)) BETWEEN 1 AND 180",
+            name="phase11e_lengths",
+        ),
         Index("ix_appraisal_cycles_branch_id_status", "branch_id", "status"),
     )
 
@@ -914,6 +918,15 @@ class Appraisal(Base):
             "AND reviewed_at IS NOT NULL)",
             name="review_fields",
         ),
+        CheckConstraint(
+            "template_version ~ '^[a-z][a-z0-9-]{0,31}$'",
+            name="phase11e_template_version",
+        ),
+        CheckConstraint(
+            "octet_length(COALESCE(reviewer_comments,''))<=10000 "
+            "AND octet_length(COALESCE(development_plan,''))<=10000",
+            name="phase11e_lengths",
+        ),
         Index("ix_appraisals_cycle_id", "cycle_id"),
         Index("ix_appraisals_employee_id", "employee_id"),
         Index("ix_appraisals_branch_id_status", "branch_id", "status"),
@@ -968,6 +981,10 @@ class AppraisalSection(Base):
         CheckConstraint("weight > 0", name="weight"),
         CheckConstraint("rating IS NULL OR rating BETWEEN 1 AND 5", name="rating"),
         CheckConstraint("self_rating IS NULL OR self_rating BETWEEN 1 AND 5", name="self_rating"),
+        CheckConstraint(
+            "octet_length(COALESCE(comments,''))<=10000",
+            name="phase11e_lengths",
+        ),
         Index("ix_appraisal_sections_appraisal_id_sort_order", "appraisal_id", "sort_order"),
         Index("ix_appraisal_sections_company_id_branch_id", "company_id", "branch_id"),
     )
@@ -1066,6 +1083,21 @@ class IncidentReport(Base):
         CheckConstraint(
             "status <> 'closed' OR (closed_by_app_user_id IS NOT NULL AND closed_date IS NOT NULL)",
             name="closed_fields",
+        ),
+        CheckConstraint(
+            "octet_length(description) BETWEEN 1 AND 10000 "
+            "AND octet_length(location)<=180 AND octet_length(department)<=180 "
+            "AND octet_length(immediate_action)<=10000 AND octet_length(root_cause)<=10000 "
+            "AND octet_length(corrective_action)<=10000 AND octet_length(notes)<=10000",
+            name="phase11e_lengths",
+        ),
+        CheckConstraint(
+            "status<>'investigating' OR btrim(root_cause)<>''",
+            name="phase11e_workflow",
+        ),
+        CheckConstraint(
+            "status<>'closed' OR (btrim(root_cause)<>'' AND btrim(corrective_action)<>'')",
+            name="phase11e_closed_evidence",
         ),
         Index("ix_incident_reports_branch_id_incident_date", "branch_id", "incident_date"),
         Index("ix_incident_reports_status", "status"),
