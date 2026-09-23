@@ -61,8 +61,8 @@ consumes is stable. The last part reviews the whole boundary independently.
 | 11A | Contracts, dependency inventory, golden cases, amendments, and cutover decisions | Complete; approved on 2026-09-22; GitHub run `35745180197` passed |
 | 11B | Common private storage, malware boundary, recovery, backup, and operator proof | Complete; routed GitHub checks passed |
 | 11C | Employee documents, insurance, and employment-contract lifecycle | Complete; GitHub run `35820870386` passed |
-| 11D | Assets, training, certifications, certificate files, and CME | Sequentially authorized; next |
-| 11E | Appraisals and clinical incidents | Sequentially authorized |
+| 11D | Assets, training, certifications, certificate files, and CME | Complete; GitHub run `35838026271` passed |
+| 11E | Appraisals and clinical incidents | Sequentially authorized; next |
 | 11F | Letter and custom requests, decisions, and print projection | Sequentially authorized |
 | 11G | Offboarding, checklist execution, final settlement, and completion | Sequentially authorized |
 | 11H | Independent review, complete cutover proof, and Phase 11 gate | Sequentially authorized |
