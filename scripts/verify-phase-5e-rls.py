@@ -7,6 +7,10 @@ from datetime import date
 from typing import Any, cast
 
 import psycopg
+from sqlalchemy import create_engine, inspect
+from sqlalchemy.engine import URL, Connection
+from sqlalchemy.ext.asyncio import create_async_engine
+
 from app.auth.application_user import (
     ApplicationUserResolver,
     ApplicationUserUnavailableError,
@@ -23,9 +27,6 @@ from app.db.seed import constants as c
 from app.db.seed.fixtures import Row, build_rows
 from app.db.seed.runner import apply_rows, clean, validate
 from app.models.identity import AccountStatus, AppRole
-from sqlalchemy import create_engine, inspect
-from sqlalchemy.engine import Connection, URL
-from sqlalchemy.ext.asyncio import create_async_engine
 
 RLS_TABLES = (
     "companies",
@@ -175,6 +176,25 @@ def revision_columns(connection: Connection, rows: list[Row]) -> dict[str, froze
         table: frozenset(column["name"] for column in inspector.get_columns(table))
         for table in sorted({row.table for row in rows})
     }
+
+
+def rows_for_revision(rows: list[Row], available_columns: dict[str, frozenset[str]]) -> list[Row]:
+    if "content_type" in available_columns["employee_documents"]:
+        return rows
+
+    projected: list[Row] = []
+    for row in rows:
+        if row.table != "employee_documents" or row.values.get("file_name") is not None:
+            projected.append(row)
+            continue
+        values = dict(row.values)
+        values.update(
+            file_name="legacy-unavailable.pdf",
+            file_size=0,
+            storage_path="",
+        )
+        projected.append(Row(row.table, values, row.conflict))
+    return projected
 
 
 def row_values(table: str, **matches: object) -> dict[str, object]:
@@ -1097,6 +1117,7 @@ def main() -> None:
     try:
         with engine.begin() as connection:
             available_columns = revision_columns(connection, rows)
+            rows = rows_for_revision(rows, available_columns)
             apply_rows(connection, rows, available_columns=available_columns)
             validate(connection, rows, available_columns=available_columns)
         verify_catalog(engine)
