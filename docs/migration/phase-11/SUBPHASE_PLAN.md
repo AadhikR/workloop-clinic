@@ -62,10 +62,14 @@ consumes is stable. The last part reviews the whole boundary independently.
 | 11B | Common private storage, malware boundary, recovery, backup, and operator proof | Complete; routed GitHub checks passed |
 | 11C | Employee documents, insurance, and employment-contract lifecycle | Complete; GitHub run `35820870386` passed |
 | 11D | Assets, training, certifications, certificate files, and CME | Complete; GitHub run `35838026271` passed |
-| 11E | Appraisals and clinical incidents | Sequentially authorized; next |
-| 11F | Letter and custom requests, decisions, and print projection | Sequentially authorized |
+| 11E | Appraisals and clinical incidents | Complete; GitHub run `35859385540` passed |
+| 11F | Letter and custom requests, decisions, and print projection | Sequentially authorized; next |
 | 11G | Offboarding, checklist execution, final settlement, and completion | Sequentially authorized |
 | 11H | Independent review, complete cutover proof, and Phase 11 gate | Sequentially authorized |
+
+Part 11E implementation and verifier fixes are recorded in commits `4139fe3`, `f84e402`, `df469c9`,
+`0bc17d0`, `b4aa7a6`, `93c349c`, `5b2c292`, `56ebce2`, and `2b4dc6c`. GitHub Migration foundation
+run `35859385540` passed every routed job, including the deep database-boundary step.
 
 ## Rules shared by every part
 
