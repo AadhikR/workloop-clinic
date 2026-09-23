@@ -137,6 +137,7 @@ def expected_policies() -> set[tuple[str, str, str, str]]:
         )
         for table, commands in COMMANDS.items()
         for command in commands
+        if not (table == "employee_documents" and command == "DELETE")
     }
     for table in EXPIRY_TABLES:
         expected.add(
@@ -204,7 +205,21 @@ def verify_catalog(engine: Any) -> None:
             )
         }
         assert policies == expected_policies()
-        assert len(policies) == 69
+        assert len(policies) == 68
+        document_successor_policies = set(
+            connection.execute(
+                text(
+                    "SELECT policyname FROM pg_catalog.pg_policies "
+                    "WHERE schemaname='public' AND tablename='employee_documents' "
+                    "AND policyname LIKE 'phase11c_%'"
+                )
+            ).scalars()
+        )
+        assert document_successor_policies == {
+            "phase11c_employee_documents_delete_runtime",
+            "phase11c_employee_documents_self_cleanup_runtime",
+            "phase11c_employee_documents_self_upload_runtime",
+        }
         for row in connection.execute(
             text(
                 "SELECT cmd,permissive,qual,with_check FROM pg_catalog.pg_policies WHERE schemaname='public' AND policyname LIKE 'phase5g_%'"
@@ -296,7 +311,10 @@ WHERE schemaname='public' AND policyname NOT LIKE 'phase5%'
     'phase8e_prior_leave_requests_update_runtime',
     'phase10i_shift_swap_requests_select_runtime',
     'phase10i_shift_swap_requests_insert_runtime',
-    'phase10i_shift_swap_requests_update_runtime'
+    'phase10i_shift_swap_requests_update_runtime',
+    'phase11c_employee_documents_delete_runtime',
+    'phase11c_employee_documents_self_cleanup_runtime',
+    'phase11c_employee_documents_self_upload_runtime'
   )
 """
             )

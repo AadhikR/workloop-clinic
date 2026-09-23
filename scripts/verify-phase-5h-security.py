@@ -149,6 +149,33 @@ def verify_database() -> None:
             .lower()
         )
         wrapped_audit_function = audit_function
+        if "_append_audit_event_phase11c_prior" in wrapped_audit_function:
+            for action in (
+                "employee_document_uploaded",
+                "employee_document_verified",
+                "employee_document_rejected",
+                "employee_document_cleanup_requested",
+                "insurance_policy_created",
+                "insurance_policy_updated",
+                "insurance_policy_deleted",
+                "insurance_coverage_replaced",
+                "insurance_dependant_created",
+                "insurance_dependant_updated",
+                "insurance_dependant_deleted",
+                "employment_contract_recorded",
+            ):
+                assert action in wrapped_audit_function
+            wrapped_audit_function = (
+                connection.execute(
+                    text(
+                        "SELECT pg_catalog.pg_get_functiondef("
+                        "'public._append_audit_event_phase11c_prior"
+                        "(text,text,uuid,text[],text,jsonb)'::regprocedure)"
+                    )
+                )
+                .scalar_one()
+                .lower()
+            )
         if "_append_audit_event_phase10c" in wrapped_audit_function:
             for action in (
                 "attendance_manual_event_created",
@@ -363,6 +390,7 @@ def verify_database() -> None:
         )
         assert "employee_branch_corrected" in audit_predecessor
         for signature in (
+            "public._append_audit_event_phase11c_prior(text,text,uuid,text[],text,jsonb)",
             "public._append_audit_event_phase10c(text,text,uuid,text[],text,jsonb)",
             "public._append_audit_event_phase10a(text,text,uuid,text[],text,jsonb)",
             "public._append_audit_event_phase9g_prior(text,text,uuid,text[],text,jsonb)",
