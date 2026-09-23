@@ -64,8 +64,8 @@ consumes is stable. The last part reviews the whole boundary independently.
 | 11D | Assets, training, certifications, certificate files, and CME | Complete; GitHub run `35838026271` passed |
 | 11E | Appraisals and clinical incidents | Complete; GitHub run `35859385540` passed |
 | 11F | Letter and custom requests, decisions, and print projection | Complete; GitHub run `35874371756` passed |
-| 11G | Offboarding, checklist execution, final settlement, and completion | Sequentially authorized; next |
-| 11H | Independent review, complete cutover proof, and Phase 11 gate | Sequentially authorized |
+| 11G | Offboarding, checklist execution, final settlement, and completion | Complete; GitHub run `35900744230` passed |
+| 11H | Independent review, complete cutover proof, and Phase 11 gate | Sequentially authorized; next |
 
 Part 11E implementation and verifier fixes are recorded in commits `4139fe3`, `f84e402`, `df469c9`,
 `0bc17d0`, `b4aa7a6`, `93c349c`, `5b2c292`, `56ebce2`, and `2b4dc6c`. GitHub Migration foundation
@@ -74,6 +74,10 @@ run `35859385540` passed every routed job, including the deep database-boundary 
 Part 11F implementation and compatibility fixes are recorded in commits `0bba46f`, `ed5557c`, and
 `7294af0`. GitHub Migration foundation run `35874371756` passed every routed job, including the deep
 database-boundary step.
+
+Part 11G implementation and compatibility fixes are recorded in commits `1df955f` and `a3c3ac5`.
+GitHub Migration foundation run `35900744230` passed every routed job, including the deep
+database-boundary, restart-preservation, service-health, and cleanup steps.
 
 ## Rules shared by every part
 
