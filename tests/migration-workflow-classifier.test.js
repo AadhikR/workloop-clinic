@@ -53,6 +53,18 @@ test('append-only revisions skip the historical assertions', () => {
   assert.equal(result.database_history, 'false')
 })
 
+test('database and lifecycle verifiers request deep database checks', () => {
+  for (const path of [
+    'scripts/verify-phase-10g-database.py',
+    'scripts/verify-phase-9g-lifecycle.py',
+  ]) {
+    const result = classify(path)
+    assert.equal(result.full_stack, 'true', path)
+    assert.equal(result.database_deep, 'true', path)
+    assert.equal(result.database_history, 'false', path)
+  }
+})
+
 test('edits to existing revisions request the historical assertions', () => {
   for (const status of ['M', 'D', 'R100\tbackend/alembic/versions/old_name.py']) {
     const result = classify(`${status}\tbackend/alembic/versions/example_revision.py`)
