@@ -114,9 +114,9 @@ BEGIN
   IF p_action NOT IN (
     'appraisal_cycle_created','appraisal_cycle_updated','appraisal_cycle_activated',
     'appraisal_cycle_generated','appraisal_cycle_closed','appraisal_cycle_deleted',
-    'appraisal_section_rated','appraisal_reviewed','appraisal_calibrated',
+    'appraisal_section_rated',
     'incident_created','incident_updated','incident_investigated',
-    'incident_corrective_action_recorded','incident_closed') THEN
+    'incident_corrective_action_recorded') THEN
     RETURN public._append_audit_event_phase11e_prior(
       p_action,p_entity_type,p_entity_id,p_changed_fields,p_reason,p_metadata);
   END IF;
@@ -154,16 +154,6 @@ BEGIN
            AND source.branch_id=public.workloop_branch_id()
            AND source.employee_id<>public.workloop_employee_id()
            AND employee.reporting_manager_id=public.workloop_employee_id()) THEN
-      RAISE EXCEPTION 'audit event denied' USING ERRCODE='42501';
-    END IF;
-  ELSIF p_action IN ('appraisal_reviewed','appraisal_calibrated') THEN
-    IF public.workloop_role()<>'admin' OR public.workloop_employee_id() IS NOT NULL
-       OR p_entity_type<>'appraisal'
-       OR EXISTS (SELECT 1 FROM jsonb_object_keys(COALESCE(p_metadata,'{}'::jsonb)) key
-         WHERE key<>'transition')
-       OR NOT EXISTS (SELECT 1 FROM public.appraisals source
-         WHERE source.id=p_entity_id AND source.company_id=public.workloop_company_id()
-           AND source.branch_id=public.workloop_branch_id()) THEN
       RAISE EXCEPTION 'audit event denied' USING ERRCODE='42501';
     END IF;
   ELSIF p_action LIKE 'incident_%' THEN

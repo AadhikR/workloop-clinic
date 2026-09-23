@@ -381,11 +381,14 @@ UPDATE public.incident_reports SET incident_date=:incident_date,incident_time=:i
         from_status: str | None = None,
         to_status: str | None = None,
     ) -> None:
-        metadata: dict[str, object] = {"incident_type": incident_type, "severity": severity}
-        if from_status is not None:
-            metadata["from_status"] = from_status
-        if to_status is not None:
-            metadata["to_status"] = to_status
+        if action == "incident_closed":
+            metadata: dict[str, object] = {"transition": f"{from_status}_to_{to_status}"}
+        else:
+            metadata = {"incident_type": incident_type, "severity": severity}
+            if from_status is not None:
+                metadata["from_status"] = from_status
+            if to_status is not None:
+                metadata["to_status"] = to_status
         await append_audit_event(
             self.connection,
             action=action,

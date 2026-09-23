@@ -488,8 +488,6 @@ ON CONFLICT (appraisal_id,section_name) DO NOTHING
                 "overall_rating",
                 "reviewer_comments",
                 "development_plan",
-                "reviewed_by_app_user_id",
-                "reviewed_at",
             ],
             "Appraisal reviewed",
             {"transition": "pending_to_reviewed"},
@@ -521,7 +519,7 @@ ON CONFLICT (appraisal_id,section_name) DO NOTHING
             "appraisal_calibrated",
             "appraisal",
             appraisal_id,
-            ["status", "overall_rating", "reviewed_by_app_user_id", "reviewed_at"],
+            ["status", "overall_rating"],
             "Appraisal calibrated",
             {"transition": "reviewed_to_calibrated"},
         )
