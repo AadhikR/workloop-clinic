@@ -628,30 +628,33 @@ async def test_email_and_untrusted_authorization_claims_are_not_returned_by_veri
     key = signing_keys[0]
     endpoint = JwksEndpoint({"keys": [make_jwk(key, "current-key")]})
     verifier, client = make_verifier(endpoint, MutableClock())
+    trusted_claims = make_claims()
 
     try:
         first = await verifier.verify(
             make_token(
                 key,
                 "current-key",
-                claims=make_claims(
-                    email="first@example.test",
-                    realm_access={"roles": ["admin"]},
-                    resource_access={"workloop-api": {"roles": ["admin"]}},
-                    company_id="browser-company",
-                    employee_id="browser-employee",
-                ),
+                claims={
+                    **trusted_claims,
+                    "email": "first@example.test",
+                    "realm_access": {"roles": ["admin"]},
+                    "resource_access": {"workloop-api": {"roles": ["admin"]}},
+                    "company_id": "browser-company",
+                    "employee_id": "browser-employee",
+                },
             )
         )
         second = await verifier.verify(
             make_token(
                 key,
                 "current-key",
-                claims=make_claims(
-                    email="changed@example.test",
-                    realm_access={"roles": ["employee"]},
-                    company_id="other-browser-company",
-                ),
+                claims={
+                    **trusted_claims,
+                    "email": "changed@example.test",
+                    "realm_access": {"roles": ["employee"]},
+                    "company_id": "other-browser-company",
+                },
             )
         )
     finally:
