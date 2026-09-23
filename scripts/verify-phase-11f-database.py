@@ -160,16 +160,22 @@ async def main() -> None:
     )
 
     async def complete():
+        public_requested_at = salary_request.requested_at.replace(
+            microsecond=salary_request.requested_at.microsecond // 1000 * 1000
+        )
         return await run(
             admin,
             ADMIN,
             BRANCH_ID,
             lambda connection: LetterRequestService(connection).complete(
-                admin, BRANCH_ID, salary_request.id, salary_request.requested_at
+                admin, BRANCH_ID, salary_request.id, public_requested_at
             ),
         )
 
     async def reject():
+        public_requested_at = salary_request.requested_at.replace(
+            microsecond=salary_request.requested_at.microsecond // 1000 * 1000
+        )
         return await run(
             admin,
             ADMIN,
@@ -178,7 +184,7 @@ async def main() -> None:
                 admin,
                 BRANCH_ID,
                 salary_request.id,
-                salary_request.requested_at,
+                public_requested_at,
                 "Synthetic rejection",
             ),
         )
@@ -211,7 +217,12 @@ async def main() -> None:
             ADMIN,
             BRANCH_ID,
             lambda connection: LetterRequestService(connection).complete(
-                admin, BRANCH_ID, second.id, second.requested_at
+                admin,
+                BRANCH_ID,
+                second.id,
+                second.requested_at.replace(
+                    microsecond=second.requested_at.microsecond // 1000 * 1000
+                ),
             ),
         )
 

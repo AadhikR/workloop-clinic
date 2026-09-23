@@ -65,7 +65,7 @@ consumes is stable. The last part reviews the whole boundary independently.
 | 11E | Appraisals and clinical incidents | Complete; GitHub run `35859385540` passed |
 | 11F | Letter and custom requests, decisions, and print projection | Complete; GitHub run `35874371756` passed |
 | 11G | Offboarding, checklist execution, final settlement, and completion | Complete; GitHub run `35900744230` passed |
-| 11H | Independent review, complete cutover proof, and Phase 11 gate | Sequentially authorized; next |
+| 11H | Independent review, complete cutover proof, and Phase 11 gate | Local gate passed; GitHub checks pending |
 
 Part 11E implementation and verifier fixes are recorded in commits `4139fe3`, `f84e402`, `df469c9`,
 `0bc17d0`, `b4aa7a6`, `93c349c`, `5b2c292`, `56ebce2`, and `2b4dc6c`. GitHub Migration foundation
@@ -78,6 +78,12 @@ database-boundary step.
 Part 11G implementation and compatibility fixes are recorded in commits `1df955f` and `a3c3ac5`.
 GitHub Migration foundation run `35900744230` passed every routed job, including the deep
 database-boundary, restart-preservation, service-health, and cleanup steps.
+
+Part 11H independently traced all 59 inventory entries and 50 golden cases, validated every cutover
+and rollback boundary, and found two high-severity integration gaps. The review added explicit
+three-role Phase 11 browser coverage and aligned letter-request decisions with the public timestamp
+precision. The complete fresh local gate passed after both corrections. Routed GitHub checks remain
+the final technical condition before project-owner signoff is requested.
 
 ## Rules shared by every part
 

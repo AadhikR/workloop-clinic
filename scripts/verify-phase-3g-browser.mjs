@@ -90,6 +90,9 @@ const financialJourney = {
 const phase10Journey = {
   swapId: null,
 }
+const phase11Journey = {
+  requestIds: [],
+}
 let activeStage = 'startup'
 
 function stage(name) {
@@ -573,6 +576,17 @@ function cleanupFixtures() {
       ))
       cleanup(() => psql(
         "SET SESSION AUTHORIZATION workloop_migration; "
+          + "UPDATE offboarding_checklists SET final_settlement_id=NULL "
+          + "WHERE company_id=:'company_id'; "
+          + "DELETE FROM final_settlements WHERE company_id=:'company_id'; "
+          + "DELETE FROM offboarding_tasks WHERE company_id=:'company_id'; "
+          + "DELETE FROM offboarding_checklists WHERE company_id=:'company_id'; "
+          + "DELETE FROM letter_requests WHERE company_id=:'company_id'; "
+          + "RESET SESSION AUTHORIZATION",
+        { company_id: companyId },
+      ))
+      cleanup(() => psql(
+        "SET SESSION AUTHORIZATION workloop_migration; "
           + "DELETE FROM shift_swap_history WHERE company_id = :'company_id'; "
           + "DELETE FROM shift_swap_requests WHERE company_id = :'company_id'; "
           + "UPDATE roster_months SET status='draft',version=0,current_version_id=NULL,"
@@ -732,6 +746,10 @@ function cleanupFixtures() {
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM shifts'), '0'))
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM attendance_periods'), '0'))
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM attendance_settings'), '0'))
+  verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM final_settlements'), '0'))
+  verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM offboarding_tasks'), '0'))
+  verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM offboarding_checklists'), '0'))
+  verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM letter_requests'), '0'))
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM companies'), '0'))
   verifyCleanup(() => run(['exec', '-T', 'keycloak', 'rm', '-f', kcadmConfig]))
   verifyCleanup(() => run(['exec', '-T', 'keycloak', 'test', '!', '-e', kcadmConfig]))
@@ -1933,6 +1951,187 @@ async function assertPhase10BrowserJourney(page, persona) {
   }
 }
 
+async function assertPhase11BrowserJourney(page, persona) {
+  stage(`${persona.role} Phase 11 records and offboarding journey`)
+  if (persona.role === 'admin' && (await page.locator('.branch-chooser').count())) {
+    await page.getByRole('button', { name: 'Phase 3G main', exact: true }).click()
+  }
+  for (const heading of [
+    'Records and benefits',
+    'Assets and professional development',
+    'Appraisals and clinical incidents',
+    'Letter and custom requests',
+  ]) {
+    await page.getByRole('heading', { name: heading, exact: true }).waitFor({ timeout: 20_000 })
+  }
+  if (persona.role === 'admin') {
+    await page.getByRole('heading', { name: 'Offboarding and final settlement' }).waitFor()
+  }
+
+  const result = await page.evaluate(async ({ role, branchId, employeeId }) => {
+    const { authenticationSession } = await import('/src/authSession.js')
+    const {
+      readEmployeeContracts,
+      readEmployeeDocuments,
+      readInsuranceDependants,
+      readInsurancePolicies,
+      readSelfEmployeeDocuments,
+      readSelfInsurance,
+    } = await import('/src/recordsBenefitsApi.js')
+    const {
+      readAppraisalCycles,
+      readAppraisals,
+      readIncidents,
+    } = await import('/src/appraisalsIncidentsApi.js')
+    const {
+      readAssets,
+      readCertifications,
+      readSelfAssets,
+      readSelfCme,
+      readTraining,
+    } = await import('/src/developmentAssetsApi.js')
+    const {
+      decideRequest,
+      readOwnRequests,
+      readPrintSource,
+      readRequestQueue,
+      submitRequest,
+    } = await import('/src/letterRequestsApi.js')
+    const {
+      addTask,
+      deleteTask,
+      initializeChecklist,
+      readChecklists,
+    } = await import('/src/offboardingApi.js')
+    const authentication = authenticationSession()
+    const capture = async (operation) => {
+      try {
+        return { response: await operation() }
+      } catch (error) {
+        return { error: { code: error.code, status: error.status } }
+      }
+    }
+
+    if (role !== 'admin') {
+      const documents = await readSelfEmployeeDocuments(authentication)
+      const insurance = await capture(() => readSelfInsurance(authentication))
+      const assets = await readSelfAssets(authentication)
+      const training = await readTraining(authentication, branchId, 'employee')
+      const certifications = await readCertifications(authentication, branchId, 'employee')
+      const cme = await readSelfCme(authentication, 2026)
+      const ownAppraisals = await readAppraisals(authentication, 'employee')
+      const reportTraining = role === 'manager'
+        ? await readTraining(authentication, branchId, 'manager', employeeId) : null
+      const reportCertifications = role === 'manager'
+        ? await readCertifications(authentication, branchId, 'manager', employeeId) : null
+      const reportAppraisals = role === 'manager'
+        ? await readAppraisals(authentication, 'manager') : null
+      const submitted = await submitRequest(authentication, {
+        requestKind: 'custom',
+        subject: `Browser ${role} request`,
+        details: `Phase 11H ${role} browser boundary proof.`,
+      })
+      const ownRequests = await readOwnRequests(authentication)
+      return {
+        assetCount: assets.items.length,
+        certificationCount: certifications.items.length,
+        cme,
+        documentCount: documents.items.length,
+        insuranceError: insurance.error,
+        ownAppraisalCount: ownAppraisals.length,
+        ownRequestIds: ownRequests.map((item) => item.id),
+        reportAppraisalCount: reportAppraisals?.length ?? null,
+        reportCertificationCount: reportCertifications?.items.length ?? null,
+        reportTrainingCount: reportTraining?.items.length ?? null,
+        submittedId: submitted.id,
+        submittedStatus: submitted.status,
+        trainingCount: training.items.length,
+      }
+    }
+
+    const documents = await readEmployeeDocuments(authentication, branchId, employeeId)
+    const policies = await readInsurancePolicies(authentication, branchId)
+    const dependants = await readInsuranceDependants(authentication, branchId, employeeId)
+    const contracts = await readEmployeeContracts(authentication, branchId, employeeId)
+    const assets = await readAssets(authentication, branchId)
+    const training = await readTraining(authentication, branchId, 'admin', employeeId)
+    const certifications = await readCertifications(
+      authentication, branchId, 'admin', employeeId,
+    )
+    const cycles = await readAppraisalCycles(authentication, branchId)
+    const incidents = await readIncidents(authentication, branchId)
+    const queue = await readRequestQueue(authentication, branchId, { status: 'pending' })
+    const completed = []
+    for (const item of queue) {
+      const decided = await decideRequest(authentication, branchId, item, 'complete')
+      const source = await readPrintSource(authentication, branchId, decided)
+      completed.push({ id: decided.id, sourceId: source.requestId, status: decided.status })
+    }
+    const before = await readChecklists(authentication, branchId)
+    let checklist = await initializeChecklist(authentication, branchId, employeeId)
+    checklist = await addTask(authentication, branchId, checklist, 'Phase 11H browser cleanup')
+    const custom = checklist.tasks.find((task) => task.source === 'custom')
+    if (!custom) throw new Error('Phase 11H custom offboarding task is unavailable')
+    checklist = await deleteTask(authentication, branchId, checklist, custom)
+    const after = await readChecklists(authentication, branchId)
+    return {
+      assetCount: assets.items.length,
+      certificationCount: certifications.items.length,
+      checklistCountBefore: before.length,
+      checklistCountAfter: after.length,
+      completed,
+      contractCount: contracts.items.length,
+      cycleCount: cycles.length,
+      dependantCount: dependants.items.length,
+      documentCount: documents.items.length,
+      incidentCount: incidents.length,
+      policyCount: policies.items.length,
+      remainingCustomTasks: checklist.tasks.filter((task) => task.source === 'custom').length,
+      trainingCount: training.items.length,
+    }
+  }, {
+    role: persona.role,
+    branchId,
+    employeeId: personas[2].employeeId,
+  })
+
+  if (persona.role !== 'admin') {
+    assert.equal(result.documentCount, 0, `${persona.role} document count`)
+    assert.equal(result.assetCount, 0, `${persona.role} asset count`)
+    assert.equal(result.trainingCount, 0, `${persona.role} training count`)
+    assert.equal(result.certificationCount, 0, `${persona.role} certification count`)
+    assert.deepEqual(result.cme, {
+      year: 2026, targetHours: '0.0', achievedHours: '0.0', gapHours: '0.0',
+    })
+    assert.deepEqual(result.insuranceError, { code: 'resource_not_found', status: 404 })
+    assert.equal(result.ownAppraisalCount, 0, `${persona.role} appraisal count`)
+    assert.equal(result.submittedStatus, 'pending', `${persona.role} request status`)
+    assert.ok(result.ownRequestIds.includes(result.submittedId), `${persona.role} request history`)
+    phase11Journey.requestIds.push(result.submittedId)
+    if (persona.role === 'manager') {
+      assert.equal(result.reportTrainingCount, 0, 'manager report training count')
+      assert.equal(result.reportCertificationCount, 0, 'manager report certification count')
+      assert.equal(result.reportAppraisalCount, 0, 'manager report appraisal count')
+    }
+    return
+  }
+
+  for (const [name, value] of Object.entries(result)) {
+    if (name.endsWith('Count') || name.endsWith('CountBefore') || name === 'remainingCustomTasks') {
+      assert.equal(value, 0, `admin ${name}`)
+    }
+  }
+  assert.equal(result.checklistCountAfter, 1, 'admin checklist count after initialization')
+  assert.deepEqual(
+    result.completed.map(({ id }) => id).sort(),
+    [...phase11Journey.requestIds].sort(),
+    'administrator request queue identities',
+  )
+  assert.ok(result.completed.every(({ id, sourceId, status }) => (
+    id === sourceId && status === 'completed'
+  )), 'administrator request completion and print sources')
+}
+
 async function browserChecks(viteServer) {
   const browser = await chromium.launch({ headless: true })
   try {
@@ -2025,6 +2224,7 @@ async function browserChecks(viteServer) {
       await assertEmployeeApi(page, persona)
       await assertPhase9BrowserJourney(page, persona)
       await assertPhase10BrowserJourney(page, persona)
+      await assertPhase11BrowserJourney(page, persona)
       const afterEmployeeWorkflows = businessFingerprint()
       await assertDepartmentApi(page, persona)
       assert.equal(businessFingerprint(), afterEmployeeWorkflows)

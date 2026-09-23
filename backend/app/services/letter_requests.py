@@ -390,7 +390,13 @@ FOR UPDATE
         )
         if row is None:
             raise ServiceExecutionError("resource_not_found")
-        if row["status"] != "pending" or row["requested_at"] != expected_requested_at:
+        persisted_requested_at = row["requested_at"].replace(
+            microsecond=row["requested_at"].microsecond // 1000 * 1000
+        )
+        public_requested_at = expected_requested_at.replace(
+            microsecond=expected_requested_at.microsecond // 1000 * 1000
+        )
+        if row["status"] != "pending" or persisted_requested_at != public_requested_at:
             raise ServiceExecutionError("state_conflict")
         return row
 

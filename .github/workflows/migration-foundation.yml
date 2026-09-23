@@ -198,6 +198,13 @@ jobs:
         run: |
           node --test tests/phase-11g-legacy-freeze.test.js tests/offboarding-api.test.js
           node scripts/cutover-record-validator.mjs docs/migration/phase-11/cutover/offboarding-final-settlement.json
+      - name: Verify Phase 11H completion boundary
+        run: |
+          node --test tests/phase-11h-boundary.test.js
+          for record in docs/migration/phase-11/cutover/*.json; do
+            case "$record" in */evidence-*) continue ;; esac
+            node scripts/cutover-record-validator.mjs "$record"
+          done
       - name: Verify Phase 11B local storage contract
         run: docker compose run --rm --no-deps --env PYTHONPATH=/app --volume ./scripts:/verification:ro backend python /verification/verify-phase-11b-storage.py
       - name: Verify Phase 8D attachment contract
