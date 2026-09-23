@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app import __version__
 from app.advance_api import router as advance_router
+from app.asset_api import router as asset_router
 from app.attendance_configuration_api import router as attendance_configuration_router
 from app.attendance_exceptions_api import router as attendance_exceptions_router
 from app.attendance_ingestion_api import router as attendance_ingestion_router
@@ -24,9 +25,11 @@ from app.core.logging import configure_logging
 from app.db.authorization_context import AuthorizationTransactionFactory
 from app.db.engine import create_database_engine, probe_database
 from app.department_api import router as department_router
+from app.development_api import certification_router, cme_router, training_router
 from app.employee_api import router as employee_router
 from app.employee_document_api import router as employee_document_router
 from app.employment_contract_api import router as employment_contract_router
+from app.evidence_api import certification_file_router, training_file_router
 from app.expense_api import router as expense_router
 from app.http.errors import (
     api_error,
@@ -228,6 +231,12 @@ def create_app(
     application.include_router(employee_document_router)
     application.include_router(employment_contract_router)
     application.include_router(insurance_router)
+    application.include_router(asset_router)
+    application.include_router(training_router)
+    application.include_router(certification_router)
+    application.include_router(cme_router)
+    application.include_router(training_file_router)
+    application.include_router(certification_file_router)
     application.include_router(expense_router)
     application.include_router(advance_router)
     application.include_router(payroll_router)

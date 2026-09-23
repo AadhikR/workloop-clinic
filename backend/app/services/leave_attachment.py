@@ -181,6 +181,48 @@ def parse_upload(content_type_header: str, body: bytes) -> ValidatedUpload:
     )
 
 
+def parse_direct_upload(content_type_header: str, body: bytes) -> ValidatedUpload:
+    message = BytesParser(policy=policy.default).parsebytes(
+        b"MIME-Version: 1.0\r\nContent-Type: "
+        + content_type_header.encode("ascii")
+        + b"\r\n\r\n"
+        + body
+    )
+    if not message.is_multipart():
+        raise ServiceExecutionError("invalid_request")
+    parts: dict[str, object] = {}
+    for part in message.iter_parts():
+        if part.get_content_disposition() != "form-data":
+            raise ServiceExecutionError("invalid_request")
+        name = part.get_param("name", header="content-disposition")
+        if not isinstance(name, str) or name != "file" or name in parts:
+            raise ServiceExecutionError("invalid_request")
+        payload = part.get_payload(decode=True)
+        if not isinstance(payload, bytes):
+            raise ServiceExecutionError("invalid_request")
+        filename = part.get_filename()
+        if not isinstance(filename, str) or not filename:
+            raise ServiceExecutionError("validation_failed")
+        parts[name] = (payload, filename, part.get_content_type())
+    if set(parts) != {"file"}:
+        raise ServiceExecutionError("invalid_request")
+    file_body, raw_name, declared_type = cast(tuple[bytes, str, str], parts["file"])
+    if not 1 <= len(file_body) <= UPLOAD_FILE_LIMIT_BYTES:
+        raise ServiceExecutionError("request_too_large")
+    normalized_name, extension = _normalize_file_name(raw_name)
+    canonical_type = _validate_signature(file_body, extension)
+    if declared_type != canonical_type:
+        raise ServiceExecutionError("unsupported_media_type")
+    digest = hashlib.sha256(file_body).hexdigest()
+    return ValidatedUpload(
+        body=file_body,
+        file_name=normalized_name,
+        content_type=canonical_type,
+        sha256=digest,
+        submission_token="",
+    )
+
+
 class LeaveAttachmentService:
     def __init__(
         self,

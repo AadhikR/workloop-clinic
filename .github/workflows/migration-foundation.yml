@@ -172,6 +172,13 @@ jobs:
           node scripts/cutover-record-validator.mjs docs/migration/phase-11/cutover/employee-documents.json
           node scripts/cutover-record-validator.mjs docs/migration/phase-11/cutover/insurance.json
           node scripts/cutover-record-validator.mjs docs/migration/phase-11/cutover/employment-contracts.json
+      - name: Verify Phase 11D static boundaries
+        run: python scripts/verify-phase-11d-revision.py static
+      - name: Verify Phase 11D cutover boundaries
+        run: |
+          node --test tests/phase-11d-legacy-freeze.test.js
+          node scripts/cutover-record-validator.mjs docs/migration/phase-11/cutover/assets.json
+          node scripts/cutover-record-validator.mjs docs/migration/phase-11/cutover/training-certifications-cme.json
       - name: Verify Phase 11B local storage contract
         run: docker compose run --rm --no-deps --env PYTHONPATH=/app --volume ./scripts:/verification:ro backend python /verification/verify-phase-11b-storage.py
       - name: Verify Phase 8D attachment contract
@@ -291,6 +298,13 @@ jobs:
           docker compose --profile tools run --rm --env PYTHONPATH=/app --volume ./scripts:/verification:ro migrate python /verification/verify-phase-11c-revision.py predecessor
           docker compose --profile tools run --rm migrate
           docker compose --profile tools run --rm --env PYTHONPATH=/app --volume ./scripts:/verification:ro migrate python /verification/verify-phase-11c-revision.py head
+      - name: Verify Phase 11D exact predecessor
+        if: needs.changes.outputs.database_deep == 'true'
+        run: |
+          docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini downgrade e9a1b3d5f7c2
+          docker compose --profile tools run --rm --env PYTHONPATH=/app --volume ./scripts:/verification:ro migrate python /verification/verify-phase-11d-revision.py predecessor
+          docker compose --profile tools run --rm migrate
+          docker compose --profile tools run --rm --env PYTHONPATH=/app --volume ./scripts:/verification:ro migrate python /verification/verify-phase-11d-revision.py head
       - name: Verify Phase 9H exact predecessor
         if: needs.changes.outputs.database_deep == 'true'
         run: sh scripts/verify-phase-9h-revision.sh
@@ -382,6 +396,7 @@ jobs:
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-10i-database.py
           docker compose run --rm --no-deps --env PYTHONPATH=/app --volume ./scripts:/verification:ro backend python /verification/verify-phase-11b-database.py
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-11c-database.py
+          docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-11d-database.py
       - name: Verify service health
         run: |
           curl --fail --silent --show-error http://127.0.0.1:8000/health | jq --exit-status '.status == "ok" and .database == "ok"'

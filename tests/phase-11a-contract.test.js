@@ -66,6 +66,8 @@ test('Phase 11 cutover records reflect only completed implementation parts', () 
       'employee-documents',
       'insurance',
       'employment-contracts',
+      'assets',
+      'training-certifications-cme',
     ]).has(featureId);
     assert.equal(record.status.current, implemented ? 'completed' : 'preparation');
     const authority = implemented ? 'migration-fastapi' : 'legacy-supabase';

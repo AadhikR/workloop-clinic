@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from sqlalchemy import (
     ARRAY,
+    BigInteger,
     Boolean,
     CheckConstraint,
     Date,
@@ -531,6 +532,14 @@ class Asset(Base):
             name="status",
         ),
         CheckConstraint("purchase_cost IS NULL OR purchase_cost >= 0", name="purchase_cost"),
+        CheckConstraint(
+            "octet_length(btrim(name)) BETWEEN 1 AND 180 "
+            "AND octet_length(asset_code)<=120 AND octet_length(category)<=120 "
+            "AND octet_length(brand)<=120 AND octet_length(model)<=120 "
+            "AND octet_length(serial_number)<=180 AND octet_length(notes)<=1000 "
+            "AND (purchase_cost IS NULL OR purchase_cost<=9999999999.99)",
+            name="phase11d_lengths",
+        ),
         Index("ix_assets_branch_id_status", "branch_id", "status"),
         Index(
             "uq_assets_branch_id_asset_code_nonempty",
@@ -558,6 +567,9 @@ class Asset(Base):
     notes: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("''"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("statement_timestamp()")
     )
 
 
@@ -630,6 +642,20 @@ class TrainingRecord(Base):
             ["employees.id", "employees.company_id", "employees.branch_id"],
             ondelete="RESTRICT",
         ),
+        ForeignKeyConstraint(
+            ["file_security_scan_id", "company_id", "branch_id"],
+            [
+                "file_security_scans.id",
+                "file_security_scans.company_id",
+                "file_security_scans.branch_id",
+            ],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["created_by_app_user_id", "company_id"],
+            ["user_profiles.app_user_id", "user_profiles.company_id"],
+            ondelete="RESTRICT",
+        ),
         CheckConstraint("cost >= 0", name="cost"),
         CheckConstraint(
             "end_date IS NULL OR start_date IS NULL OR end_date >= start_date", name="dates"
@@ -639,6 +665,27 @@ class TrainingRecord(Base):
         ),
         CheckConstraint("duration_hours IS NULL OR duration_hours >= 0", name="duration_hours"),
         CheckConstraint("status <> 'completed' OR end_date IS NOT NULL", name="completed_fields"),
+        CheckConstraint(
+            "octet_length(btrim(training_title)) BETWEEN 1 AND 180 "
+            "AND octet_length(btrim(training_type)) BETWEEN 1 AND 120 "
+            "AND octet_length(provider)<=180 AND octet_length(score)<=120 "
+            "AND octet_length(notes)<=1000 AND cost<=9999999999.99 "
+            "AND (duration_hours IS NULL OR duration_hours<=9999.99)",
+            name="phase11d_lengths",
+        ),
+        CheckConstraint(
+            "(file_name='' AND storage_path='' AND content_type IS NULL "
+            "AND size_bytes IS NULL AND sha256 IS NULL AND file_security_scan_id IS NULL) "
+            "OR (octet_length(file_name) BETWEEN 1 AND 180 "
+            "AND octet_length(storage_path) BETWEEN 1 AND 1024 AND content_type IS NULL "
+            "AND size_bytes IS NULL AND sha256 IS NULL AND file_security_scan_id IS NULL) "
+            "OR (octet_length(file_name) BETWEEN 1 AND 180 "
+            "AND octet_length(storage_path) BETWEEN 1 AND 1024 "
+            "AND content_type IN ('application/pdf','image/png','image/jpeg') "
+            "AND size_bytes BETWEEN 1 AND 10485760 "
+            "AND sha256~'^[0-9a-f]{64}$' AND file_security_scan_id IS NOT NULL)",
+            name="phase11d_metadata",
+        ),
         Index("ix_training_records_employee_id", "employee_id"),
         Index("ix_training_records_branch_id_status", "branch_id", "status"),
     )
@@ -664,10 +711,22 @@ class TrainingRecord(Base):
     certificate_url: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("''"))
     storage_path: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("''"))
     file_name: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("''"))
+    content_type: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    size_bytes: Mapped[int | None] = mapped_column(BigInteger(), nullable=True)
+    sha256: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    file_security_scan_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
+    created_by_app_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
     notes: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("''"))
     is_cme: Mapped[bool] = mapped_column(Boolean(), nullable=False, server_default=text("false"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("statement_timestamp()")
     )
 
 
@@ -686,6 +745,20 @@ class Certification(Base):
             ondelete="RESTRICT",
         ),
         ForeignKeyConstraint(["reviewed_by_app_user_id"], ["app_users.id"], ondelete="RESTRICT"),
+        ForeignKeyConstraint(
+            ["file_security_scan_id", "company_id", "branch_id"],
+            [
+                "file_security_scans.id",
+                "file_security_scans.company_id",
+                "file_security_scans.branch_id",
+            ],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["created_by_app_user_id", "company_id"],
+            ["user_profiles.app_user_id", "user_profiles.company_id"],
+            ondelete="RESTRICT",
+        ),
         CheckConstraint(
             "expiry_date IS NULL OR issued_date IS NULL OR expiry_date >= issued_date",
             name="dates",
@@ -697,6 +770,25 @@ class Certification(Base):
             name="review_fields",
         ),
         CheckConstraint("status <> 'rejected' OR btrim(notes) <> ''", name="rejection_fields"),
+        CheckConstraint(
+            "octet_length(btrim(certification_name)) BETWEEN 1 AND 180 "
+            "AND octet_length(btrim(issuing_body)) BETWEEN 1 AND 180 "
+            "AND octet_length(certificate_no)<=120 AND octet_length(notes)<=1000",
+            name="phase11d_lengths",
+        ),
+        CheckConstraint(
+            "(file_name='' AND storage_path='' AND content_type IS NULL "
+            "AND size_bytes IS NULL AND sha256 IS NULL AND file_security_scan_id IS NULL) "
+            "OR (octet_length(file_name) BETWEEN 1 AND 180 "
+            "AND octet_length(storage_path) BETWEEN 1 AND 1024 AND content_type IS NULL "
+            "AND size_bytes IS NULL AND sha256 IS NULL AND file_security_scan_id IS NULL) "
+            "OR (octet_length(file_name) BETWEEN 1 AND 180 "
+            "AND octet_length(storage_path) BETWEEN 1 AND 1024 "
+            "AND content_type IN ('application/pdf','image/png','image/jpeg') "
+            "AND size_bytes BETWEEN 1 AND 10485760 "
+            "AND sha256~'^[0-9a-f]{64}$' AND file_security_scan_id IS NOT NULL)",
+            name="phase11d_metadata",
+        ),
         Index("ix_certifications_employee_id", "employee_id"),
         Index("ix_certifications_branch_id_expiry_date", "branch_id", "expiry_date"),
     )
@@ -717,6 +809,15 @@ class Certification(Base):
     certificate_url: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("''"))
     storage_path: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("''"))
     file_name: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("''"))
+    content_type: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    size_bytes: Mapped[int | None] = mapped_column(BigInteger(), nullable=True)
+    sha256: Mapped[str | None] = mapped_column(Text(), nullable=True)
+    file_security_scan_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
+    created_by_app_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
     notes: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("''"))
     status: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("'verified'"))
     reviewed_by_app_user_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -725,6 +826,9 @@ class Certification(Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("statement_timestamp()")
     )
 
 
@@ -894,6 +998,10 @@ class CmeRequirement(Base):
         ),
         UniqueConstraint("employee_id", "year", name="uq_cme_requirements_employee_id_year"),
         CheckConstraint("required_hours >= 0", name="required_hours"),
+        CheckConstraint(
+            "year BETWEEN 1900 AND 9999 AND required_hours<=9999.9 AND octet_length(notes)<=1000",
+            name="phase11d_bounds",
+        ),
         Index("ix_cme_requirements_employee_id", "employee_id"),
         Index("ix_cme_requirements_year", "year"),
     )

@@ -141,10 +141,10 @@ BEGIN
     VALUES ('00000000-0000-0000-0000-000000000602', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', 'Laptop');
   INSERT INTO asset_assignments (company_id, branch_id, asset_id, employee_id)
     VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000602', '00000000-0000-0000-0000-000000000021');
-  INSERT INTO training_records (company_id, branch_id, employee_id)
-    VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000021');
-  INSERT INTO certifications (company_id, branch_id, employee_id, status)
-    VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000021', 'pending_review');
+  INSERT INTO training_records (company_id, branch_id, employee_id, training_title, training_type)
+    VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000021', 'Schema training', 'external');
+  INSERT INTO certifications (company_id, branch_id, employee_id, certification_name, issuing_body, status)
+    VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000021', 'Schema certification', 'Schema authority', 'pending_review');
   INSERT INTO cme_requirements (company_id, branch_id, employee_id, year)
     VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000021', 2026);
   INSERT INTO incident_reports (company_id, branch_id, incident_date)

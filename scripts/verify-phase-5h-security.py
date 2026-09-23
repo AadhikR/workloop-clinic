@@ -11,11 +11,7 @@ from pathlib import Path
 
 from sqlalchemy import create_engine, text
 
-ROOT = (
-    Path("/workspace")
-    if Path("/workspace").is_dir()
-    else Path(__file__).resolve().parents[1]
-)
+ROOT = Path("/workspace") if Path("/workspace").is_dir() else Path(__file__).resolve().parents[1]
 
 
 def policy(connection: object, table: str, name: str) -> str:
@@ -33,9 +29,7 @@ def policy(connection: object, table: str, name: str) -> str:
 
 def verify_manifest() -> None:
     manifest = json.loads(
-        (ROOT / "scripts" / "phase-5h-control-manifest.json").read_text(
-            encoding="utf-8"
-        )
+        (ROOT / "scripts" / "phase-5h-control-manifest.json").read_text(encoding="utf-8")
     )
     controls = manifest["controls"]
     assert [item["id"] for item in controls] == list(range(1, 20))
@@ -44,11 +38,7 @@ def verify_manifest() -> None:
         expected = {"A", "S"} if item["id"] in {10, 17, 18} else {"A", "R"}
         assert set(item["layers"]) == expected
         assert all(item["layers"][layer] for layer in expected)
-        assert all(
-            ":" in assertion
-            for layer in expected
-            for assertion in item["layers"][layer]
-        )
+        assert all(":" in assertion for layer in expected for assertion in item["layers"][layer])
         for layer in expected:
             for assertion in item["layers"][layer]:
                 if assertion.startswith("deferred:"):
@@ -74,8 +64,7 @@ def verify_database() -> None:
     with engine.connect() as connection:
         assert not connection.execute(
             text(
-                "SELECT has_table_privilege('workloop_runtime',"
-                "'public.offboarding_tasks','DELETE')"
+                "SELECT has_table_privilege('workloop_runtime','public.offboarding_tasks','DELETE')"
             )
         ).scalar_one()
         for column in ("id", "created_by_app_user_id"):
@@ -95,13 +84,9 @@ def verify_database() -> None:
         assert "reporting_manager_id = workloop_employee_id()" in appraisal
         assert "appraisal.employee_id <> workloop_employee_id()" in appraisal
 
-        notifications = policy(
-            connection, "notifications", "phase5g_notifications_select_runtime"
-        )
+        notifications = policy(connection, "notifications", "phase5g_notifications_select_runtime")
         assert "workloop_branch_id() is not null" in notifications
-        expiry = policy(
-            connection, "notifications", "phase5g_notifications_insert_expiry"
-        )
+        expiry = policy(connection, "notifications", "phase5g_notifications_insert_expiry")
         for required in (
             "created_by_app_user_id is null",
             "profile.role = 'admin'",
@@ -149,6 +134,31 @@ def verify_database() -> None:
             .lower()
         )
         wrapped_audit_function = audit_function
+        if "_append_audit_event_phase11d_prior" in wrapped_audit_function:
+            for action in (
+                "asset_created",
+                "asset_assigned",
+                "asset_returned",
+                "training_enrolled",
+                "training_completed",
+                "training_evidence_uploaded",
+                "certification_submitted",
+                "certification_verified",
+                "certification_evidence_uploaded",
+                "cme_requirement_saved",
+            ):
+                assert action in wrapped_audit_function
+            wrapped_audit_function = (
+                connection.execute(
+                    text(
+                        "SELECT pg_catalog.pg_get_functiondef("
+                        "'public._append_audit_event_phase11d_prior"
+                        "(text,text,uuid,text[],text,jsonb)'::regprocedure)"
+                    )
+                )
+                .scalar_one()
+                .lower()
+            )
         if "_append_audit_event_phase11c_prior" in wrapped_audit_function:
             for action in (
                 "employee_document_uploaded",
@@ -366,10 +376,7 @@ def verify_database() -> None:
             )
         else:
             phase7g_audit_function = wrapped_audit_function
-        assert (
-            "profile_app_user_id=caller.app_user_id"
-            in phase7g_audit_function.replace(" ", "")
-        )
+        assert "profile_app_user_id=caller.app_user_id" in phase7g_audit_function.replace(" ", "")
         assert "_append_audit_event_phase7g_prior" in phase7g_audit_function
         assert "employee_portal_role_changed" in phase7g_audit_function
         assert "raise exception 'audit event denied'" in phase7g_audit_function
@@ -384,12 +391,10 @@ def verify_database() -> None:
             .scalar_one()
             .lower()
         )
-        assert (
-            "branch_created" in audit_predecessor
-            and "branch_deleted" in audit_predecessor
-        )
+        assert "branch_created" in audit_predecessor and "branch_deleted" in audit_predecessor
         assert "employee_branch_corrected" in audit_predecessor
         for signature in (
+            "public._append_audit_event_phase11d_prior(text,text,uuid,text[],text,jsonb)",
             "public._append_audit_event_phase11c_prior(text,text,uuid,text[],text,jsonb)",
             "public._append_audit_event_phase10c(text,text,uuid,text[],text,jsonb)",
             "public._append_audit_event_phase10a(text,text,uuid,text[],text,jsonb)",
@@ -411,9 +416,7 @@ def verify_database() -> None:
             "public._record_advance_repayment_phase5g(uuid,uuid,uuid,numeric,date)",
         ):
             assert not connection.execute(
-                text(
-                    "SELECT has_function_privilege('workloop_runtime',:signature,'EXECUTE')"
-                ),
+                text("SELECT has_function_privilege('workloop_runtime',:signature,'EXECUTE')"),
                 {"signature": signature},
             ).scalar_one()
             assert not connection.execute(
@@ -438,31 +441,20 @@ def verify_database() -> None:
             .lower()
         )
         assert "system_actor_key is not null" in constraint
-        audit_select = policy(
-            connection, "audit_events", "phase5g_audit_events_select_runtime"
-        )
+        audit_select = policy(connection, "audit_events", "phase5g_audit_events_select_runtime")
         assert "workloop_business_date() is not null" in audit_select
-        audit_expiry = policy(
-            connection, "audit_events", "phase5g_audit_events_insert_expiry"
-        )
+        audit_expiry = policy(connection, "audit_events", "phase5g_audit_events_insert_expiry")
         compact_audit_expiry = audit_expiry.replace(" ", "").replace("\n", "")
-        assert (
-            "notification.related_entity_type = audit_events.entity_type"
-            in audit_expiry
-        )
+        assert "notification.related_entity_type = audit_events.entity_type" in audit_expiry
         assert (
             "notification.related_entity_id=(((((audit_events.entity_id)::text||':'::text)"
             "||(audit_events.metadata->>'source_kind'::text))||':'::text)"
-            "||(audit_events.metadata->>'threshold_days'::text))"
-            in compact_audit_expiry
+            "||(audit_events.metadata->>'threshold_days'::text))" in compact_audit_expiry
         )
         assert "notification.recipient_app_user_id" in audit_expiry
         assert "recipient_app_user_id" in audit_expiry
         assert "source_kind" in audit_expiry
-        assert (
-            "source.expiry_date = ((audit_events.metadata ->> 'source_date'"
-            in audit_expiry
-        )
+        assert "source.expiry_date = ((audit_events.metadata ->> 'source_date'" in audit_expiry
         assert "reason = 'expiry notification created'" in audit_expiry
 
         shift_swap = (
@@ -505,10 +497,7 @@ def verify_database() -> None:
                 .scalar_one()
                 .lower()
             )
-        assert (
-            "from public.payroll_runs where id = p_payroll_run_id for update"
-            in repayment
-        )
+        assert "from public.payroll_runs where id = p_payroll_run_id for update" in repayment
         relationship_lock = (
             connection.execute(
                 text(
@@ -520,9 +509,8 @@ def verify_database() -> None:
             .lower()
         )
         assert "order by employee.id for update" in relationship_lock
-        assert (
-            "reporting_manager_id=public.workloop_employee_id()"
-            in relationship_lock.replace(" ", "")
+        assert "reporting_manager_id=public.workloop_employee_id()" in relationship_lock.replace(
+            " ", ""
         )
         assert connection.execute(
             text(
@@ -534,13 +522,11 @@ def verify_database() -> None:
 
 
 def verify_source_guards() -> None:
-    seed = (ROOT / "backend" / "app" / "db" / "seed" / "runner.py").read_text(
+    seed = (ROOT / "backend" / "app" / "db" / "seed" / "runner.py").read_text(encoding="utf-8")
+    assert 'current != "workloop_migration" or session != "workloop_migration"' in seed
+    classifier = (ROOT / ".github" / "scripts" / "classify-migration-workflow.sh").read_text(
         encoding="utf-8"
     )
-    assert 'current != "workloop_migration" or session != "workloop_migration"' in seed
-    classifier = (
-        ROOT / ".github" / "scripts" / "classify-migration-workflow.sh"
-    ).read_text(encoding="utf-8")
     for required in (
         "backend/app/repositories/*",
         "backend/app/schemas/*",

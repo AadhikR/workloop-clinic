@@ -137,7 +137,13 @@ def expected_policies() -> set[tuple[str, str, str, str]]:
         )
         for table, commands in COMMANDS.items()
         for command in commands
-        if not (table == "employee_documents" and command == "DELETE")
+        if not (
+            (table == "employee_documents" and command == "DELETE")
+            or (table == "assets" and command == "SELECT")
+            or (table == "training_records" and command in {"INSERT", "DELETE"})
+            or (table == "certifications" and command == "DELETE")
+            or (table == "cme_requirements" and command == "SELECT")
+        )
     }
     for table in EXPIRY_TABLES:
         expected.add(
@@ -205,7 +211,7 @@ def verify_catalog(engine: Any) -> None:
             )
         }
         assert policies == expected_policies()
-        assert len(policies) == 68
+        assert len(policies) == 63
         document_successor_policies = set(
             connection.execute(
                 text(
@@ -219,6 +225,42 @@ def verify_catalog(engine: Any) -> None:
             "phase11c_employee_documents_delete_runtime",
             "phase11c_employee_documents_self_cleanup_runtime",
             "phase11c_employee_documents_self_upload_runtime",
+        }
+        development_successor_policies = {
+            (row.tablename, row.policyname, row.cmd, row.roles[0])
+            for row in connection.execute(
+                text(
+                    "SELECT tablename,policyname,cmd,roles FROM pg_catalog.pg_policies "
+                    "WHERE schemaname='public' AND policyname LIKE 'phase11d_%'"
+                )
+            )
+        }
+        assert development_successor_policies == {
+            ("assets", "phase11d_assets_select_runtime", "SELECT", "workloop_runtime"),
+            (
+                "training_records",
+                "phase11d_training_records_delete_runtime",
+                "DELETE",
+                "workloop_runtime",
+            ),
+            (
+                "training_records",
+                "phase11d_training_records_insert_runtime",
+                "INSERT",
+                "workloop_runtime",
+            ),
+            (
+                "certifications",
+                "phase11d_certifications_delete_runtime",
+                "DELETE",
+                "workloop_runtime",
+            ),
+            (
+                "cme_requirements",
+                "phase11d_cme_requirements_select_runtime",
+                "SELECT",
+                "workloop_runtime",
+            ),
         }
         for row in connection.execute(
             text(
@@ -274,9 +316,9 @@ WHERE table_schema='public' AND grantee='workloop_expiry_processing'
             ),
             {"tables": list(TABLES)},
         ):
-            actual_expiry_columns.setdefault(
-                (row.table_name, row.privilege_type), set()
-            ).add(row.column_name)
+            actual_expiry_columns.setdefault((row.table_name, row.privilege_type), set()).add(
+                row.column_name
+            )
         assert actual_expiry_columns == EXPIRY_COLUMNS
 
         legacy = set(CATALOGUE["legacy_policies_must_be_absent"])
@@ -314,7 +356,12 @@ WHERE schemaname='public' AND policyname NOT LIKE 'phase5%'
     'phase10i_shift_swap_requests_update_runtime',
     'phase11c_employee_documents_delete_runtime',
     'phase11c_employee_documents_self_cleanup_runtime',
-    'phase11c_employee_documents_self_upload_runtime'
+    'phase11c_employee_documents_self_upload_runtime',
+    'phase11d_assets_select_runtime',
+    'phase11d_training_records_insert_runtime',
+    'phase11d_training_records_delete_runtime',
+    'phase11d_certifications_delete_runtime',
+    'phase11d_cme_requirements_select_runtime'
   )
 """
             )
@@ -455,10 +502,7 @@ WHERE namespace.nspname='public'
                 assert "leave_attachment_uploaded" in definition
                 assert "leave_attachment_cleanup_requested" in definition
             else:
-                assert (
-                    "session_user" in definition
-                    and "resolve_workloop_principal" in definition
-                )
+                assert "session_user" in definition and "resolve_workloop_principal" in definition
             expected_arguments = {
                 "create_workflow_notification": "p_type text, p_related_entity_id text",
                 "append_audit_event": (
@@ -495,16 +539,12 @@ SELECT pg_catalog.pg_get_functiondef(
 
 
 def verify_scopes(runtime: psycopg.Connection[Any]) -> None:
-    with human_context(
-        runtime, "hr.admin@horizon.test", branch_id=c.BRANCH_DXB
-    ) as cursor:
+    with human_context(runtime, "hr.admin@horizon.test", branch_id=c.BRANCH_DXB) as cursor:
         for table in BUSINESS_TABLES:
             cursor.execute(f"SELECT company_id,branch_id FROM {table}")
             for company_id, branch_id in cursor.fetchall():
                 assert company_id == c.COMPANY_ID[c.HORIZON]
-                assert branch_id == c.BRANCH_DXB or (
-                    table == "notifications" and branch_id is None
-                )
+                assert branch_id == c.BRANCH_DXB or (table == "notifications" and branch_id is None)
 
     ravi = principal_for("ravi.employee@horizon.test")
     with human_context(runtime, "ravi.employee@horizon.test") as cursor:
@@ -514,6 +554,7 @@ def verify_scopes(runtime: psycopg.Connection[Any]) -> None:
             "asset_assignments",
             "training_records",
             "certifications",
+            "cme_requirements",
             "appraisals",
             "letter_requests",
         ):
@@ -524,7 +565,6 @@ def verify_scopes(runtime: psycopg.Connection[Any]) -> None:
             "employee_contracts",
             "offboarding_checklists",
             "incident_reports",
-            "cme_requirements",
         ):
             assert scalar(cursor, f"SELECT count(*) FROM {table}") == 0
 
@@ -536,9 +576,7 @@ def verify_scopes(runtime: psycopg.Connection[Any]) -> None:
 def verify_notification_helper(runtime: psycopg.Connection[Any], engine: Any) -> None:
     with engine.connect() as connection:
         payslip_id = connection.execute(
-            text(
-                "SELECT id FROM payslips WHERE company_id=:company AND branch_id=:branch LIMIT 1"
-            ),
+            text("SELECT id FROM payslips WHERE company_id=:company AND branch_id=:branch LIMIT 1"),
             {"company": c.COMPANY_ID[c.HORIZON], "branch": c.BRANCH_DXB},
         ).scalar_one()
         employee_id = connection.execute(
@@ -548,9 +586,7 @@ def verify_notification_helper(runtime: psycopg.Connection[Any], engine: Any) ->
             text("SELECT app_user_id FROM user_profiles WHERE employee_id=:employee"),
             {"employee": employee_id},
         ).scalar_one()
-    with human_context(
-        runtime, "hr.admin@horizon.test", branch_id=c.BRANCH_DXB
-    ) as cursor:
+    with human_context(runtime, "hr.admin@horizon.test", branch_id=c.BRANCH_DXB) as cursor:
         notification_id = scalar(
             cursor,
             "SELECT public.create_workflow_notification('payslip_available', %s)",
@@ -558,19 +594,13 @@ def verify_notification_helper(runtime: psycopg.Connection[Any], engine: Any) ->
         )
     with engine.connect() as connection:
         created = connection.execute(
-            text(
-                "SELECT recipient_app_user_id,type,branch_id FROM notifications WHERE id=:id"
-            ),
+            text("SELECT recipient_app_user_id,type,branch_id FROM notifications WHERE id=:id"),
             {"id": notification_id},
         ).one()
         assert tuple(created) == (recipient_id, "payslip_available", c.BRANCH_DXB)
-        before = connection.execute(
-            text("SELECT count(*) FROM notifications")
-        ).scalar_one()
+        before = connection.execute(text("SELECT count(*) FROM notifications")).scalar_one()
     try:
-        with human_context(
-            runtime, "hr.admin@horizon.test", branch_id=c.BRANCH_DXB
-        ) as cursor:
+        with human_context(runtime, "hr.admin@horizon.test", branch_id=c.BRANCH_DXB) as cursor:
             cursor.execute(
                 "SELECT public.create_workflow_notification('unknown', %s)",
                 (str(payslip_id),),
@@ -580,23 +610,17 @@ def verify_notification_helper(runtime: psycopg.Connection[Any], engine: Any) ->
     else:
         raise AssertionError("unknown notification producer was accepted")
     with engine.connect() as connection:
-        after = connection.execute(
-            text("SELECT count(*) FROM notifications")
-        ).scalar_one()
+        after = connection.execute(text("SELECT count(*) FROM notifications")).scalar_one()
     assert after == before
 
 
-def verify_appraisal_update_scope(
-    runtime: psycopg.Connection[Any], engine: Any
-) -> None:
+def verify_appraisal_update_scope(runtime: psycopg.Connection[Any], engine: Any) -> None:
     aisha = principal_for("aisha.manager@horizon.test")
     maria = principal_for("maria.employee@horizon.test")
     own_section = uuid.UUID("00000000-0000-4000-8000-000000005508")
     with engine.begin() as connection:
         own_appraisal = connection.execute(
-            text(
-                "SELECT id FROM appraisals WHERE employee_id=:employee LIMIT 1"
-            ),
+            text("SELECT id FROM appraisals WHERE employee_id=:employee LIMIT 1"),
             {"employee": aisha.employee_id},
         ).scalar_one()
         connection.execute(
@@ -681,9 +705,7 @@ def verify_audit(
             text("SELECT closed_by_app_user_id FROM incident_reports WHERE id=:id"),
             {"id": incident_id},
         ).scalar_one()
-    with human_context(
-        runtime, "hr.admin@horizon.test", branch_id=c.BRANCH_DXB
-    ) as cursor:
+    with human_context(runtime, "hr.admin@horizon.test", branch_id=c.BRANCH_DXB) as cursor:
         event_id = scalar(
             cursor,
             "SELECT public.append_audit_event('incident_closed','incident_report',%s,ARRAY['status','closed_date']::text[],'Investigation completed','{\"transition\":\"investigating_to_closed\"}'::jsonb)",
@@ -694,24 +716,17 @@ def verify_audit(
             (event_id,),
         )
         row = cursor.fetchone()
-        assert (
-            row[0] == "human"
-            and row[1] == principal_for("hr.admin@horizon.test").app_user_id
-        )
+        assert row[0] == "human" and row[1] == principal_for("hr.admin@horizon.test").app_user_id
     with engine.begin() as connection:
         connection.execute(
-            text(
-                "UPDATE incident_reports SET closed_by_app_user_id=:actor WHERE id=:id"
-            ),
+            text("UPDATE incident_reports SET closed_by_app_user_id=:actor WHERE id=:id"),
             {
                 "actor": principal_for("aisha.manager@horizon.test").app_user_id,
                 "id": incident_id,
             },
         )
     try:
-        with human_context(
-            runtime, "hr.admin@horizon.test", branch_id=c.BRANCH_DXB
-        ) as cursor:
+        with human_context(runtime, "hr.admin@horizon.test", branch_id=c.BRANCH_DXB) as cursor:
             cursor.execute(
                 "SELECT public.append_audit_event('incident_closed','incident_report',%s,ARRAY['status']::text[],'Wrong actor','{\"transition\":\"investigating_to_closed\"}'::jsonb)",
                 (incident_id,),
@@ -723,15 +738,11 @@ def verify_audit(
     finally:
         with engine.begin() as connection:
             connection.execute(
-                text(
-                    "UPDATE incident_reports SET closed_by_app_user_id=:actor WHERE id=:id"
-                ),
+                text("UPDATE incident_reports SET closed_by_app_user_id=:actor WHERE id=:id"),
                 {"actor": original_closed_by, "id": incident_id},
             )
     try:
-        with human_context(
-            runtime, "hr.admin@horizon.test", branch_id=c.BRANCH_DXB
-        ) as cursor:
+        with human_context(runtime, "hr.admin@horizon.test", branch_id=c.BRANCH_DXB) as cursor:
             cursor.execute(
                 "SELECT public.append_audit_event('incident_closed','incident_report',%s,ARRAY['status']::text[],'False closure','{\"transition\":\"open_to_closed\"}'::jsonb)",
                 (open_incident_id,),
@@ -739,13 +750,9 @@ def verify_audit(
     except psycopg.errors.InsufficientPrivilege:
         pass
     else:
-        raise AssertionError(
-            "an audit action inconsistent with source state was accepted"
-        )
+        raise AssertionError("an audit action inconsistent with source state was accepted")
     try:
-        with human_context(
-            runtime, "hr.admin@horizon.test", branch_id=c.BRANCH_DXB
-        ) as cursor:
+        with human_context(runtime, "hr.admin@horizon.test", branch_id=c.BRANCH_DXB) as cursor:
             cursor.execute(
                 "INSERT INTO audit_events(company_id,actor_kind,actor_app_user_id,action,entity_type,entity_id,changed_fields,reason,metadata) VALUES (%s,'human',%s,'x','x',%s,ARRAY[]::text[],'x','{}')",
                 (
@@ -760,9 +767,7 @@ def verify_audit(
         raise AssertionError("runtime received direct audit insert")
 
     try:
-        with human_context(
-            runtime, "hr.admin@horizon.test", branch_id=c.BRANCH_DXB
-        ) as cursor:
+        with human_context(runtime, "hr.admin@horizon.test", branch_id=c.BRANCH_DXB) as cursor:
             cursor.execute(
                 "UPDATE incident_reports SET status='investigating' WHERE id=%s",
                 (incident_id,),
@@ -787,9 +792,7 @@ def verify_audit(
     with human_context(runtime, "ravi.employee@horizon.test") as cursor:
         assert scalar(cursor, "SELECT count(*) FROM audit_events") == 0
     try:
-        with human_context(
-            runtime, "hr.admin@horizon.test", branch_id=c.BRANCH_DXB
-        ) as cursor:
+        with human_context(runtime, "hr.admin@horizon.test", branch_id=c.BRANCH_DXB) as cursor:
             cursor.execute("UPDATE audit_events SET reason='changed'")
     except psycopg.errors.InsufficientPrivilege:
         pass
@@ -814,9 +817,7 @@ def verify_audit(
     if (source_date - date(2026, 9, 6)).days > 30:
         threshold = 60
     related_id = f"{source_id}:document:{threshold}"
-    with job_context(
-        expiry, company_id=c.COMPANY_ID[c.HORIZON], branch_id=c.BRANCH_DXB
-    ) as cursor:
+    with job_context(expiry, company_id=c.COMPANY_ID[c.HORIZON], branch_id=c.BRANCH_DXB) as cursor:
         cursor.execute(
             "INSERT INTO notifications(company_id,branch_id,recipient_app_user_id,type,title,body,related_entity_type,related_entity_id) VALUES (%s,%s,%s,'document_expiry','Document expiring','Review this expiry item.','employee_document',%s)",
             (
