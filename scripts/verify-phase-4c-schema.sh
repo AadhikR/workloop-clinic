@@ -119,14 +119,14 @@ BEGIN
     VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', 'payroll_sif', 'audit', '00000000-0000-0000-0000-000000000032');
 
   -- Documents, benefits, people operations, and clinical records.
-  INSERT INTO employee_documents (company_id, branch_id, employee_id, document_type, file_name, status)
-    VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000021', 'passport', 'passport.pdf', 'pending_verification');
-  INSERT INTO insurance_policies (id, company_id, branch_id)
-    VALUES ('00000000-0000-0000-0000-000000000501', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011');
-  INSERT INTO employee_insurance (company_id, branch_id, employee_id, policy_id)
-    VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000021', '00000000-0000-0000-0000-000000000501');
-  INSERT INTO insurance_dependants (company_id, branch_id, employee_id)
-    VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000021');
+  INSERT INTO employee_documents (company_id, branch_id, employee_id, document_type, document_number, status)
+    VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000021', 'passport', 'P-001', 'pending_verification');
+  INSERT INTO insurance_policies (id, company_id, branch_id, insurer_name, policy_number, tier_name)
+    VALUES ('00000000-0000-0000-0000-000000000501', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', 'Test Insurer', 'POL-001', 'Standard');
+  INSERT INTO employee_insurance (company_id, branch_id, employee_id, policy_id, member_id, tier_name)
+    VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000021', '00000000-0000-0000-0000-000000000501', 'MEM-001', 'Standard');
+  INSERT INTO insurance_dependants (company_id, branch_id, employee_id, name, relationship)
+    VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000021', 'Test Dependant', 'Child');
   INSERT INTO notifications (company_id, branch_id, recipient_app_user_id, type)
     VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000031', 'leave_submitted');
   INSERT INTO employee_contracts (company_id, branch_id, employee_id)
