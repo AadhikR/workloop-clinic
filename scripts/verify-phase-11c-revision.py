@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 REVISION = ROOT / "backend/alembic/versions/e9a1b3d5f7c2_add_phase11c_records_benefits.py"
 REVISION_ID = "e9a1b3d5f7c2"
 PREDECESSOR = "d8f0a2c4e6b1"
+CURRENT_HEAD = "f0b2c4d6e8a3"
 
 
 def require(path: Path, *fragments: str) -> str:
@@ -107,7 +108,7 @@ def verify_database(mode: str) -> None:
             assert document_column_definitions["file_size"]["default"] is not None
             assert document_column_definitions["storage_path"]["default"] is not None
         elif mode == "head":
-            assert version == REVISION_ID
+            assert version == CURRENT_HEAD
             assert {
                 "content_type",
                 "sha256",
