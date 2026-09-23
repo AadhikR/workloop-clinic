@@ -66,6 +66,23 @@ class EmployeeDocument(Base):
         CheckConstraint(
             "status <> 'rejected' OR btrim(rejection_reason) <> ''", name="rejection_fields"
         ),
+        CheckConstraint(
+            "(file_name IS NULL AND file_size IS NULL AND storage_path IS NULL "
+            "AND content_type IS NULL AND sha256 IS NULL AND file_security_scan_id IS NULL) "
+            "OR (octet_length(file_name) BETWEEN 1 AND 180 "
+            "AND file_size BETWEEN 1 AND 10485760 "
+            "AND octet_length(storage_path) BETWEEN 1 AND 1024 "
+            "AND content_type IN ('application/pdf','image/png','image/jpeg') "
+            "AND sha256~'^[0-9a-f]{64}$' AND file_security_scan_id IS NOT NULL)",
+            name="phase11c_metadata",
+        ),
+        CheckConstraint(
+            "octet_length(btrim(document_number)) BETWEEN 1 AND 120 "
+            "AND octet_length(notes)<=1000 "
+            "AND (status<>'rejected' OR "
+            "octet_length(btrim(rejection_reason)) BETWEEN 1 AND 500)",
+            name="phase11c_lengths",
+        ),
         Index("ix_employee_documents_employee_id", "employee_id"),
         Index("ix_employee_documents_branch_id_expiry_date", "branch_id", "expiry_date"),
     )
@@ -125,6 +142,14 @@ class InsurancePolicy(Base):
             "id", "company_id", "branch_id", name="uq_insurance_policies_id_company_id_branch_id"
         ),
         CheckConstraint("annual_premium >= 0", name="annual_premium"),
+        CheckConstraint(
+            "octet_length(btrim(insurer_name)) BETWEEN 1 AND 180 "
+            "AND octet_length(btrim(policy_number)) BETWEEN 1 AND 120 "
+            "AND octet_length(btrim(tier_name)) BETWEEN 1 AND 120 "
+            "AND octet_length(broker_name)<=180 AND octet_length(broker_contact)<=500 "
+            "AND octet_length(notes)<=1000 AND annual_premium<=9999999999.99",
+            name="phase11c_lengths",
+        ),
         Index("ix_insurance_policies_branch_id_renewal_date", "branch_id", "renewal_date"),
     )
 
@@ -179,6 +204,12 @@ class EmployeeInsurance(Base):
             "expiry_date IS NULL OR effective_date IS NULL OR expiry_date >= effective_date",
             name="dates",
         ),
+        CheckConstraint(
+            "octet_length(btrim(member_id)) BETWEEN 1 AND 120 "
+            "AND octet_length(card_number)<=120 "
+            "AND octet_length(btrim(tier_name)) BETWEEN 1 AND 120",
+            name="phase11c_lengths",
+        ),
         Index("ix_employee_insurance_branch_id_expiry_date", "branch_id", "expiry_date"),
     )
 
@@ -215,6 +246,12 @@ class InsuranceDependant(Base):
             ["employee_id", "company_id", "branch_id"],
             ["employees.id", "employees.company_id", "employees.branch_id"],
             ondelete="RESTRICT",
+        ),
+        CheckConstraint(
+            "octet_length(btrim(name)) BETWEEN 1 AND 180 "
+            "AND octet_length(btrim(relationship)) BETWEEN 1 AND 120 "
+            "AND octet_length(card_number)<=120",
+            name="phase11c_lengths",
         ),
         Index("ix_insurance_dependants_employee_id", "employee_id"),
     )

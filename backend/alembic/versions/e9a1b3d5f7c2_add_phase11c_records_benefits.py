@@ -50,8 +50,22 @@ AND branch_id=public.workloop_branch_id()
 
 def _add_document_contract() -> None:
     op.alter_column("employee_documents", "file_name", existing_type=sa.Text(), nullable=True)
-    op.alter_column("employee_documents", "file_size", existing_type=sa.Integer(), nullable=True)
-    op.alter_column("employee_documents", "storage_path", existing_type=sa.Text(), nullable=True)
+    op.alter_column(
+        "employee_documents",
+        "file_size",
+        existing_type=sa.Integer(),
+        existing_server_default=sa.text("0"),
+        server_default=None,
+        nullable=True,
+    )
+    op.alter_column(
+        "employee_documents",
+        "storage_path",
+        existing_type=sa.Text(),
+        existing_server_default=sa.text("''"),
+        server_default=None,
+        nullable=True,
+    )
     for column in (
         sa.Column("content_type", sa.Text(), nullable=True),
         sa.Column("sha256", sa.Text(), nullable=True),
@@ -374,6 +388,20 @@ UPDATE public.employee_documents
 SET file_name=COALESCE(file_name,'legacy-unavailable.pdf'),
     file_size=COALESCE(file_size,0),storage_path=COALESCE(storage_path,'');
 """)
-    op.alter_column("employee_documents", "storage_path", existing_type=sa.Text(), nullable=False)
-    op.alter_column("employee_documents", "file_size", existing_type=sa.Integer(), nullable=False)
+    op.alter_column(
+        "employee_documents",
+        "storage_path",
+        existing_type=sa.Text(),
+        existing_server_default=None,
+        server_default=sa.text("''"),
+        nullable=False,
+    )
+    op.alter_column(
+        "employee_documents",
+        "file_size",
+        existing_type=sa.Integer(),
+        existing_server_default=None,
+        server_default=sa.text("0"),
+        nullable=False,
+    )
     op.alter_column("employee_documents", "file_name", existing_type=sa.Text(), nullable=False)

@@ -91,10 +91,11 @@ def verify_database(mode: str) -> None:
     with engine.connect() as connection:
         version = connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
         inspector = inspect(connection)
-        document_columns = {
-            column["name"]
+        document_column_definitions = {
+            column["name"]: column
             for column in inspector.get_columns("employee_documents", schema="public")
         }
+        document_columns = set(document_column_definitions)
         policy_columns = {
             column["name"]
             for column in inspector.get_columns("insurance_policies", schema="public")
@@ -103,6 +104,8 @@ def verify_database(mode: str) -> None:
             assert version == PREDECESSOR
             assert "content_type" not in document_columns
             assert "updated_at" not in policy_columns
+            assert document_column_definitions["file_size"]["default"] is not None
+            assert document_column_definitions["storage_path"]["default"] is not None
         elif mode == "head":
             assert version == REVISION_ID
             assert {
@@ -113,12 +116,17 @@ def verify_database(mode: str) -> None:
                 "updated_at",
             } <= document_columns
             assert "updated_at" in policy_columns
-            assert connection.execute(
-                text(
-                    "SELECT count(*) FROM pg_catalog.pg_trigger WHERE NOT tgisinternal "
-                    "AND tgname LIKE 'trg_%_set_updated_at'"
-                )
-            ).scalar_one() >= 4
+            assert document_column_definitions["file_size"]["default"] is None
+            assert document_column_definitions["storage_path"]["default"] is None
+            assert (
+                connection.execute(
+                    text(
+                        "SELECT count(*) FROM pg_catalog.pg_trigger WHERE NOT tgisinternal "
+                        "AND tgname LIKE 'trg_%_set_updated_at'"
+                    )
+                ).scalar_one()
+                >= 4
+            )
         else:
             raise ValueError("mode must be predecessor or head")
     engine.dispose()
