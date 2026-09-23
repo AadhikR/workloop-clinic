@@ -17,7 +17,7 @@ from app.auth.application_user import ApplicationUserResolver
 from app.db.authorization_context import AuthorizationTransactionFactory
 from app.db.seed import constants as seed
 from app.db.seed.fixtures import build_rows
-from app.db.seed.runner import apply_rows, validate
+from app.db.seed.runner import apply_rows, clean, validate
 from app.schemas.appraisals import (
     AppraisalCalibrationRequest,
     AppraisalCycleCreateRequest,
@@ -394,6 +394,32 @@ async def main() -> None:
             str(employee.employee_id),
         ):
             assert secret not in metadata
+
+    with migration_engine.begin() as connection:
+        connection.execute(
+            text("DELETE FROM audit_events WHERE company_id=:company_id"),
+            {"company_id": admin.company_id},
+        )
+        connection.execute(
+            text(
+                "DELETE FROM appraisal_sections WHERE appraisal_id IN "
+                "(SELECT id FROM appraisals WHERE cycle_id=:cycle_id)"
+            ),
+            {"cycle_id": cycle.id},
+        )
+        connection.execute(
+            text("DELETE FROM appraisals WHERE cycle_id=:cycle_id"),
+            {"cycle_id": cycle.id},
+        )
+        connection.execute(
+            text("DELETE FROM appraisal_cycles WHERE id=:cycle_id"),
+            {"cycle_id": cycle.id},
+        )
+        connection.execute(
+            text("DELETE FROM incident_reports WHERE id=:incident_id"),
+            {"incident_id": incident.id},
+        )
+        clean(connection, seed_rows)
 
     await runtime_engine.dispose()
     migration_engine.dispose()
