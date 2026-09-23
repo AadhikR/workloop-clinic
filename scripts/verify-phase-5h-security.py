@@ -62,11 +62,18 @@ def verify_manifest() -> None:
 def verify_database() -> None:
     engine = create_engine(os.environ["MIGRATION_DATABASE_URL"])
     with engine.connect() as connection:
-        assert not connection.execute(
+        assert connection.execute(
             text(
                 "SELECT has_table_privilege('workloop_runtime','public.offboarding_tasks','DELETE')"
             )
         ).scalar_one()
+        task_delete = policy(
+            connection,
+            "offboarding_tasks",
+            "phase11g_offboarding_tasks_delete_runtime",
+        )
+        for required in ("source = 'custom'", "not completed", "status = 'in_progress'"):
+            assert required in task_delete
         for column in ("id", "created_by_app_user_id"):
             assert not connection.execute(
                 text(
@@ -134,6 +141,28 @@ def verify_database() -> None:
             .lower()
         )
         wrapped_audit_function = audit_function
+        if "_append_audit_event_phase11g_prior" in wrapped_audit_function:
+            for action in (
+                "offboarding_initialized",
+                "offboarding_task_added",
+                "offboarding_task_completed",
+                "offboarding_task_reopened",
+                "offboarding_task_deleted",
+                "offboarding_visa_changed",
+                "final_settlement_completed",
+            ):
+                assert action in wrapped_audit_function
+            wrapped_audit_function = (
+                connection.execute(
+                    text(
+                        "SELECT pg_catalog.pg_get_functiondef("
+                        "'public._append_audit_event_phase11g_prior"
+                        "(text,text,uuid,text[],text,jsonb)'::regprocedure)"
+                    )
+                )
+                .scalar_one()
+                .lower()
+            )
         if "_append_audit_event_phase11f_prior" in wrapped_audit_function:
             for action in (
                 "letter_submitted",
@@ -433,6 +462,7 @@ def verify_database() -> None:
         assert "branch_created" in audit_predecessor and "branch_deleted" in audit_predecessor
         assert "employee_branch_corrected" in audit_predecessor
         for signature in (
+            "public._append_audit_event_phase11g_prior(text,text,uuid,text[],text,jsonb)",
             "public._append_audit_event_phase11f_prior(text,text,uuid,text[],text,jsonb)",
             "public._append_audit_event_phase11e_prior(text,text,uuid,text[],text,jsonb)",
             "public._append_audit_event_phase11d_prior(text,text,uuid,text[],text,jsonb)",

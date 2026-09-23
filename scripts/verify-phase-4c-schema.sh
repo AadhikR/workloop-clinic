@@ -21,8 +21,8 @@ BEGIN
       'alembic_version', 'audit_events', 'idempotency_records',
       'storage_operations', 'leave_attachments', 'file_security_scans'
     );
-  IF table_count <> 66 THEN
-    RAISE EXCEPTION 'expected 66 target tables, found %', table_count;
+  IF table_count <> 68 THEN
+    RAISE EXCEPTION 'expected 68 target tables, found %', table_count;
   END IF;
 
   -- Identity and organization seed (two tenants, one branch each).
@@ -133,8 +133,8 @@ BEGIN
     VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000021');
   INSERT INTO offboarding_checklists (id, company_id, branch_id, employee_id)
     VALUES ('00000000-0000-0000-0000-000000000601', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000021');
-  INSERT INTO offboarding_tasks (company_id, branch_id, checklist_id, task_name)
-    VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000601', 'Return laptop');
+  INSERT INTO offboarding_tasks (company_id, branch_id, checklist_id, task_name, source)
+    VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000601', 'Return laptop', 'custom');
   INSERT INTO offboarding_task_templates (company_id, branch_id, task_name)
     VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', 'Return laptop');
   INSERT INTO assets (id, company_id, branch_id, name)

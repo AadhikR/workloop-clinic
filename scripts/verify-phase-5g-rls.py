@@ -33,7 +33,7 @@ COMMANDS = {
     "notifications": {"SELECT", "UPDATE"},
     "employee_contracts": {"SELECT", "INSERT"},
     "offboarding_checklists": {"SELECT", "INSERT", "UPDATE"},
-    "offboarding_tasks": {"SELECT", "INSERT", "UPDATE"},
+    "offboarding_tasks": {"SELECT", "INSERT", "UPDATE", "DELETE"},
     "offboarding_task_templates": {"SELECT"},
     "assets": {"SELECT", "INSERT", "UPDATE", "DELETE"},
     "asset_assignments": {"SELECT", "INSERT", "UPDATE"},
@@ -143,6 +143,7 @@ def expected_policies() -> set[tuple[str, str, str, str]]:
             or (table == "training_records" and command in {"INSERT", "DELETE"})
             or (table == "certifications" and command == "DELETE")
             or (table == "cme_requirements" and command == "SELECT")
+            or (table == "offboarding_tasks" and command == "DELETE")
         )
     }
     for table in EXPIRY_TABLES:
@@ -195,7 +196,7 @@ def verify_catalog(engine: Any) -> None:
                     "'attendance_period_audit_log','roster_months',"
                     "'roster_publication_versions','roster_publication_memberships',"
                     "'roster_actual_hours_evidence','roster_overtime_approvals',"
-                    "'shift_swap_history')"
+                    "'shift_swap_history','settlement_policy_versions','final_settlements')"
                 )
             ).scalars()
         )
@@ -258,6 +259,41 @@ def verify_catalog(engine: Any) -> None:
             (
                 "cme_requirements",
                 "phase11d_cme_requirements_select_runtime",
+                "SELECT",
+                "workloop_runtime",
+            ),
+        }
+        offboarding_successor_policies = {
+            (row.tablename, row.policyname, row.cmd, row.roles[0])
+            for row in connection.execute(
+                text(
+                    "SELECT tablename,policyname,cmd,roles FROM pg_catalog.pg_policies "
+                    "WHERE schemaname='public' AND policyname LIKE 'phase11g_%'"
+                )
+            )
+        }
+        assert offboarding_successor_policies == {
+            (
+                "final_settlements",
+                "phase11g_final_settlements_insert_runtime",
+                "INSERT",
+                "workloop_runtime",
+            ),
+            (
+                "final_settlements",
+                "phase11g_final_settlements_select_runtime",
+                "SELECT",
+                "workloop_runtime",
+            ),
+            (
+                "offboarding_tasks",
+                "phase11g_offboarding_tasks_delete_runtime",
+                "DELETE",
+                "workloop_runtime",
+            ),
+            (
+                "settlement_policy_versions",
+                "phase11g_settlement_policy_select_runtime",
                 "SELECT",
                 "workloop_runtime",
             ),
@@ -343,7 +379,8 @@ WHERE schemaname='public' AND policyname NOT LIKE 'phase5%'
     'attendance_period_versions','attendance_period_record_snapshots',
     'attendance_period_audit_log','roster_months','roster_publication_versions',
     'roster_publication_memberships','roster_actual_hours_evidence',
-    'roster_overtime_approvals','shift_swap_history'
+    'roster_overtime_approvals','shift_swap_history','settlement_policy_versions',
+    'final_settlements'
   )
   AND policyname NOT IN (
     'phase7g_user_profiles_select_branch_runtime',
@@ -361,7 +398,8 @@ WHERE schemaname='public' AND policyname NOT LIKE 'phase5%'
     'phase11d_training_records_insert_runtime',
     'phase11d_training_records_delete_runtime',
     'phase11d_certifications_delete_runtime',
-    'phase11d_cme_requirements_select_runtime'
+    'phase11d_cme_requirements_select_runtime',
+    'phase11g_offboarding_tasks_delete_runtime'
   )
 """
             )
@@ -372,7 +410,20 @@ WHERE schemaname='public' AND policyname NOT LIKE 'phase5%'
             row[0]: row[1]
             for row in connection.execute(
                 text(
-                    "SELECT object.relname,object.relrowsecurity FROM pg_catalog.pg_class AS object JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid=object.relnamespace WHERE namespace.nspname='public' AND object.relkind='r' AND object.relname NOT IN ('idempotency_records','storage_operations','leave_attachments','expense_receipts','file_security_scans','attendance_import_batches','attendance_import_row_outcomes','attendance_period_versions','attendance_period_record_snapshots','attendance_period_audit_log','roster_months','roster_publication_versions','roster_publication_memberships','roster_actual_hours_evidence','roster_overtime_approvals','shift_swap_history')"
+                    """
+SELECT object.relname,object.relrowsecurity
+FROM pg_catalog.pg_class AS object
+JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid=object.relnamespace
+WHERE namespace.nspname='public' AND object.relkind='r'
+ AND object.relname NOT IN (
+  'idempotency_records','storage_operations','leave_attachments','expense_receipts',
+  'file_security_scans','attendance_import_batches','attendance_import_row_outcomes',
+  'attendance_period_versions','attendance_period_record_snapshots',
+  'attendance_period_audit_log','roster_months','roster_publication_versions',
+  'roster_publication_memberships','roster_actual_hours_evidence',
+  'roster_overtime_approvals','shift_swap_history','settlement_policy_versions',
+  'final_settlements')
+"""
                 )
             )
         }

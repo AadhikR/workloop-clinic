@@ -16,7 +16,7 @@
     "notifications": {"families": ["N1", "W1", "J1"], "runtime": ["SELECT", "UPDATE(read_at)", "EXECUTE(create_workflow_notification)"], "expiry": ["SELECT", "INSERT(columns)"]},
     "employee_contracts": {"families": ["B1", "H1"], "runtime": ["SELECT", "INSERT"], "expiry": []},
     "offboarding_checklists": {"families": ["B1", "W1"], "runtime": ["SELECT", "INSERT", "UPDATE"], "expiry": []},
-    "offboarding_tasks": {"families": ["B1", "W1"], "runtime": ["SELECT", "INSERT", "UPDATE"], "expiry": []},
+    "offboarding_tasks": {"families": ["B1", "W1"], "runtime": ["SELECT", "INSERT", "UPDATE", "DELETE"], "expiry": []},
     "offboarding_task_templates": {"families": ["B1"], "runtime": ["SELECT"], "expiry": []},
     "assets": {"families": ["B1", "E1", "W1"], "runtime": ["SELECT", "INSERT", "UPDATE", "DELETE"], "expiry": []},
     "asset_assignments": {"families": ["B1", "E1", "H1", "W1"], "runtime": ["SELECT", "INSERT", "UPDATE"], "expiry": []},
