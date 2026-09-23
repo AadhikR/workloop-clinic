@@ -871,6 +871,9 @@ class AppraisalCycle(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("statement_timestamp()")
+    )
 
 
 class Appraisal(Base):
@@ -923,6 +926,9 @@ class Appraisal(Base):
     branch_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     cycle_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     employee_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    template_version: Mapped[str] = mapped_column(
+        Text(), nullable=False, server_default=text("'clinic-v1'")
+    )
     overall_rating: Mapped[Decimal | None] = mapped_column(Numeric(3, 1), nullable=True)
     self_rating: Mapped[Decimal | None] = mapped_column(Numeric(3, 1), nullable=True)
     status: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("'pending'"))
@@ -980,6 +986,9 @@ class AppraisalSection(Base):
     self_rating: Mapped[Decimal | None] = mapped_column(Numeric(3, 1), nullable=True)
     comments: Mapped[str | None] = mapped_column(Text(), nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer(), nullable=False, server_default=text("0"))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("statement_timestamp()")
+    )
 
 
 class CmeRequirement(Base):

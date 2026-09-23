@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 REVISION = ROOT / "backend/alembic/versions/e9a1b3d5f7c2_add_phase11c_records_benefits.py"
 REVISION_ID = "e9a1b3d5f7c2"
 PREDECESSOR = "d8f0a2c4e6b1"
-CURRENT_HEAD = "f0b2c4d6e8a3"
+CURRENT_HEAD = "a1c3e5f7b9d4"
 
 
 def require(path: Path, *fragments: str) -> str:

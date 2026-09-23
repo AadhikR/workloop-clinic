@@ -1,1 +1,50 @@
-{"$schema":"./cutover-record.schema.json","schemaVersion":1,"featureId":"clinical-incidents","dataClassification":"synthetic","status":{"current":"preparation","changedAt":"2026-09-22T08:00:00Z","history":[{"state":"preparation","at":"2026-09-22T08:00:00Z","reason":"The 11A clinical-incident contract is drafted; legacy incident paths remain authoritative until 11E passes."}]},"dependencies":{"inventorySource":"docs/migration/phase-11/PART_11A_DEPENDENCY_INVENTORY.md","requiredIds":["clinical-incidents"],"declared":[{"id":"clinical-incidents","system":"legacy-supabase","kind":"module","locator":"src/utils/incidentStorage.js","cutoverDisposition":"replace"}]},"authority":{"readSystem":"legacy-supabase","writeSystem":"legacy-supabase","writableSystems":["legacy-supabase"]},"freeze":{"read":{"system":"migration-fastapi","condition":"Migration incident reads stay disabled until 11E passes.","releaseCondition":"11E activates selected-branch administrator reads.","verificationCommand":"node --test tests/phase-11a-contract.test.js"},"write":{"system":"migration-fastapi","condition":"Migration incident writes stay disabled until 11E passes.","releaseCondition":"11E activates named migration workflows after freezing generic legacy writes and delete.","verificationCommand":"node --test tests/phase-11a-contract.test.js"}},"refresh":{"mode":"synthetic-only","source":{"kind":"tracked-fixture","locator":"docs/migration/phase-11/PART_11A_GOLDEN_CASES.md","digest":"sha256:05a3a237ddd714b020771bb6cf3b45ad481155b53713c57502eb19f3a8339713"},"command":"node --test tests/phase-11a-contract.test.js","lastRefresh":{"timestamp":"2026-09-22T08:00:00Z","command":"node --test tests/phase-11a-contract.test.js","sourceDigest":"sha256:05a3a237ddd714b020771bb6cf3b45ad481155b53713c57502eb19f3a8339713","evidence":{"path":"docs/migration/phase-11/cutover/evidence-clinical-incidents.json","sha256":"sha256:b6624f2c49327cc1a54aef4f454095459b4d0ad0c3b6dc8ae10c4003cba94026"}}},"identityMapping":{"mode":"synthetic-only","legacyIdField":"legacySupabaseUserId","applicationIdField":"applicationUserId","requiredLegacyUserIds":["11111111-1111-4111-8111-111111111111"],"mappings":[{"legacySupabaseUserId":"11111111-1111-4111-8111-111111111111","applicationUserId":"10000000-0000-4000-8000-000000000001","synthetic":true}]},"rollback":{"trigger":"The 11E incident boundary fails after cutover.","owner":"phase-owner","targetAuthority":{"readSystem":"legacy-supabase","writeSystem":"legacy-supabase","writableSystems":["legacy-supabase"]},"steps":[{"id":"freeze-migration-writes","action":"Disable migration incident workflows.","verificationCommand":"node --test tests/phase-11a-contract.test.js"},{"id":"restore-legacy-writes","action":"Restore legacy incident writes as sole writers without reopening deleted evidence.","verificationCommand":"node --test tests/phase-11a-contract.test.js"},{"id":"restore-legacy-reads","action":"Restore legacy incident reads.","verificationCommand":"node --test tests/phase-11a-contract.test.js"},{"id":"verify-authority","action":"Verify one incident writer and reader.","verificationCommand":"node --test tests/phase-11a-contract.test.js"},{"id":"verify-data","action":"Compare reports, investigations, corrective actions, actors, and closure dates.","verificationCommand":"node --test tests/phase-11a-contract.test.js"}]},"validation":{"asOf":"2026-09-22T08:00:00Z","refreshMaxAgeHours":24}}
+{
+  "$schema": "./cutover-record.schema.json",
+  "schemaVersion": 1,
+  "featureId": "clinical-incidents",
+  "dataClassification": "synthetic",
+  "status": {
+    "current": "completed",
+    "changedAt": "2026-09-23T13:00:00Z",
+    "history": [
+      {"state": "preparation", "at": "2026-09-22T08:00:00Z", "reason": "The 11A clinical-incident contract is drafted; legacy incident paths remain authoritative until 11E passes."},
+      {"state": "active-cutover", "at": "2026-09-23T12:59:59Z", "reason": "Phase 11E incident API, database, authorization, privacy, rollback, and frontend checks passed with synthetic data."},
+      {"state": "completed", "at": "2026-09-23T13:00:00Z", "reason": "Migration incident reads and named commands are authoritative; matching legacy paths fail closed and hard delete remains unsupported."}
+    ]
+  },
+  "dependencies": {
+    "inventorySource": "docs/migration/phase-11/PART_11A_DEPENDENCY_INVENTORY.md",
+    "requiredIds": ["clinical-incidents"],
+    "declared": [{"id": "clinical-incidents", "system": "legacy-supabase", "kind": "module", "locator": "src/utils/incidentStorage.js", "cutoverDisposition": "replace"}]
+  },
+  "authority": {"readSystem": "migration-fastapi", "writeSystem": "migration-fastapi", "writableSystems": ["migration-fastapi"]},
+  "freeze": {
+    "read": {"system": "legacy-supabase", "condition": "Legacy incident reads fail closed; selected-branch administrator migration reads have no legacy fallback.", "releaseCondition": "Rollback disables migration incident reads before restoring the legacy reader.", "verificationCommand": "node --test tests/phase-11e-legacy-freeze.test.js"},
+    "write": {"system": "legacy-supabase", "condition": "Legacy generic incident writes and hard delete fail closed; migration create, edit, investigation, corrective-action, and closure commands are the sole writers.", "releaseCondition": "Rollback disables migration incident commands before restoring one legacy writer without reopening deleted evidence.", "verificationCommand": "node --test tests/phase-11e-legacy-freeze.test.js"}
+  },
+  "refresh": {
+    "mode": "synthetic-only",
+    "source": {"kind": "tracked-fixture", "locator": "docs/migration/phase-11/PART_11A_GOLDEN_CASES.md", "digest": "sha256:05a3a237ddd714b020771bb6cf3b45ad481155b53713c57502eb19f3a8339713"},
+    "command": "python scripts/verify-phase-11e-database.py",
+    "lastRefresh": {
+      "timestamp": "2026-09-23T13:00:00Z",
+      "command": "python scripts/verify-phase-11e-database.py",
+      "sourceDigest": "sha256:05a3a237ddd714b020771bb6cf3b45ad481155b53713c57502eb19f3a8339713",
+      "evidence": {"path": "docs/migration/phase-11/cutover/evidence-clinical-incidents.json", "sha256": "sha256:a1cb35a8aa95741bee2b195be39fa6d7193ac06043901c9b584b89fcae60118f"}
+    }
+  },
+  "identityMapping": {"mode": "synthetic-only", "legacyIdField": "legacySupabaseUserId", "applicationIdField": "applicationUserId", "requiredLegacyUserIds": ["11111111-1111-4111-8111-111111111111"], "mappings": [{"legacySupabaseUserId": "11111111-1111-4111-8111-111111111111", "applicationUserId": "10000000-0000-4000-8000-000000000001", "synthetic": true}]},
+  "rollback": {
+    "trigger": "The 11E incident boundary fails after cutover.",
+    "owner": "phase-owner",
+    "targetAuthority": {"readSystem": "legacy-supabase", "writeSystem": "legacy-supabase", "writableSystems": ["legacy-supabase"]},
+    "steps": [
+      {"id": "freeze-migration-writes", "action": "Disable migration incident create, edit, investigation, corrective-action, and closure commands.", "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-11/cutover/clinical-incidents.json"},
+      {"id": "restore-legacy-writes", "action": "Restore legacy incident writes as sole writers without reopening hard delete.", "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-11/cutover/clinical-incidents.json"},
+      {"id": "restore-legacy-reads", "action": "Restore legacy incident reads.", "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-11/cutover/clinical-incidents.json"},
+      {"id": "verify-authority", "action": "Verify one selected-branch incident writer and reader.", "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-11/cutover/clinical-incidents.json"},
+      {"id": "verify-data", "action": "Compare retained reports, investigations, corrective actions, actors, closure dates, and redacted audit metadata.", "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-11/cutover/clinical-incidents.json"}
+    ]
+  },
+  "validation": {"asOf": "2026-09-23T13:00:00Z", "refreshMaxAgeHours": 24}
+}

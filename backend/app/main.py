@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app import __version__
 from app.advance_api import router as advance_router
+from app.appraisal_api import appraisal_router
+from app.appraisal_api import cycle_router as appraisal_cycle_router
 from app.asset_api import router as asset_router
 from app.attendance_configuration_api import router as attendance_configuration_router
 from app.attendance_exceptions_api import router as attendance_exceptions_router
@@ -42,6 +44,7 @@ from app.http.rate_limit import ConfigurableRateLimiter, RateLimiter
 from app.http.sample_schemas import CurrentAccountResponse, PublicStatusResponse
 from app.http.schemas import DataResponse
 from app.idempotency_api import router as idempotency_router
+from app.incident_api import router as incident_router
 from app.insurance_api import router as insurance_router
 from app.leave_approval_api import router as leave_approval_router
 from app.leave_attachment_api import router as leave_attachment_router
@@ -232,6 +235,9 @@ def create_app(
     application.include_router(employment_contract_router)
     application.include_router(insurance_router)
     application.include_router(asset_router)
+    application.include_router(appraisal_cycle_router)
+    application.include_router(appraisal_router)
+    application.include_router(incident_router)
     application.include_router(training_router)
     application.include_router(certification_router)
     application.include_router(cme_router)

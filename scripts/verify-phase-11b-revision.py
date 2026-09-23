@@ -11,7 +11,7 @@ from sqlalchemy import create_engine, inspect, text
 
 REVISION = "d8f0a2c4e6b1"
 PREDECESSOR = "c6e8a1b3d927"
-CURRENT_HEAD = "f0b2c4d6e8a3"
+CURRENT_HEAD = "a1c3e5f7b9d4"
 
 
 def verify_static(repository: Path) -> None:

@@ -13,6 +13,7 @@ REVISION = (
 )
 REVISION_ID = "f0b2c4d6e8a3"
 PREDECESSOR = "e9a1b3d5f7c2"
+CURRENT_HEAD = "a1c3e5f7b9d4"
 
 
 def require(path: Path, *fragments: str) -> str:
@@ -135,7 +136,7 @@ def verify_database(mode: str) -> None:
             assert not phase11d_columns.intersection(training_columns)
             assert not phase11d_columns.intersection(certification_columns)
         elif mode == "head":
-            assert version == REVISION_ID
+            assert version == CURRENT_HEAD
             assert "updated_at" in asset_columns
             assert phase11d_columns <= training_columns
             assert phase11d_columns <= certification_columns

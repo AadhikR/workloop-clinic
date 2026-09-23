@@ -2142,6 +2142,8 @@ def _incident_rows() -> list[Row]:
         }
         if index % 2:
             values["involved_emp_id"] = _EMP_BY_NO[involved].id
+        if status == "investigating":
+            values["root_cause"] = "Synthetic root cause under investigation"
         if status == "closed":
             values.update(
                 {
