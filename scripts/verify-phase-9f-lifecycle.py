@@ -84,6 +84,14 @@ def clean_phase_9f(connection: object) -> None:
         identifiers,
     )
     execute(text("DELETE FROM payroll_approval_log WHERE payroll_run_id=:run"), identifiers)
+    execute(
+        text(
+            "DELETE FROM notifications WHERE related_entity_type='payslip' "
+            "AND related_entity_id IN ("
+            "SELECT id::text FROM payslips WHERE payroll_run_id=:run)"
+        ),
+        identifiers,
+    )
     execute(text("DELETE FROM payslips WHERE payroll_run_id=:run"), identifiers)
     execute(text("DELETE FROM advance_repayments WHERE payroll_run_id=:run"), identifiers)
     execute(text("DELETE FROM payroll_entries WHERE payroll_run_id=:run"), identifiers)

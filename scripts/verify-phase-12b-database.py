@@ -15,6 +15,8 @@ from sqlalchemy import MetaData, Table, create_engine, select, text
 ROOT = Path("/workspace") if Path("/workspace").is_dir() else Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
+from app.db.seed.fixtures import build_rows  # noqa: E402
+from app.db.seed.runner import apply_rows, clean as clean_seed, validate  # noqa: E402
 from app.expiry_command import run_expiry  # noqa: E402
 
 TEMP_EMPLOYEE_ID = uuid.UUID("01000000-0000-4000-8000-000000000012")
@@ -179,6 +181,7 @@ async def verify() -> None:
     migration_url = os.environ["MIGRATION_DATABASE_URL"]
     expiry_url = os.environ["EXPIRY_DATABASE_URL"]
     engine = create_engine(migration_url)
+    rows = build_rows()
     all_targets: list[Target] = []
     notification_ids_before: list[uuid.UUID] = []
     audit_ids_before: list[uuid.UUID] = []
@@ -188,6 +191,9 @@ async def verify() -> None:
             connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
             == "c3e5a7b9d1f6"
         )
+        clean_seed(connection, rows)
+        apply_rows(connection, rows)
+        validate(connection, rows)
         for table, column, privilege in (
             ("notifications", "company_id", "SELECT"),
             ("notifications", "type", "INSERT"),
@@ -580,6 +586,7 @@ ORDER BY company.id,branch.id LIMIT 1
                 text("DELETE FROM public.audit_events WHERE entity_id IN (:employee,:document)"),
                 {"document": TEMP_CLINICAL_DOCUMENT_ID, "employee": TEMP_EMPLOYEE_ID},
             )
+            clean_seed(connection, rows)
         engine.dispose()
 
     print("Phase 12B database verification passed")

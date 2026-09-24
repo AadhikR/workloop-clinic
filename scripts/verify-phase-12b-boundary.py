@@ -64,12 +64,16 @@ def main() -> None:
     assert payroll_service.index("await self.repository.insert_payslip") < payroll_service.index(
         "await self.repository.create_payslip_notification"
     )
-    assert "create_workflow_notification('payslip_available',:source_id)" in payroll_repository
+    assert "'payslip_available',CAST(:source_id AS text)" in payroll_repository
+    assert "employee.employment_status IN ('Active','Probation','On Leave')" in payroll_repository
+    assert "account.status='active'" in payroll_repository
 
     roster = source("backend/app/repositories/roster_publication.py")
     assert roster.index("phase10h_publish_assignments") < roster.index(
-        "create_workflow_notification('roster_published',:source_id)"
+        "'roster_published',CAST(:source_id AS text)"
     )
+    assert "employee.employment_status IN ('Active','Probation','On Leave')" in roster
+    assert "account.status='active'" in roster
 
     print("Phase 12B boundary verification passed")
 

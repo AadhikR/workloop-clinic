@@ -388,8 +388,21 @@ class RosterPublicationRepository:
         )
         for assignment_id, _version in expected:
             await self.connection.execute(
-                text("SELECT public.create_workflow_notification('roster_published',:source_id)"),
-                {"source_id": str(assignment_id)},
+                text(
+                    "SELECT public.create_workflow_notification("
+                    "'roster_published',CAST(:source_id AS text)) "
+                    "FROM public.roster_assignments AS assignment "
+                    "JOIN public.employees AS employee ON employee.id=assignment.employee_id "
+                    "AND employee.company_id=assignment.company_id "
+                    "AND employee.branch_id=assignment.branch_id "
+                    "JOIN public.user_profiles AS profile ON profile.employee_id=employee.id "
+                    "AND profile.company_id=employee.company_id "
+                    "JOIN public.app_users AS account ON account.id=profile.app_user_id "
+                    "WHERE assignment.id=:source_id AND employee.active "
+                    "AND employee.employment_status IN ('Active','Probation','On Leave') "
+                    "AND account.status='active'"
+                ),
+                {"source_id": assignment_id},
             )
         published_at = (
             await self.connection.execute(text("SELECT clock_timestamp()"))

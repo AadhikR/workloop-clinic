@@ -83,6 +83,19 @@ async def expect_code(code: str, operation: Awaitable[object]) -> None:
 
 
 def cleanup_verification_rows(connection: Connection) -> None:
+    assignment_ids = list(
+        connection.scalars(
+            text("SELECT id FROM public.roster_assignments WHERE notes LIKE :prefix"),
+            {"prefix": f"{PREFIX}%"},
+        )
+    )
+    connection.execute(
+        text(
+            "DELETE FROM public.notifications WHERE related_entity_type='roster_assignment' "
+            "AND related_entity_id=ANY(:ids)"
+        ),
+        {"ids": [str(value) for value in assignment_ids]},
+    )
     connection.execute(
         text("DELETE FROM public.payroll_entries WHERE id=:id"),
         {"id": PAYROLL_ENTRY_ID},

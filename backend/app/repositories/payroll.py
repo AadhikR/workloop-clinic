@@ -270,8 +270,21 @@ VALUES(:id,:company_id,:branch_id,:run_id,:employee_id,:period,:payment_date,
 
     async def create_payslip_notification(self, payslip_id: uuid.UUID) -> None:
         await self.connection.execute(
-            text("SELECT public.create_workflow_notification('payslip_available',:source_id)"),
-            {"source_id": str(payslip_id)},
+            text(
+                "SELECT public.create_workflow_notification("
+                "'payslip_available',CAST(:source_id AS text)) "
+                "FROM public.payslips AS payslip "
+                "JOIN public.employees AS employee ON employee.id=payslip.employee_id "
+                "AND employee.company_id=payslip.company_id "
+                "AND employee.branch_id=payslip.branch_id "
+                "JOIN public.user_profiles AS profile ON profile.employee_id=employee.id "
+                "AND profile.company_id=employee.company_id "
+                "JOIN public.app_users AS account ON account.id=profile.app_user_id "
+                "WHERE payslip.id=:source_id AND employee.active "
+                "AND employee.employment_status IN ('Active','Probation','On Leave') "
+                "AND account.status='active'"
+            ),
+            {"source_id": payslip_id},
         )
 
     async def pay_expense(self, expense_id: uuid.UUID, run_id: uuid.UUID) -> bool:

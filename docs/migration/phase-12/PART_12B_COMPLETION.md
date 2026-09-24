@@ -40,20 +40,28 @@ reader and producers for the migration build.
   the Phase 5G RLS and Phase 5H security controls.
 - The Phase 12B database verifier covered every approved expiry type and threshold, off-threshold
   and expired exclusions, inactive and terminated exclusions, wrong login and scope denials,
-  replay, audit linkage, and concurrent tuple execution. It then restored all 334 fixture rows
-  exactly and left no verifier-created row behind.
+  replay, audit linkage, and concurrent tuple execution. It reapplied and validated all 334 fixture
+  rows itself, then removed the fixture and every verifier-created row.
 - Existing images restarted without rebuilding. The schema and security catalogue, Keycloak signing
   keys, notification data, and the complete fixture matched before and after restart.
 - Authentication passed after restart without reconfiguration. The complete administrator, manager,
   and employee browser journey passed, including workflow notification cleanup. Application and
   Keycloak synthetic row counts returned to zero, and the final service-log scan passed.
 
+The first routed GitHub run exposed two ordered-workflow gaps. Earlier lifecycle verifiers removed
+seed identities while notification rows still referred to them, and payroll generation tried to
+notify terminated employees without an active portal account. The follow-up deletes each verifier's
+workflow notifications before its source rows, limits payslip and roster producers to active linked
+recipients, and makes the Phase 12B database verifier own its seed setup and cleanup. A fresh local
+stack then passed the complete ordered database chain, persistence restart, and three-role browser
+journey.
+
 ## Resource boundary
 
 Verification used only synthetic local rows in disposable containers, networks, and volumes. The
-`workloop-phase12b-focus` and `workloop-phase12b-gate` environments and their volumes were removed.
-The protected `workloop-clinic_postgres_data` volume was not attached, modified, deleted, or
-recreated.
+`workloop-phase12b-focus`, `workloop-phase12b-gate`, and corrective `final2` through `final4`
+environments and their volumes were removed. The protected `workloop-clinic_postgres_data` volume
+was not attached, modified, deleted, or recreated.
 
 No production provider, credential, cloud resource, paid service, production data, or real employee
 or patient record was used. The explicit expiry command has no scheduler and no shared web-service

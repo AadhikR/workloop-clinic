@@ -79,6 +79,16 @@ async def expect_code(code: str, operation: Awaitable[object]) -> None:
     raise AssertionError(f"expected {code}")
 
 
+def clean_notifications(connection: object, assignment_ids: list[uuid.UUID]) -> None:
+    connection.execute(  # type: ignore[attr-defined]
+        text(
+            "DELETE FROM public.notifications WHERE related_entity_type='roster_assignment' "
+            "AND related_entity_id=ANY(:ids)"
+        ),
+        {"ids": [str(value) for value in assignment_ids]},
+    )
+
+
 async def main() -> None:
     migration_engine = create_engine(
         database_url("workloop_migration", "WORKLOOP_MIGRATION_PASSWORD")
@@ -89,6 +99,13 @@ async def main() -> None:
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
             "c3e5a7b9d1f6"
         )
+        stale_assignment_ids = list(
+            connection.scalars(
+                text("SELECT id FROM public.roster_assignments WHERE notes LIKE :prefix"),
+                {"prefix": f"{PREFIX}%"},
+            )
+        )
+        clean_notifications(connection, stale_assignment_ids)
         clean(connection, rows)
         apply_rows(connection, rows)
         validate(connection, rows)
@@ -416,6 +433,7 @@ async def main() -> None:
     finally:
         await runtime_engine.dispose()
         with migration_engine.begin() as connection:
+            clean_notifications(connection, assignments)
             connection.execute(
                 text(
                     "UPDATE public.roster_months SET status='draft',version=0,"

@@ -113,6 +113,13 @@ async def main() -> None:
             {"key": IDEMPOTENCY_KEY},
         )
         connection.execute(
+            text(
+                "DELETE FROM public.notifications WHERE related_entity_type='leave_request' "
+                "AND related_entity_id=ANY(:ids)"
+            ),
+            {"ids": [str(value) for value in REQUEST_IDS]},
+        )
+        connection.execute(
             text("DELETE FROM public.leave_requests WHERE id=ANY(:ids)"), {"ids": REQUEST_IDS}
         )
         connection.execute(
@@ -552,6 +559,13 @@ async def main() -> None:
         connection.execute(
             text("DELETE FROM public.idempotency_records WHERE idempotency_key=:key"),
             {"key": IDEMPOTENCY_KEY},
+        )
+        connection.execute(
+            text(
+                "DELETE FROM public.notifications WHERE related_entity_type='leave_request' "
+                "AND related_entity_id=ANY(:ids)"
+            ),
+            {"ids": [str(value) for value in REQUEST_IDS]},
         )
         connection.execute(
             text("DELETE FROM public.leave_requests WHERE id=ANY(:ids)"), {"ids": REQUEST_IDS}
