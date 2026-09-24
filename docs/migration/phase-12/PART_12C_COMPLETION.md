@@ -1,7 +1,6 @@
 # Part 12C completion
 
-Status: implementation and local gate complete. The routed GitHub gate must pass before Part 12D
-starts.
+Status: complete. The local gate and routed GitHub gate passed.
 
 ## Result
 
@@ -47,7 +46,10 @@ FastAPI route. The migrated path contains no Supabase or retained task-storage i
   migration revision, principal-derived scope, failure handling, and migration-only task wiring.
 - `scripts/verify-phase-12c-database.py` executed all 28 role-category query combinations against a
   fresh database at Alembic head `c3e5a7b9d1f6`.
-- Routed GitHub evidence: pending the first push from this completion record.
+- Routed GitHub evidence: Migration foundation run
+  [36043943164](https://github.com/AadhikR/workloop-clinic/actions/runs/36043943164) passed change
+  classification, backend quality, frontend regression, and full-stack smoke for commit
+  `ff9479caa9aa5953ec796049dc65d71b380fbd74`.
 
 ## Resource boundary
 
