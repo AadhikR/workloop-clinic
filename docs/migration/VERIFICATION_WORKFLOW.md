@@ -75,6 +75,16 @@ not invalidate that code evidence. Commit and push those edits with only the lig
 validation. Do not trigger another full-stack run merely to publish a completion note, workflow URL,
 handoff prompt, or process document.
 
+## Automatic part handoff
+
+Follow `docs/migration/PHASE_EXECUTION_WORKFLOW.md` after every nonfinal part. Once the required local
+and GitHub checks pass and the branch is clean and synchronized, the current task must generate the
+next part's verified handoff and create a new Codex task automatically. Start that task without
+requesting another owner approval. Never implement the next part in the completed part's task.
+
+The last part records the complete phase result and requests one project-owner signoff. It does not
+create or start the next phase.
+
 If code changes after the passing phase gate, classify the new changes normally and rerun the affected
 checks. If the changed code crosses a database, authentication, Compose, or shared infrastructure
 boundary, run the full-stack gate again.

@@ -1,6 +1,6 @@
 # Part 11H completion
 
-Status: technical gate complete; project-owner Phase 11 signoff pending.
+Status: complete; project-owner Phase 11 signoff recorded on 2026-09-24.
 
 ## Result
 
@@ -56,5 +56,6 @@ documents, and common storage. Do not restore a legacy writer until the matching
 disabled under its cutover record. Preserve retained history, source snapshots, actors, audit,
 settlements, and private-file evidence.
 
-Part 11H is technically complete. Phase 12 must not start until the project owner explicitly signs
-off Phase 11.
+Part 11H and Phase 11 are complete. The project owner signed off Phase 11 on 2026-09-24. Phase 12
+remains a separate phase and starts only when the owner starts Part 12A. That instruction will
+authorize every listed Phase 12 part under `docs/migration/PHASE_EXECUTION_WORKFLOW.md`.

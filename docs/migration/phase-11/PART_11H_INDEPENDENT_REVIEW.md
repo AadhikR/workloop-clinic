@@ -194,7 +194,7 @@ tests passed. The isolated stack preserved its database fingerprint, Keycloak si
 objects, and scan state across restart before the browser journey ran.
 
 GitHub Migration foundation run `35911809133` passed every routed job on 2026-09-24. The remaining
-Phase 11 completion condition is explicit project-owner signoff.
+Phase 11 completion condition was project-owner signoff, recorded on 2026-09-24.
 
 Only synthetic local data and disposable Phase 11H resources are permitted. The protected
 `workloop-clinic_postgres_data` volume must not be attached, modified, deleted, or recreated.

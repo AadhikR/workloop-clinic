@@ -11,6 +11,10 @@ The project owner authorized sequential execution of the consolidated Phase 11 p
 cutover preparation, commits, pushes, and routed GitHub checks. It does not authorize a cloud
 resource, paid service, production data, real employee file, or legal-policy decision.
 
+The project owner signed off Phase 11 on 2026-09-24 after commit `b8af39f` and GitHub Migration
+foundation runs `35911809133` and `35913921080` passed. The owner also replaced the old part-by-part
+approval process with `docs/migration/PHASE_EXECUTION_WORKFLOW.md` for every future phase.
+
 This document splits Phase 11 into eight parts, 11A through 11H. Each part must finish its focused
 verification, boundary-matched local gate, commit, push, and routed GitHub checks before the next
 part starts. Execution is sequential, not concurrent.
@@ -65,7 +69,7 @@ consumes is stable. The last part reviews the whole boundary independently.
 | 11E | Appraisals and clinical incidents | Complete; GitHub run `35859385540` passed |
 | 11F | Letter and custom requests, decisions, and print projection | Complete; GitHub run `35874371756` passed |
 | 11G | Offboarding, checklist execution, final settlement, and completion | Complete; GitHub run `35900744230` passed |
-| 11H | Independent review, complete cutover proof, and Phase 11 gate | Complete; GitHub run `35911809133` passed; Phase 11 signoff pending |
+| 11H | Independent review, complete cutover proof, and Phase 11 gate | Complete; GitHub run `35911809133` passed; Phase 11 signed off 2026-09-24 |
 
 Part 11E implementation and verifier fixes are recorded in commits `4139fe3`, `f84e402`, `df469c9`,
 `0bc17d0`, `b4aa7a6`, `93c349c`, `5b2c292`, `56ebce2`, and `2b4dc6c`. GitHub Migration foundation
@@ -85,7 +89,7 @@ three-role Phase 11 browser coverage and aligned letter-request decisions with t
 precision. The complete fresh local gate passed after both corrections. Routed GitHub checks were
 the final technical condition before project-owner signoff was requested. GitHub Migration foundation
 run `35911809133` passed every routed job on commit `36f16b7`. Part 11H is technically complete, and
-explicit project-owner Phase 11 signoff remains pending.
+the project owner signed off Phase 11 on 2026-09-24.
 
 ## Rules shared by every part
 
