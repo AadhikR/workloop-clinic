@@ -1509,14 +1509,16 @@ class PayrollService:
                 raise ServiceExecutionError("validation_failed")
             snapshot = self._payslip_snapshot(entry)
             payslip_snapshots.append(snapshot)
+            payslip_id = uuid.uuid5(PAYSLIP_NAMESPACE, f"{run_id}:{entry.employee_id}")
             await self.repository.insert_payslip(
-                payslip_id=uuid.uuid5(PAYSLIP_NAMESPACE, f"{run_id}:{entry.employee_id}"),
+                payslip_id=payslip_id,
                 run=row,
                 employee_id=entry.employee_id,
                 gross_pay=Decimal(entry.gross_pay),
                 net_pay=Decimal(entry.net_pay),
                 snapshot=snapshot,
             )
+            await self.repository.create_payslip_notification(payslip_id)
             total = money(total + Decimal(entry.net_pay))
             count += 1
             source_snapshot = dict(entry_row["source_snapshot"])

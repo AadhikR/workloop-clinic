@@ -386,6 +386,11 @@ class RosterPublicationRepository:
                 "versions": [item[1] for item in expected],
             },
         )
+        for assignment_id, _version in expected:
+            await self.connection.execute(
+                text("SELECT public.create_workflow_notification('roster_published',:source_id)"),
+                {"source_id": str(assignment_id)},
+            )
         published_at = (
             await self.connection.execute(text("SELECT clock_timestamp()"))
         ).scalar_one()

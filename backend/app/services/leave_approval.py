@@ -395,6 +395,11 @@ class LeaveApprovalService:
                 "decision_source": visibility,
             },
         )
+        if new_status in {"Approved", "Rejected", "ManagerRejected"}:
+            await self.repository.create_workflow_notification(
+                "leave_approved" if new_status == "Approved" else "leave_rejected",
+                request_id,
+            )
         row = await self.repository.get_request(principal.company_id, branch_id, request_id)
         if row is None:
             raise RuntimeError("decided leave request is not visible")

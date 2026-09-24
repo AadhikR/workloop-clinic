@@ -29,6 +29,7 @@ import DevelopmentAssets from './DevelopmentAssets.jsx'
 import AppraisalsIncidents from './AppraisalsIncidents.jsx'
 import LetterRequests from './LetterRequests.jsx'
 import Offboarding from './Offboarding.jsx'
+import NotificationBell from './NotificationBell.jsx'
 
 function OrganizationSummary({ account, authentication }) {
   const organization = useCompanyContext()
@@ -41,6 +42,11 @@ function OrganizationSummary({ account, authentication }) {
     <div className="organization-summary">
       <h2>{organization.company?.name ?? organization.employer?.companyName}</h2>
       <p data-selected-branch-name>{organization.selectedBranch.name}</p>
+      <NotificationBell
+        account={account}
+        authentication={authentication}
+        branchId={organization.selectedBranch.id}
+      />
       {organization.company && (
         <>
           <button type="button" className="secondary" onClick={organization.clearBranch}>

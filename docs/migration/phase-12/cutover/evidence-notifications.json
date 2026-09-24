@@ -1,0 +1,17 @@
+{
+  "featureId": "notifications",
+  "command": "docker compose --project-name workloop-phase12b-gate --file docker-compose.yml --file docker-compose.phase11b.yml --profile tools run --rm --env-from-file ./backend/.env.expiry --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-12b-database.py",
+  "refreshedAt": "2026-09-24T16:37:00Z",
+  "sourceDigest": "sha256:c1c505e817c096034d902ba48a156ae0dbf0604c0ede52eb849ea350976b1b38",
+  "sourceRecordCount": 12,
+  "targetRecordCount": 12,
+  "result": "completed",
+  "proof": [
+    "recipient and selected-branch notification queries expose only the fixed response fields and use created-at plus ID cursor order",
+    "read-one is monotonic and read-all is partition-scoped, replay-safe, and protected by an idempotency key",
+    "leave decisions, payslip generation, and roster publication call only the four allowlisted workflow notification types inside their source transactions",
+    "the explicit expiry command runs only under the fixed expiry login, locks the company, branch, and business-date tuple, and reads only granted source columns",
+    "every approved expiry type and threshold produced one source-linked notification and matching audit, while expired, off-threshold, inactive, terminated, wrong-scope, and replay paths produced none",
+    "concurrent expiry commands produced the serial result, failures emitted a fixed safe error, no scheduler was added, and the legacy browser producer is not imported by the migration build"
+  ]
+}

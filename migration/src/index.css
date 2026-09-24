@@ -223,6 +223,78 @@ button:focus-visible {
   outline-offset: 3px;
 }
 
+.notification-bell {
+  position: relative;
+  margin: 1rem 0;
+}
+
+.notification-toggle {
+  padding: 0.55rem 0.8rem;
+}
+
+.notification-panel {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  width: min(32rem, calc(100vw - 4rem));
+  max-height: 30rem;
+  overflow: auto;
+  padding: 1rem;
+  border: 1px solid #9aaa9f;
+  background: #fff;
+  box-shadow: 0.5rem 0.5rem 0 #1a4d3a;
+}
+
+.notification-heading,
+.notification-heading > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.notification-heading h3 {
+  margin: 0;
+}
+
+.notification-heading button {
+  padding: 0.4rem 0.6rem;
+}
+
+.notification-list {
+  display: grid;
+  gap: 0.5rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.notification-list button {
+  display: grid;
+  width: 100%;
+  gap: 0.3rem;
+  padding: 0.75rem;
+  border-color: #c7d0c9;
+  background: #edf6f1;
+  color: #14261f;
+  text-align: left;
+}
+
+.notification-list li[data-read='true'] button {
+  background: #fff;
+  color: #65736b;
+}
+
+.notification-list span,
+.notification-list time {
+  font-weight: 400;
+}
+
+.notification-list time {
+  font-size: 0.75rem;
+}
+
 .employee-directory {
   border-top: 1px solid #dbe3ea;
   margin-top: 1.5rem;

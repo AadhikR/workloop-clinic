@@ -152,6 +152,28 @@ services:
       - no-new-privileges:true
     stop_grace_period: 30s
 
+  expiry:
+    build:
+      context: ./backend
+    image: workloop-api:local
+    profiles:
+      - tools
+    env_file:
+      - path: ./backend/.env.expiry
+        required: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: ["python", "-m", "app.expiry_command"]
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
+
   file-scanner:
     build:
       context: ./backend

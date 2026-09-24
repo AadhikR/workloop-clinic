@@ -207,6 +207,11 @@ jobs:
             case "$record" in */evidence-*) continue ;; esac
             node scripts/cutover-record-validator.mjs "$record"
           done
+      - name: Verify Phase 12B notification boundaries
+        run: |
+          python scripts/verify-phase-12b-boundary.py
+          node --test tests/migration-notifications.test.js
+          node scripts/cutover-record-validator.mjs docs/migration/phase-12/cutover/notifications.json
       - name: Verify Phase 11B local storage contract
         run: docker compose run --rm --no-deps --env PYTHONPATH=/app --volume ./scripts:/verification:ro backend python /verification/verify-phase-11b-storage.py
       - name: Verify Phase 8D attachment contract
@@ -449,6 +454,7 @@ jobs:
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-11e-database.py
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-11f-database.py
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-11g-database.py
+          docker compose --profile tools run --rm --env-from-file ./backend/.env.expiry --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-12b-database.py
       - name: Verify service health
         run: |
           curl --fail --silent --show-error http://127.0.0.1:8000/health | jq --exit-status '.status == "ok" and .database == "ok"'

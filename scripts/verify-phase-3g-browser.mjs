@@ -575,6 +575,10 @@ function cleanupFixtures() {
         { company_id: companyId },
       ))
       cleanup(() => psql(
+        "DELETE FROM notifications WHERE company_id = :'company_id'",
+        { company_id: companyId },
+      ))
+      cleanup(() => psql(
         "SET SESSION AUTHORIZATION workloop_migration; "
           + "UPDATE offboarding_checklists SET final_settlement_id=NULL "
           + "WHERE company_id=:'company_id'; "
@@ -728,6 +732,7 @@ function cleanupFixtures() {
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM leave_attachments'), '0'))
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM file_security_scans'), '0'))
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM storage_operations'), '0'))
+  verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM notifications'), '0'))
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM leave_requests'), '0'))
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM leave_approval_delegates'), '0'))
   verifyCleanup(() => assert.equal(psql('SELECT count(*) FROM leave_types'), '0'))
@@ -754,6 +759,36 @@ function cleanupFixtures() {
   verifyCleanup(() => run(['exec', '-T', 'keycloak', 'rm', '-f', kcadmConfig]))
   verifyCleanup(() => run(['exec', '-T', 'keycloak', 'test', '!', '-e', kcadmConfig]))
   if (cleanupFailed) throw new Error('local synthetic fixture cleanup failed')
+}
+
+function discoverCleanupRows() {
+  const addIds = (target, query) => {
+    for (const id of psql(query, { company_id: companyId }).split(/\r?\n/).filter(Boolean)) {
+      if (!target.includes(id)) target.push(id)
+    }
+  }
+  createdRows.company = psql(
+    "SELECT count(*) FROM companies WHERE id = :'company_id'",
+    { company_id: companyId },
+  ) !== '0'
+  addIds(createdRows.branches, "SELECT id FROM branches WHERE company_id = :'company_id'")
+  addIds(createdRows.departments, "SELECT id FROM departments WHERE company_id = :'company_id'")
+  addIds(
+    createdRows.staffingRules,
+    "SELECT id FROM department_staffing_rules WHERE company_id = :'company_id'",
+  )
+  addIds(
+    createdRows.jobHistory,
+    "SELECT id FROM employee_job_history WHERE company_id = :'company_id'",
+  )
+  addIds(createdRows.employees, "SELECT id FROM employees WHERE company_id = :'company_id'")
+  addIds(
+    createdRows.profiles,
+    "SELECT app_user_id FROM user_profiles WHERE company_id = :'company_id'",
+  )
+  createdRows.appUsers.push(...createdRows.profiles.filter(
+    (appUserId) => !createdRows.appUsers.includes(appUserId),
+  ))
 }
 
 async function waitForStatus(page, status) {
@@ -2385,6 +2420,13 @@ async function browserChecks(viteServer) {
 }
 
 async function main() {
+  if (process.argv.includes('--cleanup-only')) {
+    authenticateAdministrator()
+    discoverCleanupRows()
+    cleanupFixtures()
+    console.log('Phase 3G synthetic cleanup passed')
+    return
+  }
   let fixturesCreated = false
   let viteServer
   let primaryError

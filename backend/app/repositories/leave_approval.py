@@ -30,6 +30,14 @@ class LeaveApprovalRepository:
             await self.connection.exec_driver_sql("SELECT public.workloop_business_date()")
         ).scalar_one()
 
+    async def create_workflow_notification(
+        self, notification_type: str, source_id: uuid.UUID
+    ) -> None:
+        await self.connection.execute(
+            text("SELECT public.create_workflow_notification(:type,:source_id)"),
+            {"source_id": str(source_id), "type": notification_type},
+        )
+
     async def list_staff_queue(
         self,
         company_id: uuid.UUID,

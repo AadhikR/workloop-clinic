@@ -1,0 +1,130 @@
+{
+  "$schema": "./cutover-record.schema.json",
+  "schemaVersion": 1,
+  "featureId": "notifications",
+  "dataClassification": "synthetic",
+  "status": {
+    "current": "completed",
+    "changedAt": "2026-09-24T16:37:00Z",
+    "history": [
+      {
+        "state": "preparation",
+        "at": "2026-09-24T15:29:00Z",
+        "reason": "The Part 12A notification and expiry contract is fixed; legacy browser paths remain authoritative until the Part 12B gates pass."
+      },
+      {
+        "state": "active-cutover",
+        "at": "2026-09-24T15:29:59Z",
+        "reason": "The notification API, allowlisted workflow producers, explicit expiry command, migration bell, and focused synthetic checks passed."
+      },
+      {
+        "state": "completed",
+        "at": "2026-09-24T16:37:00Z",
+        "reason": "FastAPI is authoritative for the notification inbox and production; matching legacy browser paths are frozen in the migration build."
+      }
+    ]
+  },
+  "dependencies": {
+    "inventorySource": "docs/migration/phase-12/PART_12A_DEPENDENCY_INVENTORY.md",
+    "requiredIds": [
+      "notification-bell",
+      "notification-list-count",
+      "notification-read-actions",
+      "notification-browser-producers",
+      "notification-expiry-browser-producer",
+      "notification-employee-expiry-sources",
+      "notification-benefit-expiry-sources",
+      "notification-employment-expiry-sources",
+      "notification-workflow-producers",
+      "notification-security-boundary",
+      "notification-expiry-login",
+      "notification-expiry-policies",
+      "notification-role-shells"
+    ],
+    "declared": [
+      {"id": "notification-bell", "system": "legacy-supabase", "kind": "module", "locator": "src/components/NotificationBell.jsx", "cutoverDisposition": "replace"},
+      {"id": "notification-list-count", "system": "legacy-supabase", "kind": "module", "locator": "src/utils/notificationStorage.js", "cutoverDisposition": "replace"},
+      {"id": "notification-read-actions", "system": "legacy-supabase", "kind": "module", "locator": "src/utils/notificationStorage.js", "cutoverDisposition": "replace"},
+      {"id": "notification-browser-producers", "system": "legacy-supabase", "kind": "module", "locator": "src/utils/notificationStorage.js", "cutoverDisposition": "freeze"},
+      {"id": "notification-expiry-browser-producer", "system": "legacy-supabase", "kind": "module", "locator": "src/utils/notificationStorage.js", "cutoverDisposition": "freeze"},
+      {"id": "notification-employee-expiry-sources", "system": "legacy-supabase", "kind": "data-contract", "locator": "docs/migration/phase-12/PART_12A_DEPENDENCY_INVENTORY.md#notifications-and-expiry", "cutoverDisposition": "replace"},
+      {"id": "notification-benefit-expiry-sources", "system": "legacy-supabase", "kind": "data-contract", "locator": "docs/migration/phase-12/PART_12A_DEPENDENCY_INVENTORY.md#notifications-and-expiry", "cutoverDisposition": "replace"},
+      {"id": "notification-employment-expiry-sources", "system": "legacy-supabase", "kind": "data-contract", "locator": "docs/migration/phase-12/PART_12A_DEPENDENCY_INVENTORY.md#notifications-and-expiry", "cutoverDisposition": "replace"},
+      {"id": "notification-workflow-producers", "system": "legacy-supabase", "kind": "data-contract", "locator": "docs/migration/phase-12/PART_12A_DEPENDENCY_INVENTORY.md#notifications-and-expiry", "cutoverDisposition": "replace"},
+      {"id": "notification-security-boundary", "system": "legacy-supabase", "kind": "data-contract", "locator": "docs/migration/phase-12/PART_12A_DEPENDENCY_INVENTORY.md#notifications-and-expiry", "cutoverDisposition": "retain"},
+      {"id": "notification-expiry-login", "system": "legacy-supabase", "kind": "configuration", "locator": "backend/.env.expiry.example", "cutoverDisposition": "replace"},
+      {"id": "notification-expiry-policies", "system": "legacy-supabase", "kind": "data-contract", "locator": "docs/migration/phase-12/PART_12A_DEPENDENCY_INVENTORY.md#notifications-and-expiry", "cutoverDisposition": "retain"},
+      {"id": "notification-role-shells", "system": "legacy-supabase", "kind": "module", "locator": "migration/src/OrganizationPanel.jsx", "cutoverDisposition": "replace"}
+    ]
+  },
+  "authority": {
+    "readSystem": "migration-fastapi",
+    "writeSystem": "migration-fastapi",
+    "writableSystems": ["migration-fastapi"]
+  },
+  "freeze": {
+    "read": {
+      "system": "legacy-supabase",
+      "condition": "The migration bell uses only FastAPI inbox routes; it has no legacy notification read fallback.",
+      "releaseCondition": "Rollback disables the migration bell and inbox routes before restoring the legacy reader.",
+      "verificationCommand": "node --test tests/migration-notifications.test.js"
+    },
+    "write": {
+      "system": "legacy-supabase",
+      "condition": "The migration build never calls browser notification producers; source transactions and the explicit expiry command are the only writers.",
+      "releaseCondition": "Rollback disables the expiry command and all migration workflow producer calls before restoring one legacy writer.",
+      "verificationCommand": "python scripts/verify-phase-12b-boundary.py"
+    }
+  },
+  "refresh": {
+    "mode": "synthetic-only",
+    "source": {
+      "kind": "tracked-fixture",
+      "locator": "docs/migration/phase-12/PART_12A_GOLDEN_CASES.md",
+      "digest": "sha256:c1c505e817c096034d902ba48a156ae0dbf0604c0ede52eb849ea350976b1b38"
+    },
+    "command": "docker compose --project-name workloop-phase12b-gate --file docker-compose.yml --file docker-compose.phase11b.yml --profile tools run --rm --env-from-file ./backend/.env.expiry --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-12b-database.py",
+    "lastRefresh": {
+      "timestamp": "2026-09-24T16:37:00Z",
+      "command": "docker compose --project-name workloop-phase12b-gate --file docker-compose.yml --file docker-compose.phase11b.yml --profile tools run --rm --env-from-file ./backend/.env.expiry --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-12b-database.py",
+      "sourceDigest": "sha256:c1c505e817c096034d902ba48a156ae0dbf0604c0ede52eb849ea350976b1b38",
+      "evidence": {
+        "path": "docs/migration/phase-12/cutover/evidence-notifications.json",
+        "sha256": "sha256:b9814552bd5e42500f9df1f206b5c44291dd68665b7beb10bc77caddc7827518"
+      }
+    }
+  },
+  "identityMapping": {
+    "mode": "synthetic-only",
+    "legacyIdField": "legacySupabaseUserId",
+    "applicationIdField": "applicationUserId",
+    "requiredLegacyUserIds": ["11111111-1111-4111-8111-111111111111"],
+    "mappings": [
+      {
+        "legacySupabaseUserId": "11111111-1111-4111-8111-111111111111",
+        "applicationUserId": "10000000-0000-4000-8000-000000000001",
+        "synthetic": true
+      }
+    ]
+  },
+  "rollback": {
+    "trigger": "The Part 12B inbox, workflow producer, expiry, recipient isolation, audit, or migration presentation boundary fails after cutover.",
+    "owner": "phase-owner",
+    "targetAuthority": {
+      "readSystem": "legacy-supabase",
+      "writeSystem": "legacy-supabase",
+      "writableSystems": ["legacy-supabase"]
+    },
+    "steps": [
+      {"id": "freeze-migration-writes", "action": "Disable the explicit expiry command and every migration workflow producer call.", "verificationCommand": "python scripts/verify-phase-12b-boundary.py"},
+      {"id": "restore-legacy-writes", "action": "Restore one legacy notification producer only after every migration producer is disabled.", "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-12/cutover/notifications.json"},
+      {"id": "restore-legacy-reads", "action": "Disable the migration bell and inbox routes, then restore the legacy notification reader.", "verificationCommand": "node --test tests/migration-notifications.test.js"},
+      {"id": "verify-authority", "action": "Verify that exactly one notification reader and writer are authoritative and the expiry job remains explicit.", "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-12/cutover/notifications.json"},
+      {"id": "verify-data", "action": "Compare retained notification rows, read timestamps, source links, workflow state, expiry sources, and audit events without deleting evidence.", "verificationCommand": "python scripts/verify-phase-12b-boundary.py"}
+    ]
+  },
+  "validation": {
+    "asOf": "2026-09-24T16:37:00Z",
+    "refreshMaxAgeHours": 24
+  }
+}

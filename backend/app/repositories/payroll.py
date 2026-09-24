@@ -268,6 +268,12 @@ VALUES(:id,:company_id,:branch_id,:run_id,:employee_id,:period,:payment_date,
             },
         )
 
+    async def create_payslip_notification(self, payslip_id: uuid.UUID) -> None:
+        await self.connection.execute(
+            text("SELECT public.create_workflow_notification('payslip_available',:source_id)"),
+            {"source_id": str(payslip_id)},
+        )
+
     async def pay_expense(self, expense_id: uuid.UUID, run_id: uuid.UUID) -> bool:
         return (
             await self.connection.execute(

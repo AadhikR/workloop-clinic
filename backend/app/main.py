@@ -52,6 +52,7 @@ from app.leave_balance_api import router as leave_balance_router
 from app.leave_configuration_api import router as leave_configuration_router
 from app.leave_request_api import router as leave_request_router
 from app.letter_request_api import router as letter_request_router
+from app.notification_api import router as notification_router
 from app.offboarding_api import router as offboarding_router
 from app.organization_api import router as organization_router
 from app.payroll_api import payslip_router
@@ -185,6 +186,9 @@ def create_app(
         application.state.leave_balance_cursor_codec = EmployeeCursorCodec.from_base64url(
             resolved_settings.cursor_signing_key.get_secret_value()
         )
+        application.state.notification_cursor_codec = EmployeeCursorCodec.from_base64url(
+            resolved_settings.cursor_signing_key.get_secret_value()
+        )
         application.state.idempotency_recovery_namespaces = RecoveryNamespaces(
             RecoveryKey(
                 key_id=resolved_settings.idempotency_recovery_current_key_id,
@@ -269,6 +273,7 @@ def create_app(
     application.include_router(leave_request_router)
     application.include_router(letter_request_router)
     application.include_router(offboarding_router)
+    application.include_router(notification_router)
     application.add_api_route(
         "/_synthetic-storage/v1/{token}",
         download_synthetic_object,

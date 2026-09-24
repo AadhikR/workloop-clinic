@@ -4,6 +4,7 @@ $apiPath = Join-Path $parent ".env.api"
 $migrationPath = Join-Path $parent ".env.migration"
 $keycloakPath = Join-Path $parent ".env.keycloak"
 $scannerPath = Join-Path $parent ".env.file-scanner"
+$expiryPath = Join-Path $parent ".env.expiry"
 
 if (-not (Test-Path -LiteralPath $parent)) {
     throw "Expected backend directory was not found."
@@ -226,6 +227,15 @@ $migrationLines = @(
     (New-Object System.Text.UTF8Encoding($false))
 )
 
+$expiryLines = @(
+    "EXPIRY_DATABASE_URL=postgresql+psycopg://workloop_expiry_processing:${expiryProcessingPassword}@postgres:5432/workloop"
+)
+[System.IO.File]::WriteAllLines(
+    $expiryPath,
+    $expiryLines,
+    (New-Object System.Text.UTF8Encoding($false))
+)
+
 if (Test-Path -LiteralPath $keycloakPath) {
     $keycloakExistingLines = [System.IO.File]::ReadAllLines($keycloakPath)
     $keycloakAdminUsername = $keycloakExistingLines | Where-Object {
@@ -259,4 +269,4 @@ else {
     (New-Object System.Text.UTF8Encoding($false))
 )
 
-"Local PostgreSQL, API, migration, Keycloak, storage reconciler, and file scanner environment files are ready; no secret values were displayed."
+"Local PostgreSQL, API, migration, expiry, Keycloak, storage reconciler, and file scanner environment files are ready; no secret values were displayed."
