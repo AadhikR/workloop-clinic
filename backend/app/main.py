@@ -65,6 +65,7 @@ from app.services.employees import EmployeeCursorCodec
 from app.services.execution import AuthorizedServiceExecutor
 from app.services.idempotency import RecoveryKey, RecoveryNamespaces
 from app.services.organization import BranchCursorCodec
+from app.services.tasks import TaskCursorCodec
 from app.shift_swap_api import router as shift_swap_router
 from app.storage import ObjectStorage, create_object_storage
 from app.storage.proof_api import (
@@ -74,6 +75,7 @@ from app.storage.proof_api import (
     read_storage_proof,
 )
 from app.storage.synthetic_api import download_synthetic_object
+from app.task_api import router as task_router
 from app.wps_api import nafis_router
 from app.wps_api import router as wps_router
 
@@ -189,6 +191,9 @@ def create_app(
         application.state.notification_cursor_codec = EmployeeCursorCodec.from_base64url(
             resolved_settings.cursor_signing_key.get_secret_value()
         )
+        application.state.task_cursor_codec = TaskCursorCodec.from_base64url(
+            resolved_settings.cursor_signing_key.get_secret_value()
+        )
         application.state.idempotency_recovery_namespaces = RecoveryNamespaces(
             RecoveryKey(
                 key_id=resolved_settings.idempotency_recovery_current_key_id,
@@ -274,6 +279,7 @@ def create_app(
     application.include_router(letter_request_router)
     application.include_router(offboarding_router)
     application.include_router(notification_router)
+    application.include_router(task_router)
     application.add_api_route(
         "/_synthetic-storage/v1/{token}",
         download_synthetic_object,

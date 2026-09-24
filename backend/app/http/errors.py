@@ -77,6 +77,7 @@ ERROR_REGISTRY: dict[str, ErrorSpec] = {
     "rate_limit_exceeded": ErrorSpec(429, "Too many requests", (("Retry-After", "60"),)),
     "internal_error": ErrorSpec(500, "Unexpected server error"),
     "application_account_lookup_unavailable": ErrorSpec(503, "Service temporarily unavailable"),
+    "task_source_unavailable": ErrorSpec(503, "One or more task sources are unavailable"),
     "service_unavailable": ErrorSpec(503, "Service temporarily unavailable"),
     "request_timeout": ErrorSpec(504, "Request timed out"),
 }

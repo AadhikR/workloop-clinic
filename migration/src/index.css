@@ -295,6 +295,106 @@ button:focus-visible {
   font-size: 0.75rem;
 }
 
+.task-centre {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid #9aaa9f;
+  background: #f9faf5;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+.task-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.task-heading h3,
+.task-category h4,
+.task-category p {
+  margin: 0;
+}
+
+.task-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.task-filters label {
+  display: grid;
+  gap: 0.3rem;
+  color: #425149;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.task-filters select {
+  min-width: 10rem;
+  padding: 0.45rem;
+  border: 1px solid #9aaa9f;
+  background: #fff;
+  color: #14261f;
+  font: inherit;
+}
+
+.task-category {
+  display: grid;
+  gap: 0.6rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid #dbe1dc;
+}
+
+.task-category h4 span {
+  display: inline-grid;
+  min-width: 1.5rem;
+  min-height: 1.5rem;
+  place-items: center;
+  margin-left: 0.3rem;
+  border-radius: 999px;
+  background: #1a4d3a;
+  color: #fff;
+  font-size: 0.7rem;
+}
+
+.task-category ol {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.task-category a {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.7rem;
+  border-left: 0.3rem solid #65736b;
+  background: #eef2ec;
+  color: inherit;
+  text-decoration: none;
+}
+
+.task-category li[data-urgency='action'] a,
+.task-category li[data-urgency='urgent'] a,
+.task-category li[data-urgency='expired'] a {
+  border-left-color: #9d2c24;
+}
+
+.task-category li[data-urgency='warning'] a {
+  border-left-color: #b77700;
+}
+
+.task-category a span,
+.task-category a time,
+.task-category p {
+  color: #65736b;
+  font-size: 0.78rem;
+}
+
 .employee-directory {
   border-top: 1px solid #dbe3ea;
   margin-top: 1.5rem;
