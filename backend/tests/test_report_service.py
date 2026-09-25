@@ -127,7 +127,7 @@ async def test_report_selectors_resolve_inside_verified_scope() -> None:
 
 @pytest.mark.asyncio
 async def test_eos_liability_uses_policy_100_and_marks_unsupported_rows() -> None:
-    rows = [
+    rows: list[dict[str, object]] = [
         {
             "employeeId": EMPLOYEE,
             "employeeName": "Supported",

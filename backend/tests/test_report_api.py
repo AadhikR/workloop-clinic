@@ -88,7 +88,11 @@ async def client_for(role: AppRole) -> AsyncGenerator[tuple[AsyncClient, StubSer
     application = create_app(settings=make_settings(api_request_timeout_seconds=1))
     application.state.authorized_service_executor = Executor()
     service = StubService()
-    application.state.report_service_factory = lambda _connection: service
+
+    def report_service_factory(_connection: AsyncConnection) -> StubService:
+        return service
+
+    application.state.report_service_factory = report_service_factory
     application.dependency_overrides[require_access_token] = claims
     application.dependency_overrides[require_authorization_principal] = lambda: principal(role)
     async with AsyncClient(

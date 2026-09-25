@@ -529,7 +529,7 @@ class ReportService:
             location = str(row.pop("workLocationType"))
             policy_available = bool(row.pop("policyAvailable"))
             basic = Decimal(cast(Decimal, row.pop("basicSalary")))
-            service_days = int(row["serviceDays"])
+            service_days = cast(int, row["serviceDays"])
             if not policy_available:
                 reason = "policy_unavailable"
             elif not nationality:
