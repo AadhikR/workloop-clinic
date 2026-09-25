@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
-import { parseReport, readReport, reportDefinitions } from '../migration/src/reportApi.js'
+import { downloadReportCsv, parseReport, readReport, reportDefinitions } from '../migration/src/reportApi.js'
 
 const branchId = 'c9000000-0000-4000-8000-000000000002'
 
@@ -68,4 +68,23 @@ test('migration report path imports no legacy report code or Supabase client', a
   ])
   assert.doesNotMatch(files.join('\n'), /supabase|reportUtils|utils\/storage|leaveStorage|attendanceStorage/)
   assert.match(files[2], /<Reports authentication=\{authentication\}/)
+})
+
+test('report CSV client preserves allowlisted filters and requests bytes', async () => {
+  const calls = []
+  const authentication = {
+    async request(path, options) {
+      calls.push({ path, options })
+      return { bytes: new Uint8Array([1]) }
+    },
+  }
+  await downloadReportCsv(authentication, branchId, 'payrollCost', { period: '2026-08' })
+  assert.deepEqual(calls[0], {
+    path: '/api/v1/reports/payrollCost.csv?period=2026-08',
+    options: {
+      access: 'protected',
+      headers: { 'X-Workloop-Branch-ID': branchId },
+      responseType: 'bytes',
+    },
+  })
 })

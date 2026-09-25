@@ -22,6 +22,8 @@ import {
   submitAdminLeaveRequest,
   submitEmployeeLeaveRequest,
 } from './leaveRequestApi.js'
+import { downloadLeaveBalances } from './outputApi.js'
+import { saveDownload } from './outputDelivery.js'
 
 function currentYear() {
   return new Date().getUTCFullYear()
@@ -619,6 +621,9 @@ export default function LeaveOverview({ account, authentication, branchId }) {
           <button type="button" onClick={() => changeBalances('initialize')}>Initialize missing</button>
           <button type="button" className="secondary" onClick={() => changeBalances('recalculate')}>
             Recalculate all
+          </button>
+          <button type="button" className="secondary" onClick={async () => saveDownload(await downloadLeaveBalances(authentication, branchId, year))}>
+            Download balance CSV
           </button>
         </div>
       )}

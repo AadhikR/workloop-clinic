@@ -15,6 +15,8 @@ import {
   recordRosterActualHours,
   replaceRosterDraft,
 } from './rosterApi.js'
+import { downloadRoster } from './outputApi.js'
+import { saveDownload } from './outputDelivery.js'
 
 function currentPeriod() { return new Date().toISOString().slice(0, 7) }
 function monthEnd(period) { return new Date(`${period}-01T00:00:00Z`).toISOString().slice(0, 8) + new Date(Number(period.slice(0, 4)), Number(period.slice(5, 7)), 0).getDate() }
@@ -121,6 +123,7 @@ export default function RosterDrafts({ authentication, branchId }) {
         <label>Department<select value={department} onChange={(event) => setDepartment(event.target.value)}><option value="">All departments</option>{departments.map((item) => <option key={item}>{item}</option>)}</select></label>
         <label>Employee<select value={employeeFilter} onChange={(event) => setEmployeeFilter(event.target.value)}><option value="">All employees</option>{employees.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
       </div>
+      <button type="button" className="secondary" onClick={async () => saveDownload(await downloadRoster(authentication, branchId, period))}>Download published roster CSV</button>
       <form onSubmit={save} className="roster-editor">
         <select aria-label="Roster employee" required value={draft.employeeId} onChange={(event) => setDraft({ ...draft, employeeId: event.target.value })}><option value="">Employee</option>{employees.filter((item) => item.active && ['active', 'probation'].includes(item.employmentStatus)).map((item) => <option key={item.id} value={item.id}>{item.name} — {item.department}</option>)}</select>
         <select aria-label="Roster shift" required value={draft.shiftId} onChange={(event) => setDraft({ ...draft, shiftId: event.target.value })}><option value="">Shift</option>{shifts.map((item) => <option key={item.id} value={item.id}>{item.code ?? item.name} — {item.name}</option>)}</select>

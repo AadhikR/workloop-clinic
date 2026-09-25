@@ -71,6 +71,7 @@ ERROR_REGISTRY: dict[str, ErrorSpec] = {
         (("Retry-After", "1"),),
     ),
     "request_too_large": ErrorSpec(413, "Request is too large"),
+    "output_limit_exceeded": ErrorSpec(413, "Output limit exceeded"),
     "unsupported_media_type": ErrorSpec(415, "Unsupported request content type"),
     "validation_failed": ErrorSpec(422, "Request validation failed"),
     "unknown_filter": ErrorSpec(422, "Report filter is not allowed"),

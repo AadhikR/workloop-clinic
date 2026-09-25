@@ -2,7 +2,9 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  downloadSif,
   parseWps,
+  previewSif,
   readNafisSnapshots,
   readSifInput,
   recordSifProjection,
@@ -87,6 +89,33 @@ test('SIF input validates independent row and header totals', async () => {
     () => readSifInput(client({ ...sif, header: { ...sif.header, totalIntegerPay: 1201 } }), branchId, runId),
     /Invalid SIF input/,
   )
+})
+
+test('SIF preview and download share the server scope routes', async () => {
+  const preview = {
+    filename: '9000000816726260925000000.sif',
+    sourceDigest: `sha256:${'a'.repeat(64)}`,
+    rendererVersion: 'phase12f-sif-v1',
+    byteCount: 200,
+    recordCount: 2,
+    records: [
+      { type: 'EDR', employeeMolId: 'MOL-1' },
+      { type: 'SCR', totalPay: 1202 },
+    ],
+  }
+  const previewApi = client(preview)
+  assert.deepEqual(await previewSif(previewApi, branchId, runId, true), preview)
+  assert.equal(previewApi.calls[0].path, `/api/v1/payroll-runs/${runId}/sif/preview?scope=rejected`)
+  const downloadApi = client(null)
+  await downloadSif(downloadApi, branchId, runId)
+  assert.deepEqual(downloadApi.calls[0], {
+    path: `/api/v1/payroll-runs/${runId}/sif?scope=all`,
+    options: {
+      access: 'protected',
+      headers: { 'X-Workloop-Branch-ID': branchId },
+      responseType: 'bytes',
+    },
+  })
 })
 
 test('WPS mutations send idempotency and optimistic timestamps', async () => {

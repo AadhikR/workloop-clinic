@@ -15,11 +15,13 @@ from app.auth.dependencies import (
     AuthenticatedWritePrincipal,
     VerifiedAccessToken,
 )
+from app.db.output_audit import append_output_audit
 from app.http.errors import error_response_documentation, success_response_documentation
 from app.http.idempotency import parse_idempotency_key
 from app.http.idempotency_fingerprint import request_fingerprint
 from app.http.schemas import CollectionResponse, DataResponse, Page
 from app.repositories.idempotency import IdempotencyRepository
+from app.schemas.outputs import SifPreviewResponse
 from app.schemas.wps import (
     PERIOD,
     ComplianceOverrideRequest,
@@ -35,6 +37,7 @@ from app.schemas.wps import (
 )
 from app.services.execution import AuthorizedServiceExecutor, ServiceExecutionError
 from app.services.idempotency import IdempotencyCommand, IdempotencyCoordinator, IdempotentResponse
+from app.services.outputs import delivery_headers, parse_sif_preview, render_sif
 from app.services.wps import NafisListQuery, WpsService
 
 router = APIRouter(prefix="/api/v1/payroll-runs", tags=["wps"])
@@ -62,6 +65,7 @@ ERROR_CODES = (
     "application_account_lookup_unavailable",
     "service_unavailable",
     "request_timeout",
+    "output_limit_exceeded",
     "internal_error",
 )
 ERRORS = error_response_documentation(*ERROR_CODES)
@@ -224,6 +228,113 @@ async def get_sif_input(
         ),
     )
     return DataResponse(data=result)
+
+
+async def _render_sif_output(
+    *,
+    request: Request,
+    claims: VerifiedAccessToken,
+    principal: AuthorizationPrincipal,
+    selected: uuid.UUID,
+    run_id: uuid.UUID,
+    scope: Literal["all", "rejected"],
+    preview: bool,
+):
+    async def operation(connection: AsyncConnection):
+        projection = await _service(request, connection).sif_input(
+            principal,
+            selected,
+            run_id,
+            "rejected" if scope == "rejected" else None,
+        )
+        output = render_sif(projection, scope=scope)
+        records = parse_sif_preview(output) if preview else None
+        await append_output_audit(
+            connection,
+            action="sif_previewed" if preview else "sif_exported",
+            entity_type="payroll_run",
+            entity_id=run_id,
+            format="sif_preview" if preview else "sif",
+            filter_digest=output.filter_digest,
+            source_digest=output.source_digest,
+            renderer_version=output.renderer_version,
+            row_count=output.row_count,
+            byte_count=len(output.content),
+        )
+        return output, records
+
+    return await _executor(request).execute(
+        claims=claims,
+        principal=principal,
+        selected_admin_branch_id=selected,
+        operation=operation,
+    )
+
+
+@router.get(
+    "/{run_id}/sif/preview",
+    response_model=DataResponse[SifPreviewResponse],
+    operation_id="preview_payroll_sif",
+    responses={**success_response_documentation(200, "SIF preview"), **ERRORS},
+)
+async def preview_sif(
+    run_id: uuid.UUID,
+    request: Request,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedReadPrincipal,
+    selected: AdminSelectedBranch,
+    scope: Annotated[Literal["all", "rejected"], Query()] = "all",
+) -> DataResponse[SifPreviewResponse]:
+    output, records = await _render_sif_output(
+        request=request,
+        claims=claims,
+        principal=principal,
+        selected=selected,
+        run_id=run_id,
+        scope=scope,
+        preview=True,
+    )
+    assert records is not None
+    return DataResponse(
+        data=SifPreviewResponse(
+            filename=output.filename,
+            source_digest=output.source_digest,
+            renderer_version=output.renderer_version,
+            byte_count=len(output.content),
+            record_count=len(records),
+            records=records,
+        )
+    )
+
+
+@router.get(
+    "/{run_id}/sif",
+    response_class=Response,
+    operation_id="download_payroll_sif",
+    responses={**success_response_documentation(200, "SIF download"), **ERRORS},
+)
+async def download_sif(
+    run_id: uuid.UUID,
+    request: Request,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedReadPrincipal,
+    selected: AdminSelectedBranch,
+    scope: Annotated[Literal["all", "rejected"], Query()] = "all",
+) -> Response:
+    output, _records = await _render_sif_output(
+        request=request,
+        claims=claims,
+        principal=principal,
+        selected=selected,
+        run_id=run_id,
+        scope=scope,
+        preview=False,
+    )
+    return Response(
+        content=output.content,
+        media_type=output.content_type,
+        headers=delivery_headers(output, str(request.state.correlation_id)),
+    )
 
 
 @router.post("/{run_id}/wps/sif-generated", responses=ERRORS)

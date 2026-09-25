@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import { closeAttendancePeriod, readAttendancePeriods } from './attendancePeriodsApi.js'
+import { downloadAttendance } from './outputApi.js'
+import { saveDownload } from './outputDelivery.js'
 
 const labels = {
   ambiguous_events: 'ambiguous events',
@@ -61,6 +63,7 @@ export default function AttendancePeriods({ authentication, branchId }) {
                 {item.closedAt && <small>Closed {item.closedAt} by {item.closedByActorName}</small>}
               </span>
               <button type="button" disabled={busy || item.blockerCount > 0} onClick={() => close(item)}>{item.version > 0 ? 'Create amendment' : 'Close period'}</button>
+              <button type="button" className="secondary" disabled={busy} onClick={async () => saveDownload(await downloadAttendance(authentication, branchId, item.id))}>Download CSV</button>
             </li>
           ))}
         </ul>

@@ -8,7 +8,7 @@ import secrets
 import uuid
 import zlib
 from collections.abc import Callable
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Protocol, cast
@@ -519,6 +519,34 @@ class ReportService:
             source_version=source_version,
             next_cursor=next_cursor,
         )
+
+    async def read_export(
+        self,
+        report_id: str,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        query: ReportQuery,
+        *,
+        maximum_rows: int = 5_000,
+    ) -> ReportResponse:
+        active_query = replace(query, limit=200, cursor=None)
+        first = await self.read(report_id, principal, branch_id, active_query)
+        rows = list(first.rows)
+        next_cursor = first.next_cursor
+        while next_cursor is not None:
+            if len(rows) >= maximum_rows:
+                raise ServiceExecutionError("output_limit_exceeded")
+            active_query = replace(active_query, cursor=next_cursor)
+            page = await self.read(report_id, principal, branch_id, active_query)
+            if page.source_version != first.source_version or page.columns != first.columns:
+                raise ServiceExecutionError("report_source_unavailable")
+            rows.extend(page.rows)
+            next_cursor = page.next_cursor
+        if len(rows) > maximum_rows:
+            raise ServiceExecutionError("output_limit_exceeded")
+        filters = dict(first.filters)
+        filters.pop("limit", None)
+        return first.model_copy(update={"rows": rows, "filters": filters, "next_cursor": None})
 
     @staticmethod
     def _eos_rows(rows: list[dict[str, object]]) -> list[dict[str, object]]:

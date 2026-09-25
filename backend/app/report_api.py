@@ -15,12 +15,14 @@ from app.auth.dependencies import (
     branch_required_error,
     invalid_branch_error,
 )
+from app.db.output_audit import append_output_audit
 from app.http.errors import api_error, error_response_documentation, success_response_documentation
 from app.http.schemas import DataResponse
 from app.models.identity import AppRole
 from app.repositories.reports import SqlReportRepository
 from app.schemas.reports import ReportResponse
 from app.services.execution import AuthorizedServiceExecutor, ServiceExecutionError
+from app.services.outputs import delivery_headers, render_report_csv
 from app.services.reports import REPORT_SPECS, ReportQuery, ReportService
 
 router = APIRouter(prefix="/api/v1/reports", tags=["reports"])
@@ -38,6 +40,7 @@ ERRORS = error_response_documentation(
     "rate_limit_exceeded",
     "application_account_lookup_unavailable",
     "report_source_unavailable",
+    "output_limit_exceeded",
     "service_unavailable",
     "request_timeout",
     "internal_error",
@@ -148,6 +151,57 @@ def _query(report_id: str, request: Request) -> ReportQuery:
         department_id=_uuid(raw.get("departmentId")),
         limit=limit,
         cursor=cursor,
+    )
+
+
+@router.get(
+    "/{report_id}.csv",
+    response_class=Response,
+    operation_id="download_report_csv",
+    responses={
+        **success_response_documentation(200, "Administrator report CSV", cache_control="no-store"),
+        **ERRORS,
+    },
+)
+async def download_report_csv(
+    report_id: str,
+    request: Request,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedReadPrincipal,
+) -> Response:
+    query = _query(report_id, request)
+    branch_id = _branch(request, principal)
+
+    async def operation(connection: AsyncConnection):
+        report = await _service(request, connection).read_export(
+            report_id, principal, branch_id, query
+        )
+        output = render_report_csv(report)
+        await append_output_audit(
+            connection,
+            action="report_csv_exported",
+            entity_type="report",
+            entity_id=branch_id,
+            format="csv",
+            filter_digest=output.filter_digest,
+            source_digest=output.source_digest,
+            renderer_version=output.renderer_version,
+            row_count=output.row_count,
+            byte_count=len(output.content),
+        )
+        return output
+
+    output = await _executor(request).execute(
+        claims=claims,
+        principal=principal,
+        selected_admin_branch_id=branch_id,
+        operation=operation,
+    )
+    request_id = str(request.state.correlation_id)
+    return Response(
+        content=output.content,
+        media_type=output.content_type,
+        headers=delivery_headers(output, request_id),
     )
 
 

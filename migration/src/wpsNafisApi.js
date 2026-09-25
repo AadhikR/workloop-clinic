@@ -4,6 +4,7 @@ const datePattern = /^\d{4}-\d{2}-\d{2}$/
 const periodPattern = /^\d{4}-(?:0[1-9]|1[0-2])$/
 const moneyPattern = /^(?:0|[1-9]\d{0,9})\.\d{2}$/
 const digestPattern = /^[0-9a-f]{64}$/
+const sourceDigestPattern = /^sha256:[0-9a-f]{64}$/
 
 function exactKeys(value, expected) {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -134,6 +135,35 @@ export async function readSifInput(authentication, branchId, payrollRunId, rejec
     access: 'protected', headers: headers(branchId),
   })
   return parseSif(response.data)
+}
+
+export async function previewSif(authentication, branchId, payrollRunId, rejected = false) {
+  runId(payrollRunId)
+  const suffix = rejected ? '?scope=rejected' : '?scope=all'
+  const response = await authentication.request(`/api/v1/payroll-runs/${payrollRunId}/sif/preview${suffix}`, {
+    access: 'protected', headers: headers(branchId),
+  })
+  const value = response.data
+  if (
+    !exactKeys(value, ['filename', 'sourceDigest', 'rendererVersion', 'byteCount', 'recordCount', 'records'])
+    || typeof value.filename !== 'string' || !value.filename.endsWith('.sif')
+    || !sourceDigestPattern.test(value.sourceDigest)
+    || typeof value.rendererVersion !== 'string'
+    || !Number.isSafeInteger(value.byteCount) || value.byteCount <= 0
+    || !Number.isSafeInteger(value.recordCount) || value.recordCount <= 0
+    || !Array.isArray(value.records) || value.records.length !== value.recordCount
+    || value.records.at(-1)?.type !== 'SCR'
+    || value.records.slice(0, -1).some((record) => record?.type !== 'EDR')
+  ) throw new Error('Invalid SIF preview response')
+  return value
+}
+
+export async function downloadSif(authentication, branchId, payrollRunId, rejected = false) {
+  runId(payrollRunId)
+  const suffix = rejected ? '?scope=rejected' : '?scope=all'
+  return authentication.request(`/api/v1/payroll-runs/${payrollRunId}/sif${suffix}`, {
+    access: 'protected', headers: headers(branchId), responseType: 'bytes',
+  })
 }
 
 export const recordSifProjection = (authentication, branchId, wps) => (

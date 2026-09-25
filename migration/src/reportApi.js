@@ -97,3 +97,25 @@ export async function readReport(authentication, branchId, reportId, filters = {
   })
   return parseReport(reportId, envelope.data)
 }
+
+export async function downloadReportCsv(authentication, branchId, reportId, filters = {}) {
+  const definition = reportDefinitions[reportId]
+  if (!definition) throw new TypeError('Invalid report ID')
+  if (typeof branchId !== 'string' || branchId.length !== 36 || !record(filters)) {
+    throw new TypeError('Invalid report request')
+  }
+  const allowed = new Set(definition.filters)
+  if (Object.keys(filters).some((key) => !allowed.has(key))) {
+    throw new TypeError('Invalid report filter')
+  }
+  const query = new URLSearchParams()
+  for (const [key, value] of Object.entries(filters)) {
+    if (value !== null && value !== undefined && value !== '') query.set(key, String(value))
+  }
+  const suffix = query.size ? `?${query}` : ''
+  return authentication.request(`/api/v1/reports/${reportId}.csv${suffix}`, {
+    access: 'protected',
+    headers: { 'X-Workloop-Branch-ID': branchId },
+    responseType: 'bytes',
+  })
+}

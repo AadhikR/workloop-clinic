@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 
-import { readReport, reportDefinitions } from './reportApi.js'
+import { saveDownload } from './outputDelivery.js'
+import { downloadReportCsv, readReport, reportDefinitions } from './reportApi.js'
 
 function display(value) {
   if (value === null) return 'Unavailable'
@@ -18,6 +19,7 @@ export default function Reports({ authentication, branchId }) {
   const [departmentId, setDepartmentId] = useState('')
   const [result, setResult] = useState({ requestKey: null, status: 'loading', data: null })
   const [loadingMore, setLoadingMore] = useState(false)
+  const [downloading, setDownloading] = useState(false)
   const definition = reportDefinitions[reportId]
   const filters = useMemo(() => {
     const value = { limit: 50 }
@@ -133,6 +135,25 @@ export default function Reports({ authentication, branchId }) {
       {visibleResult.status === 'ready' && (
         <>
           <p>{visibleResult.data.totals.rowCount} filtered row{visibleResult.data.totals.rowCount === 1 ? '' : 's'}</p>
+          <button
+            disabled={downloading}
+            onClick={async () => {
+              setDownloading(true)
+              try {
+                const exportFilters = Object.fromEntries(
+                  Object.entries(filters).filter(([key]) => !['limit', 'cursor'].includes(key)),
+                )
+                saveDownload(await downloadReportCsv(authentication, branchId, reportId, exportFilters))
+              } catch {
+                setResult({ requestKey, status: 'error', data: null })
+              } finally {
+                setDownloading(false)
+              }
+            }}
+            type="button"
+          >
+            {downloading ? 'Preparing CSV...' : 'Download CSV'}
+          </button>
           {visibleResult.data.rows.length === 0 ? <p>No records match these filters.</p> : (
             <div className="table-wrap">
               <table>

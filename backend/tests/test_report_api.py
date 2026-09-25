@@ -68,6 +68,15 @@ class StubService:
             source_version="sha256:" + "a" * 64,
         )
 
+    async def read_export(
+        self,
+        report_id: str,
+        actor: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        query: ReportQuery,
+    ) -> ReportResponse:
+        return await self.read(report_id, actor, branch_id, query)
+
 
 class Executor:
     async def execute(
@@ -135,3 +144,27 @@ async def test_report_route_denies_unknown_reports_roles_and_missing_branch() ->
     assert unknown.status_code == 404
     assert missing.status_code == 400
     assert denied.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_report_csv_is_audited_before_delivery(monkeypatch: pytest.MonkeyPatch) -> None:
+    audited: list[dict[str, object]] = []
+
+    async def append_output_audit(_connection: AsyncConnection, **values: object) -> uuid.UUID:
+        audited.append(values)
+        return uuid.uuid4()
+
+    monkeypatch.setattr("app.report_api.append_output_audit", append_output_audit)
+    async with client_for(AppRole.ADMIN) as (client, service):
+        response = await client.get(
+            "/api/v1/reports/headcount.csv",
+            headers={"X-Workloop-Branch-ID": str(BRANCH), "Accept": "text/csv"},
+        )
+    assert response.status_code == 200
+    assert response.content == b"Employee ID\r\n"
+    assert response.headers["content-type"] == "text/csv; charset=utf-8"
+    assert response.headers["content-disposition"].endswith("headcount_report.csv")
+    assert response.headers["x-request-id"] == response.headers["x-correlation-id"]
+    assert service.calls[0][0] == "headcount"
+    assert audited[0]["action"] == "report_csv_exported"
+    assert audited[0]["byte_count"] == len(response.content)

@@ -56,6 +56,7 @@ from app.letter_request_api import router as letter_request_router
 from app.notification_api import router as notification_router
 from app.offboarding_api import router as offboarding_router
 from app.organization_api import router as organization_router
+from app.output_api import router as output_router
 from app.payroll_api import payslip_router
 from app.payroll_api import router as payroll_router
 from app.report_api import router as report_router
@@ -288,6 +289,7 @@ def create_app(
     application.include_router(task_router)
     application.include_router(dashboard_router)
     application.include_router(report_router)
+    application.include_router(output_router)
     application.add_api_route(
         "/_synthetic-storage/v1/{token}",
         download_synthetic_object,

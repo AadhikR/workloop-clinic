@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import { readPayrollRuns } from './payrollApi.js'
+import { saveDownload } from './outputDelivery.js'
+import { downloadNafis } from './outputApi.js'
 import {
   confirmWps,
   createComplianceOverride,
   failWps,
   readNafisSnapshots,
-  readSifInput,
+  downloadSif,
+  previewSif,
   readWps,
   recordSifProjection,
   replaceNafisSnapshot,
@@ -87,7 +90,7 @@ export default function WpsNafis({ account, authentication, branchId }) {
   return (
     <section className="expenses" aria-labelledby="wps-nafis-title">
       <h2 id="wps-nafis-title">WPS and SIF</h2>
-      <p>Review trusted SIF inputs and record bank payment state. File creation is not available here.</p>
+      <p>Preview and download SIF files from the finalized payroll projection.</p>
       <label>
         Generated payroll
         <select value={runId} onChange={selectRun}>
@@ -101,10 +104,15 @@ export default function WpsNafis({ account, authentication, branchId }) {
           <p><strong>Status:</strong> {wps.status}</p>
           <div className="actions">
             <button type="button" onClick={() => action(async () => {
-              const projection = await readSifInput(authentication, branchId, wps.runId, wps.status === 'partial_rejection')
+              const projection = await previewSif(authentication, branchId, wps.runId, wps.status === 'partial_rejection')
               setSif(projection)
               return null
-            })}>Preview SIF input</button>
+            })}>Preview SIF</button>
+            <button type="button" onClick={() => action(async () => {
+              const output = await downloadSif(authentication, branchId, wps.runId, wps.status === 'partial_rejection')
+              saveDownload(output)
+              return null
+            })}>Download SIF</button>
             {(wps.status === 'draft' || wps.status === 'partial_rejection') && (
               <button type="button" onClick={() => action(() => recordSifProjection(authentication, branchId, wps))}>
                 Record projection digest
@@ -153,12 +161,12 @@ export default function WpsNafis({ account, authentication, branchId }) {
       )}
       {sif && (
         <div className="card">
-          <h3>{sif.mode === 'rejected' ? 'Rejected-entry input' : 'Full SIF input'}</h3>
-          <p>{sif.header.employeeCount} rows · AED {sif.header.totalIntegerPay} · digest {sif.digest}</p>
+          <h3>SIF byte preview</h3>
+          <p>{sif.recordCount - 1} employee rows · digest {sif.sourceDigest}</p>
           <table><thead><tr><th>MOL ID</th><th>Paid days</th><th>Basic</th><th>Variable</th><th>Total</th></tr></thead>
-            <tbody>{sif.entries.map((entry) => <tr key={entry.payrollEntryId}>
+            <tbody>{sif.records.filter((record) => record.type === 'EDR').map((entry) => <tr key={entry.employeeMolId}>
               <td>{entry.employeeMolId}</td><td>{entry.paidDays}</td><td>{entry.basicPay}</td>
-              <td>{entry.variablePay}</td><td>{entry.totalPay}</td>
+              <td>{entry.variablePay}</td><td>{entry.basicPay + entry.variablePay}</td>
             </tr>)}</tbody>
           </table>
         </div>
@@ -173,6 +181,7 @@ export default function WpsNafis({ account, authentication, branchId }) {
       })}>{currentNafis ? 'Replace snapshot' : 'Generate snapshot'}</button>
       <ul>{nafis.map((item) => <li key={item.id}>
         {item.period}: {item.emiratiCount}/{item.totalHeadcount} UAE nationals ({item.ratioPercent}%)
+        {' '}<button type="button" className="secondary" onClick={async () => saveDownload(await downloadNafis(authentication, branchId, item.id))}>Download CSV</button>
       </li>)}</ul>
     </section>
   )

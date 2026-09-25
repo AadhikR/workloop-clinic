@@ -31,7 +31,17 @@ ALLOWED_HEADERS = (
     "Idempotency-Key",
     "X-Workloop-Branch-ID",
 )
-EXPOSED_HEADERS = ("X-Correlation-ID", "Idempotency-Replayed", "Location", "Retry-After")
+EXPOSED_HEADERS = (
+    "X-Correlation-ID",
+    "X-Request-ID",
+    "Idempotency-Replayed",
+    "Location",
+    "Retry-After",
+    "Content-Disposition",
+    "Content-Length",
+    "Digest",
+    "ETag",
+)
 
 
 def ordinary_body_limit(scope: Scope) -> int:
@@ -315,7 +325,13 @@ class HttpBoundaryMiddleware:
                         quality = 0.0
             if quality <= 0:
                 continue
-            if media in {"*/*", "application/*", "application/json"}:
+            if media in {
+                "*/*",
+                "application/*",
+                "application/json",
+                "application/octet-stream",
+                "text/csv",
+            }:
                 return True
         return False
 

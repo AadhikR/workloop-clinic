@@ -27,6 +27,8 @@ import {
 } from './employeeApi.js'
 import { parseEmployeeCsv } from './employeeCsv.js'
 import { readAllDepartments } from './departmentApi.js'
+import { downloadEmployees, downloadEmployeeTemplate } from './outputApi.js'
+import { saveDownload } from './outputDelivery.js'
 
 function useLoad(load, dependencies) {
   const [state, setState] = useState({ status: 'loading' })
@@ -588,6 +590,10 @@ function AdminDirectory({ authentication, branchId, clearBranch }) {
   return (
     <section className="employee-directory" aria-label="Employee directory">
       <h3>Employee directory</h3>
+      <div className="actions">
+        <button type="button" onClick={async () => saveDownload(await downloadEmployees(authentication, branchId))}>Download employee CSV</button>
+        <button type="button" className="secondary" onClick={async () => saveDownload(await downloadEmployeeTemplate(authentication, branchId))}>Download import template</button>
+      </div>
       {choices.status === 'ready' && (
         <EmployeeCreateForm
           authentication={authentication}

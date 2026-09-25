@@ -42,6 +42,7 @@ const errorContract = new Map([
   ['idempotency_in_progress', [409, 'conflict']],
   ['attachment_submission_unavailable', [409, 'conflict']],
   ['request_too_large', [413, 'validation']],
+  ['output_limit_exceeded', [413, 'validation']],
   ['unsupported_media_type', [415, 'validation']],
   ['validation_failed', [422, 'validation']],
   ['unknown_filter', [422, 'validation']],
@@ -235,7 +236,56 @@ function retryAfter(response) {
   return value !== null && /^(?:0|[1-9][0-9]*)$/.test(value) ? Number(value) : null
 }
 
-async function readResponse(response, destination) {
+async function readBinaryResponse(response, headerCorrelationId) {
+  const contentType = response.headers.get('Content-Type')
+  const disposition = response.headers.get('Content-Disposition')
+  const contentLength = response.headers.get('Content-Length')
+  const digest = response.headers.get('Digest')
+  const etag = response.headers.get('ETag')
+  const requestId = response.headers.get('X-Request-ID')
+  const vary = response.headers.get('Vary') ?? ''
+  if (
+    response.status !== 200
+    || !headerCorrelationId
+    || requestId !== headerCorrelationId
+    || !contentType
+    || !['text/csv; charset=utf-8', 'application/octet-stream'].includes(contentType.toLowerCase())
+    || !disposition?.startsWith('attachment; filename="')
+    || !disposition.includes("; filename*=UTF-8''")
+    || !/^(?:0|[1-9][0-9]*)$/.test(contentLength ?? '')
+    || !/^sha-256=[A-Za-z0-9+/]{43}=$/.test(digest ?? '')
+    || !/^"[0-9a-f]{64}"$/.test(etag ?? '')
+    || response.headers.get('Cache-Control') !== 'no-store'
+    || response.headers.get('Pragma') !== 'no-cache'
+    || response.headers.get('X-Content-Type-Options') !== 'nosniff'
+    || !vary.split(',').some((value) => value.trim().toLowerCase() === 'authorization')
+  ) throw malformedResponse(response, headerCorrelationId)
+  const match = /filename\*=UTF-8''([^;]+)/.exec(disposition)
+  let filename
+  try {
+    filename = decodeURIComponent(match?.[1] ?? '')
+  } catch {
+    throw malformedResponse(response, headerCorrelationId)
+  }
+  if (!filename || filename.includes('/') || filename.includes('\\')) {
+    throw malformedResponse(response, headerCorrelationId)
+  }
+  const bytes = new Uint8Array(await response.arrayBuffer())
+  if (bytes.byteLength !== Number(contentLength)) {
+    throw malformedResponse(response, headerCorrelationId)
+  }
+  return {
+    status: response.status,
+    bytes,
+    filename,
+    contentType,
+    digest,
+    etag,
+    correlationId: headerCorrelationId,
+  }
+}
+
+async function readResponse(response, destination, responseType = 'json') {
   const headerCorrelationId = responseCorrelationId(response)
 
   if (response.status === 204) {
@@ -252,6 +302,9 @@ async function readResponse(response, destination) {
     }
   }
 
+  if (response.ok && responseType === 'bytes') {
+    return readBinaryResponse(response, headerCorrelationId)
+  }
   const body = await parseJson(response, headerCorrelationId)
   if (response.ok) {
     if (!headerCorrelationId || ![200, 201, 202].includes(response.status) || !isRecord(body)) {
@@ -332,7 +385,9 @@ function requestHeaders(options, accessToken) {
     if (!callerHeaderNames.has(name.toLowerCase())) throw invalidRequest()
   }
 
-  const headers = new Headers({ Accept: 'application/json' })
+  const headers = new Headers({
+    Accept: options.responseType === 'bytes' ? 'application/octet-stream, text/csv' : 'application/json',
+  })
   for (const [name, value] of supplied) headers.set(name, value)
   if (Object.hasOwn(options, 'json')) headers.set('Content-Type', 'application/json')
   if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`)
@@ -379,11 +434,14 @@ export function createHttpClient({
 
   return Object.freeze({
     async request(path, options = {}) {
-      const allowedOptionNames = new Set(['access', 'form', 'headers', 'json', 'method', 'signal'])
+      const allowedOptionNames = new Set(['access', 'form', 'headers', 'json', 'method', 'responseType', 'signal'])
       if (Object.keys(options).some((name) => !allowedOptionNames.has(name))) {
         throw invalidRequest()
       }
       if (options.access !== 'public' && options.access !== 'protected') {
+        throw invalidRequest()
+      }
+      if (options.responseType !== undefined && !['json', 'bytes'].includes(options.responseType)) {
         throw invalidRequest()
       }
 
@@ -447,7 +505,7 @@ export function createHttpClient({
       if (!(response instanceof Response)) {
         throw clientError('malformed-response', 'client_malformed_response')
       }
-      return readResponse(response, destination)
+      return readResponse(response, destination, options.responseType ?? 'json')
     },
   })
 }
