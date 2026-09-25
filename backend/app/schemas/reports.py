@@ -1,14 +1,18 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_serializer
 
 from app.http.schemas import ApiSchema
 
 ReportCell = str | int | bool | None
 ReportColumnType = Literal["string", "integer", "decimal", "date", "timestamp", "boolean"]
+
+
+def _timestamp(value: datetime) -> str:
+    return value.astimezone(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 class ReportColumn(ApiSchema):
@@ -34,3 +38,7 @@ class ReportResponse(ApiSchema):
     as_of: datetime
     source_version: str
     next_cursor: str | None = None
+
+    @field_serializer("as_of")
+    def serialize_timestamp(self, value: datetime) -> str:
+        return _timestamp(value)

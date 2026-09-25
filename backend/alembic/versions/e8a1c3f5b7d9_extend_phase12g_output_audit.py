@@ -1,4 +1,4 @@
-"""Extend the protected output audit writer for Part 12G.
+"""Close the protected output audit and payslip delivery boundaries for Part 12G.
 
 Revision ID: e8a1c3f5b7d9
 Revises: d6f8a0c2e4b7
@@ -85,6 +85,40 @@ PART_12G_ALLOWLIST = r"""
         SELECT 1 FROM public.final_settlements source
         WHERE source.id = p_entity_id AND source.company_id = event_company
           AND source.branch_id = event_branch))
+"""
+
+PAYSLIP_HUMAN_CONTEXT = r"""
+  current_user = 'workloop_runtime'
+  AND session_user = 'workloop_runtime'
+  AND public.workloop_actor_kind() = 'human'
+  AND public.workloop_actor_key() IS NULL
+  AND public.workloop_business_date() IS NOT NULL
+  AND EXISTS (
+    SELECT 1 FROM public.resolve_workloop_principal() AS principal
+    WHERE principal.app_user_id = public.workloop_app_user_id()
+      AND principal.account_status = 'active'
+      AND principal.profile_app_user_id = principal.app_user_id
+      AND principal.role = public.workloop_role()
+      AND principal.profile_company_id = public.workloop_company_id()
+      AND principal.company_id = principal.profile_company_id
+      AND (
+        (principal.role = 'admin'
+          AND principal.profile_employee_id IS NULL
+          AND principal.employee_id IS NULL
+          AND principal.branch_id IS NULL
+          AND public.workloop_employee_id() IS NULL)
+        OR
+        (principal.role IN ('manager','employee')
+          AND principal.profile_employee_id = public.workloop_employee_id()
+          AND principal.employee_id = principal.profile_employee_id
+          AND principal.employee_company_id = principal.profile_company_id
+          AND principal.employee_branch_id = public.workloop_branch_id()
+          AND principal.employee_active
+          AND principal.employment_status IN ('Active','Probation','On Leave')
+          AND principal.branch_id = principal.employee_branch_id
+          AND principal.branch_company_id = principal.profile_company_id)
+      )
+  )
 """
 
 
@@ -223,11 +257,32 @@ def _secure_function() -> None:
     op.execute(f"GRANT EXECUTE ON FUNCTION {SIGNATURE} TO workloop_runtime")
 
 
+def _replace_payslip_policy(*, include_admin: bool) -> None:
+    allowed_role = ("public.workloop_role() = 'admin' OR " if include_admin else "") + (
+        "(public.workloop_role() = 'employee' AND employee_id = public.workloop_employee_id())"
+    )
+    op.execute("DROP POLICY phase5f_payslips_select_runtime ON public.payslips")
+    op.execute(
+        f"""
+CREATE POLICY phase5f_payslips_select_runtime ON public.payslips
+FOR SELECT TO workloop_runtime
+USING (
+{PAYSLIP_HUMAN_CONTEXT}
+  AND company_id = public.workloop_company_id()
+  AND branch_id = public.workloop_branch_id()
+  AND ({allowed_role})
+)
+"""
+    )
+
+
 def upgrade() -> None:
     op.execute(_function_sql(include_phase12g=True))
     _secure_function()
+    _replace_payslip_policy(include_admin=True)
 
 
 def downgrade() -> None:
+    _replace_payslip_policy(include_admin=False)
     op.execute(_function_sql(include_phase12g=False))
     _secure_function()

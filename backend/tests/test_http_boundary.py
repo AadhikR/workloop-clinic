@@ -198,6 +198,11 @@ async def test_cors_uses_exact_contract_and_runs_before_routing() -> None:
     assert allowed.headers["access-control-max-age"] == "600"
     assert "access-control-allow-credentials" not in allowed.headers
     assert "idempotency-key" in allowed.headers["access-control-allow-headers"].lower()
+    exposed_headers = {
+        value.strip().lower()
+        for value in allowed.headers["access-control-expose-headers"].split(",")
+    }
+    assert {"vary", "x-content-type-options"} <= exposed_headers
     assert_error(rejected, 403, "origin_not_allowed", "Origin not allowed")
     assert "access-control-allow-origin" not in rejected.headers
 

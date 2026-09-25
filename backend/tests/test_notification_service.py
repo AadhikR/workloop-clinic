@@ -15,6 +15,7 @@ BRANCH_ID = uuid.UUID("b2000000-0000-4000-8000-000000000002")
 APP_USER_ID = uuid.UUID("b2000000-0000-4000-8000-000000000003")
 NOTIFICATION_IDS = [uuid.UUID(int=index) for index in range(1, 4)]
 NOW = datetime(2026, 9, 24, 8, tzinfo=UTC)
+PRECISE_NOW = datetime(2026, 9, 24, 8, 0, 0, 123456, tzinfo=UTC)
 
 
 def principal(role: AppRole) -> AuthorizationPrincipal:
@@ -148,3 +149,18 @@ async def test_replay_authorization_rejects_changed_partition() -> None:
     await service.authorize_replay(actor, BRANCH_ID, "notification_inbox", None)
     with pytest.raises(ServiceExecutionError, match="resource_not_found"):
         await service.authorize_replay(actor, uuid.uuid4(), "notification_inbox", None)
+
+
+@pytest.mark.asyncio
+async def test_notification_timestamps_serialize_to_contract_milliseconds() -> None:
+    repository = Repository([row(0, PRECISE_NOW)])
+    service = NotificationService(repository, Cursor())  # type: ignore[arg-type]
+    response = await service.list(
+        principal(AppRole.EMPLOYEE), BRANCH_ID, NotificationListQuery(limit=30, cursor=None)
+    )
+    response.as_of = PRECISE_NOW
+
+    payload = response.model_dump(mode="json", by_alias=True)
+
+    assert payload["asOf"] == "2026-09-24T08:00:00.123Z"
+    assert payload["items"][0]["readAt"] == "2026-09-24T08:00:00.123Z"

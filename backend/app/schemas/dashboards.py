@@ -1,14 +1,18 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_serializer
 
 from app.http.schemas import ApiSchema
 
 DashboardSeverity = Literal["info", "success", "warning", "critical"]
 DashboardValue = int | str
+
+
+def _timestamp(value: datetime) -> str:
+    return value.astimezone(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 class DashboardComparison(ApiSchema):
@@ -37,3 +41,7 @@ class DashboardResponse(ApiSchema):
     business_date: date
     source_version: str
     cards: list[DashboardCard] = Field(min_length=1, max_length=20)
+
+    @field_serializer("as_of")
+    def serialize_timestamp(self, value: datetime) -> str:
+        return _timestamp(value)

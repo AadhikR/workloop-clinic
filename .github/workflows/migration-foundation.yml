@@ -166,6 +166,8 @@ jobs:
         run: docker compose --profile tools run --rm migrate
       - name: Verify repeatable migration
         run: docker compose --profile tools run --rm migrate
+      - name: Verify Phase 12G static revision boundary
+        run: python scripts/verify-phase-12g-revision.py static
       - name: Verify Phase 11C static boundaries
         run: python scripts/verify-phase-11c-revision.py static
       - name: Verify Phase 11C cutover boundaries
@@ -209,13 +211,32 @@ jobs:
           done
       - name: Verify Phase 12B notification boundaries
         run: |
+          python scripts/verify-phase-12a-contract.py
           python scripts/verify-phase-12b-boundary.py
           node --test tests/migration-notifications.test.js
           node scripts/cutover-record-validator.mjs docs/migration/phase-12/cutover/notifications.json
+      - name: Verify Phase 12C through 12E read boundaries
+        run: |
+          python scripts/verify-phase-12c-boundary.py
+          python scripts/verify-phase-12d-boundary.py
+          python scripts/verify-phase-12e-boundary.py
+          node --test tests/migration-tasks.test.js tests/migration-dashboards.test.js tests/migration-reports.test.js
       - name: Verify Phase 12F output boundaries
         run: |
           python scripts/verify-phase-12f-boundary.py
           node --test tests/migration-output.test.js tests/migration-reports.test.js tests/wps-nafis-api.test.js
+      - name: Verify Phase 12G rendered-output boundaries
+        run: |
+          python scripts/verify-phase-12g-boundary.py
+          node --test tests/migration-rendered-output.test.js
+          node scripts/cutover-record-validator.mjs docs/migration/phase-12/cutover/phase12-consumers.json
+      - name: Verify Phase 12H completion boundary
+        run: |
+          node --test tests/phase-12h-boundary.test.js
+          for record in docs/migration/phase-12/cutover/*.json; do
+            case "$record" in */dependency-catalogue.json|*/evidence-*) continue ;; esac
+            node scripts/cutover-record-validator.mjs "$record"
+          done
       - name: Verify Phase 11B local storage contract
         run: docker compose run --rm --no-deps --env PYTHONPATH=/app --volume ./scripts:/verification:ro backend python /verification/verify-phase-11b-storage.py
       - name: Verify Phase 8D attachment contract
@@ -321,6 +342,17 @@ jobs:
             alembic -c /app/alembic.ini check
           '
           docker compose exec -T backend python -c "import os, psycopg; url=os.environ['DATABASE_URL'].replace('postgresql+psycopg://', 'postgresql://', 1); connection=psycopg.connect(url); cursor=connection.cursor(); cursor.execute('SELECT current_user'); assert cursor.fetchone() == ('workloop_runtime',); connection.close()"
+      - name: Verify Phase 12G exact predecessor and head
+        if: needs.changes.outputs.database_deep == 'true'
+        run: |
+          docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env-from-file ./backend/.env.migration --env-from-file ./backend/.env.api --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-12h-rollback.py prepare
+          docker compose --profile tools run --rm migrate alembic -c /app/alembic.ini downgrade d6f8a0c2e4b7
+          docker compose --profile tools run --rm --env PYTHONPATH=/app --volume ./scripts:/verification:ro migrate python /verification/verify-phase-12g-revision.py predecessor
+          docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-12h-rollback.py predecessor
+          docker compose --profile tools run --rm migrate
+          docker compose --profile tools run --rm --env PYTHONPATH=/app --volume ./scripts:/verification:ro migrate python /verification/verify-phase-12g-revision.py head
+          docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-12h-rollback.py head
+          docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-12h-rollback.py cleanup
       - name: Verify Phase 11B exact predecessor
         if: needs.changes.outputs.database_deep == 'true'
         run: |
@@ -459,7 +491,11 @@ jobs:
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-11f-database.py
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-11g-database.py
           docker compose --profile tools run --rm --env-from-file ./backend/.env.expiry --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-12b-database.py
+          docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-12c-database.py
+          docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-12d-database.py
+          docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-12e-database.py
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env-from-file ./backend/.env.migration --env-from-file ./backend/.env.api --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-12f-database.py
+          docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env-from-file ./backend/.env.migration --env-from-file ./backend/.env.api --env PYTHONPATH=/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-12g-database.py
       - name: Verify service health
         run: |
           curl --fail --silent --show-error http://127.0.0.1:8000/health | jq --exit-status '.status == "ok" and .database == "ok"'

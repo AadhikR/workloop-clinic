@@ -135,7 +135,7 @@ export default function LetterRequests({ account, authentication, branchId }) {
           <button type="button" className="danger" disabled={busy} onClick={() => decide(item, 'reject')}>Reject</button>
         </>}
         {item.status === 'completed' && <button type="button" disabled={busy} onClick={() => showSource(item)}>View source</button>}
-        {item.status === 'completed' && <>
+        {item.status === 'completed' && account.role !== 'manager' && <>
           <button type="button" disabled={busy} onClick={() => run(
             async () => openPdf(await downloadRequestLetterPdf(
               authentication, account.role === 'admin' ? branchId : null, item.id,

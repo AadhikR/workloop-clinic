@@ -41,6 +41,8 @@ EXPOSED_HEADERS = (
     "Content-Length",
     "Digest",
     "ETag",
+    "Vary",
+    "X-Content-Type-Options",
 )
 
 

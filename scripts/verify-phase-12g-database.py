@@ -168,6 +168,21 @@ INSERT INTO public.nafis_reports(
                 .mappings()
                 .one()
             )
+            manager = (
+                connection.execute(
+                    text(
+                        "SELECT user_account.id app_user_id,user_account.identity_subject,"
+                        "profile.employee_id FROM public.user_profiles profile "
+                        "JOIN public.app_users user_account ON user_account.id=profile.app_user_id "
+                        "JOIN public.employees employee ON employee.id=profile.employee_id "
+                        "WHERE profile.company_id=:company AND profile.role='manager' "
+                        "AND employee.branch_id=:branch ORDER BY user_account.id LIMIT 1"
+                    ),
+                    {"company": company, "branch": branch},
+                )
+                .mappings()
+                .one()
+            )
             letter = (
                 connection.execute(
                     text(
@@ -283,6 +298,13 @@ WHERE namespace.nspname='public' AND procedure.oid=CAST(:signature AS regprocedu
             "branch": branch,
             "employee": payslip["employee_id"],
         }
+        manager_actor = {
+            "app_user": manager["app_user_id"],
+            "subject": manager["identity_subject"],
+            "role": "manager",
+            "branch": branch,
+            "employee": manager["employee_id"],
+        }
         letter_actor = {
             "app_user": letter["app_user_id"],
             "subject": letter["identity_subject"],
@@ -290,6 +312,18 @@ WHERE namespace.nspname='public' AND procedure.oid=CAST(:signature AS regprocedu
             "branch": branch,
             "employee": letter["employee_id"],
         }
+        for actor, expected in (
+            (admin_actor, 1),
+            (payslip_actor, 1),
+            (manager_actor, 0),
+        ):
+            with runtime.begin() as connection:
+                context(connection, **actor)
+                visible = connection.scalar(
+                    text("SELECT count(*) FROM public.payslips WHERE id=:id"),
+                    {"id": payslip["id"]},
+                )
+                assert visible == expected
         base = {
             "filter_digest": FILTER_DIGEST,
             "source_digest": SOURCE_DIGEST,

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
 import { openPdf } from '../migration/src/outputDelivery.js'
@@ -68,4 +69,10 @@ test('print opens the authorized PDF bytes and revokes the viewer URL later', ()
     ['timeout', 60_000],
     ['revoke', 'blob:pdf'],
   ])
+})
+
+test('requested-letter PDF controls stay within the approved role table', async () => {
+  const source = await readFile(new URL('../migration/src/LetterRequests.jsx', import.meta.url), 'utf8')
+  assert.match(source, /item\.status === 'completed' && account\.role !== 'manager'/)
+  assert.match(source, /downloadRequestLetterPdf/)
 })

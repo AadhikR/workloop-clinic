@@ -13,10 +13,11 @@ class NotificationRepository:
         self.connection = connection
 
     @staticmethod
-    def _branch_clause(include_tenant: bool) -> str:
+    def _branch_clause(include_tenant: bool, *, qualifier: str = "") -> str:
+        column = f"{qualifier}branch_id"
         if include_tenant:
-            return "(branch_id IS NULL OR branch_id=:branch_id)"
-        return "branch_id=:branch_id"
+            return f"({column} IS NULL OR {column}=:branch_id)"
+        return f"{column}=:branch_id"
 
     async def list(
         self,
@@ -29,7 +30,7 @@ class NotificationRepository:
         limit: int,
     ) -> list[RowMapping]:
         branch_clause = self._branch_clause(include_tenant)
-        anchor_branch_clause = branch_clause.replace("branch_id", "anchor.branch_id")
+        anchor_branch_clause = self._branch_clause(include_tenant, qualifier="anchor.")
         statement = text(
             f"""
 SELECT id,type,title,body,related_entity_type,related_entity_id,read_at,created_at

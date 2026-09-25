@@ -2167,6 +2167,164 @@ async function assertPhase11BrowserJourney(page, persona) {
   )), 'administrator request completion and print sources')
 }
 
+async function assertPhase12BrowserJourney(page, persona) {
+  stage(`${persona.role} Phase 12 notification, task, dashboard, report, and output journey`)
+  await page.getByRole('heading', { name: 'Tasks', exact: true }).waitFor({ timeout: 20_000 })
+  await page.getByRole('button', { name: /^Notifications/ }).click()
+  await page.getByRole('heading', { name: 'Notifications', exact: true }).waitFor()
+  await page.getByRole('button', { name: /^Notifications/ }).click()
+  if (persona.role === 'admin') {
+    await page.getByRole('heading', { name: 'Administrator dashboard', exact: true }).waitFor()
+    await page.getByRole('heading', { name: 'Clinical dashboard', exact: true }).waitFor()
+    await page.getByRole('heading', { name: 'Reports', exact: true }).waitFor()
+  } else {
+    await page.getByRole('heading', { name: 'My dashboard', exact: true }).waitFor()
+  }
+
+  const outputTrace = []
+  const tracePromises = []
+  const traceOutput = (response) => {
+    const pathname = new URL(response.url()).pathname
+    if (!/\.(?:csv|pdf|zip)$/.test(pathname) && !pathname.endsWith('/sif')) return
+    tracePromises.push(response.allHeaders().then((headers) => {
+      outputTrace.push({ headers, pathname, status: response.status() })
+    }))
+  }
+  page.on('response', traceOutput)
+  let result
+  try {
+    result = await page.evaluate(async ({
+      role, branchId, alternateBranchId, payslipId, payrollRunId, requestIds,
+    }) => {
+    const { authenticationSession } = await import('/src/authSession.js')
+    const { readNotifications, readUnreadCount } = await import('/src/notificationApi.js')
+    const { readTasks } = await import('/src/taskApi.js')
+    const { readDashboard } = await import('/src/dashboardApi.js')
+    const { downloadReportCsv, readReport } = await import('/src/reportApi.js')
+    const { previewSif, downloadSif } = await import('/src/wpsNafisApi.js')
+    const {
+      downloadPayslipPdf,
+      downloadPayslipsZip,
+      downloadReportPdf,
+      downloadRequestLetterPdf,
+      downloadSelfPayslipPdf,
+    } = await import('/src/renderedOutputApi.js')
+    const authentication = authenticationSession()
+    const capture = async (operation) => {
+      try {
+        return { response: await operation() }
+      } catch (error) {
+        return { error: { code: error.code, status: error.status } }
+      }
+    }
+    const notifications = await readNotifications(authentication, role, branchId, { limit: 40 })
+    const unread = await readUnreadCount(authentication, role, branchId)
+    const tasks = await readTasks(authentication, role, branchId, { limit: 200 })
+    const dashboard = await readDashboard(
+      authentication,
+      role === 'admin' ? 'admin' : 'self',
+      branchId,
+    )
+    if (role !== 'admin') {
+      const reportDenial = await capture(() => readReport(
+        authentication, branchId, 'headcount', { limit: 20 },
+      ))
+      const pdfDenial = await capture(() => downloadReportPdf(
+        authentication, branchId, 'headcount', {},
+      ))
+      const selfPayslip = role === 'employee'
+        ? await downloadSelfPayslipPdf(authentication, payslipId)
+        : null
+      const administratorPayslipDenial = role === 'employee'
+        ? await capture(() => downloadPayslipPdf(authentication, branchId, payslipId))
+        : null
+      return {
+        administratorPayslipDenial: administratorPayslipDenial?.error ?? null,
+        categoryCount: tasks.categories.length,
+        dashboardCardCount: dashboard.cards.length,
+        failedCategoryCount: tasks.categories.filter((item) => item.status === 'failed').length,
+        notificationCount: notifications.items.length,
+        pdfDenial: pdfDenial.error,
+        reportDenial: reportDenial.error,
+        selfPayslipBytes: selfPayslip?.bytes.length ?? null,
+        unreadCount: unread.count,
+      }
+    }
+
+    const clinical = await readDashboard(authentication, 'clinical', branchId)
+    const report = await readReport(authentication, branchId, 'headcount', { limit: 20 })
+    const csv = await downloadReportCsv(authentication, branchId, 'headcount')
+    const reportPdf = await downloadReportPdf(authentication, branchId, 'headcount')
+    const payslipPdf = await downloadPayslipPdf(authentication, branchId, payslipId)
+    const payslipZip = await downloadPayslipsZip(authentication, branchId, payrollRunId)
+    const sifPreview = await previewSif(authentication, branchId, payrollRunId)
+    const sif = await downloadSif(authentication, branchId, payrollRunId)
+    const letter = await downloadRequestLetterPdf(authentication, branchId, requestIds[0])
+    const crossBranchPayslip = await capture(() => downloadPayslipPdf(
+      authentication, alternateBranchId, payslipId,
+    ))
+    return {
+      categoryCount: tasks.categories.length,
+      clinicalCardCount: clinical.cards.length,
+      crossBranchPayslip: crossBranchPayslip.error,
+      dashboardCardCount: dashboard.cards.length,
+      failedCategoryCount: tasks.categories.filter((item) => item.status === 'failed').length,
+      notificationCount: notifications.items.length,
+      outputBytes: [
+        csv.bytes.length,
+        reportPdf.bytes.length,
+        payslipPdf.bytes.length,
+        payslipZip.bytes.length,
+        sif.bytes.length,
+        letter.bytes.length,
+      ],
+      reportId: report.reportId,
+      reportRowCount: report.totals.rowCount,
+      sifRecordCount: sifPreview.recordCount,
+      unreadCount: unread.count,
+    }
+    }, {
+      role: persona.role,
+      branchId,
+      alternateBranchId,
+      payslipId: browserPayslipId,
+      payrollRunId: browserPayrollRunId,
+      requestIds: phase11Journey.requestIds,
+    })
+  } catch (error) {
+    await Promise.all(tracePromises)
+    error.message += `\noutput responses: ${JSON.stringify(outputTrace)}`
+    throw error
+  } finally {
+    page.off('response', traceOutput)
+  }
+
+  assert.equal(result.failedCategoryCount, 0, `${persona.role} failed task categories`)
+  assert.ok(result.categoryCount > 0, `${persona.role} task catalogue`)
+  assert.ok(result.notificationCount >= 0, `${persona.role} notification count`)
+  assert.ok(result.unreadCount >= 0, `${persona.role} unread count`)
+  if (persona.role !== 'admin') {
+    assert.equal(result.dashboardCardCount, 6, `${persona.role} self dashboard cards`)
+    assert.deepEqual(result.reportDenial, { code: 'operation_not_permitted', status: 403 })
+    assert.deepEqual(result.pdfDenial, { code: 'operation_not_permitted', status: 403 })
+    if (persona.role === 'employee') {
+      assert.ok(result.selfPayslipBytes > 0, 'employee self payslip bytes')
+      assert.deepEqual(
+        result.administratorPayslipDenial,
+        { code: 'operation_not_permitted', status: 403 },
+      )
+    }
+    return
+  }
+  assert.equal(result.dashboardCardCount, 5, 'administrator dashboard cards')
+  assert.equal(result.clinicalCardCount, 6, 'clinical dashboard cards')
+  assert.equal(result.reportId, 'headcount')
+  assert.equal(result.reportRowCount, 2, 'headcount report rows')
+  assert.ok(result.sifRecordCount >= 2, 'SIF preview records')
+  assert.ok(result.outputBytes.every((count) => count > 0), 'administrator output bytes')
+  assert.deepEqual(result.crossBranchPayslip, { code: 'resource_not_found', status: 404 })
+}
+
 async function browserChecks(viteServer) {
   const browser = await chromium.launch({ headless: true })
   try {
@@ -2260,6 +2418,7 @@ async function browserChecks(viteServer) {
       await assertPhase9BrowserJourney(page, persona)
       await assertPhase10BrowserJourney(page, persona)
       await assertPhase11BrowserJourney(page, persona)
+      await assertPhase12BrowserJourney(page, persona)
       const afterEmployeeWorkflows = businessFingerprint()
       await assertDepartmentApi(page, persona)
       assert.equal(businessFingerprint(), afterEmployeeWorkflows)
