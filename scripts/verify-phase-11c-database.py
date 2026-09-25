@@ -89,7 +89,7 @@ async def main() -> None:
         validate(connection, seed_rows)
         assert connection.execute(
             text("SELECT version_num FROM alembic_version")
-        ).scalar_one() == ("c3e5a7b9d1f6")
+        ).scalar_one() == ("d6f8a0c2e4b7")
         columns = set(
             connection.execute(
                 text(

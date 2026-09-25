@@ -99,7 +99,7 @@ async def main() -> None:
     with migration_engine.begin() as connection:
         assert connection.execute(
             text("SELECT version_num FROM alembic_version")
-        ).scalar_one() == ("c3e5a7b9d1f6")
+        ).scalar_one() == ("d6f8a0c2e4b7")
         role = connection.execute(
             text(
                 "SELECT rolcanlogin,rolinherit,rolsuper,rolcreatedb,rolcreaterole,"

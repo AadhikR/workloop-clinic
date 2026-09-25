@@ -51,7 +51,7 @@ async def verify() -> None:
     try:
         async with engine.begin() as connection:
             head = await connection.scalar(text("SELECT version_num FROM alembic_version"))
-            assert head == "c3e5a7b9d1f6"
+            assert head == "d6f8a0c2e4b7"
             await connection.execute(
                 text(
                     "SELECT set_config('workloop.company_id',:company,true),"
