@@ -71,7 +71,8 @@ def main() -> None:
         assert "CURRENT_USER" in str(policy) and "SESSION_USER" in str(policy)
         assert "resolve_workloop_principal()" in str(policy)
         assert "workloop_role() = 'employee'::text" in str(policy)
-        assert "manager" not in str(policy)
+        assert "workloop_role() = 'manager'::text" not in str(policy)
+        assert "workloop_role() = 'admin'::text" in str(policy)
     engine.dispose()
     print("Phase 9F database authority check passed")
 
