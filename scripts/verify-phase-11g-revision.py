@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 REVISION = ROOT / "backend/alembic/versions/c3e5a7b9d1f6_add_phase11g_offboarding_settlement.py"
 REVISION_ID = "c3e5a7b9d1f6"
 PREDECESSOR = "b2d4f6a8c0e5"
+CURRENT_HEAD = "d6f8a0c2e4b7"
 
 
 def require(path: Path, *fragments: str) -> str:
@@ -86,7 +87,7 @@ def verify_database(mode: str) -> None:
             assert "source" not in task_columns
             assert "final_settlements" not in tables
         elif mode == "head":
-            assert version == REVISION_ID
+            assert version == CURRENT_HEAD
             assert {"source", "template_id", "updated_at"} <= task_columns
             assert {"settlement_policy_versions", "final_settlements"} <= tables
             assert (
