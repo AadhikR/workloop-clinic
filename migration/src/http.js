@@ -44,10 +44,12 @@ const errorContract = new Map([
   ['request_too_large', [413, 'validation']],
   ['unsupported_media_type', [415, 'validation']],
   ['validation_failed', [422, 'validation']],
+  ['unknown_filter', [422, 'validation']],
   ['invalid_branch', [422, 'validation']],
   ['rate_limit_exceeded', [429, 'rate-limit']],
   ['internal_error', [500, 'unexpected']],
   ['application_account_lookup_unavailable', [503, 'availability']],
+  ['report_source_unavailable', [503, 'availability']],
   ['service_unavailable', [503, 'availability']],
   ['request_timeout', [504, 'timeout']],
 ])

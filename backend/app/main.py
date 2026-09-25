@@ -58,6 +58,7 @@ from app.offboarding_api import router as offboarding_router
 from app.organization_api import router as organization_router
 from app.payroll_api import payslip_router
 from app.payroll_api import router as payroll_router
+from app.report_api import router as report_router
 from app.roster_api import router as roster_router
 from app.roster_publication_api import publication_router as roster_publication_router
 from app.roster_publication_api import schedule_router as roster_schedule_router
@@ -66,6 +67,7 @@ from app.services.employees import EmployeeCursorCodec
 from app.services.execution import AuthorizedServiceExecutor
 from app.services.idempotency import RecoveryKey, RecoveryNamespaces
 from app.services.organization import BranchCursorCodec
+from app.services.reports import ReportCursorCodec
 from app.services.tasks import TaskCursorCodec
 from app.shift_swap_api import router as shift_swap_router
 from app.storage import ObjectStorage, create_object_storage
@@ -195,6 +197,9 @@ def create_app(
         application.state.task_cursor_codec = TaskCursorCodec.from_base64url(
             resolved_settings.cursor_signing_key.get_secret_value()
         )
+        application.state.report_cursor_codec = ReportCursorCodec.from_base64url(
+            resolved_settings.cursor_signing_key.get_secret_value()
+        )
         application.state.idempotency_recovery_namespaces = RecoveryNamespaces(
             RecoveryKey(
                 key_id=resolved_settings.idempotency_recovery_current_key_id,
@@ -282,6 +287,7 @@ def create_app(
     application.include_router(notification_router)
     application.include_router(task_router)
     application.include_router(dashboard_router)
+    application.include_router(report_router)
     application.add_api_route(
         "/_synthetic-storage/v1/{token}",
         download_synthetic_object,
