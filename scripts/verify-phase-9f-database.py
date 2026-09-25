@@ -12,7 +12,7 @@ def main() -> None:
     engine = create_engine(os.environ["MIGRATION_DATABASE_URL"])
     with engine.connect() as connection:
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "d6f8a0c2e4b7"
+            "e8a1c3f5b7d9"
         )
         triggers = set(
             connection.scalars(

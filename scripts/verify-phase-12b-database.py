@@ -189,7 +189,7 @@ async def verify() -> None:
         assert connection.execute(text("SELECT count(*) FROM alembic_version")).scalar_one() == 1
         assert (
             connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-            == "d6f8a0c2e4b7"
+            == "e8a1c3f5b7d9"
         )
         clean_seed(connection, rows)
         apply_rows(connection, rows)

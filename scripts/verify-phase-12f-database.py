@@ -109,7 +109,7 @@ def verify() -> None:
         with migration.begin() as connection:
             assert (
                 connection.scalar(text("SELECT version_num FROM alembic_version"))
-                == "d6f8a0c2e4b7"
+                == "e8a1c3f5b7d9"
             )
             clean_seed(connection, rows)
             apply_rows(connection, rows)
