@@ -10,6 +10,8 @@ import {
   submitRequest,
   validateSubmission,
 } from './letterRequestsApi.js'
+import { openPdf, saveDownload } from './outputDelivery.js'
+import { downloadRequestLetterPdf } from './renderedOutputApi.js'
 
 const emptyForm = {
   requestKind: 'letter', letterType: letterTypes[0], purpose: '', subject: '', details: '',
@@ -32,7 +34,7 @@ function Source({ source }) {
       {source.basicSalary !== null && <><dt>Basic salary</dt><dd>AED {source.basicSalary}</dd></>}
       {source.allowance !== null && <><dt>Allowance</dt><dd>AED {source.allowance}</dd></>}
     </dl>
-    <p>Phase 12 will render printable documents from this source.</p>
+    <p>The printable document is rendered from this fixed source.</p>
   </div>
 }
 
@@ -133,6 +135,20 @@ export default function LetterRequests({ account, authentication, branchId }) {
           <button type="button" className="danger" disabled={busy} onClick={() => decide(item, 'reject')}>Reject</button>
         </>}
         {item.status === 'completed' && <button type="button" disabled={busy} onClick={() => showSource(item)}>View source</button>}
+        {item.status === 'completed' && <>
+          <button type="button" disabled={busy} onClick={() => run(
+            async () => openPdf(await downloadRequestLetterPdf(
+              authentication, account.role === 'admin' ? branchId : null, item.id,
+            )),
+            'Printable letter opened.',
+          )}>Print PDF</button>
+          <button type="button" className="secondary" disabled={busy} onClick={() => run(
+            async () => saveDownload(await downloadRequestLetterPdf(
+              authentication, account.role === 'admin' ? branchId : null, item.id,
+            )),
+            'Letter downloaded.',
+          )}>Download PDF</button>
+        </>}
       </td>
     </tr>)}</tbody></table>
     <Source source={source} />

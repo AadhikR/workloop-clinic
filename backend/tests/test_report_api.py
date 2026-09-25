@@ -15,6 +15,7 @@ from app.auth.application_user import AuthorizationPrincipal
 from app.auth.dependencies import require_access_token, require_authorization_principal
 from app.models.identity import AccountStatus, AppRole
 from app.schemas.reports import ReportColumn, ReportResponse, ReportTotals
+from app.services.execution import ServiceExecutionError
 from app.services.reports import ReportQuery
 from tests.test_http_boundary import make_settings
 
@@ -74,7 +75,10 @@ class StubService:
         actor: AuthorizationPrincipal,
         branch_id: uuid.UUID,
         query: ReportQuery,
+        *,
+        maximum_rows: int = 5_000,
     ) -> ReportResponse:
+        assert maximum_rows > 0
         return await self.read(report_id, actor, branch_id, query)
 
 
@@ -168,3 +172,47 @@ async def test_report_csv_is_audited_before_delivery(monkeypatch: pytest.MonkeyP
     assert service.calls[0][0] == "headcount"
     assert audited[0]["action"] == "report_csv_exported"
     assert audited[0]["byte_count"] == len(response.content)
+
+
+@pytest.mark.asyncio
+async def test_report_pdf_is_rendered_and_audited_before_delivery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audited: list[dict[str, object]] = []
+
+    async def append_output_audit(_connection: AsyncConnection, **values: object) -> uuid.UUID:
+        audited.append(values)
+        return uuid.uuid4()
+
+    monkeypatch.setattr("app.rendered_output_api.append_output_audit", append_output_audit)
+    async with client_for(AppRole.ADMIN) as (client, service):
+        response = await client.get(
+            "/api/v1/reports/headcount.pdf",
+            headers={"X-Workloop-Branch-ID": str(BRANCH), "Accept": "application/pdf"},
+        )
+    assert response.status_code == 200
+    assert response.content.startswith(b"%PDF-1.7")
+    assert response.headers["content-type"] == "application/pdf"
+    assert response.headers["content-disposition"].endswith("headcount_report.pdf")
+    assert service.calls[0][0] == "headcount"
+    assert audited[0]["action"] == "report_pdf_exported"
+    assert audited[0]["byte_count"] == len(response.content)
+
+
+@pytest.mark.asyncio
+async def test_report_pdf_audit_failure_returns_no_partial_file(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def append_output_audit(_connection: AsyncConnection, **_values: object) -> uuid.UUID:
+        raise ServiceExecutionError("service_unavailable")
+
+    monkeypatch.setattr("app.rendered_output_api.append_output_audit", append_output_audit)
+    async with client_for(AppRole.ADMIN) as (client, _service):
+        response = await client.get(
+            "/api/v1/reports/headcount.pdf",
+            headers={"X-Workloop-Branch-ID": str(BRANCH), "Accept": "application/pdf"},
+        )
+    assert response.status_code == 503
+    assert response.headers["content-type"] == "application/json"
+    assert response.json()["error"]["code"] == "service_unavailable"
+    assert not response.content.startswith(b"%PDF")

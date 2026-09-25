@@ -10,6 +10,11 @@ import {
   previewSettlement,
   readChecklists,
 } from './offboardingApi.js'
+import { openPdf, saveDownload } from './outputDelivery.js'
+import {
+  downloadFinalSettlementPdf,
+  downloadOffboardingLetterPdf,
+} from './renderedOutputApi.js'
 
 const zeroAdjustments = {
   noticePay: '0.00', noticeDeduction: '0.00', otherEarnings: '0.00',
@@ -103,6 +108,26 @@ export default function Offboarding({ account, authentication, branchId }) {
         <button type="button" disabled={busy} onClick={() => createTask(checklist)}>Add custom task</button>
         {checklist.visaCancellationStatus !== 'cancelled' && <button type="button" disabled={busy} onClick={() => run(() => advanceVisa(authentication, branchId, checklist), 'Visa state advanced.')}>Advance visa state</button>}
         <button type="button" disabled={busy} onClick={() => calculate(checklist)}>Preview settlement</button>
+      </div>}
+      {checklist.status === 'completed' && <div className="actions">
+        <button type="button" disabled={busy} onClick={() => run(
+          async () => openPdf(await downloadOffboardingLetterPdf(
+            authentication, branchId, checklist.id, 'noc',
+          )),
+          'No objection certificate opened.',
+        )}>Print NOC</button>
+        <button type="button" className="secondary" disabled={busy} onClick={() => run(
+          async () => saveDownload(await downloadOffboardingLetterPdf(
+            authentication, branchId, checklist.id, 'experience',
+          )),
+          'Experience letter downloaded.',
+        )}>Download experience letter</button>
+        <button type="button" className="secondary" disabled={busy} onClick={() => run(
+          async () => openPdf(await downloadFinalSettlementPdf(
+            authentication, branchId, checklist.id,
+          )),
+          'Final settlement opened.',
+        )}>Print final settlement</button>
       </div>}
     </article>)}
     {preview && <div className="card">

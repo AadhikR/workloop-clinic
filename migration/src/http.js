@@ -249,7 +249,9 @@ async function readBinaryResponse(response, headerCorrelationId) {
     || !headerCorrelationId
     || requestId !== headerCorrelationId
     || !contentType
-    || !['text/csv; charset=utf-8', 'application/octet-stream'].includes(contentType.toLowerCase())
+    || ![
+      'text/csv; charset=utf-8', 'application/octet-stream', 'application/pdf', 'application/zip',
+    ].includes(contentType.toLowerCase())
     || !disposition?.startsWith('attachment; filename="')
     || !disposition.includes("; filename*=UTF-8''")
     || !/^(?:0|[1-9][0-9]*)$/.test(contentLength ?? '')
@@ -386,7 +388,9 @@ function requestHeaders(options, accessToken) {
   }
 
   const headers = new Headers({
-    Accept: options.responseType === 'bytes' ? 'application/octet-stream, text/csv' : 'application/json',
+    Accept: options.responseType === 'bytes'
+      ? 'application/octet-stream, application/pdf, application/zip, text/csv'
+      : 'application/json',
   })
   for (const [name, value] of supplied) headers.set(name, value)
   if (Object.hasOwn(options, 'json')) headers.set('Content-Type', 'application/json')

@@ -330,6 +330,8 @@ class HttpBoundaryMiddleware:
                 "application/*",
                 "application/json",
                 "application/octet-stream",
+                "application/pdf",
+                "application/zip",
                 "text/csv",
             }:
                 return True

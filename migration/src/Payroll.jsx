@@ -16,6 +16,8 @@ import {
   savePayrollEntries,
   submitPayrollRun,
 } from './payrollApi.js'
+import { saveDownload } from './outputDelivery.js'
+import { downloadPayslipsZip } from './renderedOutputApi.js'
 
 const today = new Date().toISOString().slice(0, 10)
 const currentPeriod = today.slice(0, 7)
@@ -204,6 +206,17 @@ export default function Payroll({ account, authentication, branchId }) {
                     () => generatePayrollRun(authentication, branchId, selected),
                     'Payroll generated and payslips issued.',
                   )}>Generate payroll</button>
+                )}
+                {selected.approvalStatus === 'approved' && selected.runStatus === 'generated' && (
+                  <button type="button" disabled={busy} onClick={() => runAction(
+                    async () => {
+                      saveDownload(await downloadPayslipsZip(
+                        authentication, branchId, selected.id,
+                      ))
+                      return selected
+                    },
+                    'Payslip archive downloaded.',
+                  )}>Download payslip ZIP</button>
                 )}
               </div>
               {selected.approvalStatus === 'pending_approval' && (

@@ -53,14 +53,14 @@ def _executor(request: Request) -> AuthorizedServiceExecutor:
     return request.app.state.authorized_service_executor
 
 
-def _service(request: Request, connection: AsyncConnection) -> ReportService:
+def report_service(request: Request, connection: AsyncConnection) -> ReportService:
     factory = getattr(request.app.state, "report_service_factory", None)
     if factory is not None:
         return cast(ReportService, factory(connection))
     return ReportService(SqlReportRepository(connection), request.app.state.report_cursor_codec)
 
 
-def _branch(request: Request, principal: AuthorizationPrincipal) -> uuid.UUID:
+def report_branch(request: Request, principal: AuthorizationPrincipal) -> uuid.UUID:
     if principal.role is not AppRole.ADMIN:
         raise ServiceExecutionError("operation_not_permitted")
     values = request.headers.getlist("x-workloop-branch-id")
@@ -101,7 +101,7 @@ def _date(value: str | None) -> date | None:
     return parsed
 
 
-def _query(report_id: str, request: Request) -> ReportQuery:
+def report_query(report_id: str, request: Request) -> ReportQuery:
     spec = REPORT_SPECS.get(report_id)
     if spec is None:
         raise api_error("resource_not_found")
@@ -169,11 +169,11 @@ async def download_report_csv(
     claims: VerifiedAccessToken,
     principal: AuthenticatedReadPrincipal,
 ) -> Response:
-    query = _query(report_id, request)
-    branch_id = _branch(request, principal)
+    query = report_query(report_id, request)
+    branch_id = report_branch(request, principal)
 
     async def operation(connection: AsyncConnection):
-        report = await _service(request, connection).read_export(
+        report = await report_service(request, connection).read_export(
             report_id, principal, branch_id, query
         )
         output = render_report_csv(report)
@@ -221,8 +221,8 @@ async def read_report(
     claims: VerifiedAccessToken,
     principal: AuthenticatedReadPrincipal,
 ) -> DataResponse[ReportResponse]:
-    query = _query(report_id, request)
-    branch_id = _branch(request, principal)
+    query = report_query(report_id, request)
+    branch_id = report_branch(request, principal)
 
     async def operation(service: ReportService) -> ReportResponse:
         return await service.read(report_id, principal, branch_id, query)
@@ -231,7 +231,7 @@ async def read_report(
         claims=claims,
         principal=principal,
         selected_admin_branch_id=branch_id,
-        operation=lambda connection: operation(_service(request, connection)),
+        operation=lambda connection: operation(report_service(request, connection)),
     )
     response.headers["Cache-Control"] = "no-store"
     return DataResponse(data=result)

@@ -1,0 +1,130 @@
+{
+  "$schema": "./cutover-record.schema.json",
+  "schemaVersion": 1,
+  "featureId": "phase12-consumers",
+  "dataClassification": "synthetic",
+  "status": {
+    "current": "completed",
+    "changedAt": "2026-09-25T15:02:12Z",
+    "history": [
+      {
+        "state": "preparation",
+        "at": "2026-09-24T12:00:00Z",
+        "reason": "Part 12A fixed the 97-dependency catalogue, source owners, output rules, and reverse rollback order."
+      },
+      {
+        "state": "active-cutover",
+        "at": "2026-09-25T14:50:00Z",
+        "reason": "Parts 12B through 12F passed their required gates and Part 12G rendered-output checks began against synthetic sources."
+      },
+      {
+        "state": "completed",
+        "at": "2026-09-25T15:02:12Z",
+        "reason": "Every Phase 12 dependency now has a machine-readable disposition; migration routes and controls are authoritative while Phase 13 rollback files remain retained."
+      }
+    ]
+  },
+  "dependencies": {
+    "inventorySource": "docs/migration/phase-12/PART_12A_DEPENDENCY_INVENTORY.md",
+    "requiredIds": ["phase12-dependency-catalogue"],
+    "declared": [
+      {
+        "id": "phase12-dependency-catalogue",
+        "system": "legacy-supabase",
+        "kind": "data-contract",
+        "locator": "docs/migration/phase-12/cutover/dependency-catalogue.json",
+        "cutoverDisposition": "freeze"
+      }
+    ]
+  },
+  "authority": {
+    "readSystem": "migration-fastapi",
+    "writeSystem": "migration-fastapi",
+    "writableSystems": ["migration-fastapi"]
+  },
+  "freeze": {
+    "read": {
+      "system": "legacy-supabase",
+      "condition": "The migration notification, task, dashboard, report, preview, download, and print controls call only FastAPI routes. No migration screen imports a retained Supabase reader or browser renderer.",
+      "releaseCondition": "Rollback disables migration controls and routes in reverse dependency order before a retained legacy reader returns.",
+      "verificationCommand": "python scripts/verify-phase-12g-boundary.py"
+    },
+    "write": {
+      "system": "legacy-supabase",
+      "condition": "Migration output generation reads approved projections, appends protected audit metadata, streams complete bytes, and writes no output artifact or source-domain value.",
+      "releaseCondition": "Rollback disables 12G render routes, 12F byte routes, 12E reports, 12D dashboards, 12C tasks, and 12B producers before restoring one retained legacy writer.",
+      "verificationCommand": "python scripts/verify-phase-12g-boundary.py"
+    }
+  },
+  "refresh": {
+    "mode": "synthetic-only",
+    "source": {
+      "kind": "tracked-fixture",
+      "locator": "docs/migration/phase-12/cutover/dependency-catalogue.json",
+      "digest": "sha256:464036cbd0c1d4a51fd53b494c601421095072b62b33afd9ce9f5db3aabcc693"
+    },
+    "command": "python scripts/verify-phase-12g-boundary.py",
+    "lastRefresh": {
+      "timestamp": "2026-09-25T15:02:12Z",
+      "command": "python scripts/verify-phase-12g-boundary.py",
+      "sourceDigest": "sha256:464036cbd0c1d4a51fd53b494c601421095072b62b33afd9ce9f5db3aabcc693",
+      "evidence": {
+        "path": "docs/migration/phase-12/cutover/evidence-phase12-consumers.json",
+        "sha256": "sha256:79faedf537267ecacb255a6299b7290007e1526e6e87c86536f716d46eb7191e"
+      }
+    }
+  },
+  "identityMapping": {
+    "mode": "synthetic-only",
+    "legacyIdField": "legacySupabaseUserId",
+    "applicationIdField": "applicationUserId",
+    "requiredLegacyUserIds": ["11111111-1111-4111-8111-111111111111"],
+    "mappings": [
+      {
+        "legacySupabaseUserId": "11111111-1111-4111-8111-111111111111",
+        "applicationUserId": "10000000-0000-4000-8000-000000000001",
+        "synthetic": true
+      }
+    ]
+  },
+  "rollback": {
+    "trigger": "A Phase 12 authorization, source, determinism, limit, audit, delivery, log-safety, or cutover proof fails after cutover.",
+    "owner": "phase-owner",
+    "targetAuthority": {
+      "readSystem": "legacy-supabase",
+      "writeSystem": "legacy-supabase",
+      "writableSystems": ["legacy-supabase"]
+    },
+    "steps": [
+      {
+        "id": "freeze-migration-writes",
+        "action": "Disable 12G rendered output routes and print controls, then 12F byte routes and 12B notification producers.",
+        "verificationCommand": "python scripts/verify-phase-12g-boundary.py"
+      },
+      {
+        "id": "restore-legacy-writes",
+        "action": "Restore one retained legacy producer only after its migration producer is disabled; generated output remains on demand and unpersisted.",
+        "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-12/cutover/phase12-consumers.json"
+      },
+      {
+        "id": "restore-legacy-reads",
+        "action": "Disable 12G, 12F, 12E, 12D, 12C, and 12B consumers in that order before restoring matching retained legacy readers.",
+        "verificationCommand": "python scripts/verify-phase-12g-boundary.py"
+      },
+      {
+        "id": "verify-authority",
+        "action": "Verify one read authority and one writer for each catalogue item; keep employee-detail and leave-calendar print unavailable.",
+        "verificationCommand": "node scripts/cutover-record-validator.mjs docs/migration/phase-12/cutover/phase12-consumers.json"
+      },
+      {
+        "id": "verify-data",
+        "action": "Preserve source rows, notifications, read timestamps, audit events, snapshots, settlements, and renderer evidence without retaining output bytes.",
+        "verificationCommand": "python scripts/verify-phase-12g-boundary.py"
+      }
+    ]
+  },
+  "validation": {
+    "asOf": "2026-09-25T15:02:12Z",
+    "refreshMaxAgeHours": 24
+  }
+}

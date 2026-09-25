@@ -59,6 +59,21 @@ from app.organization_api import router as organization_router
 from app.output_api import router as output_router
 from app.payroll_api import payslip_router
 from app.payroll_api import router as payroll_router
+from app.rendered_output_api import (
+    offboarding_router as rendered_offboarding_router,
+)
+from app.rendered_output_api import (
+    payroll_router as rendered_payroll_router,
+)
+from app.rendered_output_api import (
+    payslip_router as rendered_payslip_router,
+)
+from app.rendered_output_api import (
+    report_router as rendered_report_router,
+)
+from app.rendered_output_api import (
+    request_router as rendered_request_router,
+)
 from app.report_api import router as report_router
 from app.roster_api import router as roster_router
 from app.roster_publication_api import publication_router as roster_publication_router
@@ -263,6 +278,11 @@ def create_app(
     application.include_router(certification_file_router)
     application.include_router(expense_router)
     application.include_router(advance_router)
+    application.include_router(rendered_report_router)
+    application.include_router(rendered_payslip_router)
+    application.include_router(rendered_payroll_router)
+    application.include_router(rendered_request_router)
+    application.include_router(rendered_offboarding_router)
     application.include_router(payroll_router)
     application.include_router(payslip_router)
     application.include_router(wps_router)

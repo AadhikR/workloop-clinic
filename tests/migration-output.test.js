@@ -59,7 +59,10 @@ test('binary HTTP responses require every delivery header and exact length', asy
     browserOrigin: 'http://127.0.0.1:5174',
     getAccessToken: async () => 'token',
     fetch: async (_url, options) => {
-      assert.equal(options.headers.get('Accept'), 'application/octet-stream, text/csv')
+      assert.equal(
+        options.headers.get('Accept'),
+        'application/octet-stream, application/pdf, application/zip, text/csv',
+      )
       return new Response(bytes, {
         headers: {
           'Cache-Control': 'no-store',

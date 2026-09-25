@@ -1,0 +1,17 @@
+{
+  "featureId": "phase12-consumers",
+  "command": "python scripts/verify-phase-12g-boundary.py",
+  "refreshedAt": "2026-09-25T15:02:12Z",
+  "sourceDigest": "sha256:464036cbd0c1d4a51fd53b494c601421095072b62b33afd9ce9f5db3aabcc693",
+  "sourceRecordCount": 97,
+  "targetRecordCount": 97,
+  "result": "completed",
+  "proof": [
+    "all 97 Phase 12 inventory IDs have one machine-readable owner, cutover unit, and final state",
+    "notifications, tasks, dashboards, reports, CSV, SIF, PDFs, letters, print, ZIP, audit, and indirect callers name one migration authority",
+    "P12-OUT-10 through P12-OUT-17 have no browser generator in the migration build and retain their Phase 13 rollback files",
+    "employee-detail print and leave-calendar print remain absent because the approved contract names no business output for either caller",
+    "rendered output routes use only Phase 7 through Phase 11 projections and audit before returning complete bytes",
+    "rollback disables rendered output routes and controls before any retained legacy reader or generator returns"
+  ]
+}

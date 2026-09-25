@@ -16,3 +16,18 @@ export function saveDownload(output, browser = globalThis) {
     browser.URL.revokeObjectURL(url)
   }
 }
+
+export function openPdf(output, browser = globalThis) {
+  if (
+    !(output?.bytes instanceof Uint8Array)
+    || output.contentType !== 'application/pdf'
+    || typeof browser.open !== 'function'
+  ) throw new TypeError('Invalid PDF output')
+  const url = browser.URL.createObjectURL(new browser.Blob([output.bytes], { type: output.contentType }))
+  const viewer = browser.open(url, '_blank', 'noopener,noreferrer')
+  if (!viewer) {
+    browser.URL.revokeObjectURL(url)
+    throw new Error('PDF viewer was blocked')
+  }
+  browser.setTimeout(() => browser.URL.revokeObjectURL(url), 60_000)
+}

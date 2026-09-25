@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 
 import { readSelfPayslip, readSelfPayslips } from './payrollApi.js'
+import { openPdf } from './outputDelivery.js'
+import { downloadSelfPayslipPdf } from './renderedOutputApi.js'
 
 export default function Payslips({ account, authentication }) {
   const [items, setItems] = useState([])
@@ -38,7 +40,7 @@ export default function Payslips({ account, authentication }) {
   return (
     <section className="payslips" aria-labelledby="payslips-title">
       <h2 id="payslips-title">My payslips</h2>
-      <p>Issued payroll snapshots are read-only. PDF downloads will arrive in a later phase.</p>
+      <p>Issued payroll snapshots are read-only. Printable PDFs come from the same server snapshot.</p>
       {status === 'unavailable' && <p>Payslips are unavailable.</p>}
       {status === 'loading' && <p>Loading payslips…</p>}
       {items.map((item) => (
@@ -60,6 +62,19 @@ export default function Payslips({ account, authentication }) {
           <p><strong>Gross:</strong> AED {selected.grossPay}</p>
           <p><strong>Total deductions:</strong> AED {selected.totalDeductions}</p>
           <p><strong>Net pay:</strong> AED {selected.netPay}</p>
+          <button
+            type="button"
+            disabled={status === 'loading-detail'}
+            onClick={async () => {
+              setStatus('loading-detail')
+              try {
+                openPdf(await downloadSelfPayslipPdf(authentication, selected.id))
+                setStatus('ready')
+              } catch {
+                setStatus('unavailable')
+              }
+            }}
+          >Open printable PDF</button>
         </article>
       )}
     </section>

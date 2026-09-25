@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 
-import { saveDownload } from './outputDelivery.js'
+import { openPdf, saveDownload } from './outputDelivery.js'
 import { downloadReportCsv, readReport, reportDefinitions } from './reportApi.js'
+import { downloadReportPdf } from './renderedOutputApi.js'
 
 function display(value) {
   if (value === null) return 'Unavailable'
@@ -153,6 +154,28 @@ export default function Reports({ authentication, branchId }) {
             type="button"
           >
             {downloading ? 'Preparing CSV...' : 'Download CSV'}
+          </button>
+          <button
+            className="secondary"
+            disabled={downloading}
+            onClick={async () => {
+              setDownloading(true)
+              try {
+                const exportFilters = Object.fromEntries(
+                  Object.entries(filters).filter(([key]) => !['limit', 'cursor'].includes(key)),
+                )
+                openPdf(await downloadReportPdf(
+                  authentication, branchId, reportId, exportFilters,
+                ))
+              } catch {
+                setResult({ requestKey, status: 'error', data: null })
+              } finally {
+                setDownloading(false)
+              }
+            }}
+            type="button"
+          >
+            {downloading ? 'Preparing output...' : 'Open PDF'}
           </button>
           {visibleResult.data.rows.length === 0 ? <p>No records match these filters.</p> : (
             <div className="table-wrap">
