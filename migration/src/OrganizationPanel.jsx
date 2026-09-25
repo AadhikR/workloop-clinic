@@ -31,6 +31,7 @@ import LetterRequests from './LetterRequests.jsx'
 import Offboarding from './Offboarding.jsx'
 import NotificationBell from './NotificationBell.jsx'
 import Tasks from './Tasks.jsx'
+import Dashboard from './Dashboards.jsx'
 
 function OrganizationSummary({ account, authentication }) {
   const organization = useCompanyContext()
@@ -53,6 +54,14 @@ function OrganizationSummary({ account, authentication }) {
         authentication={authentication}
         branchId={organization.selectedBranch.id}
       />
+      {account.role === 'admin' ? (
+        <>
+          <Dashboard authentication={authentication} branchId={organization.selectedBranch.id} kind="admin" />
+          <Dashboard authentication={authentication} branchId={organization.selectedBranch.id} kind="clinical" />
+        </>
+      ) : (
+        <Dashboard authentication={authentication} branchId={organization.selectedBranch.id} kind="self" />
+      )}
       {organization.company && (
         <>
           <button type="button" className="secondary" onClick={organization.clearBranch}>

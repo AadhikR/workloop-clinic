@@ -24,6 +24,7 @@ from app.auth.application_user import ApplicationUserResolver
 from app.auth.dependencies import AuthenticatedAuthorizationPrincipal
 from app.core.config import Settings
 from app.core.logging import configure_logging
+from app.dashboard_api import router as dashboard_router
 from app.db.authorization_context import AuthorizationTransactionFactory
 from app.db.engine import create_database_engine, probe_database
 from app.department_api import router as department_router
@@ -280,6 +281,7 @@ def create_app(
     application.include_router(offboarding_router)
     application.include_router(notification_router)
     application.include_router(task_router)
+    application.include_router(dashboard_router)
     application.add_api_route(
         "/_synthetic-storage/v1/{token}",
         download_synthetic_object,
