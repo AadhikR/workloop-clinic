@@ -65,11 +65,11 @@ legacy callers may return only after the migration output routes are disabled du
   and signing-key state, restarted the existing images without rebuilding, reproduced the exact
   state, verified persisted S3 and scan evidence, passed authentication without reconfiguration,
   and passed the service log-safety scan.
-- The first routed run reached the Phase 11B predecessor check and exposed older database verifiers
-  that still named the former Part 12F head. Their current-head constants were advanced to
-  `e8a1c3f5b7d9` without changing any historical predecessor. A fresh local reproduction passed the
-  Phase 11B downgrade and restored-head checks, and the Part 12F compatibility verifier passed at
-  the Part 12G head. The final routed run is recorded in the Part 12H handoff.
+- Routed checks exposed older database verifiers and one paired boundary assertion that still named
+  the former Part 12F head. Their current-head expectations were advanced to `e8a1c3f5b7d9`
+  without changing any historical predecessor. A fresh local reproduction passed the Phase 11B
+  downgrade and restored-head checks, and the Part 12F compatibility verifier passed at the Part
+  12G head. The final routed run is recorded in the Part 12H handoff.
 
 ## Resource boundary
 
