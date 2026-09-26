@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url'
 import { chromium } from '@playwright/test'
 import { createServer } from 'vite'
 
+import { installBrowserNetworkGuard } from './phase-13f-network-guard.mjs'
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const docker = process.env.DOCKER
   || (process.platform === 'win32'
@@ -2331,6 +2333,7 @@ async function browserChecks(viteServer) {
     for (const persona of [personas[2], personas[1], personas[0]]) {
       stage(`${persona.role} initial session`)
       const context = await browser.newContext({ acceptDownloads: true })
+      const networkGuard = await installBrowserNetworkGuard(context, `${persona.role}-browser`)
       const page = await context.newPage()
       let callbackUrl
       let leakedCallbackReferrer = null
@@ -2526,6 +2529,7 @@ async function browserChecks(viteServer) {
       assert.equal(publicStatusUsedAuthorization, false)
       assert.equal(currentAccountRequestsUsedBearer, true)
       assert.equal(bearerLeftApiOrigin, false)
+      networkGuard.assertClean()
       await context.close()
       if (persona.role === 'employee') {
         stage('employee fixture account restoration')
@@ -2538,6 +2542,7 @@ async function browserChecks(viteServer) {
 
     stage('wrong nonce rejection')
     const nonceContext = await browser.newContext()
+    const nonceNetworkGuard = await installBrowserNetworkGuard(nonceContext, 'nonce-browser')
     const noncePage = await nonceContext.newPage()
     await noncePage.goto('http://127.0.0.1:5174/')
     await waitForStatus(noncePage, 'signed-out')
@@ -2571,6 +2576,7 @@ async function browserChecks(viteServer) {
     stage(`wrong nonce rejection ${nonceStatus}`)
     assert.equal(nonceStatus, 'error')
     await assertNoPersistedTokens(noncePage)
+    nonceNetworkGuard.assertClean()
     await nonceContext.close()
   } finally {
     await browser.close()

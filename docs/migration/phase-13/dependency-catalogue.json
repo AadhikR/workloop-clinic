@@ -866,6 +866,38 @@
         "DIGITALOCEAN_MIGRATION_PLAN.md",
         "docs/migration/phase-13/PART_13E_COMPLETION.md"
       ]
+    },
+    "13F": {
+      "status": "completed",
+      "dependencies": [
+        "P13-NET-001",
+        "P13-NET-002",
+        "P13-NET-003",
+        "P13-NET-004"
+      ],
+      "goldenCases": [
+        "13A-GC-011",
+        "13A-GC-012",
+        "13A-GC-013",
+        "13A-GC-014",
+        "13A-GC-017",
+        "13A-GC-018",
+        "13A-GC-019",
+        "13A-GC-020",
+        "13A-GC-035",
+        "13A-GC-040",
+        "13A-GC-041",
+        "13A-GC-042"
+      ],
+      "evidence": [
+        "scripts/phase-13f-network-guard.mjs",
+        "scripts/phase13f_sitecustomize.py",
+        "scripts/verify-phase-13f-clean-setup.mjs",
+        "scripts/verify-phase-13f-browser.mjs",
+        "docker-compose.phase13f.yml",
+        "tests/phase-13f-clean-setup.test.js",
+        "docs/migration/phase-13/PART_13F_COMPLETION.md"
+      ]
     }
   },
   "goldenCases": [

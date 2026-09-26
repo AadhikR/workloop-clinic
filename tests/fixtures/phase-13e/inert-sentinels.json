@@ -1,5 +1,28 @@
 {
+  "marker": "supabase",
   "package": "@supabase/supabase-js",
-  "environment": "VITE_SUPABASE_URL",
-  "endpoint": "https://retired-service.supabase.invalid"
+  "environment": {
+    "VITE_SUPABASE_URL": "https://phase13f-hostile.supabase.invalid",
+    "VITE_SUPABASE_ANON_KEY": "phase13f-public-hostile-sentinel",
+    "SUPABASE_SERVICE_ROLE_KEY": "phase13f-private-hostile-sentinel"
+  },
+  "attempts": [
+    { "protocol": "dns", "target": "phase13f-hostile.supabase.invalid" },
+    { "protocol": "tcp", "target": { "host": "db.phase13f.supabase.invalid", "port": 5432 } },
+    { "protocol": "tls", "target": { "host": "api.phase13f.supabase.invalid", "port": 443 } },
+    { "protocol": "http", "target": "http://phase13f.supabase.invalid/rest/v1" },
+    { "protocol": "https", "target": "https://phase13f.supabase.invalid/auth/v1" },
+    { "protocol": "websocket", "target": "wss://phase13f.supabase.invalid/realtime/v1" },
+    { "protocol": "postgresql", "target": "postgresql://user:sentinel@db.phase13f.supabase.invalid:5432/postgres" },
+    { "protocol": "object-storage", "target": "https://phase13f.supabase.invalid/storage/v1/object/private/proof" }
+  ],
+  "allowedAttempts": [
+    { "protocol": "dns", "target": "keycloak" },
+    { "protocol": "tcp", "target": { "host": "postgres", "port": 5432 } },
+    { "protocol": "http", "target": "http://backend:8000/health" },
+    { "protocol": "https", "target": "https://registry.npmjs.org/react" },
+    { "protocol": "websocket", "target": "ws://127.0.0.1:5174/socket" },
+    { "protocol": "postgresql", "target": "postgresql://workloop_runtime:sentinel@postgres:5432/workloop" },
+    { "protocol": "object-storage", "target": "http://seaweed-s3:8333/workloop-phase11b/proof" }
+  ]
 }

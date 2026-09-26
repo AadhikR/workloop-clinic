@@ -1,0 +1,23 @@
+name: workloop-phase13f-verify
+
+x-phase13f-python-guard: &phase13f-python-guard
+  environment:
+    PYTHONPATH: /phase13f:/app
+  volumes:
+    - ./scripts/phase13f_sitecustomize.py:/phase13f/sitecustomize.py:ro
+
+services:
+  migrate:
+    <<: *phase13f-python-guard
+
+  backend:
+    <<: *phase13f-python-guard
+
+  storage-reconciler:
+    <<: *phase13f-python-guard
+
+  expiry:
+    <<: *phase13f-python-guard
+
+  file-scanner:
+    <<: *phase13f-python-guard
