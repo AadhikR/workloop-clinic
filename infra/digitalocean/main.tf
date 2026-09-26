@@ -490,7 +490,7 @@ resource "digitalocean_app" "proof" {
     static_site {
       name           = "web"
       source_dir     = "/"
-      build_command  = "npm ci && npm run build:migration"
+      build_command  = "npm ci && npm run build"
       output_dir     = "dist-migration"
       index_document = "index.html"
       error_document = "index.html"
