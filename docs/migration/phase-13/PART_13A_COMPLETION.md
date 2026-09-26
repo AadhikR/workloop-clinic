@@ -13,7 +13,7 @@ and owns no implementation entry.
 The repository scan covered 1,097 tracked files at the starting commit. It found 260 text files with
 a Supabase marker and classified each through a non-overlapping coverage rule. The tracked HRMS
 feature-list PDF was outside the text scan, so it received a separate full-page inspection and a
-pinned SHA-256 digest. The PDF contains historical Supabase Auth, Edge Function, RPC, and Storage
+pinned SHA-256 digest of its canonical indexed Git blob. The PDF contains historical Supabase Auth, Edge Function, RPC, and Storage
 instructions and is assigned to 13E for labeling.
 
 The contract fixes:

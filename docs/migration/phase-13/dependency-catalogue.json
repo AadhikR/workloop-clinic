@@ -19,7 +19,8 @@
     "binaryInspected": [
       {
         "path": "Workloop_Clinic_HRMS_Feature_List.pdf",
-        "sha256": "c84af6e6b1095c38763c5a3e62e17039f1459bda6e7b505e0547acc516f733e4",
+        "sha256": "4c3599a71f412d3472af48cf9289734a978b0c2f6134306025a31a2ed38381cc",
+        "digestSource": "canonical indexed Git blob",
         "dependencyId": "P13-DOC-004",
         "finding": "The 15-page historical feature list contains Supabase Auth, Edge Function, RPC, and Storage instructions."
       }

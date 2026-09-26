@@ -6,7 +6,8 @@ This inventory covers all 1,097 files tracked at commit
 `2323475ae93e0a4e76055285488f20bac1cb5775`. The scan found 260 tracked files with a
 case-insensitive `Supabase` marker. The tracked 15-page HRMS feature-list PDF is binary and therefore
 outside that text count. Text extraction and a complete page render found Supabase Auth, Edge
-Function, RPC, and Storage instructions in it. The focused verifier reads the current tracked-file set on every
+Function, RPC, and Storage instructions in it. Its digest covers the canonical indexed Git blob, not
+platform-normalized working-tree bytes. The focused verifier reads the current tracked-file set on every
 run. It assigns each marker-bearing file to exactly one coverage group and counts every other file
 as inspected and reference-free. A new marker-bearing file fails until its group and dependency are
 declared.

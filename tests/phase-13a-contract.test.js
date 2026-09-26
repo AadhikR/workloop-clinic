@@ -142,9 +142,10 @@ test('pins every separately inspected binary artifact by digest', () => {
   for (const artifact of catalogue.trackedFileCoverage.binaryInspected) {
     assert.ok(dependencyIds.has(artifact.dependencyId), artifact.path)
     const digest = createHash('sha256')
-      .update(readFileSync(path.join(repositoryDirectory, artifact.path)))
+      .update(gitOutput(['show', `:${artifact.path}`]))
       .digest('hex')
     assert.equal(digest, artifact.sha256, artifact.path)
+    assert.equal(artifact.digestSource, 'canonical indexed Git blob')
     assert.match(artifact.finding, /Supabase/)
   }
 })
