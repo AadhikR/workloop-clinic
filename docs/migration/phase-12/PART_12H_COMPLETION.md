@@ -1,8 +1,7 @@
 # Part 12H completion
 
-Status: implementation complete; project-owner Phase 12 signoff pending. The local gate passed. The
-routed GitHub result is recorded in the owner-signoff response rather than added in a follow-up
-documentation commit.
+Status: complete; project-owner Phase 12 signoff recorded on 2026-09-26. The local gate and routed
+GitHub checks passed.
 
 ## Result
 
@@ -50,6 +49,8 @@ legacy fallback, or Phase 13 work.
 - Existing images restarted without rebuilding. The database fingerprint, Keycloak signing keys,
   stored object, scanner state, and transaction-context isolation remained unchanged. The complete
   three-role browser journey then passed against the restarted stack.
+- GitHub Migration foundation run `36175462925` passed classification, backend quality, frontend
+  regression, and full-stack smoke on commit `0aedf024e6915c11f7233019a0c90ac8d54850f5`.
 
 ## Resource boundary
 
@@ -69,5 +70,6 @@ writer may return only after its migration counterpart is disabled. Source rows,
 notifications, read timestamps, settlements, audit events, and generated-object evidence remain
 intact.
 
-Phase 12 implementation is complete. Project-owner signoff is the remaining phase gate. Phase 13
-has not started and will not start without that signoff and a separate owner instruction.
+Part 12H and Phase 12 are complete. The project owner signed off Phase 12 on 2026-09-26 after the
+local gate and GitHub Migration foundation run `36175462925` passed. Phase 13 has not started and
+requires a separate owner instruction.

@@ -12,6 +12,10 @@ Phase 11 is complete and signed off. Phase 12 starts from commit
 `c3e5a7b9d1f6`. The protected `workloop-clinic_postgres_data` volume remains present and must not be
 attached, modified, deleted, or recreated.
 
+Phase 12 is complete. The project owner signed it off on 2026-09-26 after commits `583c1d6` and
+`0aedf02` and GitHub Migration foundation run `36175462925` passed. Phase 13 requires a separate
+owner instruction and has not started.
+
 ## Phase boundary
 
 Phase 12 replaces notifications, task aggregation, dashboards, reports, expiry production, CSV, SIF,
@@ -137,11 +141,11 @@ the migration build for Supabase or browser-generator paths, validates each cuto
 the protected audit writer and expiry login, and runs the complete full-stack gate in a fresh
 isolated environment.
 
-The final gate applies migrations twice, verifies the append-only head and exact predecessor
-rollback, exercises deep database and security checks, restarts existing images without rebuilding,
-compares database and signing-key state, runs the complete three-role browser journey, checks safe
-logs, and cleans only disposable resources. Part 12H records Phase 12 completion and asks the project
-owner for one signoff. It does not start Phase 13.
+The final gate applied migrations twice, verified the append-only head and exact predecessor
+rollback, exercised deep database and security checks, restarted existing images without rebuilding,
+compared database and signing-key state, ran the complete three-role browser journey, checked safe
+logs, and cleaned only disposable resources. The project owner signed off Phase 12 on 2026-09-26.
+Phase 13 has not started.
 
 ## Shared verification and source control
 
