@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { createServer as createNetServer } from 'node:net'
 import { readdir, readFile, rm } from 'node:fs/promises'
 import path from 'node:path'
+import process from 'node:process'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
@@ -20,12 +21,10 @@ async function readOutputFiles(directory) {
   return files.flat()
 }
 
-test('builds the canonical production graph without Supabase environment variables', async () => {
+test('builds the canonical production graph without forbidden public values', async () => {
   await rm(outputDirectory, { force: true, recursive: true })
-  const previousSupabaseUrl = process.env.VITE_SUPABASE_URL
   const previousClientSecret = process.env.VITE_CLIENT_SECRET
-  process.env.VITE_SUPABASE_URL = 'https://phase13c.invalid'
-  process.env.VITE_CLIENT_SECRET = 'phase13c-secret-sentinel'
+  process.env.VITE_CLIENT_SECRET = 'phase13d-secret-sentinel'
   let result
   try {
     result = await build({
@@ -35,11 +34,6 @@ test('builds the canonical production graph without Supabase environment variabl
       build: { write: true },
     })
   } finally {
-    if (previousSupabaseUrl === undefined) {
-      delete process.env.VITE_SUPABASE_URL
-    } else {
-      process.env.VITE_SUPABASE_URL = previousSupabaseUrl
-    }
     if (previousClientSecret === undefined) {
       delete process.env.VITE_CLIENT_SECRET
     } else {
@@ -58,7 +52,7 @@ test('builds the canonical production graph without Supabase environment variabl
   assert.equal(moduleIds.some((id) => id.includes('/migration/')), false)
   assert.equal(moduleIds.some((id) => id.includes('node_modules/@supabase/')), false)
   assert.equal(
-    /supabase|auth-token|database_url|phase13c\.invalid|phase13c-secret-sentinel/i
+    /supabase|auth-token|database_url|phase13d-secret-sentinel/i
       .test(outputText),
     false,
   )

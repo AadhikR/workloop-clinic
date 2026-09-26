@@ -510,6 +510,28 @@
         "tests/phase-13c-canonical-frontend.test.js",
         "docs/migration/phase-13/PART_13C_COMPLETION.md"
       ]
+    },
+    "13D": {
+      "status": "completed",
+      "dependencies": [
+        "P13-SVC-004",
+        "P13-PKG-001",
+        "P13-PKG-002",
+        "P13-ENV-001",
+        "P13-ENV-002",
+        "P13-ENV-003"
+      ],
+      "goldenCases": [
+        "13A-GC-009"
+      ],
+      "evidence": [
+        "package.json",
+        "package-lock.json",
+        ".env.example",
+        ".env.test.example",
+        "tests/phase-13d-runtime-removal.test.js",
+        "docs/migration/phase-13/PART_13D_COMPLETION.md"
+      ]
     }
   },
   "goldenCases": [

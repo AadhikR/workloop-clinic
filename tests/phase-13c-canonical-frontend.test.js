@@ -187,7 +187,7 @@ test('builds one production graph without legacy modules or Supabase service cal
   assert.doesNotMatch(output, /@supabase|supabase\.co|\/rest\/v1\/rpc|\/storage\/v1\//i)
 })
 
-test('removes legacy-only packages but preserves the 13D package and environment boundary', () => {
+test('records the package and environment boundary handed to Part 13D', () => {
   const packageJson = JSON.parse(readText('package.json'))
   const packageLock = JSON.parse(readText('package-lock.json'))
   for (const name of inventory.removedDirectPackages) {
@@ -195,25 +195,11 @@ test('removes legacy-only packages but preserves the 13D package and environment
     assert.equal(packageJson.devDependencies?.[name], undefined, name)
     assert.equal(packageLock.packages?.[`node_modules/${name}`], undefined, name)
   }
-  assert.equal(
-    packageJson.devDependencies[inventory.preservedFor13D.directPackage],
-    '^2.106.2',
+  assert.equal(inventory.preservedFor13D.directPackage, '@supabase/supabase-js')
+  assert.deepEqual(
+    inventory.preservedFor13D.environmentExamples,
+    ['.env.example', '.env.test.example'],
   )
-  for (const name of [
-    '@supabase/auth-js',
-    '@supabase/functions-js',
-    '@supabase/phoenix',
-    '@supabase/postgrest-js',
-    '@supabase/realtime-js',
-    '@supabase/storage-js',
-    '@supabase/supabase-js',
-  ]) assert.ok(packageLock.packages[`node_modules/${name}`], name)
-  for (const relativePath of inventory.preservedFor13D.environmentExamples) {
-    assert.equal(existsSync(path.join(repositoryDirectory, relativePath)), true, relativePath)
-  }
-  assert.match(readText('.env.example'), /VITE_SUPABASE_URL/)
-  assert.match(readText('.env.example'), /VITE_SUPABASE_ANON_KEY/)
-  assert.match(readText('.env.test.example'), /SUPABASE_SERVICE_ROLE_KEY/)
 })
 
 test('closes the assigned Phase 13C and retained Phase 12 catalogue entries', () => {
