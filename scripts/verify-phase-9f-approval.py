@@ -45,12 +45,12 @@ def main() -> None:
         "trg_payslips_immutable",
     )
     frontend = require(
-        "migration/src/Payroll.jsx",
+        "src/Payroll.jsx",
         "Submit for approval",
         "Generate payroll",
         "Approval history",
     )
-    employee = require("migration/src/Payslips.jsx", "My payslips", "readSelfPayslips")
+    employee = require("src/Payslips.jsx", "My payslips", "readSelfPayslips")
     if "supabase" in (frontend + employee).lower():
         raise SystemExit("Phase 9F check failed: migration payroll uses Supabase")
     cutover = json.loads(read("docs/migration/phase-9/cutover/payroll-approval-and-payslips.json"))

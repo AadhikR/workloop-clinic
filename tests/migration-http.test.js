@@ -4,7 +4,7 @@ import test from 'node:test'
 import {
   HttpClientError,
   createHttpClient,
-} from '../migration/src/http.js'
+} from '../src/http.js'
 
 const correlationId = '00f202d5-2ef0-4d6f-9553-830e5dcfb833'
 

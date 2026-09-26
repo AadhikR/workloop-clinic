@@ -14,8 +14,8 @@ import {
   readIdempotencyStatus,
   updateBranch,
   updateCompany,
-} from '../migration/src/organizationApi.js'
-import { createIdempotencyRecoveryStore } from '../migration/src/idempotencyRecovery.js'
+} from '../src/organizationApi.js'
+import { createIdempotencyRecoveryStore } from '../src/idempotencyRecovery.js'
 
 const companyId = '3afbf0a0-9642-4d44-9884-e9654983eb9b'
 const dubaiId = 'de0fb0c1-2d7a-438a-b19a-98e5bc3698c2'

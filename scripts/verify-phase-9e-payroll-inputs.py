@@ -52,21 +52,15 @@ def main() -> None:
         "_append_audit_event_phase9e_prior",
     )
     frontend = require(
-        "migration/src/Payroll.jsx",
+        "src/Payroll.jsx",
         "Automatic payroll inputs refreshed.",
         "Source warnings",
         "sourceExplanations",
     )
     if "supabase" in frontend.lower():
         raise SystemExit("Phase 9E payroll-input check failed: migration payroll uses Supabase")
-    legacy = require(
-        "src/components/PayrollEditor.jsx",
-        "Automatic payroll inputs have moved to the migration payroll workspace.",
-    )
-    if "getAttendancePayrollData(payroll.period)" in legacy:
-        raise SystemExit(
-            "Phase 9E payroll-input check failed: legacy attendance input is not frozen"
-        )
+    if (ROOT / "src/components/PayrollEditor.jsx").exists():
+        raise SystemExit("Phase 9E payroll-input check failed: retired payroll editor was restored")
     cutover = json.loads(read("docs/migration/phase-9/cutover/payroll-inputs.json"))
     if cutover["status"]["current"] not in {"validation", "completed"}:
         raise SystemExit("Phase 9E payroll-input check failed: cutover is not validated")

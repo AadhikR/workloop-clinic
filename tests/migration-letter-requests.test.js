@@ -5,7 +5,7 @@ import {
   parseLetterRequest,
   parsePrintSource,
   validateSubmission,
-} from '../migration/src/letterRequestsApi.js'
+} from '../src/letterRequestsApi.js'
 
 const id = '12345678-1234-4234-8234-123456789abc'
 const instant = '2026-09-23T12:00:00.000Z'

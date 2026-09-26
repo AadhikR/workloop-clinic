@@ -34,9 +34,9 @@ def main() -> None:
     repository = source("backend/app/repositories/reports.py")
     service = source("backend/app/services/reports.py")
     api = source("backend/app/report_api.py")
-    client = source("migration/src/reportApi.js")
-    screen = source("migration/src/Reports.jsx")
-    shell = source("migration/src/OrganizationPanel.jsx")
+    client = source("src/reportApi.js")
+    screen = source("src/Reports.jsx")
+    shell = source("src/OrganizationPanel.jsx")
 
     assert '"/{report_id}"' in api
     assert "unknown_filter" in api

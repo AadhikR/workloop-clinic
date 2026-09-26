@@ -8,7 +8,7 @@ import {
   readPersonalShiftSwaps,
   rejectShiftSwap,
   submitShiftSwap,
-} from '../migration/src/shiftSwapApi.js'
+} from '../src/shiftSwapApi.js'
 
 const branchId = '20000000-0000-4000-8000-000000000001'
 const requesterId = '30000000-0000-4000-8000-000000000001'

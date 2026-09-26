@@ -107,7 +107,7 @@ test('keeps reverse rollback order and writer safety explicit', () => {
 })
 
 test('keeps the complete migration source free of Supabase paths', () => {
-  for (const file of sourceFiles(path.join(repositoryDirectory, 'migration', 'src'))) {
+  for (const file of sourceFiles(path.join(repositoryDirectory, 'src'))) {
     assert.doesNotMatch(readText(file), /supabase|createClient|@supabase/i)
   }
 })

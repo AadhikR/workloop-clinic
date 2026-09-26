@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { parseAttendanceCsv } from '../migration/src/attendanceCsv.js'
+import { parseAttendanceCsv } from '../src/attendanceCsv.js'
 import {
   createManualClockEvent,
   importBiometricCandidates,
   readBiometricMappings,
   readClockEvents,
   replaceBiometricMapping,
-} from '../migration/src/attendanceIngestionApi.js'
+} from '../src/attendanceIngestionApi.js'
 
 const branchId = '20000000-0000-4000-8000-000000000001'
 const employeeId = '40000000-0000-4000-8000-000000000001'

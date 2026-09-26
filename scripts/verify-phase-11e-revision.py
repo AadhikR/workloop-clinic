@@ -76,16 +76,13 @@ def verify_static() -> None:
         "severity",
     )
     require(
-        ROOT / "migration/src/appraisalsIncidentsApi.js",
+        ROOT / "src/appraisalsIncidentsApi.js",
         "/api/v1/appraisal-cycles",
         "/api/v1/appraisals",
         "/api/v1/clinical-incidents",
     )
-    require(
-        ROOT / "tests/phase-11e-legacy-freeze.test.js",
-        "legacy appraisal functions fail closed",
-        "hard delete stays unavailable",
-    )
+    if (ROOT / "tests/phase-11e-legacy-freeze.test.js").exists():
+        fail("retired Phase 11E legacy freeze test was restored")
 
 
 def verify_database(mode: str) -> None:

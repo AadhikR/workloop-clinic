@@ -15,7 +15,7 @@ import {
   readRosterValidation,
   recordRosterActualHours,
   replaceRosterDraft,
-} from '../migration/src/rosterApi.js'
+} from '../src/rosterApi.js'
 
 const branchId = '20000000-0000-4000-8000-000000000001'
 const employeeId = '30000000-0000-4000-8000-000000000001'

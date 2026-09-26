@@ -2603,7 +2603,7 @@ async function main() {
     })
     stage('migration server startup')
     viteServer = await createServer({
-      configFile: path.join(root, 'migration', 'vite.migration.config.js'),
+      configFile: path.join(root, 'vite.config.js'),
       envFile: false,
       logLevel: 'silent',
     })

@@ -138,7 +138,7 @@ test('keeps reverse rollback dependency order and evidence retention explicit', 
 
 test('keeps the migration build free of Supabase and browser document generators', () => {
   const forbidden = /supabase|createClient|@supabase|jspdf|html2canvas|payslipGenerator|sifGenerator|letterTemplates|reportUtils|window\.print|safePrint|zipSync/i
-  for (const file of sourceFiles(path.join(repositoryDirectory, 'migration', 'src'))) {
+  for (const file of sourceFiles(path.join(repositoryDirectory, 'src'))) {
     assert.doesNotMatch(readText(file), forbidden, path.relative(repositoryDirectory, file))
   }
 })

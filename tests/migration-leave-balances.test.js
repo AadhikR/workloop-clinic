@@ -9,7 +9,7 @@ import {
   readAdminLeaveBalances,
   readEmployeeLeaveBalances,
   recalculateLeaveBalances,
-} from '../migration/src/leaveBalanceApi.js'
+} from '../src/leaveBalanceApi.js'
 
 const branchId = 'de0fb0c1-2d7a-438a-b19a-98e5bc3698c2'
 const employeeId = 'de0fb0c1-2d7a-438a-b19a-98e5bc3698d1'
@@ -116,8 +116,8 @@ test('administrator initialization and recalculation send only the selected leav
 
 test('migration leave code has no Supabase path and exposes read-only employee UI', async () => {
   const files = await Promise.all([
-    readFile(new URL('../migration/src/leaveBalanceApi.js', import.meta.url), 'utf8'),
-    readFile(new URL('../migration/src/LeaveOverview.jsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/leaveBalanceApi.js', import.meta.url), 'utf8'),
+    readFile(new URL('../src/LeaveOverview.jsx', import.meta.url), 'utf8'),
   ])
   assert.doesNotMatch(files.join('\n'), /supabase|createClient|@supabase/i)
   assert.match(files[1], /account\.role === 'admin'/)

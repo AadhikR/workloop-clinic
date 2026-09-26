@@ -83,17 +83,14 @@ def verify_static() -> None:
         "certification_file_router",
     )
     require(
-        ROOT / "migration/src/developmentAssetsApi.js",
+        ROOT / "src/developmentAssetsApi.js",
         "/api/v1/assets",
         "/api/v1/training-records",
         "/api/v1/certifications",
         "/api/v1/cme",
     )
-    require(
-        ROOT / "tests/phase-11d-legacy-freeze.test.js",
-        "legacy asset functions fail closed",
-        "legacy training, certification, evidence, and CME functions fail closed",
-    )
+    if (ROOT / "tests/phase-11d-legacy-freeze.test.js").exists():
+        fail("retired Phase 11D legacy freeze test was restored")
 
 
 def verify_database(mode: str) -> None:

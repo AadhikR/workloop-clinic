@@ -13,7 +13,7 @@ import {
   updateLeaveSettings,
   updateLeaveType,
   updatePublicHoliday,
-} from '../migration/src/leaveConfigurationApi.js'
+} from '../src/leaveConfigurationApi.js'
 
 const branchId = 'de0fb0c1-2d7a-438a-b19a-98e5bc3698c2'
 const typeId = 'de0fb0c1-2d7a-438a-b19a-98e5bc3698d1'

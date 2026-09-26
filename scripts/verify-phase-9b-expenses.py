@@ -59,7 +59,7 @@ def main() -> None:
         "lock_expense_direct_report",
     )
     frontend = require(
-        "migration/src/expenseApi.js",
+        "src/expenseApi.js",
         "/api/v1/expenses/self",
         "/api/v1/expenses/manager-queue",
         "/api/v1/expenses/receipt-submissions",
@@ -67,11 +67,8 @@ def main() -> None:
     )
     if "supabase" in frontend.lower():
         raise SystemExit("Phase 9B expense check failed: migration client uses Supabase")
-    require(
-        "src/utils/expenseStorage.js",
-        "Expense claims and receipts have moved to the migration expense workspace.",
-        "expenseMoved();",
-    )
+    if (ROOT / "src/utils/expenseStorage.js").exists():
+        raise SystemExit("Phase 9B expense check failed: retired expense storage source was restored")
     require(
         ".github/workflows/migration-foundation.yml",
         "verify-phase-9b-revision.sh",

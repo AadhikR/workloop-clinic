@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { parseEmployeeCsv } from '../migration/src/employeeCsv.js'
+import { parseEmployeeCsv } from '../src/employeeCsv.js'
 
 test('parses the Phase 7F employee CSV contract for preview', () => {
   const preview = parseEmployeeCsv([

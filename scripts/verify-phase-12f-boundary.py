@@ -33,10 +33,10 @@ def main() -> None:
     wps_api = source("backend/app/wps_api.py")
     output_api = source("backend/app/output_api.py")
     repository = source("backend/app/repositories/outputs.py")
-    client = source("migration/src/outputApi.js")
-    delivery = source("migration/src/outputDelivery.js")
-    reports = source("migration/src/Reports.jsx")
-    wps = source("migration/src/WpsNafis.jsx")
+    client = source("src/outputApi.js")
+    delivery = source("src/outputDelivery.js")
+    reports = source("src/Reports.jsx")
+    wps = source("src/WpsNafis.jsx")
 
     assert 'down_revision: str | Sequence[str] | None = "c3e5a7b9d1f6"' in migration
     assert "SECURITY DEFINER" in migration

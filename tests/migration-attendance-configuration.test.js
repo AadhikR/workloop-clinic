@@ -10,7 +10,7 @@ import {
   readShifts,
   updateAttendanceSettings,
   updateShift,
-} from '../migration/src/attendanceConfigurationApi.js'
+} from '../src/attendanceConfigurationApi.js'
 
 const branchId = 'de0fb0c1-2d7a-438a-b19a-98e5bc3698c2'
 const employeeId = '21000000-0000-4000-8000-000000000002'

@@ -56,16 +56,13 @@ def verify_static() -> None:
         "expected_source_digest",
     )
     require(
-        ROOT / "migration/src/offboardingApi.js",
+        ROOT / "src/offboardingApi.js",
         "/api/v1/offboarding",
         "/settlement/preview",
         "Invalid settlement preview",
     )
-    require(
-        ROOT / "tests/phase-11g-legacy-freeze.test.js",
-        "legacy offboarding storage reads and writes fail closed",
-        "migration offboarding paths contain no Supabase",
-    )
+    if (ROOT / "tests/phase-11g-legacy-freeze.test.js").exists():
+        fail("retired Phase 11G legacy freeze test was restored")
 
 
 def verify_database(mode: str) -> None:

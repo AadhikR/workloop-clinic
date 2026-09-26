@@ -16,7 +16,7 @@ import {
   refreshPayrollRun,
   savePayrollEntries,
   submitPayrollRun,
-} from '../migration/src/payrollApi.js'
+} from '../src/payrollApi.js'
 
 const branchId = '91000000-0000-4000-8000-000000000001'
 const runId = '91000000-0000-4000-8000-000000000002'

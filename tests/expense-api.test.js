@@ -9,7 +9,7 @@ import {
   readAdminExpenses,
   readManagerExpenses,
   readSelfExpenses,
-} from '../migration/src/expenseApi.js'
+} from '../src/expenseApi.js'
 
 const branchId = '91000000-0000-4000-8000-000000000001'
 const claimId = '91000000-0000-4000-8000-000000000002'

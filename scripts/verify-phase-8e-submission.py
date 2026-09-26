@@ -43,18 +43,15 @@ def main() -> None:
         "leave_request_cancelled",
     )
     require(
-        "migration/src/leaveRequestApi.js",
+        "src/leaveRequestApi.js",
         "/api/v1/leave/requests/self",
         "/api/v1/leave/requests/branch",
         "/cancel/self",
         "/cancel/branch",
         "Idempotency-Key",
     )
-    require(
-        "tests/phase-8e-legacy-freeze.test.js",
-        "employee_submit_leave_request",
-        "employee_cancel_leave_request",
-    )
+    if (ROOT / "tests/phase-8e-legacy-freeze.test.js").exists():
+        raise SystemExit("retired Phase 8E legacy freeze test was restored")
 
     cutover_path = ROOT / "docs/migration/phase-8/cutover/leave-request-submission.json"
     cutover = json.loads(cutover_path.read_text(encoding="utf-8"))

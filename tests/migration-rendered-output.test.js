@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
-import { openPdf } from '../migration/src/outputDelivery.js'
+import { openPdf } from '../src/outputDelivery.js'
 import {
   downloadFinalSettlementPdf,
   downloadOffboardingLetterPdf,
@@ -10,7 +10,7 @@ import {
   downloadReportPdf,
   downloadRequestLetterPdf,
   downloadSelfPayslipPdf,
-} from '../migration/src/renderedOutputApi.js'
+} from '../src/renderedOutputApi.js'
 
 const branchId = 'c9000000-0000-4000-8000-000000000002'
 const resourceId = 'c9000000-0000-4000-8000-000000000004'
@@ -72,7 +72,7 @@ test('print opens the authorized PDF bytes and revokes the viewer URL later', ()
 })
 
 test('requested-letter PDF controls stay within the approved role table', async () => {
-  const source = await readFile(new URL('../migration/src/LetterRequests.jsx', import.meta.url), 'utf8')
+  const source = await readFile(new URL('../src/LetterRequests.jsx', import.meta.url), 'utf8')
   assert.match(source, /item\.status === 'completed' && account\.role !== 'manager'/)
   assert.match(source, /downloadRequestLetterPdf/)
 })

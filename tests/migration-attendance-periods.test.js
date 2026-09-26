@@ -5,7 +5,7 @@ import {
   closeAttendancePeriod,
   readAttendancePeriod,
   readAttendancePeriods,
-} from '../migration/src/attendancePeriodsApi.js'
+} from '../src/attendancePeriodsApi.js'
 
 const branchId = '20000000-0000-4000-8000-000000000001'
 const periodId = '40000000-0000-4000-8000-000000000001'

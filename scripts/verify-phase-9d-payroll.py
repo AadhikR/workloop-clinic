@@ -56,7 +56,7 @@ def main() -> None:
         "payroll_draft_deleted",
     )
     frontend = require(
-        "migration/src/payrollApi.js",
+        "src/payrollApi.js",
         "/api/v1/payroll-runs",
         "Idempotency-Key",
         "expectedUpdatedAt",
@@ -64,12 +64,8 @@ def main() -> None:
     )
     if "supabase" in frontend.lower():
         raise SystemExit("Phase 9D payroll check failed: migration client uses Supabase")
-    require(
-        "src/utils/storage.js",
-        "Payroll drafts have moved to the migration payroll workspace.",
-        "export async function getPayrolls(companyId)",
-        "export async function savePayroll(payroll)",
-    )
+    if (ROOT / "src/utils/storage.js").exists():
+        raise SystemExit("Phase 9D payroll check failed: retired shared storage source was restored")
     cutover = json.loads(
         read("docs/migration/phase-9/cutover/payroll-drafts-and-calculations.json")
     )

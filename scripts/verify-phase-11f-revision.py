@@ -56,16 +56,13 @@ def verify_static() -> None:
         "pending_to_rejected",
     )
     require(
-        ROOT / "migration/src/letterRequestsApi.js",
+        ROOT / "src/letterRequestsApi.js",
         "/api/v1/requests/self",
         "/print-source",
         "Invalid request print source",
     )
-    require(
-        ROOT / "tests/phase-11f-legacy-freeze.test.js",
-        "legacy request storage reads and writes fail closed",
-        "legacy employee submission RPCs are frozen",
-    )
+    if (ROOT / "tests/phase-11f-legacy-freeze.test.js").exists():
+        fail("retired Phase 11F legacy freeze test was restored")
 
 
 def verify_database(mode: str) -> None:

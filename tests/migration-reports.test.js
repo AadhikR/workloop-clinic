@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
-import { downloadReportCsv, parseReport, readReport, reportDefinitions } from '../migration/src/reportApi.js'
+import { downloadReportCsv, parseReport, readReport, reportDefinitions } from '../src/reportApi.js'
 
 const branchId = 'c9000000-0000-4000-8000-000000000002'
 
@@ -62,9 +62,9 @@ test('report client sends only the selected branch and allowlisted filters', asy
 
 test('migration report path imports no legacy report code or Supabase client', async () => {
   const files = await Promise.all([
-    readFile(new URL('../migration/src/reportApi.js', import.meta.url), 'utf8'),
-    readFile(new URL('../migration/src/Reports.jsx', import.meta.url), 'utf8'),
-    readFile(new URL('../migration/src/OrganizationPanel.jsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/reportApi.js', import.meta.url), 'utf8'),
+    readFile(new URL('../src/Reports.jsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/OrganizationPanel.jsx', import.meta.url), 'utf8'),
   ])
   assert.doesNotMatch(files.join('\n'), /supabase|reportUtils|utils\/storage|leaveStorage|attendanceStorage/)
   assert.match(files[2], /<Reports authentication=\{authentication\}/)

@@ -49,21 +49,16 @@ def main() -> None:
         "read_leave_audit_projection",
     )
     require(
-        "migration/src/leaveApprovalApi.js",
+        "src/leaveApprovalApi.js",
         "/api/v1/leave/approvals/queue",
         "/api/v1/leave/approvals/branch",
         "/api/v1/leave/delegations/branch",
         "Idempotency-Key",
     )
-    require(
-        "src/utils/leaveStorage.js",
-        "Manager leave decisions have moved to the migration approval queue.",
-        "Leave delegations have moved to the migration approval queue.",
-    )
-    require(
-        "tests/phase-8f-legacy-freeze.test.js",
-        "legacy approval queue, decision, delegation, and audit paths fail closed",
-    )
+    if (ROOT / "src/utils/leaveStorage.js").exists():
+        raise SystemExit("retired leave storage source was restored")
+    if (ROOT / "tests/phase-8f-legacy-freeze.test.js").exists():
+        raise SystemExit("retired Phase 8F legacy freeze test was restored")
 
     cutover_path = ROOT / "docs/migration/phase-8/cutover/leave-approval-workflows.json"
     cutover = json.loads(cutover_path.read_text(encoding="utf-8"))

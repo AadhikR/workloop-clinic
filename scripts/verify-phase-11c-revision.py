@@ -69,17 +69,13 @@ def verify_static() -> None:
         "employment_contract_router",
     )
     require(
-        ROOT / "migration/src/recordsBenefitsApi.js",
+        ROOT / "src/recordsBenefitsApi.js",
         "/api/v1/employee-documents",
         "/api/v1/insurance",
         "/contracts",
     )
-    require(
-        ROOT / "tests/phase-11c-legacy-freeze.test.js",
-        "employee documents",
-        "insurance",
-        "employment contracts",
-    )
+    if (ROOT / "tests/phase-11c-legacy-freeze.test.js").exists():
+        fail("retired Phase 11C legacy freeze test was restored")
 
 
 def verify_database(mode: str) -> None:

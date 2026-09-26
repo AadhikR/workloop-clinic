@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { build, loadConfigFromFile } from 'vite'
 
 const repositoryDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const migrationConfigPath = path.join(repositoryDirectory, 'migration', 'vite.migration.config.js')
+const frontendConfigPath = path.join(repositoryDirectory, 'vite.config.js')
 const publicEnvironmentNames = [
   'VITE_API_BASE_URL',
   'VITE_OIDC_AUTHORITY',
@@ -26,23 +26,13 @@ function outputEntries(result) {
   return results.flatMap((item) => item.output ?? [])
 }
 
-function productionBytes(result) {
-  return outputEntries(result)
-    .map((output) => {
-      const contents = output.type === 'chunk' ? output.code : output.source
-      const bytes = typeof contents === 'string' ? contents : Array.from(contents ?? [])
-      return [output.fileName, bytes]
-    })
-    .sort(([left], [right]) => left.localeCompare(right))
-}
-
 function productionModules(result) {
   return outputEntries(result).flatMap((output) => (
     output.type === 'chunk' ? Object.keys(output.modules).map((id) => id.replaceAll('\\', '/')) : []
   ))
 }
 
-test('promotes the migration commands and keeps one explicit legacy rollback build', () => {
+test('keeps the promoted application on the canonical commands', () => {
   const packageJson = JSON.parse(readText('package.json'))
   assert.deepEqual(
     {
@@ -51,12 +41,13 @@ test('promotes the migration commands and keeps one explicit legacy rollback bui
       preview: packageJson.scripts.preview,
     },
     {
-      dev: 'vite --config migration/vite.migration.config.js',
-      build: 'vite build --config migration/vite.migration.config.js',
-      preview: 'vite preview --config migration/vite.migration.config.js',
+      dev: 'vite',
+      build: 'vite build',
+      preview: 'vite preview',
     },
   )
-  assert.equal(packageJson.scripts['build:legacy'], 'vite build --config vite.config.js')
+  assert.equal(packageJson.scripts['build:legacy'], undefined)
+  assert.equal(packageJson.scripts['build:dist'], undefined)
   assert.equal(packageJson.scripts['build:migration'], undefined)
   assert.equal(packageJson.scripts['dev:migration'], undefined)
 
@@ -74,7 +65,8 @@ test('keeps CI and DigitalOcean on the same promoted command and output', () => 
 
   assert.match(workflow, /- name: Build frontend\n\s+run: npm run build/)
   assert.match(terraform, /build_command\s+= "npm ci && npm run build"/)
-  assert.match(terraform, /output_dir\s+= "dist-migration"/)
+  assert.match(terraform, /output_dir\s+= "dist"/)
+  assert.doesNotMatch(terraform, /dist-migration/)
   assert.doesNotMatch(workflow, /npm run [^\n]*legacy/i)
   assert.doesNotMatch(terraform, /npm run [^"\n]*legacy|build:migration/i)
 })
@@ -82,7 +74,7 @@ test('keeps CI and DigitalOcean on the same promoted command and output', () => 
 test('keeps the fixed origin and public environment allowlist aligned', async () => {
   const loaded = await loadConfigFromFile(
     { command: 'build', mode: 'production' },
-    migrationConfigPath,
+    frontendConfigPath,
   )
   assert.ok(loaded)
   assert.deepEqual(Array.from(loaded.config.envPrefix), publicEnvironmentNames)
@@ -92,52 +84,37 @@ test('keeps the fixed origin and public environment allowlist aligned', async ()
   assert.equal(loaded.config.preview.host, '127.0.0.1')
   assert.equal(loaded.config.preview.port, 5174)
   assert.equal(loaded.config.preview.strictPort, true)
-  assert.equal(loaded.config.build.outDir, '../dist-migration')
+  assert.equal(loaded.config.build.outDir, 'dist')
 
-  const migrationEnvironment = readText('migration/.env.example')
+  const frontendEnvironment = readText('.env.example')
   const backendEnvironment = readText('backend/.env.example')
   const localEnvironmentBuilder = readText('scripts/new-local-postgres-env.ps1')
   const backendOrigin = readText('backend/app/http/middleware.py')
   const browserJourney = readText('scripts/verify-phase-3g-browser.mjs')
 
   for (const name of publicEnvironmentNames) {
-    assert.match(migrationEnvironment, new RegExp(`^${name}=`, 'm'))
+    assert.match(frontendEnvironment, new RegExp(`^${name}=`, 'm'))
   }
-  assert.deepEqual(
-    [...migrationEnvironment.matchAll(/^VITE_[A-Z_]+=/gm)].map((match) => match[0].slice(0, -1)),
-    publicEnvironmentNames,
-  )
-  assert.match(migrationEnvironment, /VITE_OIDC_REDIRECT_URI=http:\/\/127\.0\.0\.1:5174\/oidc\/callback/)
-  assert.match(migrationEnvironment, /VITE_OIDC_POST_LOGOUT_REDIRECT_URI=http:\/\/127\.0\.0\.1:5174\//)
+  assert.match(frontendEnvironment, /VITE_OIDC_REDIRECT_URI=http:\/\/127\.0\.0\.1:5174\/oidc\/callback/)
+  assert.match(frontendEnvironment, /VITE_OIDC_POST_LOGOUT_REDIRECT_URI=http:\/\/127\.0\.0\.1:5174\//)
   assert.match(backendEnvironment, /^FRONTEND_URL=http:\/\/127\.0\.0\.1:5174$/m)
   assert.match(localEnvironmentBuilder, /"FRONTEND_URL=http:\/\/127\.0\.0\.1:5174"/)
   assert.match(backendOrigin, /ALLOWED_ORIGIN = "http:\/\/127\.0\.0\.1:5174"/)
   assert.match(browserJourney, /page\.goto\('http:\/\/127\.0\.0\.1:5174\/'\)/)
 })
 
-test('matches the previous migration production graph and bytes', async () => {
-  const buildCommand = JSON.parse(readText('package.json')).scripts.build
-  const configArgument = buildCommand.match(/--config ([^ ]+)$/)
-  assert.ok(configArgument)
-  const promotedConfigPath = path.join(repositoryDirectory, configArgument[1])
-  const promotedResult = await build({
-    configFile: promotedConfigPath,
+test('keeps OIDC in the canonical production graph without Supabase', async () => {
+  const result = await build({
+    configFile: frontendConfigPath,
     envFile: false,
     logLevel: 'silent',
     mode: 'production',
     build: { write: false },
   })
-  const previousMigrationResult = await build({
-    configFile: migrationConfigPath,
-    envFile: false,
-    logLevel: 'silent',
-    mode: 'production',
-    build: { write: false },
-  })
-  const modules = productionModules(promotedResult)
+  const modules = productionModules(result)
 
-  assert.deepEqual(productionBytes(promotedResult), productionBytes(previousMigrationResult))
   assert.ok(modules.some((id) => id.includes('/node_modules/oidc-client-ts/')))
   assert.equal(modules.some((id) => id.includes('/node_modules/@supabase/')), false)
-  assert.equal(modules.some((id) => id.startsWith(`${repositoryDirectory.replaceAll('\\', '/')}/src/`)), false)
+  assert.ok(modules.some((id) => id.startsWith(`${repositoryDirectory.replaceAll('\\', '/')}/src/`)))
+  assert.equal(modules.some((id) => id.includes('/migration/src/')), false)
 })

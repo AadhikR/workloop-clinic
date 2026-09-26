@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
-import { parseDashboard, readDashboard } from '../migration/src/dashboardApi.js'
+import { parseDashboard, readDashboard } from '../src/dashboardApi.js'
 
 const branchId = 'c3000000-0000-4000-8000-000000000002'
 const now = '2026-09-24T08:00:00.000Z'
@@ -85,9 +85,9 @@ test('dashboard client sends branch scope only for administrator dashboards', as
 
 test('migration dashboard path contains no legacy storage or browser calculations', async () => {
   const files = await Promise.all([
-    readFile(new URL('../migration/src/dashboardApi.js', import.meta.url), 'utf8'),
-    readFile(new URL('../migration/src/Dashboards.jsx', import.meta.url), 'utf8'),
-    readFile(new URL('../migration/src/OrganizationPanel.jsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/dashboardApi.js', import.meta.url), 'utf8'),
+    readFile(new URL('../src/Dashboards.jsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/OrganizationPanel.jsx', import.meta.url), 'utf8'),
   ])
   assert.doesNotMatch(files.join('\n'), /supabase|payrollCalculator|notificationStorage/)
   assert.match(files[2], /kind="admin"/)

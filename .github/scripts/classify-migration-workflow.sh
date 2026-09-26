@@ -35,7 +35,7 @@ while IFS= read -r line; do
   esac
 
   case "$path" in
-    src/*|public/*|migration/*|tests/*|scripts/*.mjs|package.json|package-lock.json|index.html|eslint.config.js|vite*.js|fix-dist.js)
+    src/*|tests/*|scripts/*.mjs|package.json|package-lock.json|index.html|eslint.config.js|vite*.js)
       frontend=true
       ;;
   esac

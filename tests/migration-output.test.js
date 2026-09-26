@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { createHttpClient } from '../migration/src/http.js'
+import { createHttpClient } from '../src/http.js'
 import {
   downloadAttendance,
   downloadEmployeeTemplate,
@@ -9,8 +9,8 @@ import {
   downloadLeaveBalances,
   downloadNafis,
   downloadRoster,
-} from '../migration/src/outputApi.js'
-import { saveDownload } from '../migration/src/outputDelivery.js'
+} from '../src/outputApi.js'
+import { saveDownload } from '../src/outputDelivery.js'
 
 const branchId = 'c9000000-0000-4000-8000-000000000002'
 const resourceId = 'c9000000-0000-4000-8000-000000000004'

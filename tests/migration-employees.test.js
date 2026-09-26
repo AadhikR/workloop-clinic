@@ -15,7 +15,7 @@ import {
   setEmployeePortalRole,
   updateEmployeeSelfContact,
   updateEmployee,
-} from '../migration/src/employeeApi.js'
+} from '../src/employeeApi.js'
 
 const branchId = 'de0fb0c1-2d7a-438a-b19a-98e5bc3698c2'
 const employeeId = 'de0fb0c1-2d7a-438a-b19a-98e5bc3698c3'

@@ -83,16 +83,16 @@ EXPECTED_UPSTREAM = {
 }
 
 REQUIRED_SOURCE_MARKERS = {
-    "src/utils/notificationStorage.js": ["generateExpiryNotifications", ".from('notifications')"],
-    "src/utils/taskStorage.js": ["getAdminTasks", "getManagerTasks", "getEmployeeTasks"],
-    "src/utils/reportUtils.js": ["buildHeadcountReport", "buildEOSLiabilityReport", "exportPDF"],
-    "src/utils/payslipGenerator.js": ["downloadAllPayslips", "zipSync"],
-    "src/utils/sifGenerator.js": ["generateSIF", "parseSIFPreview"],
-    "src/utils/letterTemplates.js": ["generateLetterHTML", "printLetter"],
-    "src/components/Reports.jsx": ["ALL_TABS", "getAllLeaveBalances"],
-    "src/components/Dashboard.jsx": ["generateExpiryNotifications", "calculatePayrollTotals"],
-    "src/components/ClinicalDashboard.jsx": ["credentialStatus", "getDeptStaffingRules"],
-    "src/components/TasksPanel.jsx": ["getAdminTasks", "getManagerTasks", "getEmployeeTasks"],
+    "src/notificationApi.js": ["readNotifications", "readUnreadCount", "markNotificationRead"],
+    "src/taskApi.js": ["parseTaskCatalogue", "readTasks", "/api/v1/tasks"],
+    "src/dashboardApi.js": ["parseDashboard", "readDashboard", "/api/v1/dashboards/"],
+    "src/reportApi.js": ["readReport", "downloadReportCsv", "/api/v1/reports/"],
+    "src/renderedOutputApi.js": ["downloadReportPdf", "downloadSelfPayslipPdf", "downloadPayslipsZip"],
+    "src/outputDelivery.js": ["saveDownload", "openPdf", "createObjectURL"],
+    "src/NotificationBell.jsx": ["readNotifications", "markAllNotificationsRead"],
+    "src/Tasks.jsx": ["readTasks", "mergePage"],
+    "src/Dashboards.jsx": ["readDashboard"],
+    "src/Reports.jsx": ["downloadReportCsv", "downloadReportPdf"],
 }
 
 
@@ -175,7 +175,6 @@ def main() -> None:
         if token not in amendment:
             fail(f"amendment proposal is missing {token!r}")
 
-    combined = "\n".join(bodies.values())
     for source, markers in REQUIRED_SOURCE_MARKERS.items():
         path = ROOT / source
         if not path.is_file():
@@ -184,8 +183,16 @@ def main() -> None:
         for marker in markers:
             if marker not in source_text:
                 fail(f"source marker {marker!r} is missing from {source}")
-        if source not in combined:
-            fail(f"Phase 12 documents do not cite {source}")
+    for retired in (
+        "src/utils/notificationStorage.js",
+        "src/utils/taskStorage.js",
+        "src/utils/reportUtils.js",
+        "src/utils/payslipGenerator.js",
+        "src/utils/sifGenerator.js",
+        "src/utils/letterTemplates.js",
+    ):
+        if (ROOT / retired).exists():
+            fail(f"retired source was restored: {retired}")
 
     prohibited = ["email delivery", "SMS delivery", "push delivery", "production credential", "cloud scheduler"]
     for item in prohibited:

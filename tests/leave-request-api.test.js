@@ -6,7 +6,7 @@ import {
   cancelEmployeeLeaveRequest,
   submitAdminLeaveRequest,
   submitEmployeeLeaveRequest,
-} from '../migration/src/leaveRequestApi.js'
+} from '../src/leaveRequestApi.js'
 
 const branchId = '20000000-0000-4000-8000-000000000001'
 const employeeId = '21000000-0000-4000-8000-000000000002'

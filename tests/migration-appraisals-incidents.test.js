@@ -5,7 +5,7 @@ import {
   parseAppraisal,
   parseAppraisalCycle,
   parseIncident,
-} from '../migration/src/appraisalsIncidentsApi.js'
+} from '../src/appraisalsIncidentsApi.js'
 
 const id = '12345678-1234-4234-8234-123456789abc'
 const instant = '2026-09-23T12:00:00.000Z'

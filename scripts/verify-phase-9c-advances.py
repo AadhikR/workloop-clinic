@@ -57,7 +57,7 @@ def main() -> None:
         "_record_advance_repayment_phase9c_prior",
     )
     frontend = require(
-        "migration/src/advanceApi.js",
+        "src/advanceApi.js",
         "/api/v1/advances/self",
         "/api/v1/advances",
         "Idempotency-Key",
@@ -65,12 +65,8 @@ def main() -> None:
     )
     if "supabase" in frontend.lower():
         raise SystemExit("Phase 9C advance check failed: migration client uses Supabase")
-    require(
-        "src/utils/storage.js",
-        "Salary advance changes have moved to the migration advance workspace.",
-        "advanceWritesMoved();",
-        "export async function getAdvances(employeeId)",
-    )
+    if (ROOT / "src/utils/storage.js").exists():
+        raise SystemExit("Phase 9C advance check failed: retired shared storage source was restored")
     cutover = json.loads(read("docs/migration/phase-9/cutover/advances-and-repayments.json"))
     if cutover["status"]["current"] not in {"validation", "completed"}:
         raise SystemExit("Phase 9C advance check failed: cutover is not validated")

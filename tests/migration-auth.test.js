@@ -3,7 +3,7 @@ import test from 'node:test'
 
 import { ErrorResponse } from 'oidc-client-ts'
 
-import { AuthenticationSession, createNonce, createUserManager } from '../migration/src/auth.js'
+import { AuthenticationSession, createNonce, createUserManager } from '../src/auth.js'
 
 const config = {
   apiBaseUrl: 'http://127.0.0.1:8000',

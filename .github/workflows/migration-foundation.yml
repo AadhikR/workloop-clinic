@@ -172,7 +172,6 @@ jobs:
         run: python scripts/verify-phase-11c-revision.py static
       - name: Verify Phase 11C cutover boundaries
         run: |
-          node --test tests/phase-11c-legacy-freeze.test.js
           node scripts/cutover-record-validator.mjs docs/migration/phase-11/cutover/employee-documents.json
           node scripts/cutover-record-validator.mjs docs/migration/phase-11/cutover/insurance.json
           node scripts/cutover-record-validator.mjs docs/migration/phase-11/cutover/employment-contracts.json
@@ -180,27 +179,26 @@ jobs:
         run: python scripts/verify-phase-11d-revision.py static
       - name: Verify Phase 11D cutover boundaries
         run: |
-          node --test tests/phase-11d-legacy-freeze.test.js
           node scripts/cutover-record-validator.mjs docs/migration/phase-11/cutover/assets.json
           node scripts/cutover-record-validator.mjs docs/migration/phase-11/cutover/training-certifications-cme.json
       - name: Verify Phase 11E static boundaries
         run: python scripts/verify-phase-11e-revision.py static
       - name: Verify Phase 11E cutover boundaries
         run: |
-          node --test tests/phase-11e-legacy-freeze.test.js tests/migration-appraisals-incidents.test.js
+          node --test tests/migration-appraisals-incidents.test.js
           node scripts/cutover-record-validator.mjs docs/migration/phase-11/cutover/appraisals.json
           node scripts/cutover-record-validator.mjs docs/migration/phase-11/cutover/clinical-incidents.json
       - name: Verify Phase 11F static boundaries
         run: python scripts/verify-phase-11f-revision.py static
       - name: Verify Phase 11F cutover boundaries
         run: |
-          node --test tests/phase-11f-legacy-freeze.test.js tests/migration-letter-requests.test.js
+          node --test tests/migration-letter-requests.test.js
           node scripts/cutover-record-validator.mjs docs/migration/phase-11/cutover/letter-requests.json
       - name: Verify Phase 11G static boundaries
         run: python scripts/verify-phase-11g-revision.py static
       - name: Verify Phase 11G cutover boundaries
         run: |
-          node --test tests/phase-11g-legacy-freeze.test.js tests/offboarding-api.test.js
+          node --test tests/offboarding-api.test.js
           node scripts/cutover-record-validator.mjs docs/migration/phase-11/cutover/offboarding-final-settlement.json
       - name: Verify Phase 11H completion boundary
         run: |
@@ -248,38 +246,38 @@ jobs:
       - name: Verify Phase 9B expense contract
         run: |
           python scripts/verify-phase-9b-expenses.py
-          node --test tests/expense-api.test.js tests/phase-9b-legacy-freeze.test.js
+          node --test tests/expense-api.test.js
       - name: Verify Phase 9C advance contract
         run: |
           python scripts/verify-phase-9c-advances.py
-          node --test tests/advance-api.test.js tests/phase-9c-legacy-freeze.test.js
+          node --test tests/advance-api.test.js
       - name: Verify Phase 9D payroll contract
         run: |
           python scripts/verify-phase-9d-payroll.py
-          node --test tests/payroll-api.test.js tests/phase-9d-legacy-freeze.test.js
+          node --test tests/payroll-api.test.js
       - name: Verify Phase 9E payroll-input contract
         run: |
           python scripts/verify-phase-9e-payroll-inputs.py
-          node --test tests/payroll-api.test.js tests/phase-9d-legacy-freeze.test.js tests/phase-9e-legacy-freeze.test.js
+          node --test tests/payroll-api.test.js
       - name: Verify Phase 9F approval and payslip contract
         run: |
           python scripts/verify-phase-9f-approval.py
-          node --test tests/payroll-api.test.js tests/phase-9f-legacy-freeze.test.js
+          node --test tests/payroll-api.test.js
       - name: Verify Phase 9G WPS and Nafis contract
         run: |
           python scripts/verify-phase-9g-contract.py
-          node --test tests/wps-nafis-api.test.js tests/phase-9g-legacy-freeze.test.js
+          node --test tests/wps-nafis-api.test.js
       - name: Verify Phase 10B attendance configuration contract
         run: |
-          node --test tests/migration-attendance-configuration.test.js tests/phase-10b-legacy-freeze.test.js
+          node --test tests/migration-attendance-configuration.test.js
           node scripts/cutover-record-validator.mjs docs/migration/phase-10/cutover/attendance-configuration.json
       - name: Verify Phase 10G roster draft contract
         run: |
-          node --test tests/migration-roster-drafts.test.js tests/phase-10g-legacy-freeze.test.js
+          node --test tests/migration-roster-drafts.test.js
           node scripts/cutover-record-validator.mjs docs/migration/phase-10/cutover/roster-drafting.json
       - name: Verify Phase 10I shift-swap contract
         run: |
-          node --test tests/migration-shift-swaps.test.js tests/phase-10i-legacy-freeze.test.js
+          node --test tests/migration-shift-swaps.test.js
           node scripts/cutover-record-validator.mjs docs/migration/phase-10/cutover/shift-swaps.json
       - name: Verify Phase 10J completion boundary
         run: |
@@ -535,7 +533,7 @@ jobs:
             sh scripts/verify-phase-5d-context.sh
           fi
           python scripts/verify-phase-3c-keycloak.py
-          npm run test:migration-auth
+          npm run test:browser
       - name: Verify cleanup and backend log safety
         run: |
           test "$(docker compose exec -T postgres psql --username postgres --dbname workloop --tuples-only --no-align --command 'SELECT count(*) FROM companies UNION ALL SELECT count(*) FROM branches UNION ALL SELECT count(*) FROM employees UNION ALL SELECT count(*) FROM app_users UNION ALL SELECT count(*) FROM user_profiles;' | sort -u)" = "0"

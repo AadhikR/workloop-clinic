@@ -146,9 +146,8 @@ In Supabase → Storage, create a **private** bucket named `employee-documents`.
 ### 5. Run
 
 ```bash
-npm run dev            # Vite dev server on http://localhost:5173
-npm run build          # Standard production build
-npm run build:dist     # Single self-contained HTML bundle (offline distribution)
+npm run dev            # Vite dev server on http://localhost:5174
+npm run build          # Canonical production build in dist/
 npm run lint           # ESLint
 npm test               # Full Playwright suite (headless, dev server auto-starts)
 npm run test:ui        # Playwright UI mode for debugging

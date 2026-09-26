@@ -44,25 +44,21 @@ def main() -> None:
         "trg_compliance_overrides_immutable",
     )
     frontend = require(
-        "migration/src/WpsNafis.jsx",
+        "src/WpsNafis.jsx",
         "WPS and SIF",
         "Compliance override",
         "Nafis snapshots",
     )
     client = require(
-        "migration/src/wpsNafisApi.js",
+        "src/wpsNafisApi.js",
         "/sif-input",
         "/compliance-overrides",
         "/api/v1/nafis-snapshots",
     )
     if "supabase" in (frontend + client).lower():
         raise SystemExit("Phase 9G check failed: migration WPS or Nafis uses Supabase")
-    legacy = require(
-        "src/utils/storage.js",
-        "Phase 9G cutover: WPS and Nafis writes are served by FastAPI.",
-    )
-    if ".from('nafis_reports')" in legacy or ".from('compliance_overrides')" in legacy:
-        raise SystemExit("Phase 9G check failed: legacy WPS or Nafis writer remains active")
+    if (ROOT / "src/utils/storage.js").exists():
+        raise SystemExit("Phase 9G check failed: retired shared storage source was restored")
     cutover = json.loads(read("docs/migration/phase-9/cutover/wps-and-nafis.json"))
     if cutover["status"]["current"] not in {"validation", "completed"}:
         raise SystemExit("Phase 9G check failed: cutover is not validated")

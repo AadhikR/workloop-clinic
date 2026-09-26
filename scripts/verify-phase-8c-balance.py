@@ -9,7 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 BACKEND = ROOT / "backend/app"
-MIGRATION = ROOT / "migration/src"
+FRONTEND = ROOT / "src"
 CONTRACT = ROOT / "docs/migration/phase-8/PART_8A_DOMAIN_CONTRACT.md"
 INVENTORY = ROOT / "docs/migration/phase-8/PART_8A_DEPENDENCY_INVENTORY.md"
 CUTOVER = ROOT / "docs/migration/phase-8/cutover/leave-balances-and-reads.json"
@@ -17,16 +17,6 @@ CUTOVER = ROOT / "docs/migration/phase-8/cutover/leave-balances-and-reads.json"
 
 def fail(message: str) -> None:
     raise SystemExit(f"Phase 8C balance check failed: {message}")
-
-
-def exported_function(source: str, name: str) -> str:
-    match = re.search(
-        rf"export async function {name}\([^)]*\) \{{(?P<body>[\s\S]*?)\n\}}",
-        source,
-    )
-    if match is None:
-        fail(f"legacy function {name} is missing")
-    return match.group("body")
 
 
 def main() -> None:
@@ -39,10 +29,9 @@ def main() -> None:
         ROOT / "backend/tests/test_leave_balance_service.py",
         ROOT / "scripts/verify-phase-8c-balance-database.py",
         ROOT / "scripts/verify-phase-8c-route-inventory.py",
-        MIGRATION / "leaveBalanceApi.js",
-        MIGRATION / "LeaveOverview.jsx",
+        FRONTEND / "leaveBalanceApi.js",
+        FRONTEND / "LeaveOverview.jsx",
         ROOT / "tests/migration-leave-balances.test.js",
-        ROOT / "tests/phase-8c-legacy-freeze.test.js",
         ROOT / "docs/migration/phase-8/PART_8C_COMPLETION.md",
     )
     for path in required:
@@ -129,8 +118,8 @@ def main() -> None:
             "FastAPI application does not register the Phase 8C router and cursor codec"
         )
 
-    client = (MIGRATION / "leaveBalanceApi.js").read_text(encoding="utf-8")
-    view = (MIGRATION / "LeaveOverview.jsx").read_text(encoding="utf-8")
+    client = (FRONTEND / "leaveBalanceApi.js").read_text(encoding="utf-8")
+    view = (FRONTEND / "LeaveOverview.jsx").read_text(encoding="utf-8")
     for marker in (
         "parseLeaveBalance",
         "parseLeaveRequest",
@@ -144,34 +133,14 @@ def main() -> None:
             fail(f"migration client is missing {marker}")
     forbidden = re.compile(r"supabase|createClient|@supabase", re.IGNORECASE)
     for path, source in (
-        (MIGRATION / "leaveBalanceApi.js", client),
-        (MIGRATION / "LeaveOverview.jsx", view),
+        (FRONTEND / "leaveBalanceApi.js", client),
+        (FRONTEND / "LeaveOverview.jsx", view),
     ):
         if forbidden.search(source):
             fail(f"Supabase path found in {path.relative_to(ROOT)}")
 
-    legacy = (ROOT / "src/utils/leaveStorage.js").read_text(encoding="utf-8")
-    moved = re.compile(r"ha(?:s|ve) moved to the migration leave view")
-    for name in (
-        "getLeaveBalances",
-        "getAllLeaveBalances",
-        "upsertLeaveBalance",
-        "recalculateAllBalances",
-    ):
-        body = exported_function(legacy, name)
-        if not moved.search(body) or re.search(
-            r"supabase|leave_balances", body, re.IGNORECASE
-        ):
-            fail(f"legacy balance function {name} is not frozen")
-    for name in (
-        "getLeaveRequests",
-        "submitLeaveRequest",
-        "cancelLeaveRequest",
-        "updateLeaveRequestStatus",
-        "uploadLeaveAttachment",
-    ):
-        if moved.search(exported_function(legacy, name)):
-            fail(f"later-phase legacy function {name} was frozen early")
+    if (ROOT / "src/utils/leaveStorage.js").exists():
+        fail("retired leave storage source was restored")
 
     inventory_ids = set(
         re.findall(r"\bphase8a-[a-z0-9-]+\b", INVENTORY.read_text(encoding="utf-8"))

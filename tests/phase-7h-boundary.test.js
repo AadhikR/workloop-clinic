@@ -70,6 +70,10 @@ function locatorPaths(locator) {
     .filter(Boolean)
 }
 
+function currentLocator(locator) {
+  return locator.startsWith('migration/src/') ? locator.replace('migration/src/', 'src/') : locator
+}
+
 test('accounts for every Phase 7 dependency and replacement locator', () => {
   const records = recordNames.map(readRecord)
   const declaredIds = records.flatMap((record) => (
@@ -84,7 +88,7 @@ test('accounts for every Phase 7 dependency and replacement locator', () => {
     assert.doesNotMatch(replacement.locator, /^synthetic:\/\//)
     for (const locator of locatorPaths(replacement.locator)) {
       assert.equal(
-        existsSync(path.join(repositoryDirectory, locator)),
+        existsSync(path.join(repositoryDirectory, currentLocator(locator))),
         true,
         `${replacement.id} names missing implementation ${locator}`,
       )

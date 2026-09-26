@@ -115,7 +115,7 @@ def main() -> None:
     )
     model = read("backend/app/models/leave.py")
     require(model, ("class LeaveAttachment", "attachment_url"), "leave models")
-    frontend = read("migration/src/leaveAttachmentApi.js")
+    frontend = read("src/leaveAttachmentApi.js")
     require(
         frontend,
         ("crypto.subtle.digest", "new FormData()", "createLeaveAttachmentDownload"),
@@ -123,17 +123,8 @@ def main() -> None:
     )
     if "supabase" in frontend.lower():
         raise SystemExit("Phase 8D attachment check failed: migration frontend uses Supabase")
-    legacy = read("src/utils/leaveStorage.js")
-    require(
-        legacy,
-        (
-            "export async function uploadLeaveAttachment()",
-            "Leave attachments have moved to the migration leave screen.",
-        ),
-        "legacy attachment freeze",
-    )
-    if "supabase.storage" in legacy:
-        raise SystemExit("Phase 8D attachment check failed: legacy attachment storage remains active")
+    if (ROOT / "src/utils/leaveStorage.js").exists():
+        raise SystemExit("Phase 8D attachment check failed: retired leave storage source was restored")
     workflow = read(".github/workflows/migration-foundation.yml")
     require(
         workflow,

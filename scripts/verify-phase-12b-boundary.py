@@ -46,9 +46,9 @@ def main() -> None:
     assert "scheduler" not in command.lower()
     assert "print(json.dumps" in command
 
-    migration_client = source("migration/src/notificationApi.js")
-    migration_bell = source("migration/src/NotificationBell.jsx")
-    migration_shell = source("migration/src/OrganizationPanel.jsx")
+    migration_client = source("src/notificationApi.js")
+    migration_bell = source("src/NotificationBell.jsx")
+    migration_shell = source("src/OrganizationPanel.jsx")
     assert "supabase" not in (migration_client + migration_bell).lower()
     assert "<NotificationBell" in migration_shell
 

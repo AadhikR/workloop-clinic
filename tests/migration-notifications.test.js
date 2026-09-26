@@ -8,7 +8,7 @@ import {
   parseNotification,
   readNotifications,
   readUnreadCount,
-} from '../migration/src/notificationApi.js'
+} from '../src/notificationApi.js'
 
 const branchId = 'b2000000-0000-4000-8000-000000000002'
 const notificationId = 'b2000000-0000-4000-8000-000000000003'
@@ -69,8 +69,8 @@ test('read-all sends one idempotency key and accepts the consistent result', asy
 
 test('migration bell is wired without the retained Supabase notification module', async () => {
   const [bell, shell] = await Promise.all([
-    readFile(new URL('../migration/src/NotificationBell.jsx', import.meta.url), 'utf8'),
-    readFile(new URL('../migration/src/OrganizationPanel.jsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/NotificationBell.jsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/OrganizationPanel.jsx', import.meta.url), 'utf8'),
   ])
   assert.equal(/supabase|notificationStorage/.test(bell), false)
   assert.match(shell, /<NotificationBell/)

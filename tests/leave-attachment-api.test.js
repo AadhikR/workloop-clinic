@@ -6,7 +6,7 @@ import {
   uploadStagedLeaveAttachment,
   uploadLeaveAttachment,
   validateAttachmentFile,
-} from '../migration/src/leaveAttachmentApi.js'
+} from '../src/leaveAttachmentApi.js'
 
 const branchId = '20000000-0000-4000-8000-000000000001'
 const requestId = '7a2fde23-dc8c-560c-937c-4ef631aff6b2'

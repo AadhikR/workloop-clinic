@@ -10,7 +10,7 @@ import {
   readAttendanceRecords,
   readPersonalAttendance,
   readPersonalAttendanceHistory,
-} from '../migration/src/attendanceCalculationApi.js'
+} from '../src/attendanceCalculationApi.js'
 
 const branchId = '20000000-0000-4000-8000-000000000001'
 const employeeId = '40000000-0000-4000-8000-000000000001'

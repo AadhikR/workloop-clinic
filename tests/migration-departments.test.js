@@ -13,7 +13,7 @@ import {
   staffingRuleSnapshot,
   updateDepartment,
   updateStaffingRule,
-} from '../migration/src/departmentApi.js'
+} from '../src/departmentApi.js'
 
 const branchId = 'de0fb0c1-2d7a-438a-b19a-98e5bc3698c2'
 const departmentId = 'de0fb0c1-2d7a-438a-b19a-98e5bc3698d1'

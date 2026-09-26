@@ -9,7 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 BACKEND = ROOT / "backend/app"
-MIGRATION = ROOT / "migration/src"
+FRONTEND = ROOT / "src"
 MODEL = BACKEND / "models/leave.py"
 CONTRACT = ROOT / "docs/migration/phase-8/PART_8A_DOMAIN_CONTRACT.md"
 PLAN = ROOT / "docs/migration/phase-8/SUBPHASE_PLAN.md"
@@ -94,13 +94,12 @@ def main() -> None:
 
     backend_test = ROOT / "backend/tests/test_leave_configuration_service.py"
     frontend_test = ROOT / "tests/migration-leave-configuration.test.js"
-    freeze_test = ROOT / "tests/phase-8b-legacy-freeze.test.js"
     database_verifier = ROOT / "scripts/verify-phase-8b-configuration-database.py"
-    for path in (backend_test, frontend_test, freeze_test, database_verifier):
+    for path in (backend_test, frontend_test, database_verifier):
         if not path.is_file():
             fail(f"missing focused test {path.relative_to(ROOT)}")
 
-    client = (MIGRATION / "leaveConfigurationApi.js").read_text(encoding="utf-8")
+    client = (FRONTEND / "leaveConfigurationApi.js").read_text(encoding="utf-8")
     for marker in (
         "parseLeaveSettings",
         "parseLeaveType",
@@ -118,32 +117,13 @@ def main() -> None:
         fail("migration configuration mutations do not use the approved JSON transport")
 
     forbidden = re.compile(r"supabase|createClient|from ['\"]@supabase", re.IGNORECASE)
-    config_files = list(MIGRATION.glob("*Leave*")) + list(MIGRATION.glob("*leave*"))
+    config_files = list(FRONTEND.glob("*Leave*")) + list(FRONTEND.glob("*leave*"))
     for path in config_files:
         if path.is_file() and forbidden.search(path.read_text(encoding="utf-8")):
             fail(f"Supabase path found in {path.relative_to(ROOT)}")
 
-    legacy = (ROOT / "src/utils/leaveStorage.js").read_text(encoding="utf-8")
-    moved = "Leave configuration has moved to the migration settings screen."
-    for function_name in (
-        "getLeaveSettings",
-        "saveLeaveSettings",
-        "getLeaveTypes",
-        "seedDefaultLeaveTypes",
-        "saveLeaveType",
-        "deleteLeaveType",
-        "getPublicHolidays",
-        "seedPublicHolidays",
-        "seedPublicHolidaysForYear",
-        "savePublicHoliday",
-        "deletePublicHoliday",
-    ):
-        match = re.search(
-            rf"export async function {function_name}\([^)]*\) \{{(?P<body>[\s\S]*?)\n\}}",
-            legacy,
-        )
-        if match is None or moved not in match.group("body"):
-            fail(f"legacy configuration function {function_name} is not frozen")
+    if (ROOT / "src/utils/leaveStorage.js").exists():
+        fail("retired leave storage source was restored")
 
     inventory_ids = set(
         re.findall(r"\bphase8a-[a-z0-9-]+\b", INVENTORY.read_text(encoding="utf-8"))

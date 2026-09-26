@@ -38,13 +38,13 @@ def main() -> None:
     frontend = "\n".join(
         read(path)
         for path in (
-            "migration/src/renderedOutputApi.js",
-            "migration/src/outputDelivery.js",
-            "migration/src/Reports.jsx",
-            "migration/src/Payroll.jsx",
-            "migration/src/Payslips.jsx",
-            "migration/src/LetterRequests.jsx",
-            "migration/src/Offboarding.jsx",
+            "src/renderedOutputApi.js",
+            "src/outputDelivery.js",
+            "src/Reports.jsx",
+            "src/Payroll.jsx",
+            "src/Payslips.jsx",
+            "src/LetterRequests.jsx",
+            "src/Offboarding.jsx",
         )
     )
     for route in EXPECTED_ROUTES:

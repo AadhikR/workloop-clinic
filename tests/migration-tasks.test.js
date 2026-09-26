@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
-import { parseTaskCatalogue, readTasks } from '../migration/src/taskApi.js'
+import { parseTaskCatalogue, readTasks } from '../src/taskApi.js'
 
 const branchId = 'c3000000-0000-4000-8000-000000000002'
 const entityId = 'c3000000-0000-4000-8000-000000000003'
@@ -67,9 +67,9 @@ test('task client sends only approved filters and derives branch scope by role',
 
 test('migration task screen has no Supabase or retained task storage path', async () => {
   const files = await Promise.all([
-    readFile(new URL('../migration/src/taskApi.js', import.meta.url), 'utf8'),
-    readFile(new URL('../migration/src/Tasks.jsx', import.meta.url), 'utf8'),
-    readFile(new URL('../migration/src/OrganizationPanel.jsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/taskApi.js', import.meta.url), 'utf8'),
+    readFile(new URL('../src/Tasks.jsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/OrganizationPanel.jsx', import.meta.url), 'utf8'),
   ])
   assert.doesNotMatch(files.join('\n'), /supabase|taskStorage/)
   assert.match(files[2], /<Tasks/)

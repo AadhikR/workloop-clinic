@@ -17,9 +17,9 @@ def main() -> None:
     service = source("backend/app/services/tasks.py")
     repository = source("backend/app/repositories/tasks.py")
     api = source("backend/app/task_api.py")
-    client = source("migration/src/taskApi.js")
-    screen = source("migration/src/Tasks.jsx")
-    shell = source("migration/src/OrganizationPanel.jsx")
+    client = source("src/taskApi.js")
+    screen = source("src/Tasks.jsx")
+    shell = source("src/OrganizationPanel.jsx")
 
     assert 'prefix="/api/v1/tasks"' in api
     assert "employee_id" not in api

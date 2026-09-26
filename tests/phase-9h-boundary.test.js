@@ -130,7 +130,7 @@ test('keeps the reverse Phase 9 rollback order and writer safety explicit', () =
 })
 
 test('keeps migration source free of Supabase and legacy payroll aliases', () => {
-  for (const file of sourceFiles(path.join(repositoryDirectory, 'migration', 'src'))) {
+  for (const file of sourceFiles(path.join(repositoryDirectory, 'src'))) {
     const source = readText(file)
     assert.doesNotMatch(source, /supabase|createClient|@supabase/i)
     assert.doesNotMatch(source, /duCost/)

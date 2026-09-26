@@ -6,9 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # Development
-npm run dev           # Start Vite dev server (localhost:5173)
-npm run build         # Standard Vite build
-npm run build:dist    # Single-file bundle for offline distribution (vite.singlefile.config.js + fix-dist.js)
+npm run dev           # Start the canonical Vite dev server (localhost:5174)
+npm run build         # Build the canonical frontend in dist/
 npm run lint          # ESLint
 npm run preview       # Preview the production build
 

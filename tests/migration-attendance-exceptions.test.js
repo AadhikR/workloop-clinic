@@ -9,7 +9,7 @@ import {
   readRegularisationQueue,
   resolveAbsence,
   submitRegularisation,
-} from '../migration/src/attendanceExceptionsApi.js'
+} from '../src/attendanceExceptionsApi.js'
 
 const branchId = '20000000-0000-4000-8000-000000000001'
 const employeeId = '40000000-0000-4000-8000-000000000001'

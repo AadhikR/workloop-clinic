@@ -95,7 +95,7 @@ test('keeps the reverse dependency rollback order explicit', () => {
 })
 
 test('keeps the complete migration source tree free of Supabase calls', () => {
-  const migrationSource = path.join(repositoryDirectory, 'migration', 'src')
+  const migrationSource = path.join(repositoryDirectory, 'src')
   const forbidden = /supabase|createClient|@supabase/i
   for (const file of sourceFiles(migrationSource)) {
     assert.doesNotMatch(

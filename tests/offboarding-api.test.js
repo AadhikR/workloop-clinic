@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { parseChecklist, parsePreview } from '../migration/src/offboardingApi.js'
+import { parseChecklist, parsePreview } from '../src/offboardingApi.js'
 
 const id = '12345678-1234-4234-8234-123456789abc'
 const now = '2026-09-23T00:00:00.000Z'

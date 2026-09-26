@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "part": "13C",
+  "baselineCommit": "9127f704089abd5f63d8e146514c1430992544bb",
+  "canonicalSourceMove": {
+    "fromPrefix": "migration/src/",
+    "toPrefix": "src/",
+    "trackedPathCount": 75,
+    "baselinePathSha256": "6a94ccd8a85db1f51fbbd6a2a449e3573235dd3d5ef1c7c2813b8847df9ebaf0",
+    "baselineRelativeBlobMapSha256": "e66f1e8e107a1671a2c34775f5ff9fc948b7c887eace654a80bf7bbdafa310e7"
+  },
+  "removedPathSets": [
+    {
+      "id": "legacy-source",
+      "baselinePrefix": "src/",
+      "trackedPathCount": 96,
+      "baselinePathSha256": "7a74539c4b1def7d8600b5aba74f4d7c5f5535f2d53346e1151e658d7627fb69"
+    },
+    {
+      "id": "legacy-public-assets",
+      "baselinePrefix": "public/",
+      "trackedPathCount": 7,
+      "baselinePathSha256": "e7433ebf4cd346af83704dc555c23a9129ea9dc9005b6e78e353acbbc7ad628a"
+    },
+    {
+      "id": "legacy-freeze-tests",
+      "baselinePrefix": "tests/",
+      "baselinePathPattern": "^tests/phase-.*-legacy-freeze\\.test\\.js$",
+      "trackedPathCount": 26,
+      "baselinePathSha256": "c4217ba799ec854076cd6621df61ebe5219344d0298dbc205dd8303b92b50945"
+    }
+  ],
+  "removedExactPaths": [
+    "fix-dist.js",
+    "migration/.env.example",
+    "migration/index.html",
+    "migration/src",
+    "migration/vite-isolation.js",
+    "migration/vite.migration.config.js",
+    "scripts/frontend-build-isolation.mjs",
+    "tests/phase-6d-build-isolation.test.js",
+    "tests/reportUtils.test.js",
+    "tests/requestUtils.test.js",
+    "vite.legacy-isolation.js",
+    "vite.singlefile.config.js"
+  ],
+  "removedPackageScripts": [
+    "build:dist",
+    "build:legacy",
+    "test:migration-build"
+  ],
+  "removedDirectPackages": [
+    "dompurify",
+    "fflate",
+    "jspdf",
+    "lucide-react",
+    "vite-plugin-singlefile"
+  ],
+  "preservedFor13D": {
+    "directPackage": "@supabase/supabase-js",
+    "transitivePackagePrefix": "@supabase/",
+    "environmentExamples": [
+      ".env.example",
+      ".env.test.example"
+    ]
+  }
+}

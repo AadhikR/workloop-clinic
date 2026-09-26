@@ -17,9 +17,9 @@ def main() -> None:
     repository = source("backend/app/repositories/dashboards.py")
     service = source("backend/app/services/dashboards.py")
     api = source("backend/app/dashboard_api.py")
-    client = source("migration/src/dashboardApi.js")
-    screen = source("migration/src/Dashboards.jsx")
-    shell = source("migration/src/OrganizationPanel.jsx")
+    client = source("src/dashboardApi.js")
+    screen = source("src/Dashboards.jsx")
+    shell = source("src/OrganizationPanel.jsx")
 
     for route in ('"/admin"', '"/clinical"', '"/self"'):
         assert route in api

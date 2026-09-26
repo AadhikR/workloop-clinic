@@ -477,6 +477,41 @@
       "evidence": ["no wildcard, inferred, phase-level, or partial approval"]
     }
   ],
+  "closures": {
+    "13C": {
+      "status": "completed",
+      "dependencies": [
+        "P13-SRC-001",
+        "P13-SRC-002",
+        "P13-SRC-003",
+        "P13-SRC-004",
+        "P13-SRC-005",
+        "P13-SVC-001",
+        "P13-SVC-002",
+        "P13-SVC-003",
+        "P13-SVC-005"
+      ],
+      "goldenCases": [
+        "13A-GC-006",
+        "13A-GC-007",
+        "13A-GC-008",
+        "13A-GC-010"
+      ],
+      "phase12Dependencies": [
+        "P12-NOT-14",
+        "P12-TSK-17",
+        "P12-DSH-12",
+        "P12-RPT-19",
+        "P12-OUT-18",
+        "P12-IND-08"
+      ],
+      "evidence": [
+        "docs/migration/phase-13/PART_13C_REMOVAL_INVENTORY.json",
+        "tests/phase-13c-canonical-frontend.test.js",
+        "docs/migration/phase-13/PART_13C_COMPLETION.md"
+      ]
+    }
+  },
   "goldenCases": [
     {"id":"13A-GC-001","owner":"13B","area":"default command","expectation":"npm run dev starts only the migration application on the fixed migration port."},
     {"id":"13A-GC-002","owner":"13B","area":"default command","expectation":"npm run build builds only the migration application."},

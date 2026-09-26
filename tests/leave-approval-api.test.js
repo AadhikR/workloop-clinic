@@ -7,7 +7,7 @@ import {
   deleteDelegation,
   readDelegations,
   updateDelegation,
-} from '../migration/src/leaveApprovalApi.js'
+} from '../src/leaveApprovalApi.js'
 
 const branchId = '20000000-0000-4000-8000-000000000001'
 const requestId = '8f000000-0000-4000-8000-000000000101'

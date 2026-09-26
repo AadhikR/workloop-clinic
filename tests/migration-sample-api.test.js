@@ -7,7 +7,7 @@ import {
   readCurrentAccount,
   readPublicStatus,
   readStorageProof,
-} from '../migration/src/sampleApi.js'
+} from '../src/sampleApi.js'
 
 const identifiers = {
   appUserId: '00f202d5-2ef0-4d6f-9553-830e5dcfb833',

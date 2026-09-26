@@ -10,7 +10,7 @@ import {
   recordSifProjection,
   submitWps,
   updateWpsEntry,
-} from '../migration/src/wpsNafisApi.js'
+} from '../src/wpsNafisApi.js'
 
 const branchId = '91000000-0000-4000-8000-000000000001'
 const runId = '91000000-0000-4000-8000-000000000002'
