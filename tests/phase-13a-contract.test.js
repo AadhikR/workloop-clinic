@@ -181,14 +181,11 @@ test('fixes promotion, no-network, retention, rollback, and approval rules', () 
 
 test('keeps the schema unchanged at the Part 12G head', () => {
   const catalogue = JSON.parse(readText(cataloguePath))
-  const changedMigrations = gitOutput([
-    'diff',
-    '--name-only',
-    catalogue.baselineCommit,
-    '--',
-    'backend/alembic',
-  ]).toString('utf8').trim()
-  assert.equal(changedMigrations, '')
+  const indexedAlembic = gitOutput(['ls-files', '-s', '-z', 'backend/alembic'])
+  assert.equal(
+    createHash('sha256').update(indexedAlembic).digest('hex'),
+    catalogue.alembicIndexSha256,
+  )
   assert.deepEqual(alembicHeads(), ['e8a1c3f5b7d9'])
 })
 
