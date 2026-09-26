@@ -2,7 +2,6 @@ import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
-import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
@@ -49,14 +48,16 @@ function readText(relativePath) {
   return readFileSync(path.join(repositoryDirectory, relativePath), 'utf8').replaceAll('\r\n', '\n')
 }
 
-function gitLines(args) {
-  const result = spawnSync('git', args, { cwd: repositoryDirectory, encoding: 'utf8' })
-  assert.equal(result.status, 0, result.stderr)
-  return result.stdout.trim().split(/\r?\n/).filter(Boolean).map((value) => value.replaceAll('\\', '/'))
-}
-
 function sha256Lines(lines) {
   return createHash('sha256').update(`${lines.join('\n')}\n`).digest('hex')
+}
+
+function gitBlobOid(file) {
+  const contents = Buffer.from(readFileSync(file, 'utf8').replaceAll('\r\n', '\n'))
+  return createHash('sha1')
+    .update(Buffer.from(`blob ${contents.length}\0`))
+    .update(contents)
+    .digest('hex')
 }
 
 function sourceFiles(directory) {
@@ -73,40 +74,51 @@ function outputEntries(result) {
 test('accounts for every baseline source, asset, freeze test, and canonical move', () => {
   assert.equal(inventory.baselineCommit, '9127f704089abd5f63d8e146514c1430992544bb')
   for (const pathSet of inventory.removedPathSets) {
-    let paths = gitLines([
-      'ls-tree',
-      '-r',
-      '--name-only',
-      inventory.baselineCommit,
-      '--',
-      pathSet.baselinePrefix.replace(/\/$/, ''),
-    ])
+    const paths = pathSet.baselinePaths
+    assert.deepEqual(paths, [...paths].sort(), `${pathSet.id} path order`)
+    assert.equal(paths.every((item) => item.startsWith(pathSet.baselinePrefix)), true)
     if (pathSet.baselinePathPattern) {
       const pattern = new RegExp(pathSet.baselinePathPattern)
-      paths = paths.filter((item) => pattern.test(item))
+      assert.equal(paths.every((item) => pattern.test(item)), true)
     }
     assert.equal(paths.length, pathSet.trackedPathCount, pathSet.id)
     assert.equal(sha256Lines(paths), pathSet.baselinePathSha256, pathSet.id)
   }
 
   const sourceMove = inventory.canonicalSourceMove
-  const originalPaths = gitLines([
-    'ls-tree',
-    '-r',
-    '--name-only',
-    inventory.baselineCommit,
-    '--',
-    sourceMove.fromPrefix.replace(/\/$/, ''),
-  ])
+  const canonicalDirectory = path.join(repositoryDirectory, 'src')
+  const canonicalFiles = sourceFiles(canonicalDirectory).sort()
+  const originalPaths = canonicalFiles.map((file) => (
+    `${sourceMove.fromPrefix}${path.relative(canonicalDirectory, file).replaceAll('\\', '/')}`
+  ))
+  const blobMap = canonicalFiles.map((file) => (
+    `${path.relative(canonicalDirectory, file).replaceAll('\\', '/')}\t${gitBlobOid(file)}`
+  ))
+
   assert.equal(originalPaths.length, sourceMove.trackedPathCount)
   assert.equal(sha256Lines(originalPaths), sourceMove.baselinePathSha256)
+  assert.equal(
+    sourceMove.baselineRelativeBlobMapFormat,
+    'relative-path<TAB>git-blob-oid, sorted, LF-terminated',
+  )
+  assert.equal(sha256Lines(blobMap), sourceMove.baselineRelativeBlobMapSha256)
 })
 
 test('leaves one canonical root source tree and no legacy-only path', () => {
   const canonicalFiles = sourceFiles(path.join(repositoryDirectory, 'src'))
+  const canonicalPaths = new Set(canonicalFiles.map((file) => (
+    path.relative(repositoryDirectory, file).replaceAll('\\', '/')
+  )))
   assert.equal(canonicalFiles.length, inventory.canonicalSourceMove.trackedPathCount)
   assert.equal(existsSync(path.join(repositoryDirectory, 'migration')), false)
   assert.equal(existsSync(path.join(repositoryDirectory, 'public')), false)
+  for (const pathSet of inventory.removedPathSets) {
+    for (const relativePath of pathSet.baselinePaths) {
+      if (!canonicalPaths.has(relativePath)) {
+        assert.equal(existsSync(path.join(repositoryDirectory, relativePath)), false, relativePath)
+      }
+    }
+  }
   for (const relativePath of inventory.removedExactPaths) {
     assert.equal(existsSync(path.join(repositoryDirectory, relativePath)), false, relativePath)
   }
