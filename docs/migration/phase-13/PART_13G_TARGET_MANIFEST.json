@@ -1,0 +1,115 @@
+{
+  "version": 1,
+  "manifestId": "phase-13g-2026-09-26-boundary-1",
+  "settledAt": "2026-09-26T15:06:46Z",
+  "sourceCommit": "8666d752fd69194e027974a0de623be0c8210978",
+  "mode": "read-only",
+  "discovery": {
+    "externalProject": {
+      "status": "blocked",
+      "blocker": "authenticated-provider-access-missing",
+      "organizationId": null,
+      "projectId": null,
+      "projectState": null,
+      "repositoryCandidateAuthoritative": false
+    },
+    "auth": {
+      "status": "blocked",
+      "blocker": "authenticated-provider-access-missing",
+      "userCount": null,
+      "metadataRecordCount": null
+    },
+    "database": {
+      "status": "blocked",
+      "blocker": "authenticated-provider-access-missing",
+      "schemaObjects": [],
+      "tableRowCounts": {},
+      "rpcNames": [],
+      "exportSha256": null
+    },
+    "realtime": {
+      "status": "blocked",
+      "blocker": "authenticated-provider-access-missing",
+      "publications": [],
+      "channelConfigurations": []
+    },
+    "storage": {
+      "status": "blocked",
+      "blocker": "authenticated-provider-access-missing",
+      "buckets": []
+    },
+    "apiKeys": {
+      "status": "blocked",
+      "blocker": "authenticated-provider-access-missing",
+      "identifiers": []
+    },
+    "github": {
+      "status": "resolved",
+      "observedAt": "2026-09-26T15:06:46Z",
+      "repository": "AadhikR/workloop-clinic",
+      "environmentNames": [],
+      "secretStores": [
+        {
+          "scope": "actions-repository",
+          "entries": []
+        },
+        {
+          "scope": "agents-repository",
+          "entries": []
+        },
+        {
+          "scope": "codespaces-repository",
+          "entries": []
+        },
+        {
+          "scope": "dependabot-repository",
+          "entries": []
+        }
+      ]
+    },
+    "digitalOcean": {
+      "status": "blocked",
+      "blocker": "authenticated-provider-access-missing",
+      "apps": []
+    }
+  },
+  "export": {
+    "status": "not-started",
+    "externalLocation": null,
+    "custodian": null,
+    "encryptionOwner": null,
+    "evidenceSha256": null,
+    "artifactDigests": []
+  },
+  "restore": {
+    "status": "not-started",
+    "completedAt": null,
+    "sourceEvidenceSha256": null,
+    "restoredEvidenceSha256": null,
+    "countsAndDigestsMatch": false
+  },
+  "retention": {
+    "status": "not-started",
+    "minimumCalendarDays": 30,
+    "startsAt": null,
+    "deadline": null
+  },
+  "destructiveTargets": {
+    "apiKeys": [],
+    "githubSecrets": [],
+    "digitalOceanSecrets": [],
+    "storageSets": [],
+    "projects": []
+  },
+  "receipts": [],
+  "preservedResources": [
+    "workloop-clinic_postgres_data"
+  ],
+  "blockers": [
+    "Authoritative external project access is unavailable.",
+    "Authoritative DigitalOcean application access is unavailable.",
+    "No encrypted export or isolated restore exists.",
+    "The retention period has not started.",
+    "No exact destructive target is eligible for approval."
+  ]
+}

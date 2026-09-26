@@ -209,6 +209,6 @@ test('keeps unresolved external names and destructive authority fail closed', ()
     assert.equal(byId.get(id).disposition, 'destroy only after exact owner approval')
     assert.equal(byId.get(id).owner, '13G')
   }
-  assert.match(byId.get('P13-EXT-007').evidence.join(' '), /unresolved/)
+  assert.match(byId.get('P13-EXT-007').evidence.join(' '), /AadhikR\/workloop-clinic/)
   assert.match(byId.get('P13-EXT-008').evidence.join(' '), /unresolved/)
 })

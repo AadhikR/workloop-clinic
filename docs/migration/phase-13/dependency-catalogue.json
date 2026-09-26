@@ -699,10 +699,10 @@
       "disposition": "inspect externally",
       "owner": "13G",
       "evidence": [
-        "VITE_SUPABASE_URL",
-        "VITE_SUPABASE_ANON_KEY",
-        "SUPABASE_SERVICE_ROLE_KEY",
-        "exact store entries unresolved in repository"
+        "read-only settings inspection resolved repository AadhikR/workloop-clinic",
+        "no GitHub environments exist",
+        "Actions, Agents, Codespaces, and Dependabot repository secret stores contain no entries",
+        "docs/migration/phase-13/PART_13G_TARGET_MANIFEST.json"
       ]
     },
     {
@@ -897,6 +897,52 @@
         "docker-compose.phase13f.yml",
         "tests/phase-13f-clean-setup.test.js",
         "docs/migration/phase-13/PART_13F_COMPLETION.md"
+      ]
+    }
+  },
+  "boundaries": {
+    "13G": {
+      "status": "blocked",
+      "resolvedDependencies": [
+        "P13-EXT-007",
+        "P13-APR-001"
+      ],
+      "unresolvedDependencies": [
+        "P13-EXT-001",
+        "P13-EXT-002",
+        "P13-EXT-003",
+        "P13-EXT-004",
+        "P13-EXT-005",
+        "P13-EXT-006",
+        "P13-EXT-008",
+        "P13-DEL-001",
+        "P13-DEL-002",
+        "P13-DEL-003",
+        "P13-RET-001",
+        "P13-RET-002"
+      ],
+      "verifiedGoldenCases": [
+        "13A-GC-024",
+        "13A-GC-026",
+        "13A-GC-029",
+        "13A-GC-031",
+        "13A-GC-032",
+        "13A-GC-033",
+        "13A-GC-036"
+      ],
+      "unresolvedGoldenCases": [
+        "13A-GC-025",
+        "13A-GC-027",
+        "13A-GC-028",
+        "13A-GC-030"
+      ],
+      "evidence": [
+        "docs/migration/phase-13/PART_13G_TARGET_MANIFEST.json",
+        "docs/migration/phase-13/PART_13G_APPROVAL_MANIFEST.json",
+        "scripts/verify-phase-13g-decommission.mjs",
+        "tests/fixtures/phase-13g/approval-cases.json",
+        "tests/phase-13g-decommission.test.js",
+        "docs/migration/phase-13/PART_13G_COMPLETION.md"
       ]
     }
   },

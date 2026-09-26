@@ -17,6 +17,7 @@
     "test:unit": "node --test tests/*.test.js",
     "test:frontend-build": "node --test tests/frontend-build.test.js",
     "verify:phase13f:clean": "node scripts/verify-phase-13f-clean-setup.mjs",
+    "verify:phase13g:boundary": "node scripts/verify-phase-13g-decommission.mjs",
     "test:browser": "node scripts/verify-phase-3g-browser.mjs",
     "test:ui": "playwright test --ui",
     "test:auth": "playwright test tests/auth.spec.js",

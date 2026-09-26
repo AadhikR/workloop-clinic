@@ -1,0 +1,60 @@
+{
+  "now": "2026-11-01T00:00:00Z",
+  "denials": [
+    {
+      "id": "phase-authorization-only",
+      "mutation": "remove-exact-approvals",
+      "expectedReason": "approval manifest is not approved"
+    },
+    {
+      "id": "wildcard-target",
+      "mutation": "use-wildcard-target",
+      "expectedReason": "wildcard or broad target is not allowed"
+    },
+    {
+      "id": "partial-target",
+      "mutation": "use-partial-target",
+      "expectedReason": "action target is not one exact settled target"
+    },
+    {
+      "id": "stale-approval",
+      "mutation": "predate-settled-manifest",
+      "expectedReason": "approval predates the settled target manifest"
+    },
+    {
+      "id": "premature-approval",
+      "mutation": "predate-retention-deadline",
+      "expectedReason": "approval predates the elapsed retention deadline"
+    },
+    {
+      "id": "unexpired-retention",
+      "mutation": "move-now-before-deadline",
+      "expectedReason": "retention deadline has not elapsed"
+    },
+    {
+      "id": "failed-restore",
+      "mutation": "fail-restore",
+      "expectedReason": "isolated restore evidence is incomplete or does not match discovery"
+    },
+    {
+      "id": "unresolved-discovery",
+      "mutation": "block-project-discovery",
+      "expectedReason": "discovery section externalProject is not resolved"
+    },
+    {
+      "id": "changed-preflight",
+      "mutation": "change-preflight-digest",
+      "expectedReason": "immediate preflight target digest does not match"
+    },
+    {
+      "id": "stale-preflight",
+      "mutation": "age-preflight-observation",
+      "expectedReason": "immediate preflight observation is missing or stale"
+    },
+    {
+      "id": "uncertain-owner",
+      "mutation": "change-approval-owner",
+      "expectedReason": "approval owner identity is uncertain"
+    }
+  ]
+}

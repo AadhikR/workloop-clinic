@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "targetManifestPath": "docs/migration/phase-13/PART_13G_TARGET_MANIFEST.json",
+  "targetManifestSha256": "cd8b5d8a79675093986d434340f10f6202baf3c1b71a1dd8a74155f1e4fb973d",
+  "status": "ineligible",
+  "reason": "Discovery, export, restore, retention, and exact target requirements are incomplete.",
+  "approvals": []
+}
