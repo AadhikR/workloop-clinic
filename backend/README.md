@@ -1,115 +1,86 @@
 # Workloop API
 
-This directory contains the portable Python backend that will replace direct browser access to Supabase. It has a containerized FastAPI service, a database-backed `/health` endpoint, an Alembic migration runner, and Keycloak access-token validation. Business routes and application-user resolution are added in later phases.
+The backend is the only business and data API for Workloop Clinic. It validates Keycloak access
+tokens, resolves application users, enforces role and tenant scope, writes PostgreSQL through
+application-owned repositories, and controls private object storage.
 
 ## Requirements
 
-- Python 3.12
-- PowerShell 5.1 or later
+- Python 3.12.10
+- PostgreSQL 17 through the repository Compose stack
+- Keycloak through the same stack
 
-The project uses Python 3.12.10 and a local virtual environment at `backend/.venv`. That directory is ignored by Git and must not be copied between computers.
+Use a local virtual environment at `backend/.venv`. Do not install project dependencies into the
+system Python or Anaconda environment.
 
-The complete fresh-checkout, startup, test, shutdown, and restart instructions are in
-[`docs/migration/phase-2/README.md`](../docs/migration/phase-2/README.md).
+## Install locked dependencies
 
-## Create the Virtual Environment
-
-Run from the repository root on the current Windows development computer:
-
-```powershell
-& "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe" -m venv "backend\.venv"
-```
-
-The explicit interpreter path avoids modifying or using the existing Anaconda Python 3.9 installation.
-
-On Linux, use an installed Python 3.12 interpreter:
-
-```bash
-python3.12 -m venv .venv
-```
-
-## Install Locked Dependencies
-
-Run from `backend`:
+From `backend/` on Windows:
 
 ```powershell
-& ".\.venv\Scripts\python.exe" -m pip install --require-hashes -r requirements-dev.lock
+& ".\.venv\Scripts\python.exe" -m pip install --require-hashes --requirement requirements-dev.lock
 & ".\.venv\Scripts\python.exe" -m pip install --no-deps .
 ```
 
-The lock file includes runtime and development dependencies with hashes. The second command installs the local Workloop package without resolving a second dependency set. Change dependencies in `pyproject.toml`, then regenerate the lock deliberately rather than editing the generated file by hand.
+On Linux, use the equivalent Python 3.12 virtual-environment interpreter.
 
-## Development Checks
-
-Run from `backend`:
+## Checks
 
 ```powershell
 & ".\.venv\Scripts\python.exe" -m pytest
 & ".\.venv\Scripts\python.exe" -m ruff check .
 & ".\.venv\Scripts\python.exe" -m ruff format --check .
 & ".\.venv\Scripts\pyright.exe"
+& ".\.venv\Scripts\python.exe" -m pip check
 ```
 
-## Local PostgreSQL
+## Local services
 
-Phase 2C setup, password handling, startup, shutdown, and rollback instructions are in
-[`docs/migration/phase-2/LOCAL_POSTGRESQL.md`](../docs/migration/phase-2/LOCAL_POSTGRESQL.md).
+Generate untracked local environment files from the repository root:
 
-## FastAPI Service
+```powershell
+./scripts/new-local-postgres-env.ps1
+```
 
-Phase 2D configuration, container, health, logging, test, and rollback instructions are in
-[`docs/migration/phase-2/FASTAPI_SERVICE.md`](../docs/migration/phase-2/FASTAPI_SERVICE.md).
+Start the database, API, and identity service, then apply Alembic:
 
-## Alembic
+```powershell
+docker compose up --build --detach --wait postgres backend keycloak
+docker compose --profile tools run --rm migrate
+```
 
-Phase 2E migration credentials, commands, revision rules, evidence, and rollback instructions are
-in [`docs/migration/phase-2/ALEMBIC_FOUNDATION.md`](../docs/migration/phase-2/ALEMBIC_FOUNDATION.md).
+The API health endpoint is `http://127.0.0.1:8000/health`. Business routes are versioned under
+`/api/v1` and require a valid access token unless a route explicitly documents a public boundary.
 
-## Local Keycloak
+## Database and process roles
 
-Phase 2F addresses, credential boundaries, runtime commands, persistence evidence, and rollback
-instructions are in
-[`docs/migration/phase-2/KEYCLOAK_RUNTIME.md`](../docs/migration/phase-2/KEYCLOAK_RUNTIME.md).
+Alembic uses the migration role. FastAPI, expiry processing, storage reconciliation, and file
+scanning use separate roles with narrower grants. Keep those credentials in their generated
+environment files. Do not combine them into one broad runtime role.
 
-## Access-token validation
+Add schema changes as new files under `alembic/versions/`. Never edit an applied revision. Verify a
+single head, an empty-database upgrade, a second no-op migration pass, and any required predecessor
+rollback.
 
-Phase 3D configuration, validation rules, JWKS cache behavior, tests, and rollback notes are in
-[`docs/migration/phase-3/FASTAPI_TOKEN_VALIDATION.md`](../docs/migration/phase-3/FASTAPI_TOKEN_VALIDATION.md).
+## Private storage
 
-## Application-user resolution
+`app/storage/` defines the private-file boundary. The local default is a synthetic filesystem-backed
+adapter in a named volume. The full storage gate uses an S3-compatible adapter. API routes own object
+authorization, metadata, quarantine, and signed access. Browser code never receives provider
+credentials.
 
-Phase 3E issuer-and-subject lookup, active-account checks, safe failures, tests, and rollback notes
-are in
-[`docs/migration/phase-3/APPLICATION_USER_RESOLUTION.md`](../docs/migration/phase-3/APPLICATION_USER_RESOLUTION.md).
+## Dependency locks
 
-## GitHub Checks
-
-Phase 2G workflow triggers, permissions, jobs, remote evidence, known advisories, and rollback are
-in [`docs/migration/phase-2/GITHUB_CHECKS.md`](../docs/migration/phase-2/GITHUB_CHECKS.md).
-
-## Dependency Locking
-
-Regenerate the development lock from `backend`:
+Change `pyproject.toml`, then regenerate and review both locks deliberately:
 
 ```powershell
 & ".\.venv\Scripts\pip-compile.exe" --extra dev --generate-hashes --strip-extras --allow-unsafe --output-file requirements-dev.lock pyproject.toml
-```
-
-Regenerate the runtime-only lock from `backend`:
-
-```powershell
 & ".\.venv\Scripts\pip-compile.exe" --generate-hashes --strip-extras --allow-unsafe --output-file requirements.lock pyproject.toml
 ```
 
-Review dependency changes before committing either regenerated lock.
-
-The lock-file header is generated by `pip-tools` and may describe index defaults differently from the command shown above. The executable command in this README is authoritative. Dependency upgrades are deliberate lock updates and may change the resulting hashes.
-
 ## Boundaries
 
-- Do not put secrets in `pyproject.toml`, lock files, tests, or documentation.
-- Do not install backend packages into Anaconda or the system Python.
-- Do not add business features during foundation work.
-- Do not add business database queries or routes before their owner phase.
-- Do not add a schema revision before its owner phase.
-- Do not add Keycloak integration until Phase 3.
+- Never log secrets, tokens, database URLs, private objects, or signed URLs.
+- Keep authorization in FastAPI and scoped repositories, not in frontend visibility rules.
+- Use synthetic data for local and migration verification.
+- Do not add provider-specific database roles, schemas, bootstrap SQL, or browser data clients.

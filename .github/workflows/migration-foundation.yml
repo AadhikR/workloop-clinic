@@ -72,6 +72,8 @@ jobs:
           sh .github/scripts/classify-migration-workflow.sh < /tmp/workloop-changed-files
       - name: Verify phase execution workflow
         run: node --test tests/phase-execution-workflow.test.js
+      - name: Verify repository guard
+        run: npm run guard:repository
 
   backend-quality:
     name: Backend quality

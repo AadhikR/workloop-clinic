@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { readFileSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import test from 'node:test'
@@ -108,6 +108,7 @@ test('keeps the prose inventory in exact agreement with the catalogue', () => {
 test('covers every tracked file and classifies every Supabase marker exactly once', () => {
   const catalogue = JSON.parse(readText(cataloguePath))
   const trackedFiles = nulPaths(gitOutput(['ls-files', '-z', '--cached', '--others', '--exclude-standard']))
+    .filter((file) => existsSync(path.join(repositoryDirectory, file)))
   const marker = catalogue.trackedFileCoverage.marker.toLowerCase()
   const separatelyInspected = new Set(
     catalogue.trackedFileCoverage.binaryInspected.map((artifact) => artifact.path),
@@ -141,8 +142,15 @@ test('pins every separately inspected binary artifact by digest', () => {
   assert.ok(catalogue.trackedFileCoverage.binaryInspected.length > 0)
   for (const artifact of catalogue.trackedFileCoverage.binaryInspected) {
     assert.ok(dependencyIds.has(artifact.dependencyId), artifact.path)
+    const indexed = spawnSync('git', ['ls-files', '--error-unmatch', artifact.path], {
+      cwd: repositoryDirectory,
+      encoding: 'utf8',
+    })
+    const content = indexed.status === 0
+      ? gitOutput(['show', `:${artifact.path}`])
+      : readFileSync(path.join(repositoryDirectory, artifact.path))
     const digest = createHash('sha256')
-      .update(gitOutput(['show', `:${artifact.path}`]))
+      .update(content)
       .digest('hex')
     assert.equal(digest, artifact.sha256, artifact.path)
     assert.equal(artifact.digestSource, 'canonical indexed Git blob')

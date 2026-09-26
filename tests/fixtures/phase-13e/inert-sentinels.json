@@ -1,0 +1,5 @@
+{
+  "package": "@supabase/supabase-js",
+  "environment": "VITE_SUPABASE_URL",
+  "endpoint": "https://retired-service.supabase.invalid"
+}

@@ -12,13 +12,20 @@
     "inspect externally",
     "destroy only after exact owner approval"
   ],
-  "allowedOwners": ["13B", "13C", "13D", "13E", "13F", "13G"],
+  "allowedOwners": [
+    "13B",
+    "13C",
+    "13D",
+    "13E",
+    "13F",
+    "13G"
+  ],
   "trackedFileCoverage": {
     "marker": "supabase",
-    "referenceFreeRule": "A tracked file with no case-insensitive marker match has no discovered Supabase dependency. The focused verifier still counts it as inspected.",
+    "referenceFreeRule": "The permanent Part 13E repository guard inspects every tracked or unignored file. It classifies each case-insensitive Supabase marker exactly once by exact path and counts every other file as reference-free.",
     "binaryInspected": [
       {
-        "path": "Workloop_Clinic_HRMS_Feature_List.pdf",
+        "path": "docs/history/legacy-feature-list/Workloop_Clinic_HRMS_Feature_List.pdf",
         "sha256": "4c3599a71f412d3472af48cf9289734a978b0c2f6134306025a31a2ed38381cc",
         "digestSource": "canonical indexed Git blob",
         "dependencyId": "P13-DOC-004",
@@ -29,15 +36,26 @@
       {
         "id": "legacy-source",
         "dependencyId": "P13-SRC-002",
-        "include": [{"type": "prefix", "value": "src/"}],
+        "include": [
+          {
+            "type": "prefix",
+            "value": "src/"
+          }
+        ],
         "exclude": []
       },
       {
         "id": "package-graph",
         "dependencyId": "P13-PKG-001",
         "include": [
-          {"type": "exact", "value": "package.json"},
-          {"type": "exact", "value": "package-lock.json"}
+          {
+            "type": "exact",
+            "value": "package.json"
+          },
+          {
+            "type": "exact",
+            "value": "package-lock.json"
+          }
         ],
         "exclude": []
       },
@@ -45,8 +63,14 @@
         "id": "active-environment",
         "dependencyId": "P13-ENV-001",
         "include": [
-          {"type": "exact", "value": ".env.example"},
-          {"type": "exact", "value": ".env.test.example"}
+          {
+            "type": "exact",
+            "value": ".env.example"
+          },
+          {
+            "type": "exact",
+            "value": ".env.test.example"
+          }
         ],
         "exclude": []
       },
@@ -54,73 +78,177 @@
         "id": "dual-build-control",
         "dependencyId": "P13-SRC-003",
         "include": [
-          {"type": "exact", "value": "vite.legacy-isolation.js"},
-          {"type": "exact", "value": "migration/vite-isolation.js"},
-          {"type": "exact", "value": "scripts/frontend-build-isolation.mjs"}
+          {
+            "type": "exact",
+            "value": "vite.legacy-isolation.js"
+          },
+          {
+            "type": "exact",
+            "value": "migration/vite-isolation.js"
+          },
+          {
+            "type": "exact",
+            "value": "scripts/frontend-build-isolation.mjs"
+          }
         ],
         "exclude": []
       },
       {
         "id": "legacy-freeze-tests",
         "dependencyId": "P13-SRC-004",
-        "include": [{"type": "regex", "value": "^tests/phase-(?:7f|8[cef]|9[b-g]|10[b-i]|11[c-g])-legacy-freeze\\.test\\.js$"}],
+        "include": [
+          {
+            "type": "regex",
+            "value": "^tests/phase-(?:7f|8[cef]|9[b-g]|10[b-i]|11[c-g])-legacy-freeze\\.test\\.js$"
+          }
+        ],
         "exclude": []
       },
       {
         "id": "test-negative-proof",
         "dependencyId": "P13-TST-001",
-        "include": [{"type": "prefix", "value": "tests/"}],
-        "exclude": [{"type": "regex", "value": "^tests/phase-(?:7f|8[cef]|9[b-g]|10[b-i]|11[c-g])-legacy-freeze\\.test\\.js$"}]
+        "include": [
+          {
+            "type": "prefix",
+            "value": "tests/"
+          }
+        ],
+        "exclude": [
+          {
+            "type": "regex",
+            "value": "^tests/phase-(?:7f|8[cef]|9[b-g]|10[b-i]|11[c-g])-legacy-freeze\\.test\\.js$"
+          }
+        ]
       },
       {
         "id": "script-negative-proof",
         "dependencyId": "P13-TST-002",
-        "include": [{"type": "prefix", "value": "scripts/"}],
-        "exclude": [{"type": "exact", "value": "scripts/frontend-build-isolation.mjs"}]
+        "include": [
+          {
+            "type": "prefix",
+            "value": "scripts/"
+          }
+        ],
+        "exclude": [
+          {
+            "type": "exact",
+            "value": "scripts/frontend-build-isolation.mjs"
+          }
+        ]
       },
       {
         "id": "historical-sql",
         "dependencyId": "P13-HIS-001",
-        "include": [{"type": "regex", "value": "^(?:supabase[^/]*\\.sql|sql/.*\\.sql)$"}],
+        "include": [
+          {
+            "type": "prefix",
+            "value": "docs/history/legacy-supabase-sql/"
+          }
+        ],
+        "exclude": []
+      },
+      {
+        "id": "historical-feature-list",
+        "dependencyId": "P13-DOC-004",
+        "include": [
+          {
+            "type": "prefix",
+            "value": "docs/history/legacy-feature-list/"
+          }
+        ],
         "exclude": []
       },
       {
         "id": "backend-history",
         "dependencyId": "P13-HIS-002",
-        "include": [{"type": "prefix", "value": "backend/"}],
-        "exclude": [{"type": "exact", "value": "backend/README.md"}]
+        "include": [
+          {
+            "type": "prefix",
+            "value": "backend/"
+          }
+        ],
+        "exclude": [
+          {
+            "type": "exact",
+            "value": "backend/README.md"
+          }
+        ]
       },
       {
         "id": "migration-history",
         "dependencyId": "P13-HIS-003",
-        "include": [{"type": "prefix", "value": "docs/migration/"}],
-        "exclude": [{"type": "prefix", "value": "docs/migration/phase-13/"}]
+        "include": [
+          {
+            "type": "prefix",
+            "value": "docs/migration/"
+          }
+        ],
+        "exclude": [
+          {
+            "type": "prefix",
+            "value": "docs/migration/phase-13/"
+          }
+        ]
       },
       {
         "id": "phase13-current",
         "dependencyId": "P13-DOC-002",
-        "include": [{"type": "prefix", "value": "docs/migration/phase-13/"}],
+        "include": [
+          {
+            "type": "prefix",
+            "value": "docs/migration/phase-13/"
+          }
+        ],
         "exclude": []
       },
       {
         "id": "current-documentation",
         "dependencyId": "P13-DOC-001",
         "include": [
-          {"type": "exact", "value": "ARCHITECTURE.md"},
-          {"type": "exact", "value": "CLAUDE.md"},
-          {"type": "exact", "value": "DIGITALOCEAN_MIGRATION_PLAN.md"},
-          {"type": "exact", "value": "FEATURES_ROADMAP.md"},
-          {"type": "exact", "value": "MANUAL_TEST_CHECKLIST.md"},
-          {"type": "exact", "value": "README.md"},
-          {"type": "exact", "value": "REMAINING_TESTS.md"},
-          {"type": "exact", "value": "backend/README.md"}
+          {
+            "type": "exact",
+            "value": "ARCHITECTURE.md"
+          },
+          {
+            "type": "exact",
+            "value": "CLAUDE.md"
+          },
+          {
+            "type": "exact",
+            "value": "DIGITALOCEAN_MIGRATION_PLAN.md"
+          },
+          {
+            "type": "exact",
+            "value": "FEATURES_ROADMAP.md"
+          },
+          {
+            "type": "exact",
+            "value": "MANUAL_TEST_CHECKLIST.md"
+          },
+          {
+            "type": "exact",
+            "value": "README.md"
+          },
+          {
+            "type": "exact",
+            "value": "REMAINING_TESTS.md"
+          },
+          {
+            "type": "exact",
+            "value": "backend/README.md"
+          }
         ],
         "exclude": []
       },
       {
         "id": "feature-list-generator",
         "dependencyId": "P13-DOC-003",
-        "include": [{"type": "exact", "value": "generate_feature_list.py"}],
+        "include": [
+          {
+            "type": "exact",
+            "value": "generate_feature_list.py"
+          }
+        ],
         "exclude": []
       }
     ]
@@ -131,350 +259,514 @@
       "item": "Default npm dev, build, and preview commands",
       "disposition": "replace",
       "owner": "13B",
-      "evidence": ["package.json"]
+      "evidence": [
+        "package.json"
+      ]
     },
     {
       "id": "P13-BLD-002",
       "item": "Explicit migration dev and build commands",
       "disposition": "replace",
       "owner": "13B",
-      "evidence": ["package.json", "migration/vite.migration.config.js"]
+      "evidence": [
+        "package.json",
+        "migration/vite.migration.config.js"
+      ]
     },
     {
       "id": "P13-BLD-003",
       "item": "Legacy and migration entry points, ports, and output paths",
       "disposition": "replace",
       "owner": "13B",
-      "evidence": ["index.html", "migration/index.html", "vite.config.js", "migration/vite.migration.config.js", "dist", "dist-migration", "5174"]
+      "evidence": [
+        "index.html",
+        "migration/index.html",
+        "vite.config.js",
+        "migration/vite.migration.config.js",
+        "dist",
+        "dist-migration",
+        "5174"
+      ]
     },
     {
       "id": "P13-BLD-004",
       "item": "CI and DigitalOcean frontend build inputs",
       "disposition": "replace",
       "owner": "13B",
-      "evidence": [".github/workflows/migration-foundation.yml", ".github/scripts/classify-migration-workflow.sh", "infra/digitalocean/main.tf"]
+      "evidence": [
+        ".github/workflows/migration-foundation.yml",
+        ".github/scripts/classify-migration-workflow.sh",
+        "infra/digitalocean/main.tf"
+      ]
     },
     {
       "id": "P13-BLD-005",
       "item": "Compose and backend frontend-origin inputs",
       "disposition": "replace",
       "owner": "13B",
-      "evidence": ["docker-compose.yml", "backend/.env.example", "scripts/new-local-postgres-env.ps1"]
+      "evidence": [
+        "docker-compose.yml",
+        "backend/.env.example",
+        "scripts/new-local-postgres-env.ps1"
+      ]
     },
     {
       "id": "P13-BLD-006",
       "item": "Migration public environment allowlist",
       "disposition": "replace",
       "owner": "13B",
-      "evidence": ["migration/vite.migration.config.js", "migration/.env.example"]
+      "evidence": [
+        "migration/vite.migration.config.js",
+        "migration/.env.example"
+      ]
     },
     {
       "id": "P13-SRC-001",
       "item": "Seventy-five-file migration frontend source graph",
       "disposition": "replace",
       "owner": "13C",
-      "evidence": ["migration/src/**"]
+      "evidence": [
+        "migration/src/**"
+      ]
     },
     {
       "id": "P13-SRC-002",
       "item": "Ninety-six-file legacy frontend source graph",
       "disposition": "remove",
       "owner": "13C",
-      "evidence": ["src/**"]
+      "evidence": [
+        "src/**"
+      ]
     },
     {
       "id": "P13-SRC-003",
       "item": "Dual-build isolation controls",
       "disposition": "remove",
       "owner": "13C",
-      "evidence": ["vite.legacy-isolation.js", "migration/vite-isolation.js", "scripts/frontend-build-isolation.mjs"]
+      "evidence": [
+        "vite.legacy-isolation.js",
+        "migration/vite-isolation.js",
+        "scripts/frontend-build-isolation.mjs"
+      ]
     },
     {
       "id": "P13-SRC-004",
       "item": "Legacy freeze tests tied to removed source",
       "disposition": "remove",
       "owner": "13C",
-      "evidence": ["tests/phase-*-legacy-freeze.test.js"]
+      "evidence": [
+        "tests/phase-*-legacy-freeze.test.js"
+      ]
     },
     {
       "id": "P13-SRC-005",
       "item": "Six Phase 12 dependencies retained for Phase 13",
       "disposition": "remove",
       "owner": "13C",
-      "evidence": ["P12-NOT-14", "P12-TSK-17", "P12-DSH-12", "P12-RPT-19", "P12-OUT-18", "P12-IND-08"]
+      "evidence": [
+        "P12-NOT-14",
+        "P12-TSK-17",
+        "P12-DSH-12",
+        "P12-RPT-19",
+        "P12-OUT-18",
+        "P12-IND-08"
+      ]
     },
     {
       "id": "P13-SVC-001",
       "item": "Supabase Auth client calls and auth-state listener",
       "disposition": "remove",
       "owner": "13C",
-      "evidence": ["src/context/AuthContext.jsx", "src/utils/*Storage.js"]
+      "evidence": [
+        "src/context/AuthContext.jsx",
+        "src/utils/*Storage.js"
+      ]
     },
     {
       "id": "P13-SVC-002",
       "item": "Supabase table and PostgREST calls",
       "disposition": "remove",
       "owner": "13C",
-      "evidence": ["src/**", "docs/migration/phase-0/SUPABASE_DEPENDENCY_INVENTORY.md"]
+      "evidence": [
+        "src/**",
+        "docs/migration/phase-0/SUPABASE_DEPENDENCY_INVENTORY.md"
+      ]
     },
     {
       "id": "P13-SVC-003",
       "item": "Eight direct Supabase RPC call targets",
       "disposition": "remove",
       "owner": "13C",
-      "evidence": ["employee_submit_regularisation", "employee_submit_document", "employee_cancel_leave_request", "employee_submit_leave_request", "employee_update_contact", "link_employee_account", "manager_get_expense_queue", "manager_get_leave_queue"]
+      "evidence": [
+        "employee_submit_regularisation",
+        "employee_submit_document",
+        "employee_cancel_leave_request",
+        "employee_submit_leave_request",
+        "employee_update_contact",
+        "link_employee_account",
+        "manager_get_expense_queue",
+        "manager_get_leave_queue"
+      ]
     },
     {
       "id": "P13-SVC-004",
       "item": "Supabase Realtime runtime class with no direct application call",
       "disposition": "remove",
       "owner": "13D",
-      "evidence": ["package-lock.json", "docs/migration/phase-0/SUPABASE_DEPENDENCY_INVENTORY.md"]
+      "evidence": [
+        "package-lock.json",
+        "docs/migration/phase-0/SUPABASE_DEPENDENCY_INVENTORY.md"
+      ]
     },
     {
       "id": "P13-SVC-005",
       "item": "Supabase Storage client calls for two buckets",
       "disposition": "remove",
       "owner": "13C",
-      "evidence": ["employee-documents", "expense-receipts", "src/**"]
+      "evidence": [
+        "employee-documents",
+        "expense-receipts",
+        "src/**"
+      ]
     },
     {
       "id": "P13-PKG-001",
       "item": "Direct @supabase/supabase-js development dependency",
       "disposition": "remove",
       "owner": "13D",
-      "evidence": ["package.json", "package-lock.json"]
+      "evidence": [
+        "package.json",
+        "package-lock.json"
+      ]
     },
     {
       "id": "P13-PKG-002",
       "item": "Six transitive Supabase packages",
       "disposition": "remove",
       "owner": "13D",
-      "evidence": ["@supabase/auth-js", "@supabase/functions-js", "@supabase/phoenix", "@supabase/postgrest-js", "@supabase/realtime-js", "@supabase/storage-js"]
+      "evidence": [
+        "@supabase/auth-js",
+        "@supabase/functions-js",
+        "@supabase/phoenix",
+        "@supabase/postgrest-js",
+        "@supabase/realtime-js",
+        "@supabase/storage-js"
+      ]
     },
     {
       "id": "P13-ENV-001",
       "item": "VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY inputs",
       "disposition": "remove",
       "owner": "13D",
-      "evidence": [".env.example", ".env.test.example", "src/lib/supabase.js", "vite.legacy-isolation.js"]
+      "evidence": [
+        ".env.example",
+        ".env.test.example",
+        "src/lib/supabase.js",
+        "vite.legacy-isolation.js"
+      ]
     },
     {
       "id": "P13-ENV-002",
       "item": "SUPABASE_SERVICE_ROLE_KEY test input",
       "disposition": "remove",
       "owner": "13D",
-      "evidence": [".env.test.example"]
+      "evidence": [
+        ".env.test.example"
+      ]
     },
     {
       "id": "P13-ENV-003",
       "item": "Checked-in Supabase URL and credential-shaped examples",
       "disposition": "remove",
       "owner": "13D",
-      "evidence": [".env.example", ".env.test.example"]
+      "evidence": [
+        ".env.example",
+        ".env.test.example"
+      ]
     },
     {
       "id": "P13-HIS-001",
       "item": "Root and sql directory legacy Supabase SQL",
       "disposition": "retain as labeled history",
       "owner": "13E",
-      "evidence": ["supabase*.sql", "sql/**"]
+      "evidence": [
+        "docs/history/legacy-supabase-sql/README.md",
+        "docs/history/legacy-supabase-sql/root/**",
+        "docs/history/legacy-supabase-sql/numbered/**"
+      ]
     },
     {
       "id": "P13-HIS-002",
       "item": "Backend migration and test references to source-system semantics",
       "disposition": "retain as labeled history",
       "owner": "13E",
-      "evidence": ["backend/alembic/versions/9f3c7b5d2a18_add_retained_business_functions.py", "backend/alembic/versions/a0d4e6f8c92b_add_runtime_grants.py", "backend/tests/test_phase4_schema.py", "backend/tests/test_seed_fixtures.py"]
+      "evidence": [
+        "backend/HISTORICAL_SOURCE_TERMS.md",
+        "backend/alembic/versions/9f3c7b5d2a18_add_retained_business_functions.py",
+        "backend/alembic/versions/a0d4e6f8c92b_add_runtime_grants.py",
+        "backend/tests/test_phase4_schema.py",
+        "backend/tests/test_seed_fixtures.py"
+      ]
     },
     {
       "id": "P13-HIS-003",
       "item": "Phase 0 through Phase 12 migration records",
       "disposition": "retain as labeled history",
       "owner": "13E",
-      "evidence": ["docs/migration/phase-0/**", "docs/migration/phase-1/**", "docs/migration/phase-2/**", "docs/migration/phase-3/**", "docs/migration/phase-4/**", "docs/migration/phase-5/**", "docs/migration/phase-6/**", "docs/migration/phase-7/**", "docs/migration/phase-8/**", "docs/migration/phase-9/**", "docs/migration/phase-10/**", "docs/migration/phase-11/**", "docs/migration/phase-12/**"]
+      "evidence": [
+        "docs/migration/HISTORICAL_RECORDS.md",
+        "docs/migration/phase-0/** through docs/migration/phase-12/**"
+      ]
     },
     {
       "id": "P13-DOC-001",
       "item": "Current setup, architecture, roadmap, checklist, and contributor documents",
       "disposition": "replace",
       "owner": "13E",
-      "evidence": ["README.md", "ARCHITECTURE.md", "CLAUDE.md", "FEATURES_ROADMAP.md", "MANUAL_TEST_CHECKLIST.md", "REMAINING_TESTS.md", "backend/README.md"]
+      "evidence": [
+        "README.md",
+        "ARCHITECTURE.md",
+        "CLAUDE.md",
+        "FEATURES_ROADMAP.md",
+        "MANUAL_TEST_CHECKLIST.md",
+        "REMAINING_TESTS.md",
+        "backend/README.md"
+      ]
     },
     {
       "id": "P13-DOC-002",
       "item": "Phase 13 current contract and evidence documents",
       "disposition": "retain as labeled history",
       "owner": "13E",
-      "evidence": ["docs/migration/phase-13/**"]
+      "evidence": [
+        "docs/migration/phase-13/**"
+      ]
     },
     {
       "id": "P13-DOC-003",
       "item": "Legacy feature-list generator",
       "disposition": "replace",
       "owner": "13E",
-      "evidence": ["generate_feature_list.py"]
+      "evidence": [
+        "generate_feature_list.py removed",
+        "FEATURES_ROADMAP.md"
+      ]
     },
     {
       "id": "P13-DOC-004",
       "item": "Generated HRMS feature-list PDF with Supabase instructions",
       "disposition": "retain as labeled history",
       "owner": "13E",
-      "evidence": ["Workloop_Clinic_HRMS_Feature_List.pdf"]
+      "evidence": [
+        "docs/history/legacy-feature-list/README.md",
+        "docs/history/legacy-feature-list/Workloop_Clinic_HRMS_Feature_List.pdf"
+      ]
     },
     {
       "id": "P13-TST-001",
       "item": "Frontend negative tests and sentinels containing Supabase names",
       "disposition": "retain as inert negative proof",
       "owner": "13E",
-      "evidence": ["tests/**"]
+      "evidence": [
+        "tests/**"
+      ]
     },
     {
       "id": "P13-TST-002",
       "item": "Verifier sentinels and historical assertions containing Supabase names",
       "disposition": "retain as inert negative proof",
       "owner": "13E",
-      "evidence": ["scripts/**"]
+      "evidence": [
+        "scripts/**"
+      ]
     },
     {
       "id": "P13-GRD-001",
       "item": "Repository guard for active references and labeled exceptions",
       "disposition": "replace",
       "owner": "13E",
-      "evidence": ["new Phase 13 guard and CI route"]
+      "evidence": [
+        "scripts/verify-phase-13e-repository-guard.mjs",
+        "scripts/phase-13e-retired-runtime-allowlist.json",
+        "tests/phase-13e-repository-guard.test.js",
+        ".github/workflows/migration-foundation.yml"
+      ]
     },
     {
       "id": "P13-DB-001",
       "item": "Portable Alembic schema at head e8a1c3f5b7d9",
       "disposition": "retain as inert negative proof",
       "owner": "13E",
-      "evidence": ["backend/alembic/versions/e8a1c3f5b7d9_extend_phase12g_output_audit.py"]
+      "evidence": [
+        "backend/alembic/versions/e8a1c3f5b7d9_extend_phase12g_output_audit.py"
+      ]
     },
     {
       "id": "P13-NET-001",
       "item": "Clean locked install and production module graph scan",
       "disposition": "replace",
       "owner": "13F",
-      "evidence": ["npm ci --ignore-scripts", "canonical production build"]
+      "evidence": [
+        "npm ci --ignore-scripts",
+        "canonical production build"
+      ]
     },
     {
       "id": "P13-NET-002",
       "item": "Supabase DNS lookup attempts",
       "disposition": "retain as inert negative proof",
       "owner": "13F",
-      "evidence": ["network capture or equivalent fail-closed harness"]
+      "evidence": [
+        "network capture or equivalent fail-closed harness"
+      ]
     },
     {
       "id": "P13-NET-003",
       "item": "Supabase HTTP, WebSocket, PostgreSQL, and object-storage attempts",
       "disposition": "retain as inert negative proof",
       "owner": "13F",
-      "evidence": ["network capture or equivalent fail-closed harness"]
+      "evidence": [
+        "network capture or equivalent fail-closed harness"
+      ]
     },
     {
       "id": "P13-NET-004",
       "item": "Fresh disposable full-stack setup without Supabase values",
       "disposition": "replace",
       "owner": "13F",
-      "evidence": ["synthetic disposable stack", "workloop-clinic_postgres_data remains untouched"]
+      "evidence": [
+        "synthetic disposable stack",
+        "workloop-clinic_postgres_data remains untouched"
+      ]
     },
     {
       "id": "P13-EXT-001",
       "item": "External Supabase project identity and status",
       "disposition": "inspect externally",
       "owner": "13G",
-      "evidence": ["repository candidate project ref lqnwmfhcogqaixgtcymc is not authoritative"]
+      "evidence": [
+        "repository candidate project ref lqnwmfhcogqaixgtcymc is not authoritative"
+      ]
     },
     {
       "id": "P13-EXT-002",
       "item": "External Supabase Auth users and metadata",
       "disposition": "inspect externally",
       "owner": "13G",
-      "evidence": ["read-only target manifest"]
+      "evidence": [
+        "read-only target manifest"
+      ]
     },
     {
       "id": "P13-EXT-003",
       "item": "External Supabase database tables and RPC objects",
       "disposition": "inspect externally",
       "owner": "13G",
-      "evidence": ["read-only counts, schema manifest, and encrypted export"]
+      "evidence": [
+        "read-only counts, schema manifest, and encrypted export"
+      ]
     },
     {
       "id": "P13-EXT-004",
       "item": "External employee-documents and expense-receipts buckets",
       "disposition": "inspect externally",
       "owner": "13G",
-      "evidence": ["read-only object counts, keys, sizes, and hashes"]
+      "evidence": [
+        "read-only object counts, keys, sizes, and hashes"
+      ]
     },
     {
       "id": "P13-EXT-005",
       "item": "External Supabase Realtime configuration",
       "disposition": "inspect externally",
       "owner": "13G",
-      "evidence": ["repository has no direct Realtime call and cannot prove external state"]
+      "evidence": [
+        "repository has no direct Realtime call and cannot prove external state"
+      ]
     },
     {
       "id": "P13-EXT-006",
       "item": "External Supabase API keys and key identifiers",
       "disposition": "inspect externally",
       "owner": "13G",
-      "evidence": ["anon and service-role names are candidates only; never record values"]
+      "evidence": [
+        "anon and service-role names are candidates only; never record values"
+      ]
     },
     {
       "id": "P13-EXT-007",
       "item": "GitHub Supabase secret and environment names",
       "disposition": "inspect externally",
       "owner": "13G",
-      "evidence": ["VITE_SUPABASE_URL", "VITE_SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", "exact store entries unresolved in repository"]
+      "evidence": [
+        "VITE_SUPABASE_URL",
+        "VITE_SUPABASE_ANON_KEY",
+        "SUPABASE_SERVICE_ROLE_KEY",
+        "exact store entries unresolved in repository"
+      ]
     },
     {
       "id": "P13-EXT-008",
       "item": "DigitalOcean Supabase secret and environment names",
       "disposition": "inspect externally",
       "owner": "13G",
-      "evidence": ["candidate names match repository environment inputs; exact store entries unresolved"]
+      "evidence": [
+        "candidate names match repository environment inputs; exact store entries unresolved"
+      ]
     },
     {
       "id": "P13-DEL-001",
       "item": "Approved Supabase keys and secret-store entries",
       "disposition": "destroy only after exact owner approval",
       "owner": "13G",
-      "evidence": ["target manifest, retention gate, exact approval, non-secret receipt"]
+      "evidence": [
+        "target manifest, retention gate, exact approval, non-secret receipt"
+      ]
     },
     {
       "id": "P13-DEL-002",
       "item": "Approved Supabase buckets and objects",
       "disposition": "destroy only after exact owner approval",
       "owner": "13G",
-      "evidence": ["object manifest, verified export, retention gate, exact approval"]
+      "evidence": [
+        "object manifest, verified export, retention gate, exact approval"
+      ]
     },
     {
       "id": "P13-DEL-003",
       "item": "Approved external Supabase project",
       "disposition": "destroy only after exact owner approval",
       "owner": "13G",
-      "evidence": ["project ref, verified restore, elapsed retention deadline, exact approval"]
+      "evidence": [
+        "project ref, verified restore, elapsed retention deadline, exact approval"
+      ]
     },
     {
       "id": "P13-RET-001",
       "item": "Encrypted export and isolated restore evidence",
       "disposition": "inspect externally",
       "owner": "13G",
-      "evidence": ["outside Git location, owner, counts, SHA-256 digests, restore result"]
+      "evidence": [
+        "outside Git location, owner, counts, SHA-256 digests, restore result"
+      ]
     },
     {
       "id": "P13-RET-002",
       "item": "Thirty-day minimum retention deadline",
       "disposition": "inspect externally",
       "owner": "13G",
-      "evidence": ["deadline begins after successful restore and may be extended but not shortened"]
+      "evidence": [
+        "deadline begins after successful restore and may be extended but not shortened"
+      ]
     },
     {
       "id": "P13-APR-001",
       "item": "Denial of unapproved destructive actions",
       "disposition": "retain as inert negative proof",
       "owner": "13G",
-      "evidence": ["no wildcard, inferred, phase-level, or partial approval"]
+      "evidence": [
+        "no wildcard, inferred, phase-level, or partial approval"
+      ]
     }
   ],
   "closures": {
@@ -532,50 +824,310 @@
         "tests/phase-13d-runtime-removal.test.js",
         "docs/migration/phase-13/PART_13D_COMPLETION.md"
       ]
+    },
+    "13E": {
+      "status": "completed",
+      "dependencies": [
+        "P13-HIS-001",
+        "P13-HIS-002",
+        "P13-HIS-003",
+        "P13-DOC-001",
+        "P13-DOC-002",
+        "P13-DOC-003",
+        "P13-DOC-004",
+        "P13-TST-001",
+        "P13-TST-002",
+        "P13-GRD-001",
+        "P13-DB-001"
+      ],
+      "goldenCases": [
+        "13A-GC-015",
+        "13A-GC-016",
+        "13A-GC-021",
+        "13A-GC-022",
+        "13A-GC-023",
+        "13A-GC-037",
+        "13A-GC-038",
+        "13A-GC-039"
+      ],
+      "evidence": [
+        "scripts/verify-phase-13e-repository-guard.mjs",
+        "scripts/phase-13e-retired-runtime-allowlist.json",
+        "tests/phase-13e-repository-guard.test.js",
+        "docs/history/legacy-supabase-sql/README.md",
+        "docs/history/legacy-feature-list/README.md",
+        "README.md",
+        "ARCHITECTURE.md",
+        "CLAUDE.md",
+        "FEATURES_ROADMAP.md",
+        "MANUAL_TEST_CHECKLIST.md",
+        "REMAINING_TESTS.md",
+        "backend/README.md",
+        "DIGITALOCEAN_MIGRATION_PLAN.md",
+        "docs/migration/phase-13/PART_13E_COMPLETION.md"
+      ]
     }
   },
   "goldenCases": [
-    {"id":"13A-GC-001","owner":"13B","area":"default command","expectation":"npm run dev starts only the migration application on the fixed migration port."},
-    {"id":"13A-GC-002","owner":"13B","area":"default command","expectation":"npm run build builds only the migration application."},
-    {"id":"13A-GC-003","owner":"13B","area":"default command","expectation":"npm run preview serves only the promoted migration output."},
-    {"id":"13A-GC-004","owner":"13B","area":"CI","expectation":"The ordinary CI frontend build consumes the promoted application and its declared output."},
-    {"id":"13A-GC-005","owner":"13B","area":"deployment","expectation":"The DigitalOcean static component consumes the same promoted command and output as CI."},
-    {"id":"13A-GC-006","owner":"13C","area":"Auth","expectation":"No canonical source imports or calls Supabase Auth, including auth-state listeners."},
-    {"id":"13A-GC-007","owner":"13C","area":"tables","expectation":"No canonical source uses Supabase table or PostgREST calls."},
-    {"id":"13A-GC-008","owner":"13C","area":"RPC","expectation":"No canonical source uses Supabase RPC calls."},
-    {"id":"13A-GC-009","owner":"13D","area":"Realtime","expectation":"No direct, transitive, bundled, or configured Supabase Realtime dependency remains."},
-    {"id":"13A-GC-010","owner":"13C","area":"Storage","expectation":"No canonical source uses Supabase Storage calls or bucket URLs."},
-    {"id":"13A-GC-011","owner":"13F","area":"absent environment","expectation":"The clean setup passes with all Supabase variables absent."},
-    {"id":"13A-GC-012","owner":"13F","area":"hostile environment","expectation":"A hostile VITE_SUPABASE_URL value cannot change the build or cause a lookup or request."},
-    {"id":"13A-GC-013","owner":"13F","area":"hostile environment","expectation":"A hostile VITE_SUPABASE_ANON_KEY value cannot enter output or runtime state."},
-    {"id":"13A-GC-014","owner":"13F","area":"hostile environment","expectation":"A hostile SUPABASE_SERVICE_ROLE_KEY value cannot enter a process that does not own it."},
-    {"id":"13A-GC-015","owner":"13E","area":"direct import","expectation":"The repository guard rejects a direct @supabase package import in active code."},
-    {"id":"13A-GC-016","owner":"13E","area":"transitive import","expectation":"The repository guard and module scan reject transitive, dynamic, aliased, and dead-code Supabase imports."},
-    {"id":"13A-GC-017","owner":"13F","area":"DNS","expectation":"Any Supabase DNS lookup attempt fails the no-network proof even when resolution fails."},
-    {"id":"13A-GC-018","owner":"13F","area":"HTTP","expectation":"Any Supabase HTTP or HTTPS request attempt fails the no-network proof before response handling."},
-    {"id":"13A-GC-019","owner":"13F","area":"WebSocket","expectation":"Any Supabase WebSocket or Realtime connection attempt fails the no-network proof."},
-    {"id":"13A-GC-020","owner":"13F","area":"database and storage network","expectation":"Any Supabase PostgreSQL or object-storage connection attempt fails the no-network proof."},
-    {"id":"13A-GC-021","owner":"13E","area":"historical file","expectation":"A needed historical SQL or migration record remains outside active paths with an explicit history label."},
-    {"id":"13A-GC-022","owner":"13E","area":"historical file","expectation":"An unlabeled Supabase file outside the approved historical allowlist fails the repository guard."},
-    {"id":"13A-GC-023","owner":"13E","area":"current documentation","expectation":"Current setup and architecture instructions cannot direct a reader to Supabase runtime setup."},
-    {"id":"13A-GC-024","owner":"13G","area":"GitHub secrets","expectation":"Read-only discovery records exact GitHub store and entry names without values."},
-    {"id":"13A-GC-025","owner":"13G","area":"DigitalOcean secrets","expectation":"Read-only discovery records exact DigitalOcean app and entry names without values."},
-    {"id":"13A-GC-026","owner":"13G","area":"secret discovery","expectation":"Missing access or unresolved secret names blocks deletion and produces no guessed target."},
-    {"id":"13A-GC-027","owner":"13G","area":"backup","expectation":"The encrypted export manifest records location, owner, object counts, byte counts, and SHA-256 digests outside Git."},
-    {"id":"13A-GC-028","owner":"13G","area":"restore","expectation":"An isolated restore reproduces schema, row counts, Auth metadata counts, object counts, and recorded digests."},
-    {"id":"13A-GC-029","owner":"13G","area":"retention","expectation":"No destructive action occurs before the thirty-day minimum retention deadline."},
-    {"id":"13A-GC-030","owner":"13G","area":"retention","expectation":"A deadline is set only after a successful restore and cannot be shortened."},
-    {"id":"13A-GC-031","owner":"13G","area":"approval","expectation":"Phase authorization alone does not authorize an external deletion or revocation."},
-    {"id":"13A-GC-032","owner":"13G","area":"approval","expectation":"Approval for one key, secret, bucket, object set, or project does not authorize any other target."},
-    {"id":"13A-GC-033","owner":"13G","area":"approval","expectation":"Wildcard, inferred, ambiguous, or stale approval is denied."},
-    {"id":"13A-GC-034","owner":"13B","area":"rollback","expectation":"The temporary legacy rollback command is explicit and never selected by environment or fallback."},
-    {"id":"13A-GC-035","owner":"13F","area":"rollback","expectation":"Repository rollback follows 13F, 13E, 13D, 13C, then 13B without mixing active runtimes."},
-    {"id":"13A-GC-036","owner":"13G","area":"rollback","expectation":"External deletion has no automatic rollback and never recreates a project."},
-    {"id":"13A-GC-037","owner":"13E","area":"schema","expectation":"The Alembic head remains e8a1c3f5b7d9 and 13A creates no schema revision."},
-    {"id":"13A-GC-038","owner":"13E","area":"coverage","expectation":"Every tracked file containing a Supabase marker matches exactly one coverage group."},
-    {"id":"13A-GC-039","owner":"13E","area":"coverage","expectation":"Every other tracked file is counted as inspected and reference-free."},
-    {"id":"13A-GC-040","owner":"13F","area":"preserved resource","expectation":"The workloop-clinic_postgres_data volume is never attached, modified, deleted, or recreated."},
-    {"id":"13A-GC-041","owner":"13F","area":"clean install","expectation":"A fresh locked dependency install and production build pass without a Supabase account or package."},
-    {"id":"13A-GC-042","owner":"13F","area":"clean setup","expectation":"The disposable setup has no Supabase credential, host mapping, bucket, project access, or network exception."}
-  ]
+    {
+      "id": "13A-GC-001",
+      "owner": "13B",
+      "area": "default command",
+      "expectation": "npm run dev starts only the migration application on the fixed migration port."
+    },
+    {
+      "id": "13A-GC-002",
+      "owner": "13B",
+      "area": "default command",
+      "expectation": "npm run build builds only the migration application."
+    },
+    {
+      "id": "13A-GC-003",
+      "owner": "13B",
+      "area": "default command",
+      "expectation": "npm run preview serves only the promoted migration output."
+    },
+    {
+      "id": "13A-GC-004",
+      "owner": "13B",
+      "area": "CI",
+      "expectation": "The ordinary CI frontend build consumes the promoted application and its declared output."
+    },
+    {
+      "id": "13A-GC-005",
+      "owner": "13B",
+      "area": "deployment",
+      "expectation": "The DigitalOcean static component consumes the same promoted command and output as CI."
+    },
+    {
+      "id": "13A-GC-006",
+      "owner": "13C",
+      "area": "Auth",
+      "expectation": "No canonical source imports or calls Supabase Auth, including auth-state listeners."
+    },
+    {
+      "id": "13A-GC-007",
+      "owner": "13C",
+      "area": "tables",
+      "expectation": "No canonical source uses Supabase table or PostgREST calls."
+    },
+    {
+      "id": "13A-GC-008",
+      "owner": "13C",
+      "area": "RPC",
+      "expectation": "No canonical source uses Supabase RPC calls."
+    },
+    {
+      "id": "13A-GC-009",
+      "owner": "13D",
+      "area": "Realtime",
+      "expectation": "No direct, transitive, bundled, or configured Supabase Realtime dependency remains."
+    },
+    {
+      "id": "13A-GC-010",
+      "owner": "13C",
+      "area": "Storage",
+      "expectation": "No canonical source uses Supabase Storage calls or bucket URLs."
+    },
+    {
+      "id": "13A-GC-011",
+      "owner": "13F",
+      "area": "absent environment",
+      "expectation": "The clean setup passes with all Supabase variables absent."
+    },
+    {
+      "id": "13A-GC-012",
+      "owner": "13F",
+      "area": "hostile environment",
+      "expectation": "A hostile VITE_SUPABASE_URL value cannot change the build or cause a lookup or request."
+    },
+    {
+      "id": "13A-GC-013",
+      "owner": "13F",
+      "area": "hostile environment",
+      "expectation": "A hostile VITE_SUPABASE_ANON_KEY value cannot enter output or runtime state."
+    },
+    {
+      "id": "13A-GC-014",
+      "owner": "13F",
+      "area": "hostile environment",
+      "expectation": "A hostile SUPABASE_SERVICE_ROLE_KEY value cannot enter a process that does not own it."
+    },
+    {
+      "id": "13A-GC-015",
+      "owner": "13E",
+      "area": "direct import",
+      "expectation": "The repository guard rejects a direct @supabase package import in active code."
+    },
+    {
+      "id": "13A-GC-016",
+      "owner": "13E",
+      "area": "transitive import",
+      "expectation": "The repository guard and module scan reject transitive, dynamic, aliased, and dead-code Supabase imports."
+    },
+    {
+      "id": "13A-GC-017",
+      "owner": "13F",
+      "area": "DNS",
+      "expectation": "Any Supabase DNS lookup attempt fails the no-network proof even when resolution fails."
+    },
+    {
+      "id": "13A-GC-018",
+      "owner": "13F",
+      "area": "HTTP",
+      "expectation": "Any Supabase HTTP or HTTPS request attempt fails the no-network proof before response handling."
+    },
+    {
+      "id": "13A-GC-019",
+      "owner": "13F",
+      "area": "WebSocket",
+      "expectation": "Any Supabase WebSocket or Realtime connection attempt fails the no-network proof."
+    },
+    {
+      "id": "13A-GC-020",
+      "owner": "13F",
+      "area": "database and storage network",
+      "expectation": "Any Supabase PostgreSQL or object-storage connection attempt fails the no-network proof."
+    },
+    {
+      "id": "13A-GC-021",
+      "owner": "13E",
+      "area": "historical file",
+      "expectation": "A needed historical SQL or migration record remains outside active paths with an explicit history label."
+    },
+    {
+      "id": "13A-GC-022",
+      "owner": "13E",
+      "area": "historical file",
+      "expectation": "An unlabeled Supabase file outside the approved historical allowlist fails the repository guard."
+    },
+    {
+      "id": "13A-GC-023",
+      "owner": "13E",
+      "area": "current documentation",
+      "expectation": "Current setup and architecture instructions cannot direct a reader to Supabase runtime setup."
+    },
+    {
+      "id": "13A-GC-024",
+      "owner": "13G",
+      "area": "GitHub secrets",
+      "expectation": "Read-only discovery records exact GitHub store and entry names without values."
+    },
+    {
+      "id": "13A-GC-025",
+      "owner": "13G",
+      "area": "DigitalOcean secrets",
+      "expectation": "Read-only discovery records exact DigitalOcean app and entry names without values."
+    },
+    {
+      "id": "13A-GC-026",
+      "owner": "13G",
+      "area": "secret discovery",
+      "expectation": "Missing access or unresolved secret names blocks deletion and produces no guessed target."
+    },
+    {
+      "id": "13A-GC-027",
+      "owner": "13G",
+      "area": "backup",
+      "expectation": "The encrypted export manifest records location, owner, object counts, byte counts, and SHA-256 digests outside Git."
+    },
+    {
+      "id": "13A-GC-028",
+      "owner": "13G",
+      "area": "restore",
+      "expectation": "An isolated restore reproduces schema, row counts, Auth metadata counts, object counts, and recorded digests."
+    },
+    {
+      "id": "13A-GC-029",
+      "owner": "13G",
+      "area": "retention",
+      "expectation": "No destructive action occurs before the thirty-day minimum retention deadline."
+    },
+    {
+      "id": "13A-GC-030",
+      "owner": "13G",
+      "area": "retention",
+      "expectation": "A deadline is set only after a successful restore and cannot be shortened."
+    },
+    {
+      "id": "13A-GC-031",
+      "owner": "13G",
+      "area": "approval",
+      "expectation": "Phase authorization alone does not authorize an external deletion or revocation."
+    },
+    {
+      "id": "13A-GC-032",
+      "owner": "13G",
+      "area": "approval",
+      "expectation": "Approval for one key, secret, bucket, object set, or project does not authorize any other target."
+    },
+    {
+      "id": "13A-GC-033",
+      "owner": "13G",
+      "area": "approval",
+      "expectation": "Wildcard, inferred, ambiguous, or stale approval is denied."
+    },
+    {
+      "id": "13A-GC-034",
+      "owner": "13B",
+      "area": "rollback",
+      "expectation": "The temporary legacy rollback command is explicit and never selected by environment or fallback."
+    },
+    {
+      "id": "13A-GC-035",
+      "owner": "13F",
+      "area": "rollback",
+      "expectation": "Repository rollback follows 13F, 13E, 13D, 13C, then 13B without mixing active runtimes."
+    },
+    {
+      "id": "13A-GC-036",
+      "owner": "13G",
+      "area": "rollback",
+      "expectation": "External deletion has no automatic rollback and never recreates a project."
+    },
+    {
+      "id": "13A-GC-037",
+      "owner": "13E",
+      "area": "schema",
+      "expectation": "The Alembic head remains e8a1c3f5b7d9 and 13A creates no schema revision."
+    },
+    {
+      "id": "13A-GC-038",
+      "owner": "13E",
+      "area": "coverage",
+      "expectation": "Every tracked file containing a Supabase marker matches exactly one coverage group."
+    },
+    {
+      "id": "13A-GC-039",
+      "owner": "13E",
+      "area": "coverage",
+      "expectation": "Every other tracked file is counted as inspected and reference-free."
+    },
+    {
+      "id": "13A-GC-040",
+      "owner": "13F",
+      "area": "preserved resource",
+      "expectation": "The workloop-clinic_postgres_data volume is never attached, modified, deleted, or recreated."
+    },
+    {
+      "id": "13A-GC-041",
+      "owner": "13F",
+      "area": "clean install",
+      "expectation": "A fresh locked dependency install and production build pass without a Supabase account or package."
+    },
+    {
+      "id": "13A-GC-042",
+      "owner": "13F",
+      "area": "clean setup",
+      "expectation": "The disposable setup has no Supabase credential, host mapping, bucket, project access, or network exception."
+    }
+  ],
+  "repositoryGuard": {
+    "policy": "scripts/phase-13e-retired-runtime-allowlist.json",
+    "verifier": "scripts/verify-phase-13e-repository-guard.mjs",
+    "test": "tests/phase-13e-repository-guard.test.js",
+    "ci": ".github/workflows/migration-foundation.yml",
+    "selectorRule": "exact repository-relative paths only",
+    "historyLabel": "Historical record. Do not run or deploy these files."
+  }
 }

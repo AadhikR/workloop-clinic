@@ -1,0 +1,1 @@
+https://retired-service.supabase.invalid/rest/v1/example
