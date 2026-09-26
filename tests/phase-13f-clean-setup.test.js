@@ -99,6 +99,7 @@ test('covers builds, browsers, backend processes, workers, and test helpers', ()
     assert.match(overlay, new RegExp(`  ${service}:\\n    <<: \\*phase13f-python-guard`))
   }
   assert.match(read('scripts/verify-phase-3g-browser.mjs'), /installBrowserNetworkGuard/)
+  assert.match(read('scripts/verify-phase-3g-browser.mjs'), /--new-password="\$password"/)
   assert.match(read('scripts/verify-phase-13f-browser.mjs'), /WORKLOOP_PHASE13F_NETWORK_GUARD/)
   assert.match(read('scripts/verify-phase-13f-clean-setup.mjs'), /'ci', '--ignore-scripts', '--no-audit'/)
 })

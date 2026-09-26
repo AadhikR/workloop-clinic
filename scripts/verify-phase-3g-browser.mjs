@@ -154,7 +154,7 @@ function setPassword(userId, password) {
   run([
     'exec', '-T', 'keycloak', 'sh', '-c',
     `IFS= read -r password; /opt/keycloak/bin/kcadm.sh set-password --config ${kcadmConfig} `
-      + `-r workloop-dev --userid ${userId} --new-password "$password" --temporary=false`,
+      + `-r workloop-dev --userid ${userId} --new-password="$password" --temporary=false`,
   ], { input: password })
 }
 
