@@ -1097,6 +1097,23 @@ Dashboards, tasks, notifications, reports, and exports return role-scoped result
 
 Prove that the application no longer requires any Supabase service at runtime.
 
+### Part plan
+
+Phase 13 runs as Parts 13A through 13H. The canonical scope, order, rollback boundaries, external
+approval gate, and verification requirements are in
+[`docs/migration/phase-13/SUBPHASE_PLAN.md`](docs/migration/phase-13/SUBPHASE_PLAN.md).
+
+| Part | Scope |
+|---|---|
+| 13A | Dependency inventory, promotion contract, retention rules, golden cases, and decommission design |
+| 13B | Promote the migration frontend to the default application |
+| 13C | Move the promoted frontend to canonical paths and remove the legacy frontend |
+| 13D | Remove the Supabase package, environment inputs, and active runtime configuration |
+| 13E | Isolate historical material, update current documentation, and add repository guardrails |
+| 13F | Prove a clean setup and full application run with no Supabase network access |
+| 13G | Verify retention, then decommission exact external resources after separate owner approval |
+| 13H | Independently review the complete Phase 13 boundary and request phase signoff |
+
 ### Work
 
 - Search the entire repository, CI settings, GitHub environments, local examples, tests, and deployment configuration for Supabase dependencies and secrets.
