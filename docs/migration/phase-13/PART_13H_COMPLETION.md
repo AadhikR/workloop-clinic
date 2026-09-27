@@ -2,9 +2,8 @@
 
 ## Status
 
-Part 13H implementation and the complete local closing gate passed on 2026-09-27. Phase 13 is
-complete when every routed GitHub job passes for the commit containing this record. The project
-owner must then give one explicit Phase 13 signoff. Phase 14 has not started.
+Part 13H and Phase 13 are complete. The project owner signed off Phase 13 on 2026-09-27 after the
+local closing gate and routed GitHub checks passed. Phase 14 has not started.
 
 ## Independent review result
 
@@ -37,6 +36,9 @@ The new Part 13H verifier and five focused tests passed. They prove:
 The complete Phase 13 focused suite passed 52 tests. The repository guard passed after adding exact
 paths for the review record and verifier. The final allowlist digest is
 `bf7d1b31ea42b5b642140d5ca68c9141318fbd0e17cfbb7e371bbd0d4943338a`.
+
+GitHub Migration foundation run `36316708601` passed classification, backend quality, frontend
+regression, and full-stack smoke on commit `a1c1358fc06442213f555093f3f98cfc8cc46d20`.
 
 ## Local closing gate
 
@@ -98,6 +100,5 @@ Repository rollback remains 13F, 13E, 13D, 13C, then 13B. It must never enable t
 beside the canonical application. External deletion has no automatic rollback and remains outside
 Phase 13.
 
-After every routed GitHub job passes and the branch is clean and synchronized, the project owner is
-asked to sign off Phase 13 as a whole. Do not create or start Phase 14 before that explicit signoff
-and a separate Phase 14 instruction.
+The project owner signed off Phase 13 as a whole on 2026-09-27. Phase 14 still requires a separate
+owner instruction and has not started.

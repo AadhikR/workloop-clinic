@@ -17,6 +17,10 @@ external Supabase project indefinitely. That decision replaces external deletion
 completion condition. The retained project is archive-only. It cannot rejoin the active Workloop
 runtime, and this phase grants no authority to revoke its keys or delete its data.
 
+Phase 13 is complete. The project owner signed it off on 2026-09-27 after commit `a1c1358` and
+GitHub Migration foundation run `36316708601` passed. Phase 14 requires a separate owner instruction
+and has not started.
+
 ## Phase boundary
 
 Phase 13 makes the Keycloak, FastAPI, portable PostgreSQL, and private object-storage application
@@ -151,8 +155,8 @@ source and dependency scans, current documentation, historical-file labels, clea
 capture, export and restore evidence, secret-store results, the archive-only external project state,
 rollback order, safe logs, and disposable cleanup.
 
-The closing gate runs one complete local and routed full-stack proof. Part 13H records Phase 13
-completion and asks the project owner for one signoff. It does not start Phase 14.
+The closing gate ran one complete local and routed full-stack proof. The project owner signed off
+Phase 13 on 2026-09-27. Phase 14 has not started.
 
 ## Shared verification and source control
 
