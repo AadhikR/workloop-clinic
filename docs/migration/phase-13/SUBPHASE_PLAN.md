@@ -12,6 +12,11 @@ Phase 13 starts from commit `71ee41636ab3f06f62b8d2d3cd0580675c251d5f` on
 head at `e8a1c3f5b7d9`. The protected `workloop-clinic_postgres_data` volume remains present and must
 not be attached, modified, deleted, or recreated.
 
+On 2026-09-27, after the verified 13G export and restore, the project owner chose to retain the
+external Supabase project indefinitely. That decision replaces external deletion as the 13G
+completion condition. The retained project is archive-only. It cannot rejoin the active Workloop
+runtime, and this phase grants no authority to revoke its keys or delete its data.
+
 ## Phase boundary
 
 Phase 13 makes the Keycloak, FastAPI, portable PostgreSQL, and private object-storage application
@@ -46,8 +51,8 @@ The following work is outside the standing authorization:
 | 13D | Supabase package, environment, and active configuration removal | No active source, package, lockfile, environment example, CI, Compose, infrastructure, or bootstrap path requires Supabase | Restore only from the 13C boundary; never mix restored Supabase runtime with the promoted application |
 | 13E | Historical SQL, tests, docs, and repository guardrails | Historical material is labeled and isolated; current docs and tests describe one runtime; automated scans reject new active Supabase dependencies | Revert documentation and guardrails without restoring runtime dependencies |
 | 13F | Clean setup and no-network proof | A fresh disposable setup builds and passes the full application gate with no Supabase URL, key, account, bucket, DNS lookup, or request | Return to the 13E commit; preserve test evidence and do not alter external services |
-| 13G | Retention proof and external decommission | Approved encrypted exports and object hashes are verified outside Git, then specifically approved keys, secrets, buckets, and the Supabase project are revoked or deleted | Stop before each destructive action unless the owner has approved its exact target; external deletion has no repository rollback |
-| 13H | Independent review and complete Phase 13 gate | Repository, clean setup, network capture, secret-store evidence, retention evidence, and external state prove no Supabase runtime dependency | Restore the promoted application from source control; never recreate an external project as an automatic rollback |
+| 13G | Retention proof and external disposition | Encrypted exports and object hashes are verified outside Git, the owner retention decision is recorded, and every destructive action remains denied | Preserve the external project and archive; a future deletion needs a new scope amendment and fresh exact approval |
+| 13H | Independent review and complete Phase 13 gate | Repository, clean setup, network capture, secret-store evidence, retention evidence, and the retained external state prove no Supabase runtime dependency | Restore the promoted application from source control; do not modify the retained external project |
 
 ## Part 13A dependency and decommission contract
 
@@ -126,25 +131,25 @@ The proof restarts existing images without rebuilding and compares database, sig
 object state. It removes only its named disposable resources. It does not inspect or modify any
 external Supabase resource.
 
-## Part 13G retention and external decommission
+## Part 13G retention and external disposition
 
 13G begins with read-only discovery and a target manifest. It records the Supabase project, Auth
 metadata, buckets, object counts and hashes, secret names, retention owner, encrypted export
-location, restore check, and retention deadline without committing secrets or private data. The
-project owner must then approve the exact destructive targets. Phase-level authorization alone does
-not authorize revocation or deletion.
+location, restore check, and minimum retention deadline without committing secrets or private data.
+The verified restore established the recovery evidence. The owner then selected indefinite
+retention instead of deletion.
 
-After that approval, 13G revokes the approved API keys, removes the named GitHub and DigitalOcean
-secrets, deletes approved obsolete buckets and objects, and deletes the approved Supabase project.
-It records non-secret receipts or hashes. If credentials, retention evidence, access, or approval are
-missing, the task stops at the prepared manifest and reports the boundary.
+Part 13G records that decision, keeps the approval manifest empty, and makes the destructive-action
+verifier deny every settled target. The project, keys, Auth records, database, buckets, and objects
+remain unchanged. A future deletion is outside this phase and needs a new scope amendment, a fresh
+read-only target manifest, and fresh exact approvals.
 
 ## Part 13H independent review
 
 13H independently traces every 13A inventory entry and golden case. It verifies the canonical build,
 source and dependency scans, current documentation, historical-file labels, clean setup, no-network
-capture, retention receipts, secret-store results, external project state, rollback order, safe logs,
-and disposable cleanup.
+capture, export and restore evidence, secret-store results, the archive-only external project state,
+rollback order, safe logs, and disposable cleanup.
 
 The closing gate runs one complete local and routed full-stack proof. Part 13H records Phase 13
 completion and asks the project owner for one signoff. It does not start Phase 14.
@@ -158,9 +163,7 @@ full-stack gate. Documentation-only completion edits use lightweight validation.
 
 Every nonfinal part leaves a clean synchronized `migration/fastapi-keycloak` branch, generates the
 next handoff from verified repository state, creates a new task in the same saved project and local
-checkout, and starts it without another owner approval. The separate destructive approval inside
-13G applies only to the exact external targets. It does not interrupt routine execution of 13A
-through 13F.
+checkout, and starts it without another owner approval. Part 13G grants no destructive approval.
 
 ## Resource and data boundary
 

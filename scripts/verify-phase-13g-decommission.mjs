@@ -153,13 +153,23 @@ function validateResolvedEvidence(manifest) {
   }
 
   const retention = manifest.retention
-  if (retention?.status !== 'active'
+  if (!['active', 'indefinite'].includes(retention?.status)
     || retention.minimumCalendarDays !== 30
-    || retention.startsAt !== manifest.restore?.completedAt
-    || !validUtc(retention.deadline)) {
+    || retention.startsAt !== manifest.restore?.completedAt) {
     reasons.push('retention evidence is incomplete or did not start at restore completion')
-  } else if (new Date(retention.deadline) < addDays(retention.startsAt, 30)) {
-    reasons.push('retention deadline is shorter than 30 calendar days')
+  } else if (retention.status === 'active') {
+    if (!validUtc(retention.deadline)) {
+      reasons.push('retention deadline is missing')
+    } else if (new Date(retention.deadline) < addDays(retention.startsAt, 30)) {
+      reasons.push('retention deadline is shorter than 30 calendar days')
+    }
+  } else if (!validUtc(retention.minimumDeadline)
+    || new Date(retention.minimumDeadline) < addDays(retention.startsAt, 30)
+    || retention.deadline !== null
+    || !validUtc(retention.decisionAt)
+    || retention.decidedBy !== 'project-owner'
+    || retention.disposition !== 'retain-external-project') {
+    reasons.push('indefinite retention decision is incomplete')
   }
 
   return reasons
@@ -167,6 +177,9 @@ function validateResolvedEvidence(manifest) {
 
 export function evaluateAction({ targetManifest, approvalManifest, action, now }) {
   const reasons = validateResolvedEvidence(targetManifest)
+  if (targetManifest.retention?.status === 'indefinite') {
+    reasons.push('project owner retained target; destructive actions are prohibited')
+  }
   const collectionName = targetCollections[action?.kind]
   if (!collectionName) reasons.push('action kind is not allowed')
   if (hasBroadSelector(action?.target)) reasons.push('wildcard or broad target is not allowed')
@@ -228,7 +241,7 @@ export function evaluateAction({ targetManifest, approvalManifest, action, now }
   return { allowed: reasons.length === 0, reasons: [...new Set(reasons)] }
 }
 
-export function validatePreparedBoundary(targetManifest, approvalManifest) {
+export function validateRetainedBoundary(targetManifest, approvalManifest) {
   const errors = []
   if (targetManifest.version !== 1 || targetManifest.mode !== 'read-only') {
     errors.push('target manifest must be a version 1 read-only record')
@@ -281,8 +294,11 @@ export function validatePreparedBoundary(targetManifest, approvalManifest) {
     if (targets.length !== 0) errors.push('unverified restore must not prepare a destructive target')
   }
   if (targetManifest.receipts?.length !== 0) errors.push('prepared boundary must not record action receipts')
-  if (approvalManifest.status !== 'ineligible' || approvalManifest.approvals?.length !== 0) {
-    errors.push('approval manifest must remain ineligible and empty')
+  if (targetManifest.retention?.status !== 'indefinite') {
+    errors.push('retention must record the owner\'s indefinite-retention decision')
+  }
+  if (approvalManifest.status !== 'retained' || approvalManifest.approvals?.length !== 0) {
+    errors.push('approval manifest must record retention and contain no approvals')
   }
   if (approvalManifest.targetManifestSha256 !== digestManifest(targetManifest)) {
     errors.push('approval manifest digest does not bind the target manifest')
@@ -293,13 +309,13 @@ export function validatePreparedBoundary(targetManifest, approvalManifest) {
 function main() {
   const targetManifest = JSON.parse(readFileSync(targetManifestPath, 'utf8'))
   const approvalManifest = JSON.parse(readFileSync(approvalManifestPath, 'utf8'))
-  const errors = validatePreparedBoundary(targetManifest, approvalManifest)
+  const errors = validateRetainedBoundary(targetManifest, approvalManifest)
   if (errors.length > 0) {
     for (const error of errors) process.stderr.write(`Part 13G boundary: ${error}\n`)
     process.exitCode = 1
     return
   }
-  process.stdout.write('Part 13G prepared boundary passed: verified retention evidence remains read-only and destruction is ineligible.\n')
+  process.stdout.write('Part 13G retention boundary passed: the verified external archive is retained and every destructive action remains denied.\n')
 }
 
 if (path.resolve(process.argv[1] ?? '') === fileURLToPath(import.meta.url)) main()

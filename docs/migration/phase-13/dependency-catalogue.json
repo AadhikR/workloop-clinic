@@ -10,6 +10,7 @@
     "retain as inert negative proof",
     "retain as labeled history",
     "inspect externally",
+    "retain externally by owner decision",
     "destroy only after exact owner approval"
   ],
   "allowedOwners": [
@@ -721,28 +722,31 @@
     {
       "id": "P13-DEL-001",
       "item": "Approved Supabase keys and secret-store entries",
-      "disposition": "destroy only after exact owner approval",
+      "disposition": "retain externally by owner decision",
       "owner": "13G",
       "evidence": [
-        "target manifest, retention gate, exact approval, non-secret receipt"
+        "project-owner indefinite-retention decision",
+        "empty approval manifest and fail-closed action verifier"
       ]
     },
     {
       "id": "P13-DEL-002",
       "item": "Approved Supabase buckets and objects",
-      "disposition": "destroy only after exact owner approval",
+      "disposition": "retain externally by owner decision",
       "owner": "13G",
       "evidence": [
-        "object manifest, verified export, retention gate, exact approval"
+        "project-owner indefinite-retention decision",
+        "verified object manifest retained without mutation"
       ]
     },
     {
       "id": "P13-DEL-003",
       "item": "Approved external Supabase project",
-      "disposition": "destroy only after exact owner approval",
+      "disposition": "retain externally by owner decision",
       "owner": "13G",
       "evidence": [
-        "project ref, verified restore, elapsed retention deadline, exact approval"
+        "project-owner indefinite-retention decision",
+        "project ref retained as an archive outside the active runtime"
       ]
     },
     {
@@ -760,7 +764,8 @@
       "disposition": "inspect externally",
       "owner": "13G",
       "evidence": [
-        "deadline begins after successful restore and may be extended but not shortened"
+        "minimum deadline began after successful restore",
+        "owner extended retention indefinitely without shortening the minimum"
       ]
     },
     {
@@ -902,12 +907,10 @@
         "tests/phase-13f-clean-setup.test.js",
         "docs/migration/phase-13/PART_13F_COMPLETION.md"
       ]
-    }
-  },
-  "boundaries": {
+    },
     "13G": {
-      "status": "blocked",
-      "resolvedDependencies": [
+      "status": "completed",
+      "dependencies": [
         "P13-EXT-001",
         "P13-EXT-002",
         "P13-EXT-003",
@@ -917,15 +920,13 @@
         "P13-EXT-007",
         "P13-EXT-008",
         "P13-APR-001",
-        "P13-RET-001"
-      ],
-      "unresolvedDependencies": [
         "P13-DEL-001",
         "P13-DEL-002",
         "P13-DEL-003",
+        "P13-RET-001",
         "P13-RET-002"
       ],
-      "verifiedGoldenCases": [
+      "goldenCases": [
         "13A-GC-024",
         "13A-GC-025",
         "13A-GC-026",
@@ -938,17 +939,16 @@
         "13A-GC-033",
         "13A-GC-036"
       ],
-      "unresolvedGoldenCases": [],
       "evidence": [
         "docs/migration/phase-13/PART_13G_TARGET_MANIFEST.json",
         "docs/migration/phase-13/PART_13G_APPROVAL_MANIFEST.json",
         "scripts/verify-phase-13g-decommission.mjs",
-        "tests/fixtures/phase-13g/approval-cases.json",
         "tests/phase-13g-decommission.test.js",
         "docs/migration/phase-13/PART_13G_COMPLETION.md"
       ]
     }
   },
+  "boundaries": {},
   "goldenCases": [
     {
       "id": "13A-GC-001",

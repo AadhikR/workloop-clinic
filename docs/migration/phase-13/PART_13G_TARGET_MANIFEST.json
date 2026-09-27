@@ -337,10 +337,14 @@
     "encryptedArtifactsRetained": true
   },
   "retention": {
-    "status": "active",
+    "status": "indefinite",
     "minimumCalendarDays": 30,
     "startsAt": "2026-09-27T09:06:58Z",
-    "deadline": "2026-10-27T09:06:58Z"
+    "minimumDeadline": "2026-10-27T09:06:58Z",
+    "deadline": null,
+    "decisionAt": "2026-09-27T10:35:26Z",
+    "decidedBy": "project-owner",
+    "disposition": "retain-external-project"
   },
   "destructiveTargets": {
     "apiKeys": [
@@ -395,8 +399,8 @@
     "workloop-clinic_postgres_data"
   ],
   "blockers": [
-    "The 30-calendar-day retention deadline has not elapsed.",
-    "Fresh project-owner approval is required for each exact destructive target after the retention deadline.",
-    "No external revocation or deletion is authorized before both gates pass."
+    "The project owner chose indefinite retention, so every external revocation and deletion remains prohibited.",
+    "A future deletion requires a new phase-scope amendment, a fresh read-only manifest, and fresh exact approvals.",
+    "The retained Supabase project is archive-only and must not return to the Workloop runtime."
   ]
 }

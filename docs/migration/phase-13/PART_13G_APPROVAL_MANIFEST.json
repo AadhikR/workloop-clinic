@@ -1,8 +1,8 @@
 {
   "version": 1,
   "targetManifestPath": "docs/migration/phase-13/PART_13G_TARGET_MANIFEST.json",
-  "targetManifestSha256": "41fa967d21902aaa2cb2e652521540118d31980c8d13c0f298874c1f8f4db13e",
-  "status": "ineligible",
-  "reason": "The verified retention deadline is 2026-10-27T09:06:58Z. Fresh exact approvals are ineligible until that deadline elapses.",
+  "targetManifestSha256": "28a2e4593d06ac01e69adb71ad301ac7f6400eee2b49bc0e975cdc8d97676967",
+  "status": "retained",
+  "reason": "The project owner chose indefinite retention on 2026-09-27. This manifest grants no destructive approval.",
   "approvals": []
 }

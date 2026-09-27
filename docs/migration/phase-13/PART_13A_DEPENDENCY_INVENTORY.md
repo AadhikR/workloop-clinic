@@ -20,6 +20,7 @@ must match its ID, item, disposition, and owner fields exactly. The only allowed
 - `retain as inert negative proof`
 - `retain as labeled history`
 - `inspect externally`
+- `retain externally by owner decision`
 - `destroy only after exact owner approval`
 
 Each item has one owner from 13B through 13G. Part 13H reviews the result but owns no change.
@@ -185,9 +186,9 @@ modify, delete, or recreate `workloop-clinic_postgres_data`.
 | `P13-EXT-006` | External Supabase API keys and key identifiers | `inspect externally` | 13G |
 | `P13-EXT-007` | GitHub Supabase secret and environment names | `inspect externally` | 13G |
 | `P13-EXT-008` | DigitalOcean Supabase secret and environment names | `inspect externally` | 13G |
-| `P13-DEL-001` | Approved Supabase keys and secret-store entries | `destroy only after exact owner approval` | 13G |
-| `P13-DEL-002` | Approved Supabase buckets and objects | `destroy only after exact owner approval` | 13G |
-| `P13-DEL-003` | Approved external Supabase project | `destroy only after exact owner approval` | 13G |
+| `P13-DEL-001` | Approved Supabase keys and secret-store entries | `retain externally by owner decision` | 13G |
+| `P13-DEL-002` | Approved Supabase buckets and objects | `retain externally by owner decision` | 13G |
+| `P13-DEL-003` | Approved external Supabase project | `retain externally by owner decision` | 13G |
 | `P13-RET-001` | Encrypted export and isolated restore evidence | `inspect externally` | 13G |
 | `P13-RET-002` | Thirty-day minimum retention deadline | `inspect externally` | 13G |
 | `P13-APR-001` | Denial of unapproved destructive actions | `retain as inert negative proof` | 13G |

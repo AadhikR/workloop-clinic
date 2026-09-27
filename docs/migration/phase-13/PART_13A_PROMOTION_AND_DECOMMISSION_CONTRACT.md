@@ -7,6 +7,18 @@ secret, cloud resource, or external service in Part 13A. If a later implementati
 with this contract, the later part must choose the narrower fail-closed behavior and record the
 reason before its gate.
 
+### Part 13G retention amendment
+
+On 2026-09-27, after the correct Workloop Supabase project passed encrypted export and isolated
+restore verification, the project owner chose indefinite retention instead of external deletion.
+This is the narrower fail-closed outcome. It closes Part 13G without revoking keys, deleting stored
+objects, or deleting the project.
+
+The deletion rules below remain the minimum requirements for any future decommission request, but
+they grant no authority in Phase 13. A future deletion requires a new phase-scope amendment, a fresh
+read-only manifest, and fresh exact owner approvals. Until then, the external project is archive-only
+and cannot return to the active Workloop runtime.
+
 ## Canonical application promotion
 
 Part 13B changes the ordinary frontend commands as one bounded promotion:

@@ -1,14 +1,15 @@
-# Part 13G retention boundary
+# Part 13G retention and external disposition completion
 
 ## Status
 
-Part 13G remains blocked until the 30-calendar-day retention period ends. The correct Supabase
-project has a current encrypted export and a passing isolated restore. No key, secret, bucket,
-object, project, or other external resource was revoked, changed, or deleted.
+Part 13G is complete. The correct Supabase project has a current encrypted export and a passing
+isolated restore. On 2026-09-27, the project owner chose to retain that project indefinitely instead
+of deleting it. No key, secret, bucket, object, project, or other external resource was revoked,
+changed, or deleted.
 
-The retention period started at `2026-09-27T09:06:58Z`. Its earliest allowed deadline is
-`2026-10-27T09:06:58Z`. Fresh project-owner approval for each exact destructive target is required
-after that deadline.
+The minimum retention period started at `2026-09-27T09:06:58Z` and would have ended at
+`2026-10-27T09:06:58Z`. Indefinite retention extends that minimum without shortening it. The
+approval manifest contains no destructive approvals, and the verifier denies every settled target.
 
 ## Corrected project identity
 
@@ -74,16 +75,17 @@ metadata digests match. The normalized comparison digest is
 `3b257f851063f542c4c272ee5cd5b795a22c3a59700c539ae6ae6d6e0f1b5267`. The manifest evidence
 digest is `c0a68fa0b54b5a5507eb4c387bced3d743f525689f563f947f1c100c59072d16` for both sides.
 
-## Cleanup and remaining gate
+## Cleanup and settled disposition
 
 The disposable restore container, plaintext dump, plaintext count inventory, temporary directory,
 and five temporary helper files were removed. The encrypted artifacts remain. The protected Docker
 volume `workloop-clinic_postgres_data` remains present and unchanged.
 
-`P13-RET-001`, `13A-GC-028`, and `13A-GC-030` now pass. `P13-RET-002` remains open until the
-retention deadline. `P13-DEL-001`, `P13-DEL-002`, and `P13-DEL-003` remain open until the deadline
-has elapsed and the project owner gives fresh exact approvals.
+The owner decision closes `P13-RET-002`, `P13-DEL-001`, `P13-DEL-002`, and `P13-DEL-003` by changing
+their disposition from planned destruction to external retention. All Part 13G dependencies and
+golden cases now pass. The retained project is archive-only and has no active application,
+configuration, package, credential, or network dependency in the Workloop runtime.
 
-Part 13H must not start yet. After `2026-10-27T09:06:58Z`, repeat the read-only target preflight and
-request separate approval for each settled key, storage set, and project target. Do not perform a
-revocation or deletion before both conditions pass.
+Part 13H may start. Its independent review must treat the Supabase project, its keys, its Auth data,
+its database, and both storage buckets as preserved resources. Any future deletion is outside Phase
+13 and requires a new scope amendment, a fresh read-only manifest, and fresh exact owner approvals.

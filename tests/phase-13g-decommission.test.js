@@ -9,7 +9,7 @@ import {
   digestEvidence,
   digestManifest,
   evaluateAction,
-  validatePreparedBoundary,
+  validateRetainedBoundary,
 } from '../scripts/verify-phase-13g-decommission.mjs'
 
 const repositoryDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -162,10 +162,10 @@ function alembicHeads() {
   return [...revisions].filter((revision) => !predecessors.has(revision)).sort()
 }
 
-test('keeps the repository boundary fail closed during active retention', () => {
+test('records the owner retention decision and keeps destruction fail closed', () => {
   const targetManifest = readJson('docs/migration/phase-13/PART_13G_TARGET_MANIFEST.json')
   const approvalManifest = readJson('docs/migration/phase-13/PART_13G_APPROVAL_MANIFEST.json')
-  assert.deepEqual(validatePreparedBoundary(targetManifest, approvalManifest), [])
+  assert.deepEqual(validateRetainedBoundary(targetManifest, approvalManifest), [])
   assert.equal(targetManifest.discovery.externalProject.repositoryCandidateAuthoritative, true)
   assert.deepEqual(targetManifest.discovery.github.environmentNames, [])
   assert.ok(targetManifest.discovery.github.secretStores.every((store) => store.entries.length === 0))
@@ -182,14 +182,46 @@ test('keeps the repository boundary fail closed during active retention', () => 
   assert.equal(targetManifest.restore.restoredRowCount, 1005)
   assert.equal(targetManifest.cleanup.disposableRestoreContainerRemoved, true)
   assert.equal(targetManifest.cleanup.encryptedArtifactsRetained, true)
-  assert.equal(targetManifest.retention.status, 'active')
+  assert.equal(targetManifest.retention.status, 'indefinite')
   assert.equal(targetManifest.retention.startsAt, targetManifest.restore.completedAt)
-  assert.equal(targetManifest.retention.deadline, '2026-10-27T09:06:58Z')
+  assert.equal(targetManifest.retention.minimumDeadline, '2026-10-27T09:06:58Z')
+  assert.equal(targetManifest.retention.deadline, null)
+  assert.equal(targetManifest.retention.decidedBy, 'project-owner')
+  assert.equal(targetManifest.retention.disposition, 'retain-external-project')
   assert.equal(targetManifest.destructiveTargets.apiKeys.length, 4)
   assert.equal(targetManifest.destructiveTargets.storageSets.length, 2)
   assert.equal(targetManifest.destructiveTargets.projects.length, 1)
-  assert.equal(approvalManifest.status, 'ineligible')
+  assert.equal(approvalManifest.status, 'retained')
   assert.deepEqual(approvalManifest.approvals, [])
+})
+
+test('denies every current target after the owner chooses indefinite retention', () => {
+  const targetManifest = readJson('docs/migration/phase-13/PART_13G_TARGET_MANIFEST.json')
+  const approvalManifest = readJson('docs/migration/phase-13/PART_13G_APPROVAL_MANIFEST.json')
+  const kinds = {
+    apiKeys: 'api-key',
+    githubSecrets: 'github-secret',
+    digitalOceanSecrets: 'digitalocean-secret',
+    storageSets: 'storage-set',
+    projects: 'project',
+  }
+  for (const [collection, kind] of Object.entries(kinds)) {
+    for (const target of targetManifest.destructiveTargets[collection]) {
+      const result = evaluateAction({
+        targetManifest,
+        approvalManifest,
+        action: {
+          kind,
+          target,
+          preflightTargetSha256: targetDigest(target),
+          preflightObservedAt: '2026-11-01T00:00:00Z',
+        },
+        now: '2026-11-01T00:00:00Z',
+      })
+      assert.equal(result.allowed, false)
+      assert.ok(result.reasons.includes('project owner retained target; destructive actions are prohibited'))
+    }
+  }
 })
 
 test('allows only independently approved exact targets after restore and retention', () => {
@@ -251,11 +283,11 @@ test('contains no external mutation or project recreation implementation', () =>
   assert.doesNotMatch(source, /createProject|restoreProject|recreateProject/i)
 })
 
-test('records the blocked catalogue boundary without claiming Part 13G closure', () => {
+test('records the completed Part 13G retained-project closure', () => {
   const catalogue = readJson('docs/migration/phase-13/dependency-catalogue.json')
-  assert.equal(catalogue.closures['13G'], undefined)
-  assert.equal(catalogue.boundaries['13G'].status, 'blocked')
-  assert.deepEqual(catalogue.boundaries['13G'].resolvedDependencies, [
+  assert.equal(catalogue.boundaries['13G'], undefined)
+  assert.equal(catalogue.closures['13G'].status, 'completed')
+  assert.deepEqual(catalogue.closures['13G'].dependencies, [
     'P13-EXT-001',
     'P13-EXT-002',
     'P13-EXT-003',
@@ -265,12 +297,14 @@ test('records the blocked catalogue boundary without claiming Part 13G closure',
     'P13-EXT-007',
     'P13-EXT-008',
     'P13-APR-001',
+    'P13-DEL-001',
+    'P13-DEL-002',
+    'P13-DEL-003',
     'P13-RET-001',
+    'P13-RET-002',
   ])
-  assert.ok(catalogue.boundaries['13G'].unresolvedDependencies.includes('P13-RET-002'))
-  assert.ok(catalogue.boundaries['13G'].verifiedGoldenCases.includes('13A-GC-027'))
-  assert.ok(catalogue.boundaries['13G'].verifiedGoldenCases.includes('13A-GC-028'))
-  assert.ok(catalogue.boundaries['13G'].verifiedGoldenCases.includes('13A-GC-030'))
-  assert.deepEqual(catalogue.boundaries['13G'].unresolvedGoldenCases, [])
+  assert.ok(catalogue.closures['13G'].goldenCases.includes('13A-GC-027'))
+  assert.ok(catalogue.closures['13G'].goldenCases.includes('13A-GC-028'))
+  assert.ok(catalogue.closures['13G'].goldenCases.includes('13A-GC-030'))
   assert.deepEqual(alembicHeads(), ['e8a1c3f5b7d9'])
 })
