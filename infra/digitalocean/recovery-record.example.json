@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "template": true,
+  "rehearsalId": "phase14f-local-recovery",
+  "observedAt": "2026-09-27T12:00:00Z",
+  "environment": "isolated-local",
+  "operator": "synthetic-backup-custodian",
+  "releaseId": "phase14f-reviewed-current",
+  "alembicHead": "e8a1c3f5b7d9",
+  "source": {
+    "composeProject": "workloop-phase14f-source",
+    "databaseCount": 2,
+    "objectVersionCount": 3,
+    "objectCount": 3,
+    "objectBytes": 81
+  },
+  "restore": {
+    "composeProject": "workloop-phase14f-restore",
+    "postgresVolume": "workloop-phase14f-restore_postgres_data",
+    "storageVolume": "workloop-phase14f-restore_storage_data",
+    "s3Volume": "workloop-phase14f-restore_phase11b_s3_data",
+    "objectBucket": "workloop-phase14f-restore-objects",
+    "publicNetworkExposure": false,
+    "maintenanceEnabled": true,
+    "applicationWritesEnabled": false,
+    "workerProcessingEnabled": false
+  },
+  "portableExports": [
+    {"database": "workloop", "encrypted": true, "keyId": "14f00001", "sha256": "sha256:1111111111111111111111111111111111111111111111111111111111111111"},
+    {"database": "keycloak", "encrypted": true, "keyId": "14f00001", "sha256": "sha256:2222222222222222222222222222222222222222222222222222222222222222"}
+  ],
+  "comparisons": [
+    {"id": "alembic-head", "status": "passed", "digest": "sha256:3000000000000000000000000000000000000000000000000000000000000000"},
+    {"id": "workloop-identity-count", "status": "passed", "count": 3},
+    {"id": "workloop-row-count", "status": "passed", "count": 3},
+    {"id": "keycloak-identity-count", "status": "passed", "count": 3},
+    {"id": "keycloak-row-count", "status": "passed", "count": 3},
+    {"id": "signing-key-id-digest", "status": "passed", "digest": "sha256:4000000000000000000000000000000000000000000000000000000000000000"},
+    {"id": "configuration-value-digest", "status": "passed", "digest": "sha256:4500000000000000000000000000000000000000000000000000000000000000"},
+    {"id": "object-version-count", "status": "passed", "count": 3},
+    {"id": "object-opaque-key-digest", "status": "passed", "digest": "sha256:5000000000000000000000000000000000000000000000000000000000000000"},
+    {"id": "object-count", "status": "passed", "count": 3},
+    {"id": "object-byte-count", "status": "passed", "count": 81},
+    {"id": "object-content-digest", "status": "passed", "digest": "sha256:6000000000000000000000000000000000000000000000000000000000000000"},
+    {"id": "scanner-state", "status": "passed", "count": 1},
+    {"id": "reconciliation-state", "status": "passed", "count": 1},
+    {"id": "release-artifact-digests", "status": "passed", "digest": "sha256:7000000000000000000000000000000000000000000000000000000000000000"}
+  ],
+  "journeys": {
+    "authentication": "passed",
+    "authorization": "passed",
+    "privateFiles": "passed",
+    "workers": "passed",
+    "administrator": "passed",
+    "manager": "passed",
+    "employee": "passed"
+  },
+  "providerNativeEvidence": {
+    "status": "pending-14g-provider-live",
+    "sharedPromotionAllowed": false
+  },
+  "rollback": {
+    "requestedReleaseId": "phase14f-reviewed-prior",
+    "selectedReleaseId": "phase14f-reviewed-prior",
+    "schemaCompatible": true,
+    "alembicHead": "e8a1c3f5b7d9",
+    "automaticSchemaDowngrade": false,
+    "result": "passed"
+  },
+  "evidence": {
+    "retained": true,
+    "sanitized": true,
+    "recordReference": "phase14f-local-recovery-record",
+    "sha256": "sha256:8000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "cleanup": {
+    "verifiedTargets": [
+      "workloop-phase14f-restore_postgres_data",
+      "workloop-phase14f-restore_storage_data",
+      "workloop-phase14f-restore_phase11b_s3_data",
+      "workloop-phase14f-restore-objects"
+    ],
+    "completed": true,
+    "idempotent": true
+  },
+  "localRehearsalResult": "passed",
+  "sharedPromotionAllowed": false
+}

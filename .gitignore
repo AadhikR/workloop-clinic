@@ -59,3 +59,4 @@ __pycache__/
 *.tfplan
 *.auto.tfvars
 crash.log
+.tmp-phase14f-recovery/

@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 1,
+  "environment": "shared-development",
+  "dataClass": "synthetic-only",
+  "providerMutationEnabled": false,
+  "alembicHead": "e8a1c3f5b7d9",
+  "providerNativeBackup": {
+    "status": "pending-14g-provider-live",
+    "requiredForPromotion": true,
+    "requiredEvidence": [
+      "workloop backup schedule and retention",
+      "keycloak backup schedule and retention",
+      "isolated point-in-time restore result"
+    ]
+  },
+  "backupClasses": [
+    {
+      "class": "DB-NATIVE",
+      "custodian": "backup custodian",
+      "schedule": "provider managed",
+      "retention": "verify in Part 14G",
+      "encryption": "provider managed",
+      "contents": ["workloop", "keycloak"]
+    },
+    {
+      "class": "DB-PORTABLE",
+      "custodian": "backup custodian",
+      "schedule": "daily and weekly",
+      "retention": "7 daily and 4 weekly copies",
+      "encryption": "AES-256-GCM before storage",
+      "contents": ["workloop logical export", "keycloak logical export", "signing-key ID digest"]
+    },
+    {
+      "class": "OBJECT-VERSIONS",
+      "custodian": "backup custodian",
+      "schedule": "daily manifest and retained versions",
+      "retention": "30 days for deleted versions",
+      "encryption": "AES-256-GCM portable export",
+      "contents": ["version ID", "opaque key digest", "object count", "byte count", "content digest"]
+    },
+    {
+      "class": "RELEASE",
+      "custodian": "release reviewer",
+      "schedule": "at each reviewed release",
+      "retention": "current and prior compatible releases for 90 days",
+      "encryption": "owner-controlled encrypted storage",
+      "contents": ["release manifest", "application specification", "configuration names", "artifact digests", "schema head"]
+    },
+    {
+      "class": "RECOVERY-EVIDENCE",
+      "custodian": "backup custodian",
+      "schedule": "after every backup, restore, and rollback rehearsal",
+      "retention": "365 days",
+      "encryption": "owner-controlled encrypted storage",
+      "contents": ["sanitized comparisons", "operator record", "evidence digest"]
+    }
+  ],
+  "isolatedTargets": {
+    "sourceComposeProject": "workloop-phase14f-source",
+    "restoreComposeProject": "workloop-phase14f-restore",
+    "restorePostgresVolume": "workloop-phase14f-restore_postgres_data",
+    "restoreStorageVolume": "workloop-phase14f-restore_storage_data",
+    "restoreS3Volume": "workloop-phase14f-restore_phase11b_s3_data",
+    "restoreObjectBucket": "workloop-phase14f-restore-objects",
+    "databases": ["workloop", "keycloak"],
+    "publicNetworkExposure": false
+  },
+  "restoreOrder": [
+    "enable maintenance and stop workers",
+    "create exact isolated targets",
+    "restore workloop database",
+    "restore keycloak database and matching signing-key identity",
+    "restore private object versions",
+    "load the matching reviewed release",
+    "run every recovery comparison",
+    "run authentication, authorization, private-file, worker, and browser checks",
+    "retain sanitized evidence",
+    "remove exact named restore targets"
+  ],
+  "requiredComparisons": [
+    "alembic-head",
+    "workloop-identity-count",
+    "workloop-row-count",
+    "keycloak-identity-count",
+    "keycloak-row-count",
+    "signing-key-id-digest",
+    "configuration-value-digest",
+    "object-version-count",
+    "object-opaque-key-digest",
+    "object-count",
+    "object-byte-count",
+    "object-content-digest",
+    "scanner-state",
+    "reconciliation-state",
+    "release-artifact-digests"
+  ],
+  "writeBlock": {
+    "maintenanceEnabled": true,
+    "applicationWritesEnabled": false,
+    "workerProcessingEnabled": false,
+    "unlockRequiresEveryComparison": true,
+    "unlockRequiresCompleteSyntheticJourney": true,
+    "sharedPromotionRequiresProviderNativeEvidence": true
+  },
+  "configurationContinuity": {
+    "custody": "security custodian",
+    "restoreFrom": "owner-approved encrypted secret store",
+    "requiredClasses": [
+      "database credentials",
+      "storage signing key",
+      "attachment object-key HMAC key",
+      "cursor signing key",
+      "idempotency recovery keys",
+      "malware result signing key"
+    ],
+    "evidence": "digest of canonical configuration names and values",
+    "recordValues": false
+  },
+  "rollback": {
+    "selectionMode": "explicit-reviewed-release-id",
+    "requirePriorRelease": true,
+    "requireSchemaCompatible": true,
+    "automaticSchemaDowngrade": false,
+    "preserveDatabasesObjectsAndEvidence": true,
+    "keepMaintenanceUntilVerificationPasses": true
+  },
+  "cleanup": {
+    "requiresRetainedSanitizedEvidence": true,
+    "exactTargetsOnly": true,
+    "idempotent": true,
+    "forbiddenTargets": [
+      "workloop-clinic_postgres_data",
+      "workloop-clinic-dev",
+      "fra1-default",
+      "phase-13-external-archive"
+    ]
+  }
+}

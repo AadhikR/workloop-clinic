@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "rehearsalId": "phase14f-local-recovery",
+  "observedAt": "2026-09-27T20:03:25Z",
+  "environment": "isolated-local",
+  "operator": "synthetic-backup-custodian",
+  "releaseId": "phase14f-local-current",
+  "alembicHead": "e8a1c3f5b7d9",
+  "source": {
+    "composeProject": "workloop-phase14f-source",
+    "workloopIdentityCounts": "0:0:0:0:0",
+    "workloopRowCount": 2,
+    "workloopRowCountDigest": "sha256:8283929c54e952538b7e3ea157444d1b3287f14b47b31db6480d95a97bdbe16f",
+    "keycloakIdentityCount": 1,
+    "keycloakRowCount": 1597,
+    "keycloakRowCountDigest": "sha256:fb9fb0810dfd341bee48754c50ac1e40a3e34389b3ae90099389998383225053",
+    "signingKeyIdDigest": "sha256:b3ff674217ec31405abf23a7407ecaac2f4153e6fe9ea427d99ae741f9471582"
+  },
+  "restore": {
+    "composeProject": "workloop-phase14f-restore",
+    "initialDatabaseComparison": "passed",
+    "configurationDigest": "sha256:3036c3c188be1aacaac4ad0a720c8c0045568c301f86377cf1c38f6f89befc97",
+    "objectVersionCount": 1,
+    "objectCount": 1,
+    "objectBytes": 47,
+    "objectOpaqueKeyDigest": "sha256:be7491318335198a91b41b41fea3d81d7ebdef4d702416f12cb087a6fec7346f",
+    "objectContentDigest": "sha256:1c9cda62f02418057dcec4622532c917cc07e4167269c6a9c29ec14b29cb54b2",
+    "reconciliation": "passed"
+  },
+  "writeBlock": {
+    "comparisonsPassedBeforeApiStart": true,
+    "workerProcessingDisabledBeforeComparisons": true,
+    "sharedPromotionAllowed": false
+  },
+  "journeys": {
+    "authentication": "passed",
+    "authorization": "passed",
+    "privateFiles": "passed",
+    "workers": "passed",
+    "administrator": "passed",
+    "manager": "passed",
+    "employee": "passed",
+    "applicationCleanup": "passed"
+  },
+  "restart": {
+    "alembicHead": "passed",
+    "workloopIdentityAndRowCounts": "passed",
+    "signingKeyContinuity": "passed",
+    "objectState": "passed",
+    "backendArtifactContinuity": "passed",
+    "keycloakPostJourneyRowCount": 1601,
+    "keycloakPostRestartAuthenticationRowCount": 1603,
+    "keycloakSessionRowInterpretation": "ephemeral-session-growth"
+  },
+  "rollback": {
+    "selectionMode": "explicit-reviewed-release-id",
+    "selectedReleaseId": "phase14f-reviewed-prior",
+    "schemaCompatible": true,
+    "alembicHead": "e8a1c3f5b7d9",
+    "automaticSchemaDowngrade": false,
+    "result": "passed"
+  },
+  "providerNativeEvidence": {
+    "status": "pending-14g-provider-live",
+    "sharedPromotionAllowed": false
+  },
+  "cleanup": {
+    "retainedBeforeCleanup": true,
+    "exactTargetCleanup": "passed",
+    "idempotentObjectCleanup": "passed",
+    "disposableVolumesRemaining": 0,
+    "protectedVolume": "present"
+  }
+}
