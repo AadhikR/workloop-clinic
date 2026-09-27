@@ -18,7 +18,7 @@ def main() -> int:
     cloud_bootstrap.main()
     upgrade_schema()
     cloud_seed.main()
-    print("Phase 6G ownership, schema, and synthetic identity are ready")
+    print("Shared-development ownership, schema, and synthetic identity are ready")
     return 0
 
 

@@ -26,6 +26,49 @@ variable "provisioning_authorized" {
     ])
     error_message = "Provisioning requires every field in the reviewed Phase 14 target approval."
   }
+
+  validation {
+    condition = !var.provisioning_authorized || try(
+      var.operator_access != null && alltrue([
+        for role in [
+          var.operator_access.infrastructure_custodian,
+          var.operator_access.security_custodian,
+          var.operator_access.application_operator,
+          var.operator_access.incident_operator,
+          var.operator_access.release_reviewer,
+          ] : (
+          length(trimspace(role.primary_name)) > 0 &&
+          length(trimspace(role.primary_account_reference)) > 0 &&
+          role.primary_mfa &&
+          length(trimspace(role.backup_name)) > 0 &&
+          length(trimspace(role.backup_account_reference)) > 0 &&
+          role.backup_mfa &&
+          role.primary_name != role.backup_name &&
+          role.primary_account_reference != role.backup_account_reference
+        )
+      ]),
+      false,
+    )
+    error_message = "Provisioning requires distinct named primary and backup least-privilege accounts with MFA for all five operator roles."
+  }
+
+  validation {
+    condition = !var.provisioning_authorized || try(
+      var.runtime_secrets != null && alltrue([
+        for value in [
+          var.runtime_secrets.api_storage_signing_key,
+          var.runtime_secrets.api_attachment_object_key_hmac_key,
+          var.runtime_secrets.api_cursor_signing_key,
+          var.runtime_secrets.api_idempotency_current_key_id,
+          var.runtime_secrets.api_idempotency_current_key,
+          var.runtime_secrets.api_idempotency_previous_keys,
+          var.runtime_secrets.scanner_malware_signing_key,
+        ] : length(trimspace(value)) > 0
+      ]),
+      false,
+    )
+    error_message = "Provisioning requires the complete encrypted runtime-secret input."
+  }
 }
 
 variable "configuration_ceiling_usd" {
@@ -87,4 +130,91 @@ variable "approval" {
     ])
     error_message = "Approval, price review, and retention review dates must use YYYY-MM-DD."
   }
+}
+
+variable "operator_access" {
+  description = "Named primary and backup accounts with MFA for every required operator role."
+  type = object({
+    infrastructure_custodian = object({
+      primary_name              = string
+      primary_account_reference = string
+      primary_mfa               = bool
+      backup_name               = string
+      backup_account_reference  = string
+      backup_mfa                = bool
+    })
+    security_custodian = object({
+      primary_name              = string
+      primary_account_reference = string
+      primary_mfa               = bool
+      backup_name               = string
+      backup_account_reference  = string
+      backup_mfa                = bool
+    })
+    application_operator = object({
+      primary_name              = string
+      primary_account_reference = string
+      primary_mfa               = bool
+      backup_name               = string
+      backup_account_reference  = string
+      backup_mfa                = bool
+    })
+    incident_operator = object({
+      primary_name              = string
+      primary_account_reference = string
+      primary_mfa               = bool
+      backup_name               = string
+      backup_account_reference  = string
+      backup_mfa                = bool
+    })
+    release_reviewer = object({
+      primary_name              = string
+      primary_account_reference = string
+      primary_mfa               = bool
+      backup_name               = string
+      backup_account_reference  = string
+      backup_mfa                = bool
+    })
+  })
+  default   = null
+  nullable  = true
+  sensitive = false
+
+  validation {
+    condition = var.operator_access == null ? true : alltrue([
+      for role in [
+        var.operator_access.infrastructure_custodian,
+        var.operator_access.security_custodian,
+        var.operator_access.application_operator,
+        var.operator_access.incident_operator,
+        var.operator_access.release_reviewer,
+        ] : (
+        length(trimspace(role.primary_name)) > 0 &&
+        length(trimspace(role.primary_account_reference)) > 0 &&
+        role.primary_mfa &&
+        length(trimspace(role.backup_name)) > 0 &&
+        length(trimspace(role.backup_account_reference)) > 0 &&
+        role.backup_mfa &&
+        role.primary_name != role.backup_name &&
+        role.primary_account_reference != role.backup_account_reference
+      )
+    ])
+    error_message = "Every operator role requires distinct named primary and backup least-privilege accounts with MFA."
+  }
+}
+
+variable "runtime_secrets" {
+  description = "Encrypted application settings supplied only for an approved enabled plan."
+  type = object({
+    api_storage_signing_key            = string
+    api_attachment_object_key_hmac_key = string
+    api_cursor_signing_key             = string
+    api_idempotency_current_key_id     = string
+    api_idempotency_current_key        = string
+    api_idempotency_previous_keys      = string
+    scanner_malware_signing_key        = string
+  })
+  default   = null
+  nullable  = true
+  sensitive = true
 }

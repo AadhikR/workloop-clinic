@@ -1,5 +1,4 @@
 locals {
-  enabled               = var.provisioning_authorized && local.approval_complete
   app_region            = "fra"
   resource_region       = "fra1"
   project_name          = "workloop-clinic-dev"
@@ -53,6 +52,53 @@ locals {
       try(var.approval.cleanup_manifest_id, ""),
     ] : length(trimspace(value)) > 0
   ])
+
+  operator_access_complete = var.operator_access != null && alltrue([
+    length(trimspace(try(var.operator_access.infrastructure_custodian.primary_name, ""))) > 0,
+    length(trimspace(try(var.operator_access.infrastructure_custodian.primary_account_reference, ""))) > 0,
+    try(var.operator_access.infrastructure_custodian.primary_mfa, false),
+    length(trimspace(try(var.operator_access.infrastructure_custodian.backup_name, ""))) > 0,
+    length(trimspace(try(var.operator_access.infrastructure_custodian.backup_account_reference, ""))) > 0,
+    try(var.operator_access.infrastructure_custodian.backup_mfa, false),
+    length(trimspace(try(var.operator_access.security_custodian.primary_name, ""))) > 0,
+    length(trimspace(try(var.operator_access.security_custodian.primary_account_reference, ""))) > 0,
+    try(var.operator_access.security_custodian.primary_mfa, false),
+    length(trimspace(try(var.operator_access.security_custodian.backup_name, ""))) > 0,
+    length(trimspace(try(var.operator_access.security_custodian.backup_account_reference, ""))) > 0,
+    try(var.operator_access.security_custodian.backup_mfa, false),
+    length(trimspace(try(var.operator_access.application_operator.primary_name, ""))) > 0,
+    length(trimspace(try(var.operator_access.application_operator.primary_account_reference, ""))) > 0,
+    try(var.operator_access.application_operator.primary_mfa, false),
+    length(trimspace(try(var.operator_access.application_operator.backup_name, ""))) > 0,
+    length(trimspace(try(var.operator_access.application_operator.backup_account_reference, ""))) > 0,
+    try(var.operator_access.application_operator.backup_mfa, false),
+    length(trimspace(try(var.operator_access.incident_operator.primary_name, ""))) > 0,
+    length(trimspace(try(var.operator_access.incident_operator.primary_account_reference, ""))) > 0,
+    try(var.operator_access.incident_operator.primary_mfa, false),
+    length(trimspace(try(var.operator_access.incident_operator.backup_name, ""))) > 0,
+    length(trimspace(try(var.operator_access.incident_operator.backup_account_reference, ""))) > 0,
+    try(var.operator_access.incident_operator.backup_mfa, false),
+    length(trimspace(try(var.operator_access.release_reviewer.primary_name, ""))) > 0,
+    length(trimspace(try(var.operator_access.release_reviewer.primary_account_reference, ""))) > 0,
+    try(var.operator_access.release_reviewer.primary_mfa, false),
+    length(trimspace(try(var.operator_access.release_reviewer.backup_name, ""))) > 0,
+    length(trimspace(try(var.operator_access.release_reviewer.backup_account_reference, ""))) > 0,
+    try(var.operator_access.release_reviewer.backup_mfa, false),
+  ])
+
+  runtime_secrets_complete = nonsensitive(var.runtime_secrets != null && alltrue([
+    for value in [
+      try(var.runtime_secrets.api_storage_signing_key, ""),
+      try(var.runtime_secrets.api_attachment_object_key_hmac_key, ""),
+      try(var.runtime_secrets.api_cursor_signing_key, ""),
+      try(var.runtime_secrets.api_idempotency_current_key_id, ""),
+      try(var.runtime_secrets.api_idempotency_current_key, ""),
+      try(var.runtime_secrets.api_idempotency_previous_keys, ""),
+      try(var.runtime_secrets.scanner_malware_signing_key, ""),
+    ] : length(trimspace(value)) > 0
+  ]))
+
+  enabled = var.provisioning_authorized && local.approval_complete && local.operator_access_complete && local.runtime_secrets_complete
 }
 
 data "digitalocean_project" "shared" {
@@ -78,6 +124,14 @@ resource "terraform_data" "phase_14_guard" {
     precondition {
       condition     = !var.provisioning_authorized || local.approval_complete
       error_message = "Provisioning requires every field in the reviewed Phase 14 target approval."
+    }
+    precondition {
+      condition     = !var.provisioning_authorized || local.operator_access_complete
+      error_message = "Provisioning requires distinct named primary and backup least-privilege accounts with MFA for all five operator roles."
+    }
+    precondition {
+      condition     = !var.provisioning_authorized || local.runtime_secrets_complete
+      error_message = "Provisioning requires the complete encrypted runtime-secret input."
     }
     precondition {
       condition     = data.digitalocean_project.shared[0].id == local.project_id
@@ -143,6 +197,66 @@ resource "digitalocean_database_db" "keycloak" {
   name       = "keycloak"
 }
 
+resource "digitalocean_database_user" "workloop_migration" {
+  count      = local.enabled ? 1 : 0
+  cluster_id = digitalocean_database_cluster.shared[0].id
+  name       = "workloop_migration"
+
+  lifecycle {
+    ignore_changes = [settings]
+  }
+}
+
+resource "digitalocean_database_user" "workloop_runtime" {
+  count      = local.enabled ? 1 : 0
+  cluster_id = digitalocean_database_cluster.shared[0].id
+  name       = "workloop_runtime"
+
+  lifecycle {
+    ignore_changes = [settings]
+  }
+}
+
+resource "digitalocean_database_user" "workloop_expiry_processing" {
+  count      = local.enabled ? 1 : 0
+  cluster_id = digitalocean_database_cluster.shared[0].id
+  name       = "workloop_expiry_processing"
+
+  lifecycle {
+    ignore_changes = [settings]
+  }
+}
+
+resource "digitalocean_database_user" "workloop_file_scanner" {
+  count      = local.enabled ? 1 : 0
+  cluster_id = digitalocean_database_cluster.shared[0].id
+  name       = "workloop_file_scanner"
+
+  lifecycle {
+    ignore_changes = [settings]
+  }
+}
+
+resource "digitalocean_database_user" "workloop_storage_reconciler" {
+  count      = local.enabled ? 1 : 0
+  cluster_id = digitalocean_database_cluster.shared[0].id
+  name       = "workloop_storage_reconciler"
+
+  lifecycle {
+    ignore_changes = [settings]
+  }
+}
+
+resource "digitalocean_database_user" "keycloak" {
+  count      = local.enabled ? 1 : 0
+  cluster_id = digitalocean_database_cluster.shared[0].id
+  name       = "keycloak"
+
+  lifecycle {
+    ignore_changes = [settings]
+  }
+}
+
 resource "digitalocean_spaces_bucket" "shared" {
   count         = local.enabled ? 1 : 0
   name          = local.spaces_bucket_name
@@ -159,6 +273,46 @@ resource "digitalocean_spaces_bucket" "shared" {
   }
 
   depends_on = [terraform_data.phase_14_guard]
+}
+
+resource "digitalocean_spaces_key" "api" {
+  count = local.enabled ? 1 : 0
+  name  = "workloop-clinic-dev-api"
+
+  grant {
+    bucket     = digitalocean_spaces_bucket.shared[0].name
+    permission = "readwrite"
+  }
+}
+
+resource "digitalocean_spaces_key" "file_scanner" {
+  count = local.enabled ? 1 : 0
+  name  = "workloop-clinic-dev-file-scanner"
+
+  grant {
+    bucket     = digitalocean_spaces_bucket.shared[0].name
+    permission = "read"
+  }
+}
+
+resource "digitalocean_spaces_key" "storage_reconciler" {
+  count = local.enabled ? 1 : 0
+  name  = "workloop-clinic-dev-storage-reconciler"
+
+  grant {
+    bucket     = digitalocean_spaces_bucket.shared[0].name
+    permission = "readwrite"
+  }
+}
+
+resource "digitalocean_spaces_key" "object_backup" {
+  count = local.enabled ? 1 : 0
+  name  = "workloop-clinic-dev-object-backup"
+
+  grant {
+    bucket     = digitalocean_spaces_bucket.shared[0].name
+    permission = "read"
+  }
 }
 
 resource "digitalocean_app" "shared" {
@@ -205,6 +359,78 @@ resource "digitalocean_app" "shared" {
       id = data.digitalocean_vpc.default[0].id
     }
 
+    database {
+      name         = "workloop-admin"
+      engine       = "PG"
+      production   = true
+      cluster_name = digitalocean_database_cluster.shared[0].name
+      db_name      = digitalocean_database_db.workloop[0].name
+      db_user      = digitalocean_database_cluster.shared[0].user
+    }
+
+    database {
+      name         = "keycloak-admin"
+      engine       = "PG"
+      production   = true
+      cluster_name = digitalocean_database_cluster.shared[0].name
+      db_name      = digitalocean_database_db.keycloak[0].name
+      db_user      = digitalocean_database_cluster.shared[0].user
+    }
+
+    database {
+      name         = "workloop-migration"
+      engine       = "PG"
+      production   = true
+      cluster_name = digitalocean_database_cluster.shared[0].name
+      db_name      = digitalocean_database_db.workloop[0].name
+      db_user      = digitalocean_database_user.workloop_migration[0].name
+    }
+
+    database {
+      name         = "workloop-runtime"
+      engine       = "PG"
+      production   = true
+      cluster_name = digitalocean_database_cluster.shared[0].name
+      db_name      = digitalocean_database_db.workloop[0].name
+      db_user      = digitalocean_database_user.workloop_runtime[0].name
+    }
+
+    database {
+      name         = "workloop-expiry"
+      engine       = "PG"
+      production   = true
+      cluster_name = digitalocean_database_cluster.shared[0].name
+      db_name      = digitalocean_database_db.workloop[0].name
+      db_user      = digitalocean_database_user.workloop_expiry_processing[0].name
+    }
+
+    database {
+      name         = "workloop-file-scanner"
+      engine       = "PG"
+      production   = true
+      cluster_name = digitalocean_database_cluster.shared[0].name
+      db_name      = digitalocean_database_db.workloop[0].name
+      db_user      = digitalocean_database_user.workloop_file_scanner[0].name
+    }
+
+    database {
+      name         = "workloop-storage-reconciler"
+      engine       = "PG"
+      production   = true
+      cluster_name = digitalocean_database_cluster.shared[0].name
+      db_name      = digitalocean_database_db.workloop[0].name
+      db_user      = digitalocean_database_user.workloop_storage_reconciler[0].name
+    }
+
+    database {
+      name         = "keycloak"
+      engine       = "PG"
+      production   = true
+      cluster_name = digitalocean_database_cluster.shared[0].name
+      db_name      = digitalocean_database_db.keycloak[0].name
+      db_user      = digitalocean_database_user.keycloak[0].name
+    }
+
     job {
       name               = "database-migrate"
       kind               = "PRE_DEPLOY"
@@ -218,6 +444,34 @@ resource "digitalocean_app" "shared" {
         repo           = local.github_repository
         branch         = local.github_branch
         deploy_on_push = false
+      }
+
+      env {
+        key   = "CLOUD_ADMIN_WORKLOOP_DATABASE_URL"
+        value = "$${workloop-admin.DATABASE_PRIVATE_URL}"
+        scope = "RUN_TIME"
+        type  = "SECRET"
+      }
+
+      env {
+        key   = "CLOUD_ADMIN_KEYCLOAK_DATABASE_URL"
+        value = "$${keycloak-admin.DATABASE_PRIVATE_URL}"
+        scope = "RUN_TIME"
+        type  = "SECRET"
+      }
+
+      env {
+        key   = "MIGRATION_DATABASE_URL"
+        value = "$${workloop-migration.DATABASE_PRIVATE_URL}"
+        scope = "RUN_TIME"
+        type  = "SECRET"
+      }
+
+      env {
+        key   = "WORKLOOP_PUBLIC_URL"
+        value = "$${APP_URL}"
+        scope = "RUN_TIME"
+        type  = "GENERAL"
       }
     }
 
@@ -233,6 +487,146 @@ resource "digitalocean_app" "shared" {
         repo           = local.github_repository
         branch         = local.github_branch
         deploy_on_push = false
+      }
+
+      env {
+        key   = "APP_ENV"
+        value = "development"
+        scope = "RUN_TIME"
+        type  = "GENERAL"
+      }
+
+      env {
+        key   = "APP_BASE_URL"
+        value = "$${APP_URL}"
+        scope = "RUN_TIME"
+        type  = "GENERAL"
+      }
+
+      env {
+        key   = "FRONTEND_URL"
+        value = "$${APP_URL}"
+        scope = "RUN_TIME"
+        type  = "GENERAL"
+      }
+
+      env {
+        key   = "DATABASE_URL"
+        value = "$${workloop-runtime.DATABASE_PRIVATE_URL}"
+        scope = "RUN_TIME"
+        type  = "SECRET"
+      }
+
+      env {
+        key   = "OIDC_ISSUER"
+        value = "$${APP_URL}/auth/realms/workloop-dev"
+        scope = "RUN_TIME"
+        type  = "GENERAL"
+      }
+
+      env {
+        key   = "OIDC_AUDIENCE"
+        value = "workloop-api"
+        scope = "RUN_TIME"
+        type  = "GENERAL"
+      }
+
+      env {
+        key   = "OIDC_JWKS_URL"
+        value = "$${APP_URL}/auth/realms/workloop-dev/protocol/openid-connect/certs"
+        scope = "RUN_TIME"
+        type  = "GENERAL"
+      }
+
+      env {
+        key   = "TRUSTED_PROXY"
+        value = "digitalocean_app_platform"
+        scope = "RUN_TIME"
+        type  = "GENERAL"
+      }
+
+      env {
+        key   = "STORAGE_BACKEND"
+        value = "spaces"
+        scope = "RUN_TIME"
+        type  = "GENERAL"
+      }
+
+      env {
+        key   = "SPACES_ENDPOINT_URL"
+        value = "https://${local.resource_region}.digitaloceanspaces.com"
+        scope = "RUN_TIME"
+        type  = "GENERAL"
+      }
+
+      env {
+        key   = "SPACES_REGION"
+        value = local.resource_region
+        scope = "RUN_TIME"
+        type  = "GENERAL"
+      }
+
+      env {
+        key   = "SPACES_BUCKET"
+        value = digitalocean_spaces_bucket.shared[0].name
+        scope = "RUN_TIME"
+        type  = "GENERAL"
+      }
+
+      env {
+        key   = "SPACES_ACCESS_KEY"
+        value = digitalocean_spaces_key.api[0].access_key
+        scope = "RUN_TIME"
+        type  = "SECRET"
+      }
+
+      env {
+        key   = "SPACES_SECRET_KEY"
+        value = digitalocean_spaces_key.api[0].secret_key
+        scope = "RUN_TIME"
+        type  = "SECRET"
+      }
+
+      env {
+        key   = "STORAGE_SIGNING_KEY"
+        value = var.runtime_secrets.api_storage_signing_key
+        scope = "RUN_TIME"
+        type  = "SECRET"
+      }
+
+      env {
+        key   = "ATTACHMENT_OBJECT_KEY_HMAC_KEY"
+        value = var.runtime_secrets.api_attachment_object_key_hmac_key
+        scope = "RUN_TIME"
+        type  = "SECRET"
+      }
+
+      env {
+        key   = "CURSOR_SIGNING_KEY"
+        value = var.runtime_secrets.api_cursor_signing_key
+        scope = "RUN_TIME"
+        type  = "SECRET"
+      }
+
+      env {
+        key   = "IDEMPOTENCY_RECOVERY_CURRENT_KEY_ID"
+        value = var.runtime_secrets.api_idempotency_current_key_id
+        scope = "RUN_TIME"
+        type  = "GENERAL"
+      }
+
+      env {
+        key   = "IDEMPOTENCY_RECOVERY_CURRENT_KEY"
+        value = var.runtime_secrets.api_idempotency_current_key
+        scope = "RUN_TIME"
+        type  = "SECRET"
+      }
+
+      env {
+        key   = "IDEMPOTENCY_RECOVERY_PREVIOUS_KEYS"
+        value = var.runtime_secrets.api_idempotency_previous_keys
+        scope = "RUN_TIME"
+        type  = "SECRET"
       }
 
       health_check {
@@ -259,6 +653,55 @@ resource "digitalocean_app" "shared" {
         repo           = local.github_repository
         branch         = local.github_branch
         deploy_on_push = false
+      }
+
+      env {
+        key   = "KC_DB_URL"
+        value = "jdbc:postgresql://${digitalocean_database_cluster.shared[0].private_host}:${digitalocean_database_cluster.shared[0].port}/${digitalocean_database_db.keycloak[0].name}?sslmode=require"
+        scope = "RUN_TIME"
+        type  = "GENERAL"
+      }
+
+      env {
+        key   = "KC_DB_USERNAME"
+        value = digitalocean_database_user.keycloak[0].name
+        scope = "RUN_TIME"
+        type  = "GENERAL"
+      }
+
+      env {
+        key   = "KC_DB_PASSWORD"
+        value = digitalocean_database_user.keycloak[0].password
+        scope = "RUN_TIME"
+        type  = "SECRET"
+      }
+
+      env {
+        key   = "KC_HOSTNAME"
+        value = "$${APP_URL}/auth"
+        scope = "RUN_TIME"
+        type  = "GENERAL"
+      }
+
+      env {
+        key   = "KC_HTTP_RELATIVE_PATH"
+        value = "/auth"
+        scope = "RUN_TIME"
+        type  = "GENERAL"
+      }
+
+      env {
+        key   = "KC_HTTP_MANAGEMENT_RELATIVE_PATH"
+        value = "/management"
+        scope = "RUN_TIME"
+        type  = "GENERAL"
+      }
+
+      env {
+        key   = "WORKLOOP_PUBLIC_URL"
+        value = "$${APP_URL}"
+        scope = "RUN_TIME"
+        type  = "GENERAL"
       }
 
       health_check {
@@ -343,6 +786,13 @@ resource "digitalocean_app" "shared" {
         branch         = local.github_branch
         deploy_on_push = false
       }
+
+      env {
+        key   = "EXPIRY_DATABASE_URL"
+        value = "$${workloop-expiry.DATABASE_PRIVATE_URL}"
+        scope = "RUN_TIME"
+        type  = "SECRET"
+      }
     }
 
     worker {
@@ -358,6 +808,62 @@ resource "digitalocean_app" "shared" {
         branch         = local.github_branch
         deploy_on_push = false
       }
+
+      env {
+        key   = "DATABASE_URL"
+        value = "$${workloop-file-scanner.DATABASE_PRIVATE_URL}"
+        scope = "RUN_TIME"
+        type  = "SECRET"
+      }
+
+      env {
+        key   = "STORAGE_BACKEND"
+        value = "spaces"
+        scope = "RUN_TIME"
+        type  = "GENERAL"
+      }
+
+      env {
+        key   = "SPACES_ENDPOINT_URL"
+        value = "https://${local.resource_region}.digitaloceanspaces.com"
+        scope = "RUN_TIME"
+        type  = "GENERAL"
+      }
+
+      env {
+        key   = "SPACES_REGION"
+        value = local.resource_region
+        scope = "RUN_TIME"
+        type  = "GENERAL"
+      }
+
+      env {
+        key   = "SPACES_BUCKET"
+        value = digitalocean_spaces_bucket.shared[0].name
+        scope = "RUN_TIME"
+        type  = "GENERAL"
+      }
+
+      env {
+        key   = "SPACES_ACCESS_KEY"
+        value = digitalocean_spaces_key.file_scanner[0].access_key
+        scope = "RUN_TIME"
+        type  = "SECRET"
+      }
+
+      env {
+        key   = "SPACES_SECRET_KEY"
+        value = digitalocean_spaces_key.file_scanner[0].secret_key
+        scope = "RUN_TIME"
+        type  = "SECRET"
+      }
+
+      env {
+        key   = "MALWARE_SCANNER_SIGNING_KEY"
+        value = var.runtime_secrets.scanner_malware_signing_key
+        scope = "RUN_TIME"
+        type  = "SECRET"
+      }
     }
 
     worker {
@@ -372,6 +878,55 @@ resource "digitalocean_app" "shared" {
         repo           = local.github_repository
         branch         = local.github_branch
         deploy_on_push = false
+      }
+
+      env {
+        key   = "DATABASE_URL"
+        value = "$${workloop-storage-reconciler.DATABASE_PRIVATE_URL}"
+        scope = "RUN_TIME"
+        type  = "SECRET"
+      }
+
+      env {
+        key   = "STORAGE_BACKEND"
+        value = "spaces"
+        scope = "RUN_TIME"
+        type  = "GENERAL"
+      }
+
+      env {
+        key   = "SPACES_ENDPOINT_URL"
+        value = "https://${local.resource_region}.digitaloceanspaces.com"
+        scope = "RUN_TIME"
+        type  = "GENERAL"
+      }
+
+      env {
+        key   = "SPACES_REGION"
+        value = local.resource_region
+        scope = "RUN_TIME"
+        type  = "GENERAL"
+      }
+
+      env {
+        key   = "SPACES_BUCKET"
+        value = digitalocean_spaces_bucket.shared[0].name
+        scope = "RUN_TIME"
+        type  = "GENERAL"
+      }
+
+      env {
+        key   = "SPACES_ACCESS_KEY"
+        value = digitalocean_spaces_key.storage_reconciler[0].access_key
+        scope = "RUN_TIME"
+        type  = "SECRET"
+      }
+
+      env {
+        key   = "SPACES_SECRET_KEY"
+        value = digitalocean_spaces_key.storage_reconciler[0].secret_key
+        scope = "RUN_TIME"
+        type  = "SECRET"
       }
     }
 
@@ -428,7 +983,17 @@ resource "digitalocean_app" "shared" {
   depends_on = [
     digitalocean_database_db.workloop,
     digitalocean_database_db.keycloak,
+    digitalocean_database_user.workloop_migration,
+    digitalocean_database_user.workloop_runtime,
+    digitalocean_database_user.workloop_expiry_processing,
+    digitalocean_database_user.workloop_file_scanner,
+    digitalocean_database_user.workloop_storage_reconciler,
+    digitalocean_database_user.keycloak,
     digitalocean_spaces_bucket.shared,
+    digitalocean_spaces_key.api,
+    digitalocean_spaces_key.file_scanner,
+    digitalocean_spaces_key.storage_reconciler,
+    digitalocean_spaces_key.object_backup,
     terraform_data.phase_14_guard,
   ]
 }

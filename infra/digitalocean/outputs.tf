@@ -32,3 +32,30 @@ output "provisioning_enabled" {
   description = "True only for an enabled plan. It is absent from disabled state."
   value       = local.enabled ? true : null
 }
+
+output "database_identity_names" {
+  description = "Database identity names, or null while provisioning is disabled."
+  value = local.enabled ? [
+    digitalocean_database_user.workloop_migration[0].name,
+    digitalocean_database_user.workloop_runtime[0].name,
+    digitalocean_database_user.workloop_expiry_processing[0].name,
+    digitalocean_database_user.workloop_file_scanner[0].name,
+    digitalocean_database_user.workloop_storage_reconciler[0].name,
+    digitalocean_database_user.keycloak[0].name,
+  ] : null
+}
+
+output "object_identity_names" {
+  description = "Object identity names, or null while provisioning is disabled."
+  value = local.enabled ? [
+    digitalocean_spaces_key.api[0].name,
+    digitalocean_spaces_key.file_scanner[0].name,
+    digitalocean_spaces_key.storage_reconciler[0].name,
+    digitalocean_spaces_key.object_backup[0].name,
+  ] : null
+}
+
+output "operator_access_ready" {
+  description = "True only when every operator role has distinct named MFA accounts."
+  value       = local.enabled ? local.operator_access_complete : null
+}

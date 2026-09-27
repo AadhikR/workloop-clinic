@@ -113,20 +113,5 @@
       ]
     }
   ],
-  "users": [
-    {
-      "id": "00000000-0000-0000-0000-000000000061",
-      "username": "phase-6g-admin-test",
-      "enabled": true,
-      "emailVerified": false,
-      "requiredActions": [],
-      "credentials": [
-        {
-          "type": "password",
-          "value": "${WORKLOOP_SYNTHETIC_USER_PASSWORD}",
-          "temporary": false
-        }
-      ]
-    }
-  ]
+  "users": []
 }
