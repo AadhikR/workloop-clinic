@@ -162,7 +162,7 @@ function alembicHeads() {
   return [...revisions].filter((revision) => !predecessors.has(revision)).sort()
 }
 
-test('keeps the repository boundary fail closed after exact discovery and a failed restore', () => {
+test('keeps the repository boundary fail closed during active retention', () => {
   const targetManifest = readJson('docs/migration/phase-13/PART_13G_TARGET_MANIFEST.json')
   const approvalManifest = readJson('docs/migration/phase-13/PART_13G_APPROVAL_MANIFEST.json')
   assert.deepEqual(validatePreparedBoundary(targetManifest, approvalManifest), [])
@@ -171,15 +171,25 @@ test('keeps the repository boundary fail closed after exact discovery and a fail
   assert.ok(targetManifest.discovery.github.secretStores.every((store) => store.entries.length === 0))
   assert.equal(targetManifest.discovery.digitalOcean.status, 'resolved')
   assert.deepEqual(targetManifest.discovery.digitalOcean.apps, [])
-  assert.equal(targetManifest.export.status, 'verified-artifacts')
+  assert.equal(targetManifest.export.status, 'verified')
   assert.equal(targetManifest.export.decryptionRoundTripVerified, true)
-  assert.equal(targetManifest.restore.status, 'failed')
-  assert.equal(targetManifest.restore.countsAndDigestsMatch, false)
-  assert.equal(targetManifest.restore.mismatches.length, 8)
+  assert.equal(targetManifest.restore.status, 'passed')
+  assert.equal(targetManifest.restore.countsAndDigestsMatch, true)
+  assert.deepEqual(targetManifest.restore.mismatches, [])
+  assert.equal(targetManifest.restore.sourceTableCount, 91)
+  assert.equal(targetManifest.restore.restoredTableCount, 91)
+  assert.equal(targetManifest.restore.sourceRowCount, 1005)
+  assert.equal(targetManifest.restore.restoredRowCount, 1005)
   assert.equal(targetManifest.cleanup.disposableRestoreContainerRemoved, true)
   assert.equal(targetManifest.cleanup.encryptedArtifactsRetained, true)
-  assert.equal(targetManifest.retention.startsAt, null)
-  assert.equal(targetManifest.retention.deadline, null)
+  assert.equal(targetManifest.retention.status, 'active')
+  assert.equal(targetManifest.retention.startsAt, targetManifest.restore.completedAt)
+  assert.equal(targetManifest.retention.deadline, '2026-10-27T09:06:58Z')
+  assert.equal(targetManifest.destructiveTargets.apiKeys.length, 4)
+  assert.equal(targetManifest.destructiveTargets.storageSets.length, 2)
+  assert.equal(targetManifest.destructiveTargets.projects.length, 1)
+  assert.equal(approvalManifest.status, 'ineligible')
+  assert.deepEqual(approvalManifest.approvals, [])
 })
 
 test('allows only independently approved exact targets after restore and retention', () => {
@@ -255,9 +265,12 @@ test('records the blocked catalogue boundary without claiming Part 13G closure',
     'P13-EXT-007',
     'P13-EXT-008',
     'P13-APR-001',
+    'P13-RET-001',
   ])
-  assert.ok(catalogue.boundaries['13G'].unresolvedDependencies.includes('P13-RET-001'))
+  assert.ok(catalogue.boundaries['13G'].unresolvedDependencies.includes('P13-RET-002'))
   assert.ok(catalogue.boundaries['13G'].verifiedGoldenCases.includes('13A-GC-027'))
-  assert.ok(catalogue.boundaries['13G'].unresolvedGoldenCases.includes('13A-GC-028'))
+  assert.ok(catalogue.boundaries['13G'].verifiedGoldenCases.includes('13A-GC-028'))
+  assert.ok(catalogue.boundaries['13G'].verifiedGoldenCases.includes('13A-GC-030'))
+  assert.deepEqual(catalogue.boundaries['13G'].unresolvedGoldenCases, [])
   assert.deepEqual(alembicHeads(), ['e8a1c3f5b7d9'])
 })

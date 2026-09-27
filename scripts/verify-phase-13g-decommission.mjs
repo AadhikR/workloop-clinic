@@ -243,8 +243,8 @@ export function validatePreparedBoundary(targetManifest, approvalManifest) {
   }
   if (!targetManifest.blockers?.length) errors.push('at least one blocker must be recorded')
   const exportStatus = targetManifest.export?.status
-  if (!['not-started', 'verified-artifacts'].includes(exportStatus)) {
-    errors.push('export must be absent or limited to verified encrypted artifacts')
+  if (!['not-started', 'verified-artifacts', 'verified'].includes(exportStatus)) {
+    errors.push('export must be absent, retained after a failed restore, or fully verified')
   }
   if (exportStatus === 'verified-artifacts'
     && (!targetManifest.export.externalLocation
@@ -258,25 +258,29 @@ export function validatePreparedBoundary(targetManifest, approvalManifest) {
     errors.push('failed-restore boundary has incomplete encrypted artifact evidence')
   }
 
-  const restoreStatus = targetManifest.restore?.status
-  if (!['not-started', 'failed'].includes(restoreStatus)) {
-    errors.push('restore must remain unstarted or record a failed exact comparison')
-  }
-  if (restoreStatus === 'failed'
-    && (targetManifest.restore.completedAt !== null
-      || targetManifest.restore.countsAndDigestsMatch !== false
-      || !Array.isArray(targetManifest.restore.mismatches)
-      || targetManifest.restore.mismatches.length === 0)) {
-    errors.push('failed restore must keep completion unset and record exact mismatches')
-  }
-  if (targetManifest.retention?.status !== 'not-started'
-    || targetManifest.retention.startsAt !== null
-    || targetManifest.retention.deadline !== null) {
-    errors.push('retention must remain unstarted')
-  }
   const targets = Object.values(targetManifest.destructiveTargets ?? {}).flat()
-  if (targets.length !== 0) errors.push('blocked discovery must not prepare a destructive target')
-  if (targetManifest.receipts?.length !== 0) errors.push('blocked discovery must not record action receipts')
+  const restoreStatus = targetManifest.restore?.status
+  if (!['not-started', 'failed', 'passed'].includes(restoreStatus)) {
+    errors.push('restore must be unstarted, failed, or passed')
+  } else if (restoreStatus === 'passed') {
+    for (const reason of validateResolvedEvidence(targetManifest)) errors.push(reason)
+    if (targets.length === 0) errors.push('passed restore must settle exact destructive targets')
+  } else {
+    if (restoreStatus === 'failed'
+      && (targetManifest.restore.completedAt !== null
+        || targetManifest.restore.countsAndDigestsMatch !== false
+        || !Array.isArray(targetManifest.restore.mismatches)
+        || targetManifest.restore.mismatches.length === 0)) {
+      errors.push('failed restore must keep completion unset and record exact mismatches')
+    }
+    if (targetManifest.retention?.status !== 'not-started'
+      || targetManifest.retention.startsAt !== null
+      || targetManifest.retention.deadline !== null) {
+      errors.push('retention must remain unstarted before a passing restore')
+    }
+    if (targets.length !== 0) errors.push('unverified restore must not prepare a destructive target')
+  }
+  if (targetManifest.receipts?.length !== 0) errors.push('prepared boundary must not record action receipts')
   if (approvalManifest.status !== 'ineligible' || approvalManifest.approvals?.length !== 0) {
     errors.push('approval manifest must remain ineligible and empty')
   }
@@ -295,7 +299,7 @@ function main() {
     process.exitCode = 1
     return
   }
-  process.stdout.write('Part 13G prepared boundary passed: discovery and restore evidence remain read-only and destruction is ineligible.\n')
+  process.stdout.write('Part 13G prepared boundary passed: verified retention evidence remains read-only and destruction is ineligible.\n')
 }
 
 if (path.resolve(process.argv[1] ?? '') === fileURLToPath(import.meta.url)) main()

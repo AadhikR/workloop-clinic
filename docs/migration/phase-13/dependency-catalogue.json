@@ -645,7 +645,7 @@
       "disposition": "inspect externally",
       "owner": "13G",
       "evidence": [
-        "authenticated dashboard resolved organization otqemcwkpkyhpncmxldm and project lqnwmfhcogqaixgtcymc",
+        "authenticated dashboard resolved organization otqemcwkpkyhpncmxldm and project dabphibgpamsfoxfhwmu",
         "docs/migration/phase-13/PART_13G_TARGET_MANIFEST.json"
       ]
     },
@@ -916,13 +916,13 @@
         "P13-EXT-006",
         "P13-EXT-007",
         "P13-EXT-008",
-        "P13-APR-001"
+        "P13-APR-001",
+        "P13-RET-001"
       ],
       "unresolvedDependencies": [
         "P13-DEL-001",
         "P13-DEL-002",
         "P13-DEL-003",
-        "P13-RET-001",
         "P13-RET-002"
       ],
       "verifiedGoldenCases": [
@@ -930,16 +930,15 @@
         "13A-GC-025",
         "13A-GC-026",
         "13A-GC-027",
+        "13A-GC-028",
         "13A-GC-029",
+        "13A-GC-030",
         "13A-GC-031",
         "13A-GC-032",
         "13A-GC-033",
         "13A-GC-036"
       ],
-      "unresolvedGoldenCases": [
-        "13A-GC-028",
-        "13A-GC-030"
-      ],
+      "unresolvedGoldenCases": [],
       "evidence": [
         "docs/migration/phase-13/PART_13G_TARGET_MANIFEST.json",
         "docs/migration/phase-13/PART_13G_APPROVAL_MANIFEST.json",

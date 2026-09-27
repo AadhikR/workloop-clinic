@@ -1,31 +1,31 @@
 {
   "version": 1,
-  "manifestId": "phase-13g-2026-09-27-restore-failure-1",
-  "settledAt": "2026-09-27T05:15:31Z",
-  "sourceCommit": "9ce2ad4b4fb82cd804d847e87d5139bdca52f3d2",
+  "manifestId": "phase-13g-2026-09-27-workloop-clinic-retention-1",
+  "settledAt": "2026-09-27T09:08:56Z",
+  "sourceCommit": "1ad24a8d75c94338da4b1368ab8a4c625783e593",
   "mode": "read-only",
   "discovery": {
     "externalProject": {
       "status": "resolved",
-      "observedAt": "2026-09-27T05:04:37Z",
+      "observedAt": "2026-09-27T09:06:58Z",
       "organizationId": "otqemcwkpkyhpncmxldm",
       "organizationName": "Aadhik Raj",
-      "projectId": "lqnwmfhcogqaixgtcymc",
-      "projectName": "AadhikR's Project",
+      "projectId": "dabphibgpamsfoxfhwmu",
+      "projectName": "workloop-clinic",
       "projectState": "active",
-      "region": "ap-northeast-1",
+      "region": "ap-southeast-1",
       "repositoryCandidateAuthoritative": true
     },
     "auth": {
       "status": "resolved",
-      "observedAt": "2026-09-27T05:04:37Z",
+      "observedAt": "2026-09-27T09:06:58Z",
       "userCount": 6,
       "metadataRecordCount": 6,
       "metadataRecordType": "auth.identities"
     },
     "database": {
       "status": "resolved",
-      "observedAt": "2026-09-27T05:04:37Z",
+      "observedAt": "2026-09-27T09:06:58Z",
       "schemaObjects": [
         {
           "kind": "base-tables",
@@ -46,7 +46,7 @@
         "auth.flow_state": 0,
         "auth.identities": 6,
         "auth.instances": 0,
-        "auth.mfa_amr_claims": 13,
+        "auth.mfa_amr_claims": 67,
         "auth.mfa_challenges": 0,
         "auth.mfa_factors": 0,
         "auth.mfa_recovery_code_sets": 0,
@@ -56,106 +56,128 @@
         "auth.oauth_clients": 0,
         "auth.oauth_consents": 0,
         "auth.one_time_tokens": 0,
-        "auth.refresh_tokens": 24,
+        "auth.refresh_tokens": 111,
         "auth.saml_providers": 0,
         "auth.saml_relay_states": 0,
         "auth.schema_migrations": 82,
         "auth.scim_tokens": 0,
         "auth.scim_users": 0,
-        "auth.sessions": 13,
+        "auth.sessions": 67,
         "auth.sso_domains": 0,
         "auth.sso_providers": 0,
         "auth.users": 6,
         "auth.webauthn_challenges": 0,
         "auth.webauthn_credentials": 0,
-        "public.advance_repayments": 0,
-        "public.asset_assignments": 0,
-        "public.assets": 0,
+        "public.advance_repayments": 1,
+        "public.appraisal_cycles": 3,
+        "public.appraisal_sections": 53,
+        "public.appraisals": 11,
+        "public.asset_assignments": 1,
+        "public.assets": 1,
         "public.attendance_audit_log": 0,
-        "public.attendance_periods": 0,
-        "public.attendance_records": 4,
+        "public.attendance_periods": 1,
+        "public.attendance_records": 5,
         "public.attendance_settings": 0,
-        "public.certifications": 0,
-        "public.clock_events": 14,
+        "public.biometric_mappings": 0,
+        "public.certifications": 1,
+        "public.clock_events": 0,
+        "public.cme_requirements": 1,
         "public.companies": 3,
+        "public.compliance_overrides": 1,
+        "public.department_staffing_rules": 2,
+        "public.departments": 3,
         "public.employee_contracts": 0,
         "public.employee_documents": 0,
         "public.employee_insurance": 0,
-        "public.employee_job_history": 13,
-        "public.employees": 48,
-        "public.expense_claims": 0,
+        "public.employee_job_history": 6,
+        "public.employees": 10,
+        "public.expense_claims": 11,
+        "public.incident_reports": 0,
         "public.insurance_dependants": 0,
-        "public.insurance_policies": 0,
+        "public.insurance_policies": 1,
         "public.leave_approval_delegates": 0,
-        "public.leave_audit_log": 17,
-        "public.leave_balances": 192,
-        "public.leave_requests": 15,
+        "public.leave_audit_log": 8,
+        "public.leave_balances": 90,
+        "public.leave_requests": 14,
         "public.leave_settings": 0,
-        "public.leave_types": 32,
+        "public.leave_types": 12,
+        "public.letter_requests": 6,
         "public.nafis_reports": 0,
-        "public.notifications": 1,
-        "public.offboarding_checklists": 0,
+        "public.notifications": 4,
+        "public.offboarding_checklists": 1,
         "public.offboarding_task_templates": 0,
-        "public.offboarding_tasks": 0,
-        "public.payroll_approval_log": 16,
-        "public.payroll_entries": 104,
-        "public.payroll_runs": 12,
-        "public.payslips": 67,
-        "public.public_holidays": 104,
+        "public.offboarding_tasks": 18,
+        "public.payroll_approval_log": 4,
+        "public.payroll_entries": 15,
+        "public.payroll_runs": 3,
+        "public.payslips": 10,
+        "public.public_holidays": 78,
         "public.regularisation_requests": 0,
-        "public.roster_assignments": 0,
-        "public.salary_advances": 0,
+        "public.roster_assignments": 105,
+        "public.salary_advances": 4,
         "public.shift_assignments": 0,
         "public.shift_swap_requests": 0,
-        "public.shifts": 0,
-        "public.training_records": 0,
+        "public.shifts": 4,
+        "public.training_records": 2,
         "public.user_profiles": 6,
         "realtime.messages": 0,
         "realtime.schema_migrations": 86,
         "realtime.subscription": 0,
-        "storage.buckets": 0,
+        "storage.buckets": 2,
         "storage.buckets_analytics": 0,
         "storage.buckets_vectors": 0,
         "storage.migrations": 73,
-        "storage.objects": 0,
+        "storage.objects": 6,
         "storage.s3_multipart_uploads": 0,
         "storage.s3_multipart_uploads_parts": 0,
         "storage.vector_indexes": 0,
         "vault.secrets": 0
       },
-      "tableCount": 81,
-      "totalRowCount": 951,
+      "tableCount": 91,
+      "totalRowCount": 1005,
       "rpcNames": [
+        "public.admin_execute_shift_swap",
         "public.admin_get_employee_portal_role",
         "public.admin_set_employee_portal_role",
+        "public.employee_cancel_advance",
         "public.employee_cancel_leave_request",
+        "public.employee_delete_expense",
         "public.employee_get_colleagues",
         "public.employee_get_my_roster",
         "public.employee_record_clock_event",
         "public.employee_request_advance",
+        "public.employee_request_custom",
+        "public.employee_request_letter",
         "public.employee_request_shift_swap",
+        "public.employee_submit_document",
         "public.employee_submit_expense",
         "public.employee_submit_leave_request",
         "public.employee_submit_regularisation",
+        "public.employee_update_contact",
+        "public.get_manager_employee_id",
         "public.handle_updated_at",
         "public.link_employee_account",
+        "public.manager_approve_expense",
         "public.manager_approve_leave",
+        "public.manager_get_expense_queue",
+        "public.manager_reject_expense",
         "public.manager_reject_leave",
-        "public.rls_auto_enable"
+        "public.record_advance_repayment",
+        "public.replace_payroll_entries",
+        "public.set_updated_at"
       ],
       "overloadedRpcNames": [
         "public.employee_submit_leave_request"
       ],
-      "exportSha256": "5199ba3bf29412280907739e2cac1c8d3b4382ae0c486afdc81fe3964859c691",
-      "exportSnapshotDate": "2026-09-12"
+      "exportSha256": "bda3cd8dad2142e473cd04dfb0d323abc93bebb6421569f23d105507962797ce",
+      "exportSnapshotDate": "2026-09-27"
     },
     "realtime": {
       "status": "resolved",
-      "observedAt": "2026-09-27T05:04:37Z",
+      "observedAt": "2026-09-27T09:06:58Z",
       "publications": [
         {
           "name": "supabase_realtime",
-          "systemId": 16430,
           "tableCount": 0,
           "tables": []
         }
@@ -175,30 +197,38 @@
     },
     "storage": {
       "status": "resolved",
-      "observedAt": "2026-09-27T05:04:37Z",
-      "bucketCount": 0,
-      "objectCount": 0,
-      "byteCount": 0,
-      "buckets": []
+      "observedAt": "2026-09-27T09:06:58Z",
+      "bucketCount": 2,
+      "objectCount": 6,
+      "byteCount": 2043166,
+      "buckets": [
+        {
+          "name": "employee-documents",
+          "objectCount": 6,
+          "byteCount": 2043166,
+          "manifestSha256": "0c698d5c7d7c53a457c71cac1815008d21cdf834481303883186b043986822c9"
+        },
+        {
+          "name": "expense-receipts",
+          "objectCount": 0,
+          "byteCount": 0,
+          "manifestSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ]
     },
     "apiKeys": {
       "status": "resolved",
-      "observedAt": "2026-09-27T05:04:37Z",
+      "observedAt": "2026-09-27T09:06:58Z",
       "identifiers": [
         {
           "class": "publishable",
-          "name": "web",
-          "safeSuffix": "...ZIjg"
-        },
-        {
-          "class": "publishable",
-          "name": "mobile",
-          "safeSuffix": "...FIKI"
+          "name": "default",
+          "safeSuffix": "...4sw0"
         },
         {
           "class": "secret",
-          "name": "backend_api",
-          "safePrefix": "sb_secret_8I4Se..."
+          "name": "default",
+          "safePrefix": "sb_secret_QBH9O..."
         },
         {
           "class": "legacy",
@@ -242,118 +272,131 @@
     }
   },
   "export": {
-    "status": "verified-artifacts",
-    "externalLocation": "C:\\Users\\aadhi\\Documents\\workloop-phase13g-retention",
+    "status": "verified",
+    "externalLocation": "C:\\Users\\aadhi\\Documents\\workloop-phase13g-retention\\workloop-clinic-dabphibgpamsfoxfhwmu-2026-09-27",
     "custodian": "project-owner",
     "encryptionOwner": "Windows current-user DPAPI",
-    "evidenceSha256": null,
+    "evidenceSha256": "c0a68fa0b54b5a5507eb4c387bced3d743f525689f563f947f1c100c59072d16",
     "artifactDigests": [
-      "e906578379a8cf4e6a5a5c62c472b72c62175e5528111f7c912ca313fb01c95a",
-      "5324c649624584b189dde40e7508ab871339451d7f94e6ebc267824e2ebbb81c"
+      "f1c7fd94d7144203422e95e8e59e505021ca11134df8331f69df336d03bd3b66",
+      "8430b0561257f40f2727e68f9d9779c8c2f4898de4ff8e270a5c34d126aaabc5"
     ],
     "artifacts": [
       {
-        "name": "supabase-database.backup.gz.enc",
-        "sizeBytes": 88816,
-        "sha256": "e906578379a8cf4e6a5a5c62c472b72c62175e5528111f7c912ca313fb01c95a",
-        "plaintextSha256": "5199ba3bf29412280907739e2cac1c8d3b4382ae0c486afdc81fe3964859c691"
+        "name": "workloop-clinic-database.dump.enc",
+        "sizeBytes": 714744,
+        "sha256": "f1c7fd94d7144203422e95e8e59e505021ca11134df8331f69df336d03bd3b66",
+        "plaintextSizeBytes": 714693,
+        "plaintextSha256": "bda3cd8dad2142e473cd04dfb0d323abc93bebb6421569f23d105507962797ce"
       },
       {
-        "name": "supabase-table-counts.csv.enc",
-        "sizeBytes": 2144,
-        "sha256": "5324c649624584b189dde40e7508ab871339451d7f94e6ebc267824e2ebbb81c",
-        "plaintextSha256": "d2a0a4c9c6573ecef2341ae8fd1d49c6b8324aab80795c6da33b3248a28fc35a"
+        "name": "workloop-clinic-table-counts.csv.enc",
+        "sizeBytes": 2344,
+        "sha256": "8430b0561257f40f2727e68f9d9779c8c2f4898de4ff8e270a5c34d126aaabc5",
+        "plaintextSizeBytes": 2288,
+        "plaintextSha256": "7b24fc21a7b5dfbf0bebbe8054dd0f2de7926d42126c6afbb511ac84b60dd2b8"
       }
     ],
+    "encryptionKey": {
+      "name": "archive-key.dpapi",
+      "sizeBytes": 262,
+      "sha256": "ad943142a347618306b1faf045736153ca67856d878ab547f4184a2263ec7919"
+    },
+    "cipher": "AES-256-CBC",
+    "keyDerivation": "PBKDF2-SHA256",
+    "keyDerivationIterations": 600000,
     "decryptionRoundTripVerified": true,
-    "plaintextCopiesRemovedAt": "2026-09-27T05:15:31Z"
+    "plaintextCopiesRemovedAt": "2026-09-27T09:08:56Z"
   },
   "restore": {
-    "status": "failed",
-    "attemptedAt": "2026-09-27T04:57:26Z",
-    "completedAt": null,
-    "sourceEvidenceSha256": null,
-    "restoredEvidenceSha256": null,
-    "countsAndDigestsMatch": false,
+    "status": "passed",
+    "attemptedAt": "2026-09-27T09:06:58Z",
+    "completedAt": "2026-09-27T09:06:58Z",
+    "sourceEvidenceSha256": "c0a68fa0b54b5a5507eb4c387bced3d743f525689f563f947f1c100c59072d16",
+    "restoredEvidenceSha256": "c0a68fa0b54b5a5507eb4c387bced3d743f525689f563f947f1c100c59072d16",
+    "comparisonSha256": "3b257f851063f542c4c272ee5cd5b795a22c3a59700c539ae6ae6d6e0f1b5267",
+    "countsAndDigestsMatch": true,
     "applicationPublicCountsMatch": true,
     "authUserCountsMatch": true,
     "authIdentityCountsMatch": true,
-    "sourceTableCount": 81,
-    "restoredTableCount": 76,
-    "sourceRowCount": 951,
-    "restoredRowCount": 934,
-    "mismatches": [
-      {
-        "object": "auth.mfa_recovery_code_sets",
-        "source": 0,
-        "restored": null
-      },
-      {
-        "object": "auth.mfa_recovery_codes",
-        "source": 0,
-        "restored": null
-      },
-      {
-        "object": "auth.schema_migrations",
-        "source": 82,
-        "restored": 77
-      },
-      {
-        "object": "auth.scim_tokens",
-        "source": 0,
-        "restored": null
-      },
-      {
-        "object": "auth.scim_users",
-        "source": 0,
-        "restored": null
-      },
-      {
-        "object": "realtime.schema_migrations",
-        "source": 86,
-        "restored": 82
-      },
-      {
-        "object": "storage.migrations",
-        "source": 73,
-        "restored": 65
-      },
-      {
-        "object": "vault.secrets",
-        "source": 0,
-        "restored": null
-      }
-    ],
-    "failureReason": "The available provider snapshot predates the live managed schemas and does not reproduce the recorded schema and row counts."
+    "storageMetadataMatches": true,
+    "sourceTableCount": 91,
+    "restoredTableCount": 91,
+    "sourceRowCount": 1005,
+    "restoredRowCount": 1005,
+    "mismatches": [],
+    "postgresImage": "supabase/postgres:17.6.1.136",
+    "postgresImageDigest": "sha256:f371b5f3f2ac0a05703f33d6e6134515fb2498cab708fb948a0aeb7481467c00"
   },
   "cleanup": {
-    "completedAt": "2026-09-27T05:15:31Z",
+    "completedAt": "2026-09-27T09:08:56Z",
     "disposableRestoreContainerRemoved": true,
-    "temporaryRestoreDirectoriesRemoved": 2,
+    "temporaryRestoreDirectoriesRemoved": 1,
     "plaintextDownloadCopiesRemoved": 2,
+    "temporaryHelperFilesRemoved": 5,
     "encryptedArtifactsRetained": true
   },
   "retention": {
-    "status": "not-started",
+    "status": "active",
     "minimumCalendarDays": 30,
-    "startsAt": null,
-    "deadline": null
+    "startsAt": "2026-09-27T09:06:58Z",
+    "deadline": "2026-10-27T09:06:58Z"
   },
   "destructiveTargets": {
-    "apiKeys": [],
+    "apiKeys": [
+      {
+        "organizationId": "otqemcwkpkyhpncmxldm",
+        "projectId": "dabphibgpamsfoxfhwmu",
+        "keyId": "publishable:default"
+      },
+      {
+        "organizationId": "otqemcwkpkyhpncmxldm",
+        "projectId": "dabphibgpamsfoxfhwmu",
+        "keyId": "secret:default"
+      },
+      {
+        "organizationId": "otqemcwkpkyhpncmxldm",
+        "projectId": "dabphibgpamsfoxfhwmu",
+        "keyId": "legacy:anon"
+      },
+      {
+        "organizationId": "otqemcwkpkyhpncmxldm",
+        "projectId": "dabphibgpamsfoxfhwmu",
+        "keyId": "legacy:service_role"
+      }
+    ],
     "githubSecrets": [],
     "digitalOceanSecrets": [],
-    "storageSets": [],
-    "projects": []
+    "storageSets": [
+      {
+        "projectId": "dabphibgpamsfoxfhwmu",
+        "bucket": "employee-documents",
+        "objectCount": 6,
+        "byteCount": 2043166,
+        "manifestSha256": "0c698d5c7d7c53a457c71cac1815008d21cdf834481303883186b043986822c9"
+      },
+      {
+        "projectId": "dabphibgpamsfoxfhwmu",
+        "bucket": "expense-receipts",
+        "objectCount": 0,
+        "byteCount": 0,
+        "manifestSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "projects": [
+      {
+        "organizationId": "otqemcwkpkyhpncmxldm",
+        "projectId": "dabphibgpamsfoxfhwmu"
+      }
+    ]
   },
   "receipts": [],
   "preservedResources": [
     "workloop-clinic_postgres_data"
   ],
   "blockers": [
-    "The encrypted 2026-09-12 provider snapshot does not reproduce the 2026-09-27 live managed schemas and row counts.",
-    "A current export and successful isolated restore are required before retention can start.",
-    "The retention period has not started.",
-    "No exact destructive target is eligible for approval."
+    "The 30-calendar-day retention deadline has not elapsed.",
+    "Fresh project-owner approval is required for each exact destructive target after the retention deadline.",
+    "No external revocation or deletion is authorized before both gates pass."
   ]
 }

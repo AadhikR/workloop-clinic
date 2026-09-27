@@ -1,8 +1,8 @@
 {
   "version": 1,
   "targetManifestPath": "docs/migration/phase-13/PART_13G_TARGET_MANIFEST.json",
-  "targetManifestSha256": "05756675f559cc087d22a123a45144ce5e6b7265bd2e37934c9c30d9ff11f8ba",
+  "targetManifestSha256": "41fa967d21902aaa2cb2e652521540118d31980c8d13c0f298874c1f8f4db13e",
   "status": "ineligible",
-  "reason": "The available export failed the isolated restore comparison, so retention has not started and no destructive target is eligible.",
+  "reason": "The verified retention deadline is 2026-10-27T09:06:58Z. Fresh exact approvals are ineligible until that deadline elapses.",
   "approvals": []
 }

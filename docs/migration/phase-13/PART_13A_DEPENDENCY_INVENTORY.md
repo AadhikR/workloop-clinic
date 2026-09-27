@@ -192,8 +192,10 @@ modify, delete, or recreate `workloop-clinic_postgres_data`.
 | `P13-RET-002` | Thirty-day minimum retention deadline | `inspect externally` | 13G |
 | `P13-APR-001` | Denial of unapproved destructive actions | `retain as inert negative proof` | 13G |
 
-The only repository candidate project reference is `lqnwmfhcogqaixgtcymc`. Part 13G must not treat it
-as authoritative. Read-only discovery must resolve the exact project, organization, GitHub
+The repository candidate project reference at the start of Phase 13 was `lqnwmfhcogqaixgtcymc`.
+Part 13G did not treat it as authoritative. Authenticated discovery later resolved the Workloop
+project as `dabphibgpamsfoxfhwmu`; the Part 13G target manifest records that correction. Read-only
+discovery must resolve the exact project, organization, GitHub
 repository and environment, DigitalOcean app and component, secret entry names, key identifiers,
 Auth counts, database objects, Realtime state, bucket names, object counts, sizes, and hashes.
 Credential values, private objects, exports, and personal data stay out of Git and task messages.
