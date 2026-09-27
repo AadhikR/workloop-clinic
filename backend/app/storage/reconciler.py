@@ -13,11 +13,11 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
 from app.core.config import Settings
-from app.core.logging import configure_logging
+from app.core.logging import configure_logging, safe_event
 from app.db.engine import create_database_engine
 from app.storage import ObjectStorage, create_object_storage
 from app.storage.base import StorageError, StorageNotFoundError
-from app.storage.worker_control import run_claim_loop
+from app.storage.worker_control import emit_expired_lease, emit_queue_observed, run_claim_loop
 
 logger = logging.getLogger(__name__)
 RETRY_DELAYS = (
@@ -39,6 +39,8 @@ class ClaimedOperation:
     operation: str
     object_key: str
     attempt_count: int
+    queue_age_seconds: int
+    expired_lease_age_seconds: int | None
 
 
 async def set_reconciler_context(
@@ -71,7 +73,12 @@ async def claim_operation(engine: AsyncEngine) -> ClaimedOperation | None:
                 text(
                     """
 WITH candidate AS (
-  SELECT id
+  SELECT id,
+         GREATEST(0,extract(epoch FROM statement_timestamp()-created_at))::integer
+           AS queue_age_seconds,
+         CASE WHEN status='claimed' AND lease_expires_at<=statement_timestamp()
+           THEN GREATEST(0,extract(epoch FROM statement_timestamp()-lease_expires_at))::integer
+           ELSE NULL END AS expired_lease_age_seconds
   FROM public.storage_operations
   WHERE attempt_count < 8
     AND (
@@ -92,21 +99,36 @@ SET status='claimed', attempt_count=operation.attempt_count+1,
 FROM candidate
 WHERE operation.id=candidate.id
 RETURNING operation.id,operation.company_id,operation.branch_id,
-          operation.operation,operation.object_key,operation.attempt_count
+          operation.operation,operation.object_key,operation.attempt_count,
+          candidate.queue_age_seconds,candidate.expired_lease_age_seconds
 """
                 )
             )
         ).one_or_none()
     if row is None:
         return None
-    return ClaimedOperation(
+    claimed = ClaimedOperation(
         id=cast(UUID, row.id),
         company_id=cast(UUID, row.company_id),
         branch_id=cast(UUID, row.branch_id),
         operation=cast(str, row.operation),
         object_key=cast(str, row.object_key),
         attempt_count=cast(int, row.attempt_count),
+        queue_age_seconds=cast(int, row.queue_age_seconds),
+        expired_lease_age_seconds=cast(int | None, row.expired_lease_age_seconds),
     )
+    emit_queue_observed(
+        logger,
+        worker="storage_reconciler",
+        queue_age_seconds=claimed.queue_age_seconds,
+    )
+    if claimed.expired_lease_age_seconds is not None:
+        emit_expired_lease(
+            logger,
+            worker="storage_reconciler",
+            lease_age_seconds=claimed.expired_lease_age_seconds,
+        )
+    return claimed
 
 
 async def complete_operation(
@@ -167,12 +189,15 @@ async def process_operation(
         else:
             raise StorageError
     except StorageError:
-        log = logger.error if operation.attempt_count == 8 else logger.warning
-        log(
-            "storage_reconciliation_terminal"
-            if operation.attempt_count == 8
-            else "storage_reconciliation_failed",
-            extra={"operation_id": str(operation.id), "error_code": "provider_error"},
+        terminal = operation.attempt_count == 8
+        safe_event(
+            logger,
+            logging.ERROR if terminal else logging.WARNING,
+            "worker_terminal_failure" if terminal else "worker_retry_scheduled",
+            worker="storage_reconciler",
+            condition="terminal-failure" if terminal else "retry",
+            attempt_count=operation.attempt_count,
+            error_code="provider_error",
         )
         await complete_operation(engine, operation, status="failed", error_code="provider_error")
         return
@@ -246,10 +271,15 @@ WHERE status IN ('succeeded','reconciled')
 """
             )
         )
-    for operation_id in terminal:
-        logger.error(
-            "storage_reconciliation_terminal",
-            extra={"operation_id": str(operation_id), "error_code": "retry_exhausted"},
+    for _operation_id in terminal:
+        safe_event(
+            logger,
+            logging.ERROR,
+            "worker_terminal_failure",
+            worker="storage_reconciler",
+            condition="terminal-failure",
+            attempt_count=8,
+            error_code="retry_exhausted",
         )
 
 

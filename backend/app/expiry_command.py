@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import logging
 import os
 import sys
 import uuid
@@ -14,7 +15,10 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
+from app.core.logging import configure_logging, safe_event
 from app.db.engine import normalize_psycopg_url
+
+logger = logging.getLogger(__name__)
 
 CLINICAL_DOCUMENT_TYPES = frozenset(
     {
@@ -500,6 +504,17 @@ def main() -> None:
     except Exception:
         print('{"error":"expiry_processing_failed"}', file=sys.stderr)
         raise SystemExit(1) from None
+    configure_logging(os.environ.get("LOG_LEVEL", "INFO"))
+    safe_event(
+        logger,
+        logging.INFO,
+        "expiry_completed",
+        component="expiry",
+        condition="completion",
+        business_date=business_date.isoformat(),
+        inserted_count=sum(results),
+        scope_count=len(scopes),
+    )
     print(
         json.dumps(
             {

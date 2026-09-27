@@ -74,6 +74,15 @@ variable "provisioning_authorized" {
     condition     = !var.provisioning_authorized || var.release_manifest != null
     error_message = "Provisioning requires one complete deployable release manifest."
   }
+
+  validation {
+    condition = !var.provisioning_authorized || try(
+      var.reviewed_monthly_forecast_usd != null &&
+      var.reviewed_monthly_forecast_usd <= var.configuration_ceiling_usd,
+      false,
+    )
+    error_message = "Provisioning blocks new work when the reviewed monthly forecast exceeds USD 70 or is missing."
+  }
 }
 
 variable "configuration_ceiling_usd" {
@@ -84,6 +93,18 @@ variable "configuration_ceiling_usd" {
   validation {
     condition     = var.configuration_ceiling_usd == 70
     error_message = "The shared-development configuration ceiling is exactly USD 70."
+  }
+}
+
+variable "reviewed_monthly_forecast_usd" {
+  description = "Reviewed monthly forecast before an approved provider mutation."
+  type        = number
+  default     = null
+  nullable    = true
+
+  validation {
+    condition     = var.reviewed_monthly_forecast_usd == null || var.reviewed_monthly_forecast_usd >= 0
+    error_message = "The reviewed monthly forecast cannot be negative."
   }
 }
 

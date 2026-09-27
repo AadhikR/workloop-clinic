@@ -1,0 +1,43 @@
+{
+  "template": true,
+  "incidentId": "replace-before-use",
+  "openedAt": "2026-09-27T00:00:00Z",
+  "severity": "critical",
+  "summaryCode": "replace_before_use",
+  "maintenance": {
+    "enabledAt": "2026-09-27T00:01:00Z",
+    "operator": "replace-before-use"
+  },
+  "ownerNotifications": [
+    {
+      "ownerRole": "incident operator",
+      "notifiedAt": "2026-09-27T00:02:00Z",
+      "operator": "replace-before-use",
+      "recordReference": "replace-before-use"
+    }
+  ],
+  "evidence": {
+    "capturedAt": "2026-09-27T00:03:00Z",
+    "operator": "replace-before-use",
+    "sanitizedRecordReference": "replace-before-use",
+    "sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "rollbackSelection": {
+    "selectedAt": "2026-09-27T00:04:00Z",
+    "operator": "replace-before-use",
+    "releaseId": "replace-before-use",
+    "alembicHead": "e8a1c3f5b7d9",
+    "reasonCode": "replace_before_use"
+  },
+  "recovery": {
+    "startedAt": "2026-09-27T00:05:00Z",
+    "verifiedAt": "2026-09-27T00:06:00Z",
+    "operator": "replace-before-use",
+    "result": "recovered",
+    "maintenanceDisabledAt": "2026-09-27T00:07:00Z"
+  },
+  "operators": [
+    {"name": "replace-before-use", "role": "incident operator"},
+    {"name": "replace-before-use", "role": "release reviewer"}
+  ]
+}

@@ -12,12 +12,12 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
 from app.core.config import Settings
-from app.core.logging import configure_logging
+from app.core.logging import configure_logging, safe_event
 from app.db.engine import create_database_engine
 from app.storage import ObjectStorage, create_object_storage
 from app.storage.base import StorageError, StorageIntegrityError, StorageNotFoundError
 from app.storage.malware import MalwareScanner, ScanVerdict, SyntheticMalwareScanner
-from app.storage.worker_control import run_claim_loop
+from app.storage.worker_control import emit_expired_lease, emit_queue_observed, run_claim_loop
 
 logger = logging.getLogger(__name__)
 RETRY_DELAYS = (
@@ -43,6 +43,8 @@ class ClaimedScan:
     sha256: str
     scanner_definition: str
     attempt_count: int
+    queue_age_seconds: int
+    expired_lease_age_seconds: int | None
 
 
 async def set_scanner_context(
@@ -75,7 +77,12 @@ async def claim_scan(engine: AsyncEngine) -> ClaimedScan | None:
                 text(
                     """
 WITH candidate AS (
-  SELECT id
+  SELECT id,
+         GREATEST(0,extract(epoch FROM statement_timestamp()-created_at))::integer
+           AS queue_age_seconds,
+         CASE WHEN status='claimed' AND lease_expires_at<=statement_timestamp()
+           THEN GREATEST(0,extract(epoch FROM statement_timestamp()-lease_expires_at))::integer
+           ELSE NULL END AS expired_lease_age_seconds
   FROM public.file_security_scans
   WHERE (attempt_count < 8 AND (
       status='pending'
@@ -97,14 +104,14 @@ FROM candidate
 WHERE scan.id=candidate.id
 RETURNING scan.id,scan.company_id,scan.branch_id,scan.entity_type,scan.object_key,
           scan.content_type,scan.size_bytes,scan.sha256,scan.scanner_definition,
-          scan.attempt_count
+          scan.attempt_count,candidate.queue_age_seconds,candidate.expired_lease_age_seconds
 """
                 )
             )
         ).one_or_none()
     if row is None:
         return None
-    return ClaimedScan(
+    claimed = ClaimedScan(
         id=cast(UUID, row.id),
         company_id=cast(UUID, row.company_id),
         branch_id=cast(UUID, row.branch_id),
@@ -115,7 +122,17 @@ RETURNING scan.id,scan.company_id,scan.branch_id,scan.entity_type,scan.object_ke
         sha256=cast(str, row.sha256),
         scanner_definition=cast(str, row.scanner_definition),
         attempt_count=cast(int, row.attempt_count),
+        queue_age_seconds=cast(int, row.queue_age_seconds),
+        expired_lease_age_seconds=cast(int | None, row.expired_lease_age_seconds),
     )
+    emit_queue_observed(logger, worker="file_scanner", queue_age_seconds=claimed.queue_age_seconds)
+    if claimed.expired_lease_age_seconds is not None:
+        emit_expired_lease(
+            logger,
+            worker="file_scanner",
+            lease_age_seconds=claimed.expired_lease_age_seconds,
+        )
+    return claimed
 
 
 async def manual_requeue(
@@ -249,15 +266,15 @@ async def process_scan(
 
 
 async def _scan_failed(engine: AsyncEngine, scan: ClaimedScan, error_code: str) -> None:
-    log = logger.error if scan.attempt_count == 8 else logger.warning
-    log(
-        "file_security_scan_terminal" if scan.attempt_count == 8 else "file_security_scan_failed",
-        extra={
-            "scan_id": str(scan.id),
-            "entity_type": scan.entity_type,
-            "attempt_count": scan.attempt_count,
-            "error_code": error_code,
-        },
+    terminal = scan.attempt_count == 8
+    safe_event(
+        logger,
+        logging.ERROR if terminal else logging.WARNING,
+        "worker_terminal_failure" if terminal else "worker_retry_scheduled",
+        worker="file_scanner",
+        condition="terminal-failure" if terminal else "retry",
+        attempt_count=scan.attempt_count,
+        error_code=error_code,
     )
     await _record_result(engine, scan, status="failed", error_code=error_code)
 
@@ -345,9 +362,14 @@ RETURNING id,company_id,branch_id
                 ),
                 {"id": row.id},
             )
-        logger.error(
-            "file_security_scan_terminal",
-            extra={"scan_id": str(row.id), "error_code": "retry_exhausted"},
+        safe_event(
+            logger,
+            logging.ERROR,
+            "worker_terminal_failure",
+            worker="file_scanner",
+            condition="terminal-failure",
+            attempt_count=8,
+            error_code="retry_exhausted",
         )
 
 

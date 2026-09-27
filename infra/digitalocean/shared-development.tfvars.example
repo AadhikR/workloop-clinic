@@ -1,5 +1,6 @@
 provisioning_authorized    = false
 configuration_ceiling_usd  = 70
+reviewed_monthly_forecast_usd = null
 release_promoted           = false
 release_promotion_approved = false
 release_manifest            = null

@@ -171,6 +171,23 @@ docker run --rm --volume "${PWD}/infra/digitalocean:/source:ro" --volume "${PWD}
 The plan must report no changes. Do not pass provider credentials during this check. Do not run
 `apply` before the approved Part 14G window.
 
+## Operations contract
+
+`operations-signals.json` assigns one owner, severity, threshold, response, retention period, and
+test method to each frontend, API, security, database, object, worker, deployment, backup, and cost
+signal. `operations-alerts.json` maps those signals to provider or application sources. Provider
+mutation and external delivery remain disabled. Part 14G must add exact live resource references
+and named operators before it can activate any provider control.
+
+The API emits request duration, status, and denial or rate-limit conditions without paths, query
+strings, headers, bodies, or identities. Workers emit heartbeat, queue-age, expired-lease, retry,
+and terminal-failure events through the strict safe-field logger. Use the Part 14E evidence helper
+and incident schema for operator records. The persistent procedure is in
+`docs/migration/phase-14/PART_14E_OPERATIONS_RUNBOOK.md`.
+
+The USD 70 plan and forecast ceiling blocks new work and provider mutation. The existing USD 20
+account alert is an early warning, not a spending cap.
+
 ## Rollback boundary
 
 While provisioning remains disabled, rollback means reverting the Part 14B and 14C source files and

@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://workloop.invalid/schemas/phase-14e-incident-record.json",
+  "title": "Phase 14E shared-development incident record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "template",
+    "incidentId",
+    "openedAt",
+    "severity",
+    "summaryCode",
+    "maintenance",
+    "ownerNotifications",
+    "evidence",
+    "rollbackSelection",
+    "recovery",
+    "operators"
+  ],
+  "properties": {
+    "template": {"type": "boolean"},
+    "incidentId": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,79}$"},
+    "openedAt": {"type": "string", "format": "date-time"},
+    "severity": {"enum": ["warning", "critical"]},
+    "summaryCode": {"type": "string", "pattern": "^[a-z][a-z0-9_]{2,79}$"},
+    "maintenance": {"$ref": "#/$defs/timedAction"},
+    "ownerNotifications": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/notification"}
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["capturedAt", "operator", "sanitizedRecordReference", "sha256"],
+      "properties": {
+        "capturedAt": {"type": "string", "format": "date-time"},
+        "operator": {"type": "string", "minLength": 1, "maxLength": 100},
+        "sanitizedRecordReference": {"type": "string", "pattern": "^[A-Za-z0-9_.:-]{1,160}$"},
+        "sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+      }
+    },
+    "rollbackSelection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["selectedAt", "operator", "releaseId", "alembicHead", "reasonCode"],
+      "properties": {
+        "selectedAt": {"type": "string", "format": "date-time"},
+        "operator": {"type": "string", "minLength": 1, "maxLength": 100},
+        "releaseId": {"type": "string", "pattern": "^[A-Za-z0-9_.:-]{1,160}$"},
+        "alembicHead": {"type": "string", "pattern": "^[0-9a-f]{12}$"},
+        "reasonCode": {"type": "string", "pattern": "^[a-z][a-z0-9_]{2,79}$"}
+      }
+    },
+    "recovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["startedAt", "verifiedAt", "operator", "result", "maintenanceDisabledAt"],
+      "properties": {
+        "startedAt": {"type": "string", "format": "date-time"},
+        "verifiedAt": {"type": "string", "format": "date-time"},
+        "operator": {"type": "string", "minLength": 1, "maxLength": 100},
+        "result": {"enum": ["recovered", "failed"]},
+        "maintenanceDisabledAt": {"type": ["string", "null"], "format": "date-time"}
+      }
+    },
+    "operators": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "role"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1, "maxLength": 100},
+          "role": {"enum": ["application operator", "backup custodian", "incident operator", "infrastructure custodian", "release reviewer", "security custodian"]}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "timedAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabledAt", "operator"],
+      "properties": {
+        "enabledAt": {"type": "string", "format": "date-time"},
+        "operator": {"type": "string", "minLength": 1, "maxLength": 100}
+      }
+    },
+    "notification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ownerRole", "notifiedAt", "operator", "recordReference"],
+      "properties": {
+        "ownerRole": {"type": "string", "minLength": 1, "maxLength": 100},
+        "notifiedAt": {"type": "string", "format": "date-time"},
+        "operator": {"type": "string", "minLength": 1, "maxLength": 100},
+        "recordReference": {"type": "string", "pattern": "^[A-Za-z0-9_.:-]{1,160}$"}
+      }
+    }
+  }
+}

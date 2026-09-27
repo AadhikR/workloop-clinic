@@ -5,12 +5,13 @@ import ipaddress
 import logging
 from collections.abc import Callable
 from contextlib import suppress
+from time import monotonic
 from uuid import uuid4
 
 from starlette.routing import Match
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from app.core.logging import correlation_context
+from app.core.logging import correlation_context, safe_event
 from app.http.errors import error_response
 from app.http.rate_limit import RateLimitClass, RateLimiter
 
@@ -111,11 +112,14 @@ class HttpBoundaryMiddleware:
         origin_values = self.header_values(scope, b"origin")
         origin = origin_values[0] if len(origin_values) == 1 else None
         response_started = False
+        response_state: dict[str, int] = {"status": 0}
+        started_at = monotonic()
 
         async def send_with_contract(message: Message) -> None:
             nonlocal response_started
             if message["type"] == "http.response.start":
                 response_started = True
+                response_state["status"] = int(message["status"])
                 headers = list(message.get("headers", []))
                 self._replace_header(headers, b"x-correlation-id", correlation_id.encode("ascii"))
                 path = str(scope.get("path", ""))
@@ -217,7 +221,25 @@ class HttpBoundaryMiddleware:
                         scope, receive, send_with_contract
                     )
             finally:
-                logger.info("http_request_completed")
+                response_status = response_state["status"]
+                if response_status in {401, 403}:
+                    condition = "authorization-denial"
+                elif response_status == 429:
+                    condition = "rate-limit"
+                elif response_status >= 500 or response_status == 0:
+                    condition = "request-failure"
+                else:
+                    condition = "request-completed"
+                safe_event(
+                    logger,
+                    logging.INFO,
+                    "http_request_completed",
+                    component="api",
+                    condition=condition,
+                    duration_ms=max(0, int((monotonic() - started_at) * 1000)),
+                    method=str(scope.get("method", "UNKNOWN")),
+                    status_code=response_status,
+                )
 
     def _route_match(self, scope: Scope) -> Match:
         application = scope.get("app")

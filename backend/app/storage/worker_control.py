@@ -8,9 +8,43 @@ from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from time import monotonic
 
+from app.core.logging import safe_event
+
 IDLE_POLL_SECONDS = 5
 HEARTBEAT_SECONDS = 60
 DRAIN_SECONDS = 105
+
+
+def emit_queue_observed(
+    logger: logging.Logger,
+    *,
+    worker: str,
+    queue_age_seconds: int,
+) -> None:
+    safe_event(
+        logger,
+        logging.INFO,
+        "worker_queue_observed",
+        worker=worker,
+        condition="queue-age",
+        queue_age_seconds=queue_age_seconds,
+    )
+
+
+def emit_expired_lease(
+    logger: logging.Logger,
+    *,
+    worker: str,
+    lease_age_seconds: int,
+) -> None:
+    safe_event(
+        logger,
+        logging.WARNING,
+        "worker_lease_expired",
+        worker=worker,
+        condition="expired-lease",
+        lease_age_seconds=lease_age_seconds,
+    )
 
 
 def processing_enabled() -> bool:
@@ -83,9 +117,13 @@ async def run_claim_loop[Claim](
     while not stop.is_set():
         now = monotonic()
         if now - last_heartbeat >= HEARTBEAT_SECONDS:
-            logger.info(
-                f"{worker_name}_heartbeat",
-                extra={"processing_enabled": processing_enabled()},
+            safe_event(
+                logger,
+                logging.INFO,
+                "worker_heartbeat",
+                worker=worker_name,
+                condition="heartbeat",
+                processing_enabled=processing_enabled(),
             )
             last_heartbeat = now
         if not processing_enabled():
