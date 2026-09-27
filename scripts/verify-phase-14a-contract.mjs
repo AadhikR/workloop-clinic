@@ -203,7 +203,7 @@ export function validatePhase14Catalogue(
       ['backend/app/db/cloud_bootstrap.py', ['workloop_migration', 'workloop_runtime', 'workloop_expiry_processing', 'workloop_file_scanner', 'workloop_storage_reconciler', 'keycloak']],
       ['backend/app/storage/scanner_worker.py', ['RETRY_DELAYS', 'LIMIT 1', "interval '15 minutes'", 'attempt_count == 8']],
       ['backend/app/storage/reconciler.py', ['RETRY_DELAYS', 'LIMIT 1', "interval '15 minutes'", 'attempt_count == 8']],
-      ['infra/digitalocean/main.tf', ['deploy_on_push = false', 'maintenance', 'workloop-phase-6g']],
+      ['infra/digitalocean/main.tf', ['deploy_on_push = false', 'maintenance', 'workloop-clinic-dev-db']],
       ['keycloak/cloud/workloop-dev-realm.json', ['workloop-migration-web', 'workloop-api']],
     ])
     for (const [relativePath, markers] of sourceChecks) {

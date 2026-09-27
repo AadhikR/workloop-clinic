@@ -1,162 +1,167 @@
 locals {
-  enabled                   = var.provisioning_authorized
-  app_region                = "fra"
-  resource_region           = "fra1"
-  app_name                  = "workloop-phase-6g"
-  project_name              = "workloop-clinic-dev"
-  github_repository         = "AadhikR/workloop-clinic"
-  github_branch             = "migration/fastapi-keycloak"
-  estimated_monthly_usd     = 55.15
-  estimated_test_window_usd = local.estimated_monthly_usd / (28 * 24) * var.test_window_hours
+  enabled               = var.provisioning_authorized && local.approval_complete
+  app_region            = "fra"
+  resource_region       = "fra1"
+  project_name          = "workloop-clinic-dev"
+  project_id            = "634213f9-2e43-4aea-8f4e-22ddc3ecdac9"
+  app_name              = "workloop-clinic-dev"
+  database_cluster_name = "workloop-clinic-dev-db"
+  spaces_bucket_name    = "workloop-clinic-dev-634213f9"
+  vpc_name              = "fra1-default"
+  vpc_id                = "b8b6d17b-eae4-47de-b2b5-9d10baabdd2d"
+  vpc_cidr              = "10.114.0.0/20"
+  github_repository     = "AadhikR/workloop-clinic"
+  github_branch         = "migration/fastapi-keycloak"
+
+  ownership_labels = {
+    environment = "shared-development"
+    data_class  = "synthetic-only"
+    managed_by  = "terraform"
+    owner_role  = "infrastructure-custodian"
+  }
+  ownership_tags = [for key, value in local.ownership_labels : "${key}:${value}"]
+
+  fixed_monthly_costs = {
+    api                = 10
+    keycloak           = 25
+    file_scanner       = 5
+    storage_reconciler = 5
+    managed_postgresql = 15.15
+    spaces_standard    = 5
+    web_static_site    = 0
+  }
+  estimated_monthly_usd     = sum(values(local.fixed_monthly_costs))
+  configuration_ceiling_usd = 70
+
+  approval_complete = var.approval != null && alltrue([
+    for value in [
+      try(var.approval.target_manifest_id, ""),
+      try(var.approval.owner_approval_reference, ""),
+      try(var.approval.approved_on, ""),
+      try(var.approval.price_reviewed_on, ""),
+      try(var.approval.retention_review_due_on, ""),
+      try(var.approval.state_custodian, ""),
+      try(var.approval.state_path_reference, ""),
+      try(var.approval.credential_custodian, ""),
+      try(var.approval.infrastructure_owner, ""),
+      try(var.approval.security_owner, ""),
+      try(var.approval.application_owner, ""),
+      try(var.approval.incident_owner, ""),
+      try(var.approval.release_reviewer, ""),
+      try(var.approval.backup_custodian, ""),
+      try(var.approval.variable_charge_owner, ""),
+      try(var.approval.cleanup_manifest_id, ""),
+    ] : length(trimspace(value)) > 0
+  ])
 }
 
-resource "terraform_data" "phase_6g_guard" {
-  input = {
-    budget_ceiling_usd = var.budget_ceiling_usd
-    test_window_hours  = var.test_window_hours
-  }
-
-  lifecycle {
-    precondition {
-      condition = !var.provisioning_authorized || alltrue([
-        var.spend_alert_confirmed,
-        var.github_app_repository_only_confirmed,
-        var.project_isolation_confirmed,
-      ])
-      error_message = "Phase 6G provisioning requires the spend alert, repository-only GitHub access, and isolated project confirmations."
-    }
-    precondition {
-      condition     = var.budget_ceiling_usd == 20
-      error_message = "The authorized Phase 6G budget ceiling is exactly 20 USD."
-    }
-    precondition {
-      condition     = var.test_window_hours > 0 && var.test_window_hours <= 72
-      error_message = "The Phase 6G test window must be no longer than 72 hours."
-    }
-    precondition {
-      condition = !var.provisioning_authorized || can(
-        regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$", var.teardown_deadline_utc)
-      )
-      error_message = "An authorized run requires an explicit UTC teardown deadline."
-    }
-    precondition {
-      condition = !var.provisioning_authorized || (
-        var.keycloak_bootstrap_admin_password != null &&
-        length(var.keycloak_bootstrap_admin_password) >= 20 &&
-        var.synthetic_user_password != null &&
-        length(var.synthetic_user_password) >= 20
-      )
-      error_message = "An authorized run requires both temporary passwords with at least 20 characters."
-    }
-    precondition {
-      condition     = !var.public_exposure_enabled || var.admin_mfa_gate_armed
-      error_message = "Keycloak cannot be exposed until the administrator TOTP gate is armed."
-    }
-  }
-}
-
-data "digitalocean_project" "workloop" {
+data "digitalocean_project" "shared" {
   count = local.enabled ? 1 : 0
   name  = local.project_name
 }
 
-resource "digitalocean_vpc" "proof" {
-  count       = local.enabled ? 1 : 0
-  name        = "workloop-phase-6g"
-  region      = local.resource_region
-  description = "Temporary private network for the Phase 6G architecture proof"
+data "digitalocean_vpc" "default" {
+  count = local.enabled ? 1 : 0
+  id    = local.vpc_id
 }
 
-resource "digitalocean_database_cluster" "proof" {
+resource "terraform_data" "phase_14_guard" {
+  count = local.enabled ? 1 : 0
+  input = {
+    app_name              = local.app_name
+    database_cluster_name = local.database_cluster_name
+    estimated_monthly_usd = local.estimated_monthly_usd
+    spaces_bucket_name    = local.spaces_bucket_name
+  }
+
+  lifecycle {
+    precondition {
+      condition     = !var.provisioning_authorized || local.approval_complete
+      error_message = "Provisioning requires every field in the reviewed Phase 14 target approval."
+    }
+    precondition {
+      condition     = data.digitalocean_project.shared[0].id == local.project_id
+      error_message = "The project name does not resolve to the verified workloop-clinic-dev project ID."
+    }
+    precondition {
+      condition = (
+        data.digitalocean_vpc.default[0].id == local.vpc_id &&
+        data.digitalocean_vpc.default[0].name == local.vpc_name &&
+        data.digitalocean_vpc.default[0].region == local.resource_region &&
+        data.digitalocean_vpc.default[0].ip_range == local.vpc_cidr &&
+        data.digitalocean_vpc.default[0].default
+      )
+      error_message = "The verified fra1-default VPC identity changed. Stop before plan and do not create or import a replacement."
+    }
+    precondition {
+      condition = (
+        var.configuration_ceiling_usd == local.configuration_ceiling_usd &&
+        local.estimated_monthly_usd <= var.configuration_ceiling_usd
+      )
+      error_message = "The fixed monthly configuration must stay at USD 65.15 and at or below the USD 70 ceiling."
+    }
+    precondition {
+      condition     = !var.release_promoted || var.release_promotion_approved
+      error_message = "The provider default address must stay in maintenance mode without a recorded release promotion approval."
+    }
+  }
+}
+
+resource "digitalocean_database_cluster" "shared" {
   count                = local.enabled ? 1 : 0
-  name                 = "workloop-phase-6g"
+  name                 = local.database_cluster_name
   engine               = "pg"
   version              = "16"
   size                 = "db-s-1vcpu-1gb"
   region               = local.resource_region
   node_count           = 1
-  private_network_uuid = digitalocean_vpc.proof[0].id
+  storage_size_mib     = "10240"
+  private_network_uuid = data.digitalocean_vpc.default[0].id
+  tags                 = local.ownership_tags
 
-  depends_on = [terraform_data.phase_6g_guard]
+  storage_autoscale {
+    enabled = false
+  }
+
+  maintenance_window {
+    day  = "sunday"
+    hour = "03:00:00"
+  }
+
+  depends_on = [terraform_data.phase_14_guard]
 }
 
 resource "digitalocean_database_db" "workloop" {
   count      = local.enabled ? 1 : 0
-  cluster_id = digitalocean_database_cluster.proof[0].id
+  cluster_id = digitalocean_database_cluster.shared[0].id
   name       = "workloop"
 }
 
 resource "digitalocean_database_db" "keycloak" {
   count      = local.enabled ? 1 : 0
-  cluster_id = digitalocean_database_cluster.proof[0].id
+  cluster_id = digitalocean_database_cluster.shared[0].id
   name       = "keycloak"
 }
 
-resource "digitalocean_database_user" "workloop_migration" {
-  count      = local.enabled ? 1 : 0
-  cluster_id = digitalocean_database_cluster.proof[0].id
-  name       = "workloop_migration"
-
-  lifecycle {
-    ignore_changes = [settings]
-  }
-}
-
-resource "digitalocean_database_user" "workloop_runtime" {
-  count      = local.enabled ? 1 : 0
-  cluster_id = digitalocean_database_cluster.proof[0].id
-  name       = "workloop_runtime"
-
-  lifecycle {
-    ignore_changes = [settings]
-  }
-}
-
-resource "digitalocean_database_user" "workloop_expiry_processing" {
-  count      = local.enabled ? 1 : 0
-  cluster_id = digitalocean_database_cluster.proof[0].id
-  name       = "workloop_expiry_processing"
-
-  lifecycle {
-    ignore_changes = [settings]
-  }
-}
-
-resource "digitalocean_database_user" "keycloak" {
-  count      = local.enabled ? 1 : 0
-  cluster_id = digitalocean_database_cluster.proof[0].id
-  name       = "keycloak"
-
-  lifecycle {
-    ignore_changes = [settings]
-  }
-}
-
-resource "digitalocean_spaces_bucket" "proof" {
+resource "digitalocean_spaces_bucket" "shared" {
   count         = local.enabled ? 1 : 0
-  name          = "workloop-phase-6g-${substr(data.digitalocean_project.workloop[0].owner_uuid, 0, 8)}"
+  name          = local.spaces_bucket_name
   region        = local.resource_region
   acl           = "private"
-  force_destroy = true
+  force_destroy = false
 
   versioning {
-    enabled = false
+    enabled = true
   }
 
-  depends_on = [terraform_data.phase_6g_guard]
-}
-
-resource "digitalocean_spaces_key" "api" {
-  count = local.enabled ? 1 : 0
-  name  = "workloop-phase-6g-api"
-
-  grant {
-    bucket     = digitalocean_spaces_bucket.proof[0].name
-    permission = "readwrite"
+  lifecycle {
+    prevent_destroy = true
   }
+
+  depends_on = [terraform_data.phase_14_guard]
 }
 
-resource "digitalocean_app" "proof" {
+resource "digitalocean_app" "shared" {
   count = local.enabled ? 1 : 0
 
   spec {
@@ -164,7 +169,28 @@ resource "digitalocean_app" "proof" {
     region = local.app_region
 
     maintenance {
-      enabled = !var.public_exposure_enabled
+      enabled = !var.release_promoted
+    }
+
+    env {
+      key   = "WORKLOOP_ENVIRONMENT"
+      value = local.ownership_labels.environment
+      scope = "RUN_AND_BUILD_TIME"
+      type  = "GENERAL"
+    }
+
+    env {
+      key   = "WORKLOOP_DATA_CLASS"
+      value = local.ownership_labels.data_class
+      scope = "RUN_AND_BUILD_TIME"
+      type  = "GENERAL"
+    }
+
+    env {
+      key   = "WORKLOOP_INFRASTRUCTURE_OWNER"
+      value = local.ownership_labels.owner_role
+      scope = "RUN_AND_BUILD_TIME"
+      type  = "GENERAL"
     }
 
     alert {
@@ -176,59 +202,14 @@ resource "digitalocean_app" "proof" {
     }
 
     vpc {
-      id = digitalocean_vpc.proof[0].id
-    }
-
-    database {
-      name         = "workloop-admin"
-      engine       = "PG"
-      production   = true
-      cluster_name = digitalocean_database_cluster.proof[0].name
-      db_name      = digitalocean_database_db.workloop[0].name
-      db_user      = digitalocean_database_cluster.proof[0].user
-    }
-
-    database {
-      name         = "workloop-migration"
-      engine       = "PG"
-      production   = true
-      cluster_name = digitalocean_database_cluster.proof[0].name
-      db_name      = digitalocean_database_db.workloop[0].name
-      db_user      = digitalocean_database_user.workloop_migration[0].name
-    }
-
-    database {
-      name         = "workloop-runtime"
-      engine       = "PG"
-      production   = true
-      cluster_name = digitalocean_database_cluster.proof[0].name
-      db_name      = digitalocean_database_db.workloop[0].name
-      db_user      = digitalocean_database_user.workloop_runtime[0].name
-    }
-
-    database {
-      name         = "keycloak-admin"
-      engine       = "PG"
-      production   = true
-      cluster_name = digitalocean_database_cluster.proof[0].name
-      db_name      = digitalocean_database_db.keycloak[0].name
-      db_user      = digitalocean_database_cluster.proof[0].user
-    }
-
-    database {
-      name         = "keycloak-db"
-      engine       = "PG"
-      production   = true
-      cluster_name = digitalocean_database_cluster.proof[0].name
-      db_name      = digitalocean_database_db.keycloak[0].name
-      db_user      = digitalocean_database_user.keycloak[0].name
+      id = data.digitalocean_vpc.default[0].id
     }
 
     job {
       name               = "database-migrate"
       kind               = "PRE_DEPLOY"
       instance_count     = 1
-      instance_size_slug = "apps-s-1vcpu-1gb"
+      instance_size_slug = "apps-s-1vcpu-1gb-fixed"
       run_command        = "python -m app.db.cloud_migrate"
       source_dir         = "backend"
       dockerfile_path    = "backend/Dockerfile"
@@ -238,40 +219,12 @@ resource "digitalocean_app" "proof" {
         branch         = local.github_branch
         deploy_on_push = false
       }
-
-      env {
-        key   = "CLOUD_ADMIN_WORKLOOP_DATABASE_URL"
-        value = "$${workloop-admin.DATABASE_PRIVATE_URL}"
-        scope = "RUN_TIME"
-        type  = "SECRET"
-      }
-
-      env {
-        key   = "CLOUD_ADMIN_KEYCLOAK_DATABASE_URL"
-        value = "$${keycloak-admin.DATABASE_PRIVATE_URL}"
-        scope = "RUN_TIME"
-        type  = "SECRET"
-      }
-
-      env {
-        key   = "MIGRATION_DATABASE_URL"
-        value = "$${workloop-migration.DATABASE_PRIVATE_URL}"
-        scope = "RUN_TIME"
-        type  = "SECRET"
-      }
-
-      env {
-        key   = "WORKLOOP_PUBLIC_URL"
-        value = "$${APP_URL}"
-        scope = "RUN_TIME"
-        type  = "GENERAL"
-      }
     }
 
     service {
       name               = "api"
       instance_count     = 1
-      instance_size_slug = "apps-s-1vcpu-1gb"
+      instance_size_slug = "apps-s-1vcpu-1gb-fixed"
       http_port          = 8000
       source_dir         = "backend"
       dockerfile_path    = "backend/Dockerfile"
@@ -290,104 +243,6 @@ resource "digitalocean_app" "proof" {
         timeout_seconds       = 5
         success_threshold     = 1
         failure_threshold     = 6
-      }
-
-      env {
-        key   = "APP_ENV"
-        value = "development"
-        scope = "RUN_TIME"
-        type  = "GENERAL"
-      }
-
-      env {
-        key   = "APP_BASE_URL"
-        value = "$${APP_URL}"
-        scope = "RUN_TIME"
-        type  = "GENERAL"
-      }
-
-      env {
-        key   = "FRONTEND_URL"
-        value = "$${APP_URL}"
-        scope = "RUN_TIME"
-        type  = "GENERAL"
-      }
-
-      env {
-        key   = "DATABASE_URL"
-        value = "$${workloop-runtime.DATABASE_PRIVATE_URL}"
-        scope = "RUN_TIME"
-        type  = "SECRET"
-      }
-
-      env {
-        key   = "OIDC_ISSUER"
-        value = "$${APP_URL}/auth/realms/workloop-dev"
-        scope = "RUN_TIME"
-        type  = "GENERAL"
-      }
-
-      env {
-        key   = "OIDC_AUDIENCE"
-        value = "workloop-api"
-        scope = "RUN_TIME"
-        type  = "GENERAL"
-      }
-
-      env {
-        key   = "OIDC_JWKS_URL"
-        value = "$${APP_URL}/auth/realms/workloop-dev/protocol/openid-connect/certs"
-        scope = "RUN_TIME"
-        type  = "GENERAL"
-      }
-
-      env {
-        key   = "TRUSTED_PROXY"
-        value = "digitalocean_app_platform"
-        scope = "RUN_TIME"
-        type  = "GENERAL"
-      }
-
-      env {
-        key   = "STORAGE_BACKEND"
-        value = "spaces"
-        scope = "RUN_TIME"
-        type  = "GENERAL"
-      }
-
-      env {
-        key   = "SPACES_ENDPOINT_URL"
-        value = "https://${local.resource_region}.digitaloceanspaces.com"
-        scope = "RUN_TIME"
-        type  = "GENERAL"
-      }
-
-      env {
-        key   = "SPACES_REGION"
-        value = local.resource_region
-        scope = "RUN_TIME"
-        type  = "GENERAL"
-      }
-
-      env {
-        key   = "SPACES_BUCKET"
-        value = digitalocean_spaces_bucket.proof[0].name
-        scope = "RUN_TIME"
-        type  = "GENERAL"
-      }
-
-      env {
-        key   = "SPACES_ACCESS_KEY"
-        value = digitalocean_spaces_key.api[0].access_key
-        scope = "RUN_TIME"
-        type  = "SECRET"
-      }
-
-      env {
-        key   = "SPACES_SECRET_KEY"
-        value = digitalocean_spaces_key.api[0].secret_key
-        scope = "RUN_TIME"
-        type  = "SECRET"
       }
     }
 
@@ -414,76 +269,6 @@ resource "digitalocean_app" "proof" {
         timeout_seconds       = 5
         success_threshold     = 1
         failure_threshold     = 12
-      }
-
-      env {
-        key   = "KC_DB_URL"
-        value = "jdbc:postgresql://${digitalocean_database_cluster.proof[0].private_host}:${digitalocean_database_cluster.proof[0].port}/${digitalocean_database_db.keycloak[0].name}?sslmode=require"
-        scope = "RUN_TIME"
-        type  = "GENERAL"
-      }
-
-      env {
-        key   = "KC_DB_USERNAME"
-        value = digitalocean_database_user.keycloak[0].name
-        scope = "RUN_TIME"
-        type  = "GENERAL"
-      }
-
-      env {
-        key   = "KC_DB_PASSWORD"
-        value = digitalocean_database_user.keycloak[0].password
-        scope = "RUN_TIME"
-        type  = "SECRET"
-      }
-
-      env {
-        key   = "KC_HOSTNAME"
-        value = "$${APP_URL}/auth"
-        scope = "RUN_TIME"
-        type  = "GENERAL"
-      }
-
-      env {
-        key   = "KC_HTTP_RELATIVE_PATH"
-        value = "/auth"
-        scope = "RUN_TIME"
-        type  = "GENERAL"
-      }
-
-      env {
-        key   = "KC_HTTP_MANAGEMENT_RELATIVE_PATH"
-        value = "/management"
-        scope = "RUN_TIME"
-        type  = "GENERAL"
-      }
-
-      env {
-        key   = "KC_BOOTSTRAP_ADMIN_USERNAME"
-        value = var.keycloak_bootstrap_admin_username
-        scope = "RUN_TIME"
-        type  = "GENERAL"
-      }
-
-      env {
-        key   = "KC_BOOTSTRAP_ADMIN_PASSWORD"
-        value = var.keycloak_bootstrap_admin_password
-        scope = "RUN_TIME"
-        type  = "SECRET"
-      }
-
-      env {
-        key   = "WORKLOOP_PUBLIC_URL"
-        value = "$${APP_URL}"
-        scope = "RUN_TIME"
-        type  = "GENERAL"
-      }
-
-      env {
-        key   = "WORKLOOP_SYNTHETIC_USER_PASSWORD"
-        value = var.synthetic_user_password
-        scope = "RUN_TIME"
-        type  = "SECRET"
       }
     }
 
@@ -544,6 +329,52 @@ resource "digitalocean_app" "proof" {
       }
     }
 
+    job {
+      name               = "expiry"
+      kind               = "UNSPECIFIED"
+      instance_count     = 1
+      instance_size_slug = "apps-s-1vcpu-0.5gb"
+      run_command        = "python -m app.expiry_command"
+      source_dir         = "backend"
+      dockerfile_path    = "backend/Dockerfile"
+
+      github {
+        repo           = local.github_repository
+        branch         = local.github_branch
+        deploy_on_push = false
+      }
+    }
+
+    worker {
+      name               = "file-scanner"
+      instance_count     = 1
+      instance_size_slug = "apps-s-1vcpu-0.5gb"
+      run_command        = "python -m app.storage.scanner_worker"
+      source_dir         = "backend"
+      dockerfile_path    = "backend/Dockerfile"
+
+      github {
+        repo           = local.github_repository
+        branch         = local.github_branch
+        deploy_on_push = false
+      }
+    }
+
+    worker {
+      name               = "storage-reconciler"
+      instance_count     = 1
+      instance_size_slug = "apps-s-1vcpu-0.5gb"
+      run_command        = "python -m app.storage.reconciler"
+      source_dir         = "backend"
+      dockerfile_path    = "backend/Dockerfile"
+
+      github {
+        repo           = local.github_repository
+        branch         = local.github_branch
+        deploy_on_push = false
+      }
+    }
+
     ingress {
       rule {
         component {
@@ -594,44 +425,30 @@ resource "digitalocean_app" "proof" {
     }
   }
 
-  # DigitalOcean encrypts SECRET values after creation. Provider 2.100.0 cannot
-  # compare those values with the configured inputs, so ignore only the affected
-  # component environment collections during updates. The static verifier checks
-  # that the Phase 6G environment definitions remain present in this file.
-  lifecycle {
-    ignore_changes = [
-      spec[0].job[0].env,
-      spec[0].service[0].env,
-      spec[0].service[1].env,
-    ]
-  }
-
   depends_on = [
-    digitalocean_database_user.workloop_migration,
-    digitalocean_database_user.workloop_runtime,
-    digitalocean_database_user.workloop_expiry_processing,
-    digitalocean_database_user.keycloak,
-    digitalocean_spaces_key.api,
-    terraform_data.phase_6g_guard,
+    digitalocean_database_db.workloop,
+    digitalocean_database_db.keycloak,
+    digitalocean_spaces_bucket.shared,
+    terraform_data.phase_14_guard,
   ]
 }
 
-resource "digitalocean_database_firewall" "proof" {
+resource "digitalocean_database_firewall" "app_only" {
   count      = local.enabled ? 1 : 0
-  cluster_id = digitalocean_database_cluster.proof[0].id
+  cluster_id = digitalocean_database_cluster.shared[0].id
 
   rule {
     type  = "app"
-    value = digitalocean_app.proof[0].id
+    value = digitalocean_app.shared[0].id
   }
 }
 
-resource "digitalocean_project_resources" "spaces" {
+resource "digitalocean_project_resources" "shared" {
   count   = local.enabled ? 1 : 0
-  project = data.digitalocean_project.workloop[0].id
+  project = data.digitalocean_project.shared[0].id
   resources = [
-    digitalocean_spaces_bucket.proof[0].urn,
-    digitalocean_database_cluster.proof[0].urn,
-    digitalocean_app.proof[0].urn,
+    digitalocean_spaces_bucket.shared[0].urn,
+    digitalocean_database_cluster.shared[0].urn,
+    digitalocean_app.shared[0].urn,
   ]
 }

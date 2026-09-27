@@ -1,0 +1,5 @@
+provisioning_authorized    = false
+configuration_ceiling_usd  = 70
+release_promoted           = false
+release_promotion_approved = false
+approval                   = null

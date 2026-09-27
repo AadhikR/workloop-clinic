@@ -1,34 +1,34 @@
 output "app_url" {
-  description = "Default App Platform URL for the temporary proof."
-  value       = local.enabled ? digitalocean_app.proof[0].default_ingress : null
+  description = "Provider-managed App Platform address, or null while provisioning is disabled."
+  value       = local.enabled ? digitalocean_app.shared[0].default_ingress : null
 }
 
 output "app_id" {
-  description = "App identifier used for verification and teardown."
-  value       = local.enabled ? digitalocean_app.proof[0].id : null
+  description = "Shared-development app identifier, or null while provisioning is disabled."
+  value       = local.enabled ? digitalocean_app.shared[0].id : null
 }
 
 output "database_cluster_id" {
-  description = "Managed PostgreSQL identifier used for verification and teardown."
-  value       = local.enabled ? digitalocean_database_cluster.proof[0].id : null
+  description = "Managed PostgreSQL identifier, or null while provisioning is disabled."
+  value       = local.enabled ? digitalocean_database_cluster.shared[0].id : null
 }
 
 output "spaces_bucket_name" {
-  description = "Private synthetic-object bucket used by the proof."
-  value       = local.enabled ? digitalocean_spaces_bucket.proof[0].name : null
+  description = "Exact private bucket name, or null while provisioning is disabled."
+  value       = local.enabled ? local.spaces_bucket_name : null
 }
 
 output "estimated_monthly_usd" {
-  description = "Full-month rate if the temporary proof is left running."
-  value       = local.estimated_monthly_usd
+  description = "Fixed monthly estimate, or null while provisioning is disabled."
+  value       = local.enabled ? local.estimated_monthly_usd : null
 }
 
-output "estimated_test_window_usd" {
-  description = "Prorated estimate for the approved test window before tax and overages."
-  value       = format("%.2f", local.estimated_test_window_usd)
+output "configuration_ceiling_usd" {
+  description = "Maximum fixed monthly configuration cost, or null while provisioning is disabled."
+  value       = local.enabled ? local.configuration_ceiling_usd : null
 }
 
-output "teardown_deadline_utc" {
-  description = "Owner-approved UTC deadline for destroying the temporary resources."
-  value       = var.teardown_deadline_utc
+output "provisioning_enabled" {
+  description = "True only for an enabled plan. It is absent from disabled state."
+  value       = local.enabled ? true : null
 }
