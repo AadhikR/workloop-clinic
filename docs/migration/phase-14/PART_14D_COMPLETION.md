@@ -85,7 +85,7 @@ images without a build. Every recorded value matched after restart, the repeat m
 current, and authentication passed without another Keycloak configuration run.
 
 The final evidence scan found no token, connection string, generated password, application
-identity, or SQL identity query in service logs. The repository guard inspected 1037 files. The
+identity, or SQL identity query in service logs. The repository guard inspected 1038 files. The
 deployment contract, frontend artifact proof, and whitespace check passed.
 
 The first routed GitHub run exposed one stale Phase 12B source assertion. It required the expiry
@@ -94,12 +94,21 @@ output with multiline formatting. The retained verifier now checks the serialize
 its layout. The exact Phase 12B workflow step passed locally after the repair; no runtime code or
 schema changed.
 
+The replacement run reached the retained three-role browser journey and exposed one missing test
+harness input. The new worker gate correctly kept the one-shot malware scanner idle because the
+harness had not marked it as promoted. The browser journey now enables processing only for that
+explicit scanner invocation. The complete guarded journey passed against the disposable repair
+stack after the change; the production gate remains disabled by default.
+
 Cleanup verified and removed only:
 
 - `workloop-phase14d-gate_postgres_data`
 - `workloop-phase14d-gate_storage_data`
 - `workloop-phase14d-gate_phase11b_s3_data`
 - `workloop-phase14d-pyright-cache`
+- `workloop-phase14d-repair_postgres_data`
+- `workloop-phase14d-repair_storage_data`
+- `workloop-phase14d-repair_phase11b_s3_data`
 
 `workloop-clinic_postgres_data` was checked by name only and remains present. It was never attached,
 mounted, modified, deleted, or recreated. The Phase 13 archive, `workloop-clinic-dev`, and

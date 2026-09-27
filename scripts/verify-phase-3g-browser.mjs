@@ -942,6 +942,7 @@ async function assertLeaveAttachmentJourney(page) {
   stage('employee leave attachment malware scan')
   run([
     '--profile', 'tools', 'run', '--rm', '--no-deps',
+    '--env', 'WORKLOOP_WORKER_PROCESSING_ENABLED=true',
     '--env', 'FILE_SCANNER_ONCE=1', 'file-scanner',
   ])
   assert.equal(
