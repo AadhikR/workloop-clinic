@@ -2,9 +2,26 @@
 
 ## Status
 
-The application migration runtime is complete through the current Phase 13 work. Production-style
-DigitalOcean deployment belongs to Phase 14 and has not been promoted. This file describes the
-approved target and the evidence required before promotion.
+The application migration runtime is complete through signed-off Phase 13. The project owner started
+Phase 14 on 2026-09-27. Production-style DigitalOcean deployment has not been promoted. This file
+describes the approved target and the evidence required before promotion.
+
+## Phase 14 part plan
+
+Phase 14 runs as Parts 14A through 14H. The scope, order, rollback boundaries, billable-resource
+checkpoint, and verification rules are in
+[`docs/migration/phase-14/SUBPHASE_PLAN.md`](docs/migration/phase-14/SUBPHASE_PLAN.md).
+
+| Part | Scope |
+| --- | --- |
+| 14A | Deployment inventory, operating contract, risk register, golden cases, and promotion design |
+| 14B | Reusable DigitalOcean infrastructure and cost guardrails |
+| 14C | Least-privilege database identities, secrets, Keycloak administration, and credential rotation |
+| 14D | Immutable application components, workers, migrations, health checks, and maintenance controls |
+| 14E | Logs, metrics, alerts, retention, ownership, and operator runbooks |
+| 14F | Backup, isolated restore, reconciliation, and release rollback rehearsal |
+| 14G | Approved shared-development provisioning, synthetic validation, and release promotion |
+| 14H | Independent review, complete Phase 14 gate, and phase signoff request |
 
 ## Target services
 
