@@ -214,6 +214,7 @@
         "docs/migration/phase-13/PART_13E_COMPLETION.md",
         "docs/migration/phase-13/PART_13G_COMPLETION.md",
         "docs/migration/phase-13/PART_13G_TARGET_MANIFEST.json",
+        "docs/migration/phase-13/PART_13H_INDEPENDENT_REVIEW.md",
         "docs/migration/phase-13/SUBPHASE_PLAN.md",
         "docs/migration/phase-13/dependency-catalogue.json"
       ]
@@ -230,6 +231,7 @@
         "scripts/verify-phase-12e-boundary.py",
         "scripts/verify-phase-12f-boundary.py",
         "scripts/verify-phase-13e-repository-guard.mjs",
+        "scripts/verify-phase-13h-review.mjs",
         "scripts/verify-phase-4e-seed.sh",
         "scripts/verify-phase-4f-boundaries.sh",
         "scripts/verify-phase-8b-configuration.py",

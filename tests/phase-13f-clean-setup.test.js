@@ -86,11 +86,11 @@ test('installs the Python guard before DNS and socket entry points', () => {
   assert.match(source, /os\.environ\[_name\] = _value/)
 })
 
-test('keeps the reviewed 13E allowlist byte-for-byte fixed', () => {
+test('pins the reviewed allowlist after adding the exact 13H evidence paths', () => {
   const digest = createHash('sha256')
     .update(readFileSync(path.join(repositoryDirectory, 'scripts', 'phase-13e-retired-runtime-allowlist.json')))
     .digest('hex')
-  assert.equal(digest, '1b9a3a594531424ade09bacc94a348c9fa55843da316e0a0fc4bbe797bced6a8')
+  assert.equal(digest, 'bf7d1b31ea42b5b642140d5ca68c9141318fbd0e17cfbb7e371bbd0d4943338a')
 })
 
 test('covers builds, browsers, backend processes, workers, and test helpers', () => {

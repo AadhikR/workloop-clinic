@@ -74,6 +74,8 @@ jobs:
         run: node --test tests/phase-execution-workflow.test.js
       - name: Verify repository guard
         run: npm run guard:repository
+      - name: Verify Phase 13H independent review
+        run: npm run verify:phase13h:review
 
   backend-quality:
     name: Backend quality

@@ -779,6 +779,32 @@
     }
   ],
   "closures": {
+    "13B": {
+      "status": "completed",
+      "dependencies": [
+        "P13-BLD-001",
+        "P13-BLD-002",
+        "P13-BLD-003",
+        "P13-BLD-004",
+        "P13-BLD-005",
+        "P13-BLD-006"
+      ],
+      "goldenCases": [
+        "13A-GC-001",
+        "13A-GC-002",
+        "13A-GC-003",
+        "13A-GC-004",
+        "13A-GC-005",
+        "13A-GC-034"
+      ],
+      "evidence": [
+        "package.json",
+        "vite.config.js",
+        "infra/digitalocean/main.tf",
+        "tests/phase-13b-promotion.test.js",
+        "docs/migration/phase-13/PART_13B_COMPLETION.md"
+      ]
+    },
     "13C": {
       "status": "completed",
       "dependencies": [
