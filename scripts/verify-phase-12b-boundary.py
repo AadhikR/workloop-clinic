@@ -44,7 +44,7 @@ def main() -> None:
     ):
         assert control in command, control
     assert "scheduler" not in command.lower()
-    assert "print(json.dumps" in command
+    assert "json.dumps(" in command
 
     migration_client = source("src/notificationApi.js")
     migration_bell = source("src/NotificationBell.jsx")

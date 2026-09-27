@@ -88,6 +88,12 @@ The final evidence scan found no token, connection string, generated password, a
 identity, or SQL identity query in service logs. The repository guard inspected 1037 files. The
 deployment contract, frontend artifact proof, and whitespace check passed.
 
+The first routed GitHub run exposed one stale Phase 12B source assertion. It required the expiry
+command's safe JSON serializer and `print` call to share one line. Part 14D had kept the same JSON
+output with multiline formatting. The retained verifier now checks the serializer without fixing
+its layout. The exact Phase 12B workflow step passed locally after the repair; no runtime code or
+schema changed.
+
 Cleanup verified and removed only:
 
 - `workloop-phase14d-gate_postgres_data`
