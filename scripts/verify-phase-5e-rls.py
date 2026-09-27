@@ -644,7 +644,7 @@ ORDER BY rolname
         ).all()
         assert roles == [
             ("workloop_expiry_processing", False, False, False, False, True, False, False),
-            ("workloop_runtime", False, True, False, False, True, False, False),
+            ("workloop_runtime", False, False, False, False, True, False, False),
         ]
         memberships = connection.execute(
             text(

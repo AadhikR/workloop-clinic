@@ -89,6 +89,11 @@ the bootstrap administrator to that role, and reapplies the explicit ACL after a
 focused reproduction passed initial bootstrap, downgrade to base, re-upgrade, post-migration
 hardening, and the complete role and grant proof.
 
+The replacement GitHub run reached the deep database suite and exposed one stale historical
+assertion: the Phase 5E verifier still expected the runtime login to inherit privileges. Its exact
+role expectation now matches the Part 14C `NOINHERIT` contract. The complete current-schema
+database block and the Phase 5F historical revision chain then passed locally.
+
 The restart check recorded the database fingerprint, Keycloak signing-key IDs, local object state,
 private S3 object state, and scanner state. It recreated the existing images without rebuilding.
 Every recorded value matched, authentication passed without another Keycloak configuration run,

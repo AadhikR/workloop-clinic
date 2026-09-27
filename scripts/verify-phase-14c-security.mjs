@@ -15,6 +15,7 @@ const relativeFiles = {
   postgresInit: 'infra/local/postgres/init/01-create-databases.sh',
   hardeningSql: 'scripts/harden-phase-14c-extension.sql',
   databaseWrapper: 'scripts/verify-phase-14c-database.sh',
+  rlsVerifier: 'scripts/verify-phase-5e-rls.py',
   realm: 'keycloak/cloud/workloop-dev-realm.json',
   mfa: 'keycloak/cloud/arm-admin-totp.sh',
   access: 'docs/migration/phase-14/PART_14C_ACCESS_CONTROL.md',
@@ -147,6 +148,7 @@ export function validatePhase14CSecurity(sources) {
     postgresInit,
     hardeningSql,
     databaseWrapper,
+    rlsVerifier,
     realm,
     mfa,
     access,
@@ -171,6 +173,12 @@ export function validatePhase14CSecurity(sources) {
     requireText(errors, resource, `name       = "${role}"`, `${role} exact name`)
     requireText(errors, resource, 'cluster_id = digitalocean_database_cluster.shared[0].id', `${role} cluster binding`)
   }
+  requireText(
+    errors,
+    rlsVerifier,
+    '("workloop_runtime", False, False, False, False, True, False, False)',
+    'historical runtime NOINHERIT expectation',
+  )
   for (const role of databaseRoles) {
     requireText(errors, bootstrap, `DatabaseRole("${role}", inherit=False)`, `${role} NOINHERIT bootstrap`)
     if (!new RegExp(`CREATE ROLE ${role} LOGIN[^\\n]*NOINHERIT`).test(postgresInit)) {

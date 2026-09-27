@@ -32,6 +32,7 @@ test('14A-GC-007 rejects a shared database role or inherited privileges', () => 
   rejects(mutate('main', 'name       = "workloop_runtime"', 'name       = "workloop_migration"'), 'workloop_runtime exact name')
   rejects(mutate('bootstrap', 'DatabaseRole("workloop_runtime", inherit=False)', 'DatabaseRole("workloop_runtime", inherit=True)'), 'workloop_runtime NOINHERIT')
   rejects(mutate('postgresInit', 'SET ROLE workloop_migration;', 'SET ROLE postgres;'), 'local extension migration ownership')
+  rejects(mutate('rlsVerifier', '("workloop_runtime", False, False, False, False, True, False, False)', '("workloop_runtime", False, True, False, False, True, False, False)'), 'historical runtime NOINHERIT expectation')
 })
 
 test('14A-GC-008 rejects a shared or over-privileged object key', () => {
