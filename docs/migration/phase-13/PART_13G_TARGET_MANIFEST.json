@@ -1,47 +1,214 @@
 {
   "version": 1,
-  "manifestId": "phase-13g-2026-09-26-boundary-1",
-  "settledAt": "2026-09-26T15:06:46Z",
-  "sourceCommit": "8666d752fd69194e027974a0de623be0c8210978",
+  "manifestId": "phase-13g-2026-09-27-restore-failure-1",
+  "settledAt": "2026-09-27T05:15:31Z",
+  "sourceCommit": "9ce2ad4b4fb82cd804d847e87d5139bdca52f3d2",
   "mode": "read-only",
   "discovery": {
     "externalProject": {
-      "status": "blocked",
-      "blocker": "authenticated-provider-access-missing",
-      "organizationId": null,
-      "projectId": null,
-      "projectState": null,
-      "repositoryCandidateAuthoritative": false
+      "status": "resolved",
+      "observedAt": "2026-09-27T05:04:37Z",
+      "organizationId": "otqemcwkpkyhpncmxldm",
+      "organizationName": "Aadhik Raj",
+      "projectId": "lqnwmfhcogqaixgtcymc",
+      "projectName": "AadhikR's Project",
+      "projectState": "active",
+      "region": "ap-northeast-1",
+      "repositoryCandidateAuthoritative": true
     },
     "auth": {
-      "status": "blocked",
-      "blocker": "authenticated-provider-access-missing",
-      "userCount": null,
-      "metadataRecordCount": null
+      "status": "resolved",
+      "observedAt": "2026-09-27T05:04:37Z",
+      "userCount": 6,
+      "metadataRecordCount": 6,
+      "metadataRecordType": "auth.identities"
     },
     "database": {
-      "status": "blocked",
-      "blocker": "authenticated-provider-access-missing",
-      "schemaObjects": [],
-      "tableRowCounts": {},
-      "rpcNames": [],
-      "exportSha256": null
+      "status": "resolved",
+      "observedAt": "2026-09-27T05:04:37Z",
+      "schemaObjects": [
+        {
+          "kind": "base-tables",
+          "namesRecordedIn": "tableRowCounts"
+        },
+        {
+          "kind": "views",
+          "names": [
+            "extensions.pg_stat_statements",
+            "extensions.pg_stat_statements_info",
+            "vault.decrypted_secrets"
+          ]
+        }
+      ],
+      "tableRowCounts": {
+        "auth.audit_log_entries": 0,
+        "auth.custom_oauth_providers": 0,
+        "auth.flow_state": 0,
+        "auth.identities": 6,
+        "auth.instances": 0,
+        "auth.mfa_amr_claims": 13,
+        "auth.mfa_challenges": 0,
+        "auth.mfa_factors": 0,
+        "auth.mfa_recovery_code_sets": 0,
+        "auth.mfa_recovery_codes": 0,
+        "auth.oauth_authorizations": 0,
+        "auth.oauth_client_states": 0,
+        "auth.oauth_clients": 0,
+        "auth.oauth_consents": 0,
+        "auth.one_time_tokens": 0,
+        "auth.refresh_tokens": 24,
+        "auth.saml_providers": 0,
+        "auth.saml_relay_states": 0,
+        "auth.schema_migrations": 82,
+        "auth.scim_tokens": 0,
+        "auth.scim_users": 0,
+        "auth.sessions": 13,
+        "auth.sso_domains": 0,
+        "auth.sso_providers": 0,
+        "auth.users": 6,
+        "auth.webauthn_challenges": 0,
+        "auth.webauthn_credentials": 0,
+        "public.advance_repayments": 0,
+        "public.asset_assignments": 0,
+        "public.assets": 0,
+        "public.attendance_audit_log": 0,
+        "public.attendance_periods": 0,
+        "public.attendance_records": 4,
+        "public.attendance_settings": 0,
+        "public.certifications": 0,
+        "public.clock_events": 14,
+        "public.companies": 3,
+        "public.employee_contracts": 0,
+        "public.employee_documents": 0,
+        "public.employee_insurance": 0,
+        "public.employee_job_history": 13,
+        "public.employees": 48,
+        "public.expense_claims": 0,
+        "public.insurance_dependants": 0,
+        "public.insurance_policies": 0,
+        "public.leave_approval_delegates": 0,
+        "public.leave_audit_log": 17,
+        "public.leave_balances": 192,
+        "public.leave_requests": 15,
+        "public.leave_settings": 0,
+        "public.leave_types": 32,
+        "public.nafis_reports": 0,
+        "public.notifications": 1,
+        "public.offboarding_checklists": 0,
+        "public.offboarding_task_templates": 0,
+        "public.offboarding_tasks": 0,
+        "public.payroll_approval_log": 16,
+        "public.payroll_entries": 104,
+        "public.payroll_runs": 12,
+        "public.payslips": 67,
+        "public.public_holidays": 104,
+        "public.regularisation_requests": 0,
+        "public.roster_assignments": 0,
+        "public.salary_advances": 0,
+        "public.shift_assignments": 0,
+        "public.shift_swap_requests": 0,
+        "public.shifts": 0,
+        "public.training_records": 0,
+        "public.user_profiles": 6,
+        "realtime.messages": 0,
+        "realtime.schema_migrations": 86,
+        "realtime.subscription": 0,
+        "storage.buckets": 0,
+        "storage.buckets_analytics": 0,
+        "storage.buckets_vectors": 0,
+        "storage.migrations": 73,
+        "storage.objects": 0,
+        "storage.s3_multipart_uploads": 0,
+        "storage.s3_multipart_uploads_parts": 0,
+        "storage.vector_indexes": 0,
+        "vault.secrets": 0
+      },
+      "tableCount": 81,
+      "totalRowCount": 951,
+      "rpcNames": [
+        "public.admin_get_employee_portal_role",
+        "public.admin_set_employee_portal_role",
+        "public.employee_cancel_leave_request",
+        "public.employee_get_colleagues",
+        "public.employee_get_my_roster",
+        "public.employee_record_clock_event",
+        "public.employee_request_advance",
+        "public.employee_request_shift_swap",
+        "public.employee_submit_expense",
+        "public.employee_submit_leave_request",
+        "public.employee_submit_regularisation",
+        "public.handle_updated_at",
+        "public.link_employee_account",
+        "public.manager_approve_leave",
+        "public.manager_reject_leave",
+        "public.rls_auto_enable"
+      ],
+      "overloadedRpcNames": [
+        "public.employee_submit_leave_request"
+      ],
+      "exportSha256": "5199ba3bf29412280907739e2cac1c8d3b4382ae0c486afdc81fe3964859c691",
+      "exportSnapshotDate": "2026-09-12"
     },
     "realtime": {
-      "status": "blocked",
-      "blocker": "authenticated-provider-access-missing",
-      "publications": [],
-      "channelConfigurations": []
+      "status": "resolved",
+      "observedAt": "2026-09-27T05:04:37Z",
+      "publications": [
+        {
+          "name": "supabase_realtime",
+          "systemId": 16430,
+          "tableCount": 0,
+          "tables": []
+        }
+      ],
+      "channelConfigurations": [
+        {
+          "serviceEnabled": true,
+          "publicAccessAllowed": true,
+          "databaseConnectionPoolSize": 2,
+          "postgresChangesConnectionPoolSize": 2,
+          "maxConcurrentClients": 200,
+          "maxEventsPerSecond": 100,
+          "maxPresenceEventsPerSecond": 20,
+          "maxPayloadKilobytes": 256
+        }
+      ]
     },
     "storage": {
-      "status": "blocked",
-      "blocker": "authenticated-provider-access-missing",
+      "status": "resolved",
+      "observedAt": "2026-09-27T05:04:37Z",
+      "bucketCount": 0,
+      "objectCount": 0,
+      "byteCount": 0,
       "buckets": []
     },
     "apiKeys": {
-      "status": "blocked",
-      "blocker": "authenticated-provider-access-missing",
-      "identifiers": []
+      "status": "resolved",
+      "observedAt": "2026-09-27T05:04:37Z",
+      "identifiers": [
+        {
+          "class": "publishable",
+          "name": "web",
+          "safeSuffix": "...ZIjg"
+        },
+        {
+          "class": "publishable",
+          "name": "mobile",
+          "safeSuffix": "...FIKI"
+        },
+        {
+          "class": "secret",
+          "name": "backend_api",
+          "safePrefix": "sb_secret_8I4Se..."
+        },
+        {
+          "class": "legacy",
+          "name": "anon"
+        },
+        {
+          "class": "legacy",
+          "name": "service_role"
+        }
+      ]
     },
     "github": {
       "status": "resolved",
@@ -68,25 +235,103 @@
       ]
     },
     "digitalOcean": {
-      "status": "blocked",
-      "blocker": "authenticated-provider-access-missing",
+      "status": "resolved",
+      "observedAt": "2026-09-27T05:04:37Z",
+      "team": "My Team",
       "apps": []
     }
   },
   "export": {
-    "status": "not-started",
-    "externalLocation": null,
-    "custodian": null,
-    "encryptionOwner": null,
+    "status": "verified-artifacts",
+    "externalLocation": "C:\\Users\\aadhi\\Documents\\workloop-phase13g-retention",
+    "custodian": "project-owner",
+    "encryptionOwner": "Windows current-user DPAPI",
     "evidenceSha256": null,
-    "artifactDigests": []
+    "artifactDigests": [
+      "e906578379a8cf4e6a5a5c62c472b72c62175e5528111f7c912ca313fb01c95a",
+      "5324c649624584b189dde40e7508ab871339451d7f94e6ebc267824e2ebbb81c"
+    ],
+    "artifacts": [
+      {
+        "name": "supabase-database.backup.gz.enc",
+        "sizeBytes": 88816,
+        "sha256": "e906578379a8cf4e6a5a5c62c472b72c62175e5528111f7c912ca313fb01c95a",
+        "plaintextSha256": "5199ba3bf29412280907739e2cac1c8d3b4382ae0c486afdc81fe3964859c691"
+      },
+      {
+        "name": "supabase-table-counts.csv.enc",
+        "sizeBytes": 2144,
+        "sha256": "5324c649624584b189dde40e7508ab871339451d7f94e6ebc267824e2ebbb81c",
+        "plaintextSha256": "d2a0a4c9c6573ecef2341ae8fd1d49c6b8324aab80795c6da33b3248a28fc35a"
+      }
+    ],
+    "decryptionRoundTripVerified": true,
+    "plaintextCopiesRemovedAt": "2026-09-27T05:15:31Z"
   },
   "restore": {
-    "status": "not-started",
+    "status": "failed",
+    "attemptedAt": "2026-09-27T04:57:26Z",
     "completedAt": null,
     "sourceEvidenceSha256": null,
     "restoredEvidenceSha256": null,
-    "countsAndDigestsMatch": false
+    "countsAndDigestsMatch": false,
+    "applicationPublicCountsMatch": true,
+    "authUserCountsMatch": true,
+    "authIdentityCountsMatch": true,
+    "sourceTableCount": 81,
+    "restoredTableCount": 76,
+    "sourceRowCount": 951,
+    "restoredRowCount": 934,
+    "mismatches": [
+      {
+        "object": "auth.mfa_recovery_code_sets",
+        "source": 0,
+        "restored": null
+      },
+      {
+        "object": "auth.mfa_recovery_codes",
+        "source": 0,
+        "restored": null
+      },
+      {
+        "object": "auth.schema_migrations",
+        "source": 82,
+        "restored": 77
+      },
+      {
+        "object": "auth.scim_tokens",
+        "source": 0,
+        "restored": null
+      },
+      {
+        "object": "auth.scim_users",
+        "source": 0,
+        "restored": null
+      },
+      {
+        "object": "realtime.schema_migrations",
+        "source": 86,
+        "restored": 82
+      },
+      {
+        "object": "storage.migrations",
+        "source": 73,
+        "restored": 65
+      },
+      {
+        "object": "vault.secrets",
+        "source": 0,
+        "restored": null
+      }
+    ],
+    "failureReason": "The available provider snapshot predates the live managed schemas and does not reproduce the recorded schema and row counts."
+  },
+  "cleanup": {
+    "completedAt": "2026-09-27T05:15:31Z",
+    "disposableRestoreContainerRemoved": true,
+    "temporaryRestoreDirectoriesRemoved": 2,
+    "plaintextDownloadCopiesRemoved": 2,
+    "encryptedArtifactsRetained": true
   },
   "retention": {
     "status": "not-started",
@@ -106,9 +351,8 @@
     "workloop-clinic_postgres_data"
   ],
   "blockers": [
-    "Authoritative external project access is unavailable.",
-    "Authoritative DigitalOcean application access is unavailable.",
-    "No encrypted export or isolated restore exists.",
+    "The encrypted 2026-09-12 provider snapshot does not reproduce the 2026-09-27 live managed schemas and row counts.",
+    "A current export and successful isolated restore are required before retention can start.",
     "The retention period has not started.",
     "No exact destructive target is eligible for approval."
   ]

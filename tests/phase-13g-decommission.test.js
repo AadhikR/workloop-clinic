@@ -162,14 +162,22 @@ function alembicHeads() {
   return [...revisions].filter((revision) => !predecessors.has(revision)).sort()
 }
 
-test('keeps the repository boundary blocked without guessed targets or false retention', () => {
+test('keeps the repository boundary fail closed after exact discovery and a failed restore', () => {
   const targetManifest = readJson('docs/migration/phase-13/PART_13G_TARGET_MANIFEST.json')
   const approvalManifest = readJson('docs/migration/phase-13/PART_13G_APPROVAL_MANIFEST.json')
   assert.deepEqual(validatePreparedBoundary(targetManifest, approvalManifest), [])
-  assert.equal(targetManifest.discovery.externalProject.repositoryCandidateAuthoritative, false)
+  assert.equal(targetManifest.discovery.externalProject.repositoryCandidateAuthoritative, true)
   assert.deepEqual(targetManifest.discovery.github.environmentNames, [])
   assert.ok(targetManifest.discovery.github.secretStores.every((store) => store.entries.length === 0))
-  assert.equal(targetManifest.discovery.digitalOcean.status, 'blocked')
+  assert.equal(targetManifest.discovery.digitalOcean.status, 'resolved')
+  assert.deepEqual(targetManifest.discovery.digitalOcean.apps, [])
+  assert.equal(targetManifest.export.status, 'verified-artifacts')
+  assert.equal(targetManifest.export.decryptionRoundTripVerified, true)
+  assert.equal(targetManifest.restore.status, 'failed')
+  assert.equal(targetManifest.restore.countsAndDigestsMatch, false)
+  assert.equal(targetManifest.restore.mismatches.length, 8)
+  assert.equal(targetManifest.cleanup.disposableRestoreContainerRemoved, true)
+  assert.equal(targetManifest.cleanup.encryptedArtifactsRetained, true)
   assert.equal(targetManifest.retention.startsAt, null)
   assert.equal(targetManifest.retention.deadline, null)
 })
@@ -237,8 +245,19 @@ test('records the blocked catalogue boundary without claiming Part 13G closure',
   const catalogue = readJson('docs/migration/phase-13/dependency-catalogue.json')
   assert.equal(catalogue.closures['13G'], undefined)
   assert.equal(catalogue.boundaries['13G'].status, 'blocked')
-  assert.deepEqual(catalogue.boundaries['13G'].resolvedDependencies, ['P13-EXT-007', 'P13-APR-001'])
+  assert.deepEqual(catalogue.boundaries['13G'].resolvedDependencies, [
+    'P13-EXT-001',
+    'P13-EXT-002',
+    'P13-EXT-003',
+    'P13-EXT-004',
+    'P13-EXT-005',
+    'P13-EXT-006',
+    'P13-EXT-007',
+    'P13-EXT-008',
+    'P13-APR-001',
+  ])
   assert.ok(catalogue.boundaries['13G'].unresolvedDependencies.includes('P13-RET-001'))
+  assert.ok(catalogue.boundaries['13G'].verifiedGoldenCases.includes('13A-GC-027'))
   assert.ok(catalogue.boundaries['13G'].unresolvedGoldenCases.includes('13A-GC-028'))
   assert.deepEqual(alembicHeads(), ['e8a1c3f5b7d9'])
 })

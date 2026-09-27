@@ -645,7 +645,8 @@
       "disposition": "inspect externally",
       "owner": "13G",
       "evidence": [
-        "repository candidate project ref lqnwmfhcogqaixgtcymc is not authoritative"
+        "authenticated dashboard resolved organization otqemcwkpkyhpncmxldm and project lqnwmfhcogqaixgtcymc",
+        "docs/migration/phase-13/PART_13G_TARGET_MANIFEST.json"
       ]
     },
     {
@@ -681,7 +682,8 @@
       "disposition": "inspect externally",
       "owner": "13G",
       "evidence": [
-        "repository has no direct Realtime call and cannot prove external state"
+        "authenticated Realtime settings and publication inspection",
+        "docs/migration/phase-13/PART_13G_TARGET_MANIFEST.json"
       ]
     },
     {
@@ -690,7 +692,8 @@
       "disposition": "inspect externally",
       "owner": "13G",
       "evidence": [
-        "anon and service-role names are candidates only; never record values"
+        "authenticated API key inventory records names and safe prefixes or suffixes only",
+        "docs/migration/phase-13/PART_13G_TARGET_MANIFEST.json"
       ]
     },
     {
@@ -711,7 +714,8 @@
       "disposition": "inspect externally",
       "owner": "13G",
       "evidence": [
-        "candidate names match repository environment inputs; exact store entries unresolved"
+        "authenticated DigitalOcean App Platform inventory contains no applications",
+        "docs/migration/phase-13/PART_13G_TARGET_MANIFEST.json"
       ]
     },
     {
@@ -904,17 +908,17 @@
     "13G": {
       "status": "blocked",
       "resolvedDependencies": [
-        "P13-EXT-007",
-        "P13-APR-001"
-      ],
-      "unresolvedDependencies": [
         "P13-EXT-001",
         "P13-EXT-002",
         "P13-EXT-003",
         "P13-EXT-004",
         "P13-EXT-005",
         "P13-EXT-006",
+        "P13-EXT-007",
         "P13-EXT-008",
+        "P13-APR-001"
+      ],
+      "unresolvedDependencies": [
         "P13-DEL-001",
         "P13-DEL-002",
         "P13-DEL-003",
@@ -923,7 +927,9 @@
       ],
       "verifiedGoldenCases": [
         "13A-GC-024",
+        "13A-GC-025",
         "13A-GC-026",
+        "13A-GC-027",
         "13A-GC-029",
         "13A-GC-031",
         "13A-GC-032",
@@ -931,8 +937,6 @@
         "13A-GC-036"
       ],
       "unresolvedGoldenCases": [
-        "13A-GC-025",
-        "13A-GC-027",
         "13A-GC-028",
         "13A-GC-030"
       ],

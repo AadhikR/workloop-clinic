@@ -212,6 +212,8 @@
         "docs/migration/phase-13/PART_13C_REMOVAL_INVENTORY.json",
         "docs/migration/phase-13/PART_13D_COMPLETION.md",
         "docs/migration/phase-13/PART_13E_COMPLETION.md",
+        "docs/migration/phase-13/PART_13G_COMPLETION.md",
+        "docs/migration/phase-13/PART_13G_TARGET_MANIFEST.json",
         "docs/migration/phase-13/SUBPHASE_PLAN.md",
         "docs/migration/phase-13/dependency-catalogue.json"
       ]

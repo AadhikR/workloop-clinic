@@ -198,7 +198,7 @@ test('keeps the schema unchanged at the Part 12G head', () => {
   assert.deepEqual(alembicHeads(), ['e8a1c3f5b7d9'])
 })
 
-test('keeps unresolved external names and destructive authority fail closed', () => {
+test('keeps external discovery and destructive authority fail closed', () => {
   const catalogue = JSON.parse(readText(cataloguePath))
   const byId = new Map(catalogue.dependencies.map((entry) => [entry.id, entry]))
   for (const id of ['P13-EXT-001', 'P13-EXT-002', 'P13-EXT-003', 'P13-EXT-004', 'P13-EXT-005', 'P13-EXT-006', 'P13-EXT-007', 'P13-EXT-008', 'P13-RET-001', 'P13-RET-002']) {
@@ -210,5 +210,5 @@ test('keeps unresolved external names and destructive authority fail closed', ()
     assert.equal(byId.get(id).owner, '13G')
   }
   assert.match(byId.get('P13-EXT-007').evidence.join(' '), /AadhikR\/workloop-clinic/)
-  assert.match(byId.get('P13-EXT-008').evidence.join(' '), /unresolved/)
+  assert.match(byId.get('P13-EXT-008').evidence.join(' '), /no applications/)
 })

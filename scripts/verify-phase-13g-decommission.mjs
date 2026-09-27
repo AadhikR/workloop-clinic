@@ -242,8 +242,33 @@ export function validatePreparedBoundary(targetManifest, approvalManifest) {
     }
   }
   if (!targetManifest.blockers?.length) errors.push('at least one blocker must be recorded')
-  if (targetManifest.export?.status !== 'not-started') errors.push('export must remain not-started')
-  if (targetManifest.restore?.status !== 'not-started') errors.push('restore must remain not-started')
+  const exportStatus = targetManifest.export?.status
+  if (!['not-started', 'verified-artifacts'].includes(exportStatus)) {
+    errors.push('export must be absent or limited to verified encrypted artifacts')
+  }
+  if (exportStatus === 'verified-artifacts'
+    && (!targetManifest.export.externalLocation
+      || !targetManifest.export.custodian
+      || !targetManifest.export.encryptionOwner
+      || targetManifest.export.evidenceSha256 !== null
+      || targetManifest.export.decryptionRoundTripVerified !== true
+      || !Array.isArray(targetManifest.export.artifactDigests)
+      || targetManifest.export.artifactDigests.length === 0
+      || targetManifest.export.artifactDigests.some((digest) => !validSha256(digest)))) {
+    errors.push('failed-restore boundary has incomplete encrypted artifact evidence')
+  }
+
+  const restoreStatus = targetManifest.restore?.status
+  if (!['not-started', 'failed'].includes(restoreStatus)) {
+    errors.push('restore must remain unstarted or record a failed exact comparison')
+  }
+  if (restoreStatus === 'failed'
+    && (targetManifest.restore.completedAt !== null
+      || targetManifest.restore.countsAndDigestsMatch !== false
+      || !Array.isArray(targetManifest.restore.mismatches)
+      || targetManifest.restore.mismatches.length === 0)) {
+    errors.push('failed restore must keep completion unset and record exact mismatches')
+  }
   if (targetManifest.retention?.status !== 'not-started'
     || targetManifest.retention.startsAt !== null
     || targetManifest.retention.deadline !== null) {
@@ -270,7 +295,7 @@ function main() {
     process.exitCode = 1
     return
   }
-  process.stdout.write('Part 13G prepared boundary passed: discovery remains read-only and destruction is ineligible.\n')
+  process.stdout.write('Part 13G prepared boundary passed: discovery and restore evidence remain read-only and destruction is ineligible.\n')
 }
 
 if (path.resolve(process.argv[1] ?? '') === fileURLToPath(import.meta.url)) main()
