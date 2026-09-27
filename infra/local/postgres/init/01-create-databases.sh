@@ -37,7 +37,9 @@ ALTER SCHEMA public OWNER TO workloop_migration;
 ALTER DEFAULT PRIVILEGES FOR ROLE workloop_migration IN SCHEMA public REVOKE ALL ON TABLES FROM PUBLIC;
 ALTER DEFAULT PRIVILEGES FOR ROLE workloop_migration IN SCHEMA public REVOKE ALL ON SEQUENCES FROM PUBLIC;
 ALTER DEFAULT PRIVILEGES FOR ROLE workloop_migration IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;
+SET ROLE workloop_migration;
 CREATE EXTENSION IF NOT EXISTS btree_gist;
+RESET ROLE;
 DO $$
 DECLARE
   signature pg_catalog.regprocedure;
@@ -52,6 +54,7 @@ BEGIN
       AND dependency.deptype = 'e'
       AND extension.extname = 'btree_gist'
   LOOP
+    EXECUTE pg_catalog.format('ALTER FUNCTION %s OWNER TO workloop_migration', signature);
     EXECUTE pg_catalog.format('REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC', signature);
     EXECUTE pg_catalog.format(
       'GRANT EXECUTE ON FUNCTION %s TO workloop_migration, workloop_runtime, '

@@ -83,12 +83,23 @@ def test_rejects_cloud_seed_origin_outside_boundary(value: str) -> None:
 
 def test_cloud_migration_runs_every_stage_in_order(monkeypatch: pytest.MonkeyPatch) -> None:
     stages: list[str] = []
+    admin_url = "postgresql://doadmin:secret@private-db.db.ondigitalocean.com/workloop"
     monkeypatch.setattr(cloud_migrate.cloud_bootstrap, "main", lambda: stages.append("bootstrap"))
     monkeypatch.setattr(cloud_migrate, "upgrade_schema", lambda: stages.append("alembic"))
+    monkeypatch.setattr(cloud_migrate, "workloop_admin_url", lambda: admin_url)
+
+    def record_hardening(value: str) -> None:
+        stages.append(f"harden:{value}")
+
+    monkeypatch.setattr(
+        cloud_migrate.cloud_bootstrap,
+        "harden_migrated_schema",
+        record_hardening,
+    )
     monkeypatch.setattr(cloud_migrate.cloud_seed, "main", lambda: stages.append("seed"))
 
     assert cloud_migrate.main() == 0
-    assert stages == ["bootstrap", "alembic", "seed"]
+    assert stages == ["bootstrap", "alembic", f"harden:{admin_url}", "seed"]
 
 
 def test_cloud_migration_stops_before_seed_when_upgrade_fails(

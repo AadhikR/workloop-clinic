@@ -31,6 +31,7 @@ test('accepts the complete Phase 14C security contract', () => {
 test('14A-GC-007 rejects a shared database role or inherited privileges', () => {
   rejects(mutate('main', 'name       = "workloop_runtime"', 'name       = "workloop_migration"'), 'workloop_runtime exact name')
   rejects(mutate('bootstrap', 'DatabaseRole("workloop_runtime", inherit=False)', 'DatabaseRole("workloop_runtime", inherit=True)'), 'workloop_runtime NOINHERIT')
+  rejects(mutate('postgresInit', 'SET ROLE workloop_migration;', 'SET ROLE postgres;'), 'local extension migration ownership')
 })
 
 test('14A-GC-008 rejects a shared or over-privileged object key', () => {

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from alembic.config import Config
@@ -14,9 +15,17 @@ def upgrade_schema() -> None:
     alembic_command.upgrade(Config(str(ALEMBIC_CONFIG)), "head")
 
 
+def workloop_admin_url() -> str:
+    value = os.environ.get("CLOUD_ADMIN_WORKLOOP_DATABASE_URL")
+    if not value:
+        raise RuntimeError("CLOUD_ADMIN_WORKLOOP_DATABASE_URL is required")
+    return value
+
+
 def main() -> int:
     cloud_bootstrap.main()
     upgrade_schema()
+    cloud_bootstrap.harden_migrated_schema(workloop_admin_url())
     cloud_seed.main()
     print("Shared-development ownership, schema, and synthetic identity are ready")
     return 0

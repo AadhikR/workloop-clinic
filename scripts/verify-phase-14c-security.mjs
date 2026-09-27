@@ -11,7 +11,10 @@ const relativeFiles = {
   example: 'infra/digitalocean/shared-development.tfvars.example',
   readme: 'infra/digitalocean/README.md',
   bootstrap: 'backend/app/db/cloud_bootstrap.py',
+  cloudMigrate: 'backend/app/db/cloud_migrate.py',
   postgresInit: 'infra/local/postgres/init/01-create-databases.sh',
+  hardeningSql: 'scripts/harden-phase-14c-extension.sql',
+  databaseWrapper: 'scripts/verify-phase-14c-database.sh',
   realm: 'keycloak/cloud/workloop-dev-realm.json',
   mfa: 'keycloak/cloud/arm-admin-totp.sh',
   access: 'docs/migration/phase-14/PART_14C_ACCESS_CONTROL.md',
@@ -133,7 +136,21 @@ function requireSecretRoute(errors, block, key, component) {
 
 export function validatePhase14CSecurity(sources) {
   const errors = []
-  const { main, variables, outputs, example, readme, bootstrap, postgresInit, realm, mfa, access } = sources
+  const {
+    main,
+    variables,
+    outputs,
+    example,
+    readme,
+    bootstrap,
+    cloudMigrate,
+    postgresInit,
+    hardeningSql,
+    databaseWrapper,
+    realm,
+    mfa,
+    access,
+  } = sources
   const normalizedBootstrap = bootstrap.replace(/"\s*"/g, '')
   const catalogue = JSON.parse(sources.catalogue)
 
@@ -170,9 +187,32 @@ export function validatePhase14CSecurity(sources) {
   requireText(errors, postgresInit, 'ALTER DEFAULT PRIVILEGES FOR ROLE workloop_migration', 'local application default privileges')
   requireText(errors, postgresInit, 'ALTER DEFAULT PRIVILEGES FOR ROLE keycloak', 'local Keycloak default privileges')
   requireText(errors, bootstrap, "extension.extname = 'btree_gist'", 'cloud extension function scope')
+  requireText(errors, bootstrap, 'ALTER FUNCTION %s OWNER TO workloop_migration', 'cloud extension function ownership')
   requireText(errors, bootstrap, 'REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC', 'cloud extension PUBLIC revocation')
+  rejectText(errors, bootstrap, 'CREATE EXTENSION IF NOT EXISTS btree_gist', 'administrator-owned cloud extension')
+  requireText(
+    errors,
+    cloudMigrate,
+    'upgrade_schema()\n    cloud_bootstrap.harden_migrated_schema(workloop_admin_url())',
+    'cloud post-migration hardening',
+  )
+  requireText(
+    errors,
+    postgresInit,
+    'SET ROLE workloop_migration;\nCREATE EXTENSION IF NOT EXISTS btree_gist;\nRESET ROLE;',
+    'local extension migration ownership',
+  )
   requireText(errors, postgresInit, "extension.extname = 'btree_gist'", 'local extension function scope')
+  requireText(errors, postgresInit, 'ALTER FUNCTION %s OWNER TO workloop_migration', 'local extension function ownership')
   requireText(errors, postgresInit, 'REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC', 'local extension PUBLIC revocation')
+  requireText(errors, hardeningSql, 'ALTER FUNCTION %s OWNER TO workloop_migration', 'post-downgrade extension ownership')
+  requireText(errors, hardeningSql, 'REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC', 'post-downgrade PUBLIC revocation')
+  requireText(
+    errors,
+    databaseWrapper,
+    'harden-phase-14c-extension.sql',
+    'database proof post-migration hardening',
+  )
 
   for (const [name, permission] of objectKeys) {
     const resource = extractBlock(main, `resource "digitalocean_spaces_key" "${name}"`)

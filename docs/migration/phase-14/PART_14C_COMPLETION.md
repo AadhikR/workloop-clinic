@@ -82,6 +82,13 @@ a container without the Docker client, and PostgreSQL extension functions still 
 default `PUBLIC` execute grant. The wrapper and grant hardening were corrected with focused checks.
 The one permitted fresh-stack rerun passed the complete database proof.
 
+The first routed GitHub run then exposed an ownership case in its empty-schema downgrade. Local
+initialization had created `btree_gist` as `postgres`, so the migration role could not drop it. The
+repair creates the extension under `workloop_migration`, transfers only its owned functions from
+the bootstrap administrator to that role, and reapplies the explicit ACL after an upgrade. A fresh
+focused reproduction passed initial bootstrap, downgrade to base, re-upgrade, post-migration
+hardening, and the complete role and grant proof.
+
 The restart check recorded the database fingerprint, Keycloak signing-key IDs, local object state,
 private S3 object state, and scanner state. It recreated the existing images without rebuilding.
 Every recorded value matched, authentication passed without another Keycloak configuration run,

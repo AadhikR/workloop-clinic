@@ -85,6 +85,19 @@ BEGIN
   END IF;
 
   SELECT count(*) INTO unexpected
+  FROM pg_catalog.pg_depend dependency
+  JOIN pg_catalog.pg_extension extension ON extension.oid = dependency.refobjid
+  JOIN pg_catalog.pg_proc functions ON functions.oid = dependency.objid
+  WHERE dependency.classid = 'pg_catalog.pg_proc'::pg_catalog.regclass
+    AND dependency.refclassid = 'pg_catalog.pg_extension'::pg_catalog.regclass
+    AND dependency.deptype = 'e'
+    AND extension.extname = 'btree_gist'
+    AND functions.proowner <> 'workloop_migration'::pg_catalog.regrole;
+  IF unexpected <> 0 THEN
+    RAISE EXCEPTION 'an extension function is not owned by the migration identity';
+  END IF;
+
+  SELECT count(*) INTO unexpected
   FROM pg_catalog.pg_proc functions
   JOIN pg_catalog.pg_namespace namespace ON namespace.oid = functions.pronamespace
   CROSS JOIN LATERAL pg_catalog.aclexplode(

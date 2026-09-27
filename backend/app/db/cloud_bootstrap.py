@@ -50,7 +50,6 @@ def harden_btree_gist_functions(
     connection: psycopg.Connection[tuple[object, ...]],
     roles: tuple[DatabaseRole, ...],
 ) -> None:
-    connection.execute("CREATE EXTENSION IF NOT EXISTS btree_gist")
     role_names = sql.SQL(", ").join(sql.Literal(role.name) for role in roles)
     connection.execute(
         sql.SQL(
@@ -72,6 +71,7 @@ BEGIN
       AND extension.extname = 'btree_gist'
   LOOP
     function_count := function_count + 1;
+    EXECUTE pg_catalog.format('ALTER FUNCTION %s OWNER TO workloop_migration', signature);
     EXECUTE pg_catalog.format('REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC', signature);
     FOREACH role_name IN ARRAY ARRAY[{}]::text[]
     LOOP
@@ -90,6 +90,24 @@ $$
 """
         ).format(role_names)
     )
+
+
+def harden_migrated_schema(admin_connection_url: str) -> None:
+    validated_url = validate_admin_connection_url(admin_connection_url, "workloop")
+    with psycopg.connect(validated_url, autocommit=True) as connection:
+        row = connection.execute("SELECT current_database(), current_user").fetchone()
+        if row != ("workloop", "doadmin"):
+            raise RuntimeError("schema hardening must use the workloop administrator identity")
+        extension_owner = connection.execute(
+            """
+SELECT pg_catalog.pg_get_userbyid(extowner)
+FROM pg_catalog.pg_extension
+WHERE extname = 'btree_gist'
+"""
+        ).fetchone()
+        if extension_owner != ("workloop_migration",):
+            raise RuntimeError("btree_gist must be owned by the migration identity")
+        harden_btree_gist_functions(connection, BOOTSTRAPS[0].roles)
 
 
 def validate_admin_connection_url(value: str, expected_database: str) -> str:
@@ -174,8 +192,6 @@ WHERE rolname = %s
             "REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC",
         ):
             connection.execute(sql.SQL(statement).format(sql.Identifier(specification.owner.name)))
-        if specification.database == "workloop":
-            harden_btree_gist_functions(connection, specification.roles)
 
 
 def main() -> int:
