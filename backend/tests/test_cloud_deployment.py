@@ -85,6 +85,13 @@ def test_cloud_migration_runs_every_stage_in_order(monkeypatch: pytest.MonkeyPat
     stages: list[str] = []
     admin_url = "postgresql://doadmin:secret@private-db.db.ondigitalocean.com/workloop"
     monkeypatch.setattr(cloud_migrate.cloud_bootstrap, "main", lambda: stages.append("bootstrap"))
+    monkeypatch.setattr(cloud_migrate, "required_release_head", lambda: stages.append("manifest"))
+    monkeypatch.setattr(cloud_migrate, "migration_url", lambda: "postgresql://migration")
+
+    def empty_heads(_url: str) -> tuple[str, ...]:
+        return ()
+
+    monkeypatch.setattr(cloud_migrate, "current_schema_heads", empty_heads)
     monkeypatch.setattr(cloud_migrate, "upgrade_schema", lambda: stages.append("alembic"))
     monkeypatch.setattr(cloud_migrate, "workloop_admin_url", lambda: admin_url)
 
@@ -98,15 +105,34 @@ def test_cloud_migration_runs_every_stage_in_order(monkeypatch: pytest.MonkeyPat
     )
     monkeypatch.setattr(cloud_migrate.cloud_seed, "main", lambda: stages.append("seed"))
 
+    def record_verification(value: str) -> None:
+        stages.append(f"verify:{value}")
+
+    monkeypatch.setattr(cloud_migrate, "verify_schema_head", record_verification)
+
     assert cloud_migrate.main() == 0
-    assert stages == ["bootstrap", "alembic", f"harden:{admin_url}", "seed"]
+    assert stages == [
+        "manifest",
+        "bootstrap",
+        "alembic",
+        f"harden:{admin_url}",
+        "verify:postgresql://migration",
+        "seed",
+    ]
 
 
 def test_cloud_migration_stops_before_seed_when_upgrade_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     stages: list[str] = []
+    monkeypatch.setattr(cloud_migrate, "required_release_head", lambda: stages.append("manifest"))
     monkeypatch.setattr(cloud_migrate.cloud_bootstrap, "main", lambda: stages.append("bootstrap"))
+    monkeypatch.setattr(cloud_migrate, "migration_url", lambda: "postgresql://migration")
+
+    def empty_heads(_url: str) -> tuple[str, ...]:
+        return ()
+
+    monkeypatch.setattr(cloud_migrate, "current_schema_heads", empty_heads)
 
     def fail_upgrade() -> None:
         stages.append("alembic")
@@ -117,4 +143,35 @@ def test_cloud_migration_stops_before_seed_when_upgrade_fails(
 
     with pytest.raises(RuntimeError, match="upgrade failed"):
         cloud_migrate.main()
-    assert stages == ["bootstrap", "alembic"]
+    assert stages == ["manifest", "bootstrap", "alembic"]
+
+
+def test_cloud_migration_requires_the_release_schema_head(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("WORKLOOP_ALEMBIC_HEAD", "older-head")
+    with pytest.raises(RuntimeError, match="incompatible"):
+        cloud_migrate.required_release_head()
+
+
+def test_cloud_migration_accepts_a_repeat_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    stages: list[str] = []
+    monkeypatch.setattr(cloud_migrate, "required_release_head", lambda: None)
+    monkeypatch.setattr(cloud_migrate.cloud_bootstrap, "main", lambda: None)
+    monkeypatch.setattr(cloud_migrate, "migration_url", lambda: "postgresql://migration")
+
+    def approved_head(_url: str) -> tuple[str, ...]:
+        return (cloud_migrate.EXPECTED_ALEMBIC_HEAD,)
+
+    def ignore_url(_url: str) -> None:
+        return None
+
+    monkeypatch.setattr(cloud_migrate, "current_schema_heads", approved_head)
+    monkeypatch.setattr(cloud_migrate, "upgrade_schema", lambda: stages.append("upgrade"))
+    monkeypatch.setattr(cloud_migrate, "workloop_admin_url", lambda: "postgresql://admin")
+    monkeypatch.setattr(cloud_migrate.cloud_bootstrap, "harden_migrated_schema", ignore_url)
+    monkeypatch.setattr(cloud_migrate, "verify_schema_head", ignore_url)
+    monkeypatch.setattr(cloud_migrate.cloud_seed, "main", lambda: None)
+
+    assert cloud_migrate.main() == 0
+    assert stages == ["upgrade"]

@@ -69,6 +69,11 @@ variable "provisioning_authorized" {
     )
     error_message = "Provisioning requires the complete encrypted runtime-secret input."
   }
+
+  validation {
+    condition     = !var.provisioning_authorized || var.release_manifest != null
+    error_message = "Provisioning requires one complete deployable release manifest."
+  }
 }
 
 variable "configuration_ceiling_usd" {
@@ -97,6 +102,89 @@ variable "release_promotion_approved" {
   description = "Confirms a named owner approved the exact release promotion."
   type        = bool
   default     = false
+}
+
+variable "release_manifest" {
+  description = "Reviewed immutable artifacts and source digests for one deployment."
+  type = object({
+    release_id = string
+    deployable = bool
+    git_commit = string
+    backend_image = object({
+      registry_type = string
+      registry      = string
+      repository    = string
+      digest        = string
+    })
+    keycloak_image = object({
+      registry_type = string
+      registry      = string
+      repository    = string
+      digest        = string
+    })
+    frontend_sha256      = string
+    frontend_root_sha256 = string
+    dependency_lock_sha256 = object({
+      frontend    = string
+      backend     = string
+      backend_dev = string
+    })
+    terraform_sha256 = string
+    app_spec_sha256  = string
+    alembic_head     = string
+  })
+  default   = null
+  nullable  = true
+  sensitive = false
+
+  validation {
+    condition = var.release_manifest == null ? true : (
+      var.release_manifest.deployable &&
+      can(regex("^[a-z0-9][a-z0-9._-]{2,79}$", var.release_manifest.release_id)) &&
+      can(regex("^[0-9a-f]{40}$", var.release_manifest.git_commit)) &&
+      var.release_manifest.alembic_head == "e8a1c3f5b7d9" &&
+      contains(["DOCR", "DOCKER_HUB"], var.release_manifest.backend_image.registry_type) &&
+      contains(["DOCR", "DOCKER_HUB"], var.release_manifest.keycloak_image.registry_type) &&
+      (var.release_manifest.backend_image.registry_type == "DOCR" ?
+        var.release_manifest.backend_image.registry == "" :
+      length(trimspace(var.release_manifest.backend_image.registry)) > 0) &&
+      (var.release_manifest.keycloak_image.registry_type == "DOCR" ?
+        var.release_manifest.keycloak_image.registry == "" :
+      length(trimspace(var.release_manifest.keycloak_image.registry)) > 0) &&
+      alltrue([
+        for value in [
+          var.release_manifest.backend_image.digest,
+          var.release_manifest.keycloak_image.digest,
+          var.release_manifest.frontend_sha256,
+          var.release_manifest.frontend_root_sha256,
+          var.release_manifest.dependency_lock_sha256.frontend,
+          var.release_manifest.dependency_lock_sha256.backend,
+          var.release_manifest.dependency_lock_sha256.backend_dev,
+          var.release_manifest.terraform_sha256,
+          var.release_manifest.app_spec_sha256,
+        ] : can(regex("^sha256:[0-9a-f]{64}$", value))
+      ])
+    )
+    error_message = "The release manifest must contain one full commit, immutable SHA-256 digests, and Alembic head e8a1c3f5b7d9."
+  }
+}
+
+variable "expiry_scopes" {
+  description = "Synthetic company and optional branch scopes processed by one expiry invocation."
+  type = list(object({
+    company_id = string
+    branch_id  = optional(string)
+  }))
+  default = []
+
+  validation {
+    condition = alltrue([
+      for scope in var.expiry_scopes :
+      can(regex("^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$", scope.company_id)) &&
+      (scope.branch_id == null || can(regex("^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$", scope.branch_id)))
+    ])
+    error_message = "Expiry scopes must contain lowercase UUID company IDs and optional branch IDs."
+  }
 }
 
 variable "approval" {

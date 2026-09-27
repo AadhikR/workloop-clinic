@@ -17,6 +17,7 @@ from app.core.logging import configure_logging
 from app.db.engine import create_database_engine
 from app.storage import ObjectStorage, create_object_storage
 from app.storage.base import StorageError, StorageNotFoundError
+from app.storage.worker_control import run_claim_loop
 
 logger = logging.getLogger(__name__)
 RETRY_DELAYS = (
@@ -178,6 +179,37 @@ async def process_operation(
     await complete_operation(engine, operation, status=status, error_code="")
 
 
+async def release_operation(engine: AsyncEngine, operation: ClaimedOperation) -> None:
+    retry_delay = RETRY_DELAYS[operation.attempt_count - 1] if operation.attempt_count < 8 else None
+    async with engine.begin() as connection:
+        await set_reconciler_context(
+            connection,
+            company_id=operation.company_id,
+            branch_id=operation.branch_id,
+        )
+        await connection.execute(
+            text(
+                """
+UPDATE public.storage_operations
+SET status='failed',last_error_code='provider_error',
+    next_attempt_at=CASE WHEN CAST(:retry_delay AS interval) IS NULL THEN NULL
+      ELSE statement_timestamp()+CAST(:retry_delay AS interval) END,
+    claimed_at=NULL,lease_expires_at=NULL,completed_at=NULL,
+    updated_at=statement_timestamp()
+WHERE id=:id AND company_id=:company_id AND branch_id=:branch_id
+  AND status='claimed' AND attempt_count=:attempt_count
+"""
+            ),
+            {
+                "id": operation.id,
+                "company_id": operation.company_id,
+                "branch_id": operation.branch_id,
+                "attempt_count": operation.attempt_count,
+                "retry_delay": retry_delay,
+            },
+        )
+
+
 async def run_once(engine: AsyncEngine, storage: ObjectStorage) -> bool:
     operation = await claim_operation(engine)
     if operation is None:
@@ -228,13 +260,15 @@ async def run() -> None:
     storage = create_object_storage(settings)
     once = os.environ.get("STORAGE_RECONCILER_ONCE") == "1"
     try:
-        while True:
-            await run_maintenance(engine)
-            processed = await run_once(engine, storage)
-            if once:
-                return
-            if not processed:
-                await asyncio.sleep(5)
+        await run_claim_loop(
+            worker_name="storage_reconciler",
+            logger=logger,
+            claim_next=lambda: claim_operation(engine),
+            process_claim=lambda operation: process_operation(engine, storage, operation),
+            release_claim=lambda operation: release_operation(engine, operation),
+            maintenance=lambda: run_maintenance(engine),
+            once=once,
+        )
     finally:
         await storage.close()
         await engine.dispose()

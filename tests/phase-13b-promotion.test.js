@@ -59,12 +59,13 @@ test('keeps the promoted application on the canonical commands', () => {
   }
 })
 
-test('keeps CI and DigitalOcean on the same promoted command and output', () => {
+test('keeps CI and DigitalOcean on the same promoted build and output', () => {
   const workflow = readText('.github/workflows/migration-foundation.yml')
   const terraform = readText('infra/digitalocean/main.tf')
 
   assert.match(workflow, /- name: Build frontend\n\s+run: npm run build/)
-  assert.match(terraform, /build_command\s+= "npm ci && npm run build"/)
+  assert.match(terraform, /build_command\s+= "npm ci && npm run build &&/)
+  assert.match(terraform, /verify-phase-14d-frontend\.mjs/)
   assert.match(terraform, /output_dir\s+= "dist"/)
   assert.doesNotMatch(terraform, /dist-migration/)
   assert.doesNotMatch(workflow, /npm run [^\n]*legacy/i)

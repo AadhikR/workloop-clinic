@@ -59,3 +59,15 @@ output "operator_access_ready" {
   description = "True only when every operator role has distinct named MFA accounts."
   value       = local.enabled ? local.operator_access_complete : null
 }
+
+output "release_identity" {
+  description = "Safe immutable release identity, or null while provisioning is disabled."
+  value = local.enabled ? {
+    release_id            = var.release_manifest.release_id
+    git_commit            = var.release_manifest.git_commit
+    backend_image_digest  = var.release_manifest.backend_image.digest
+    keycloak_image_digest = var.release_manifest.keycloak_image.digest
+    frontend_sha256       = var.release_manifest.frontend_sha256
+    alembic_head          = var.release_manifest.alembic_head
+  } : null
+}

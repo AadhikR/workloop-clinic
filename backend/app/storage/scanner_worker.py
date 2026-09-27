@@ -17,6 +17,7 @@ from app.db.engine import create_database_engine
 from app.storage import ObjectStorage, create_object_storage
 from app.storage.base import StorageError, StorageIntegrityError, StorageNotFoundError
 from app.storage.malware import MalwareScanner, ScanVerdict, SyntheticMalwareScanner
+from app.storage.worker_control import run_claim_loop
 
 logger = logging.getLogger(__name__)
 RETRY_DELAYS = (
@@ -76,7 +77,7 @@ async def claim_scan(engine: AsyncEngine) -> ClaimedScan | None:
 WITH candidate AS (
   SELECT id
   FROM public.file_security_scans
-  WHERE (attempt_count<8 AND (
+  WHERE (attempt_count < 8 AND (
       status='pending'
       OR (status='failed' AND next_attempt_at<=statement_timestamp())
       OR (status='claimed' AND lease_expires_at<=statement_timestamp())))
@@ -261,6 +262,46 @@ async def _scan_failed(engine: AsyncEngine, scan: ClaimedScan, error_code: str) 
     await _record_result(engine, scan, status="failed", error_code=error_code)
 
 
+async def release_scan(engine: AsyncEngine, scan: ClaimedScan) -> None:
+    retry_delay = RETRY_DELAYS[scan.attempt_count - 1] if scan.attempt_count < 8 else None
+    async with engine.begin() as connection:
+        await set_scanner_context(
+            connection,
+            company_id=scan.company_id,
+            branch_id=scan.branch_id,
+        )
+        result = await connection.execute(
+            text(
+                """
+UPDATE public.file_security_scans
+SET status='failed',scanner_name='',result_signature='',
+    last_error_code='worker_shutdown',
+    next_attempt_at=CASE WHEN CAST(:retry_delay AS interval) IS NULL THEN NULL
+      ELSE statement_timestamp()+CAST(:retry_delay AS interval) END,
+    claimed_at=NULL,lease_expires_at=NULL,scanned_at=NULL,valid_until=NULL,
+    updated_at=statement_timestamp()
+WHERE id=:id AND company_id=:company_id AND branch_id=:branch_id
+  AND status='claimed' AND attempt_count=:attempt_count
+"""
+            ),
+            {
+                "id": scan.id,
+                "company_id": scan.company_id,
+                "branch_id": scan.branch_id,
+                "attempt_count": scan.attempt_count,
+                "retry_delay": retry_delay,
+            },
+        )
+        if result.rowcount == 1:
+            action = (
+                "file_scan_terminal" if scan.attempt_count == 8 else "file_scan_retry_scheduled"
+            )
+            await connection.execute(
+                text("SELECT public.append_file_security_audit(:id,:action,'worker_shutdown')"),
+                {"id": scan.id, "action": action},
+            )
+
+
 async def run_once(engine: AsyncEngine, storage: ObjectStorage, scanner: MalwareScanner) -> bool:
     scan = await claim_scan(engine)
     if scan is None:
@@ -324,13 +365,15 @@ async def run() -> None:
     scanner = create_scanner(settings)
     once = os.environ.get("FILE_SCANNER_ONCE") == "1"
     try:
-        while True:
-            await run_maintenance(engine)
-            processed = await run_once(engine, storage, scanner)
-            if once:
-                return
-            if not processed:
-                await asyncio.sleep(5)
+        await run_claim_loop(
+            worker_name="file_scanner",
+            logger=logger,
+            claim_next=lambda: claim_scan(engine),
+            process_claim=lambda scan: process_scan(engine, storage, scanner, scan),
+            release_claim=lambda scan: release_scan(engine, scan),
+            maintenance=lambda: run_maintenance(engine),
+            once=once,
+        )
     finally:
         await storage.close()
         await engine.dispose()

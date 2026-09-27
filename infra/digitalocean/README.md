@@ -27,7 +27,8 @@ An approved plan contains these project members:
 The API has one `apps-s-1vcpu-1gb-fixed` instance. Keycloak has one
 `apps-s-1vcpu-2gb` instance. Each worker has one `apps-s-1vcpu-0.5gb` instance. The static site is
 included at no fixed monthly charge. Migration and expiry job runtime remains a variable charge.
-Every source component disables deployment on push.
+The static site disables deployment on push. The other six components use reviewed image digests,
+so they have no branch source or mutable tag to watch.
 
 The fixed estimate is USD 65.15 per month before tax and overages:
 
@@ -108,6 +109,42 @@ passwords and Spaces keys after an approved apply, so the state rules below are 
 
 The full operator, rotation, revocation, bootstrap removal, break-glass, and evidence rules are in
 `docs/migration/phase-14/PART_14C_ACCESS_CONTROL.md`.
+
+## Release manifest and component order
+
+`release-manifest.schema.json` defines the release record. The committed
+`release-manifest.example.json` cannot deploy because `deployable` is false. A deployable copy must
+record one full Git commit, the backend and Keycloak image coordinates and digests, the frontend
+tree and root digests, all three dependency lock digests, the Terraform digest, the app spec
+contract digest, and Alembic head `e8a1c3f5b7d9`. The target approval must name the same release ID.
+
+Create a release record only from a clean reviewed commit and already-published image digests. The
+manifest helper refuses to overwrite its output file. It also validates the current frontend,
+dependency lock, Terraform, and app spec bytes before the record can be used. Keep the resulting
+manifest with the release evidence outside Terraform state.
+
+Terraform uses the backend image digest for migration, API, expiry, scanner, and reconciler. It
+uses the separate Keycloak image digest for Keycloak. The web component builds only the manifest's
+full commit and fails its build unless `dist` and `index.html` match the recorded digests.
+Automatic branch deployment stays disabled. A branch name, mutable tag, provider label, or rebuild
+with different bytes cannot satisfy the release contract.
+
+App Platform runs `database-migrate` as the sole pre-deploy job. It checks the manifest head,
+applies Alembic, requires exactly one row at `e8a1c3f5b7d9`, and reports whether the schema was
+already current. A failed or incompatible migration blocks the deployment. Maintenance remains on,
+expiry refuses to run, and the two workers refuse claims until the release promotion record passes.
+
+Promotion also requires a nonempty `expiry_scopes` list. One manual expiry invocation processes
+every listed company and optional branch under the expiry database identity and one advisory lock
+per scope and business date. If no date is supplied for a controlled replay, the command uses the
+current `Asia/Dubai` date. App Platform does not schedule this job; the named operator must start
+the daily invocation and retain its safe completion record. The scanner and reconciler promotion
+gate does not depend on the expiry scope list.
+
+Both workers use one instance, one-row claims, 15-minute leases, eight attempts, and the fixed retry
+delays in `app-spec.contract.json`. App Platform gives each worker 120 seconds to terminate. The
+worker stops claiming immediately, waits up to 105 seconds for its current claim, and then releases
+that claim with a bounded retry if it is still running.
 
 ## State custody
 

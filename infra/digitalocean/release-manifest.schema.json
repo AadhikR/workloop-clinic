@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://workloop.invalid/schemas/phase-14-release-manifest.json",
+  "title": "Workloop Phase 14 release manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "releaseId",
+    "deployable",
+    "gitCommit",
+    "backendImage",
+    "keycloakImage",
+    "frontendSha256",
+    "frontendRootSha256",
+    "dependencyLockSha256",
+    "terraformSha256",
+    "appSpecSha256",
+    "alembicHead",
+    "createdAt",
+    "reviewedBy"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "releaseId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,79}$" },
+    "deployable": { "type": "boolean" },
+    "gitCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "backendImage": { "$ref": "#/$defs/image" },
+    "keycloakImage": { "$ref": "#/$defs/image" },
+    "frontendSha256": { "$ref": "#/$defs/sha256" },
+    "frontendRootSha256": { "$ref": "#/$defs/sha256" },
+    "dependencyLockSha256": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["frontend", "backend", "backendDev"],
+      "properties": {
+        "frontend": { "$ref": "#/$defs/sha256" },
+        "backend": { "$ref": "#/$defs/sha256" },
+        "backendDev": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "terraformSha256": { "$ref": "#/$defs/sha256" },
+    "appSpecSha256": { "$ref": "#/$defs/sha256" },
+    "alembicHead": { "const": "e8a1c3f5b7d9" },
+    "createdAt": { "type": ["string", "null"], "format": "date-time" },
+    "reviewedBy": { "type": "string" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "deployable": { "const": true } } },
+      "then": {
+        "properties": {
+          "createdAt": { "type": "string", "format": "date-time" },
+          "reviewedBy": { "minLength": 1 }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["registryType", "registry", "repository", "digest"],
+      "properties": {
+        "registryType": { "enum": ["DOCR", "DOCKER_HUB"] },
+        "registry": { "type": "string" },
+        "repository": { "type": "string", "minLength": 1 },
+        "digest": { "$ref": "#/$defs/sha256" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "registryType": { "const": "DOCR" } } },
+          "then": { "properties": { "registry": { "const": "" } } },
+          "else": { "properties": { "registry": { "minLength": 1 } } }
+        }
+      ]
+    }
+  }
+}

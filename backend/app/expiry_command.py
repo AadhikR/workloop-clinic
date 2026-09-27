@@ -7,7 +7,9 @@ import os
 import sys
 import uuid
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
+from typing import cast
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
@@ -37,6 +39,12 @@ class ExpiryCandidate:
     notification_type: str
     title: str
     threshold: int
+
+
+@dataclass(frozen=True, slots=True)
+class ExpiryScope:
+    company_id: uuid.UUID
+    branch_id: uuid.UUID | None
 
 
 def _candidate(
@@ -419,12 +427,50 @@ async def run_expiry(
 
 def _arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Create due Workloop expiry notifications")
-    parser.add_argument("--company-id", type=uuid.UUID, required=True)
-    branch = parser.add_mutually_exclusive_group(required=True)
+    parser.add_argument("--company-id", type=uuid.UUID)
+    branch = parser.add_mutually_exclusive_group()
     branch.add_argument("--branch-id", type=uuid.UUID)
     branch.add_argument("--tenant-wide", action="store_true")
-    parser.add_argument("--business-date", type=date.fromisoformat, required=True)
+    parser.add_argument("--business-date", type=date.fromisoformat)
     return parser.parse_args()
+
+
+def _business_date(arguments: argparse.Namespace) -> date:
+    if arguments.business_date is not None:
+        return arguments.business_date
+    configured = os.environ.get("WORKLOOP_EXPIRY_BUSINESS_DATE")
+    if configured:
+        return date.fromisoformat(configured)
+    return datetime.now(ZoneInfo("Asia/Dubai")).date()
+
+
+def _scopes(arguments: argparse.Namespace) -> list[ExpiryScope]:
+    if arguments.company_id is not None:
+        if arguments.branch_id is None and not arguments.tenant_wide:
+            raise ValueError("a branch or tenant-wide scope is required")
+        return [
+            ExpiryScope(
+                company_id=arguments.company_id,
+                branch_id=None if arguments.tenant_wide else arguments.branch_id,
+            )
+        ]
+    if arguments.branch_id is not None or arguments.tenant_wide:
+        raise ValueError("company ID is required for a CLI scope")
+    configured = cast(object, json.loads(os.environ.get("WORKLOOP_EXPIRY_SCOPES_JSON", "[]")))
+    if not isinstance(configured, list) or not configured:
+        raise ValueError("at least one approved expiry scope is required")
+    scopes: list[ExpiryScope] = []
+    for raw_item in cast(list[object], configured):
+        if not isinstance(raw_item, dict):
+            raise ValueError("expiry scope fields are invalid")
+        item = cast(dict[str, object], raw_item)
+        if set(item) != {"company_id", "branch_id"}:
+            raise ValueError("expiry scope fields are invalid")
+        company_id = uuid.UUID(str(item["company_id"]))
+        branch_value = item["branch_id"]
+        branch_id = None if branch_value is None else uuid.UUID(str(branch_value))
+        scopes.append(ExpiryScope(company_id=company_id, branch_id=branch_id))
+    return scopes
 
 
 def main() -> None:
@@ -432,19 +478,45 @@ def main() -> None:
     database_url = os.environ.get("EXPIRY_DATABASE_URL")
     if not database_url:
         raise SystemExit("EXPIRY_DATABASE_URL is required")
+    if os.environ.get("WORKLOOP_EXPIRY_PROCESSING_ENABLED", "").lower() not in {"1", "true"}:
+        print('{"error":"expiry_processing_disabled"}', file=sys.stderr)
+        raise SystemExit(1)
     try:
-        inserted = asyncio.run(
-            run_expiry(
-                database_url,
-                company_id=arguments.company_id,
-                branch_id=None if arguments.tenant_wide else arguments.branch_id,
-                business_date=arguments.business_date,
-            )
-        )
+        business_date = _business_date(arguments)
+        scopes = _scopes(arguments)
+
+        async def run_scopes() -> list[int]:
+            return [
+                await run_expiry(
+                    database_url,
+                    company_id=scope.company_id,
+                    branch_id=scope.branch_id,
+                    business_date=business_date,
+                )
+                for scope in scopes
+            ]
+
+        results = asyncio.run(run_scopes())
     except Exception:
         print('{"error":"expiry_processing_failed"}', file=sys.stderr)
         raise SystemExit(1) from None
-    print(json.dumps({"inserted": inserted}, separators=(",", ":")))
+    print(
+        json.dumps(
+            {
+                "business_date": business_date.isoformat(),
+                "inserted": sum(results),
+                "scopes": [
+                    {
+                        "branch_id": None if scope.branch_id is None else str(scope.branch_id),
+                        "company_id": str(scope.company_id),
+                    }
+                    for scope in scopes
+                ],
+            },
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+    )
 
 
 if __name__ == "__main__":

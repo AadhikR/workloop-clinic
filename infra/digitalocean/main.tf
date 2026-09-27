@@ -10,7 +10,7 @@ locals {
   vpc_id                = "b8b6d17b-eae4-47de-b2b5-9d10baabdd2d"
   vpc_cidr              = "10.114.0.0/20"
   github_repository     = "AadhikR/workloop-clinic"
-  github_branch         = "migration/fastapi-keycloak"
+  expected_alembic_head = "e8a1c3f5b7d9"
 
   ownership_labels = {
     environment = "shared-development"
@@ -98,7 +98,54 @@ locals {
     ] : length(trimspace(value)) > 0
   ]))
 
-  enabled = var.provisioning_authorized && local.approval_complete && local.operator_access_complete && local.runtime_secrets_complete
+  release_manifest_complete = var.release_manifest != null && try(
+    var.release_manifest.deployable &&
+    can(regex("^[a-z0-9][a-z0-9._-]{2,79}$", var.release_manifest.release_id)) &&
+    can(regex("^[0-9a-f]{40}$", var.release_manifest.git_commit)) &&
+    alltrue([
+      for value in [
+        var.release_manifest.backend_image.registry_type,
+        var.release_manifest.backend_image.repository,
+        var.release_manifest.keycloak_image.registry_type,
+        var.release_manifest.keycloak_image.repository,
+      ] : length(trimspace(value)) > 0
+    ]) &&
+    contains(["DOCR", "DOCKER_HUB"], var.release_manifest.backend_image.registry_type) &&
+    contains(["DOCR", "DOCKER_HUB"], var.release_manifest.keycloak_image.registry_type) &&
+    (var.release_manifest.backend_image.registry_type == "DOCR" ?
+      var.release_manifest.backend_image.registry == "" :
+    length(trimspace(var.release_manifest.backend_image.registry)) > 0) &&
+    (var.release_manifest.keycloak_image.registry_type == "DOCR" ?
+      var.release_manifest.keycloak_image.registry == "" :
+    length(trimspace(var.release_manifest.keycloak_image.registry)) > 0) &&
+    alltrue([
+      for value in [
+        var.release_manifest.backend_image.digest,
+        var.release_manifest.keycloak_image.digest,
+        var.release_manifest.frontend_sha256,
+        var.release_manifest.frontend_root_sha256,
+        var.release_manifest.dependency_lock_sha256.frontend,
+        var.release_manifest.dependency_lock_sha256.backend,
+        var.release_manifest.dependency_lock_sha256.backend_dev,
+        var.release_manifest.terraform_sha256,
+        var.release_manifest.app_spec_sha256,
+      ] : can(regex("^sha256:[0-9a-f]{64}$", value))
+    ]),
+    false,
+  )
+  release_manifest_compatible = local.release_manifest_complete && try(
+    var.release_manifest.alembic_head == local.expected_alembic_head &&
+    var.release_manifest.release_id == var.approval.target_manifest_id,
+    false,
+  )
+  worker_processing_enabled = var.release_promoted && var.release_promotion_approved && local.release_manifest_compatible
+  expiry_processing_enabled = local.worker_processing_enabled && length(var.expiry_scopes) > 0
+  access_boundary_complete  = var.provisioning_authorized && local.approval_complete && local.operator_access_complete && local.runtime_secrets_complete
+
+  enabled = (
+    local.access_boundary_complete &&
+    local.release_manifest_complete
+  )
 }
 
 data "digitalocean_project" "shared" {
@@ -134,6 +181,14 @@ resource "terraform_data" "phase_14_guard" {
       error_message = "Provisioning requires the complete encrypted runtime-secret input."
     }
     precondition {
+      condition     = !var.provisioning_authorized || local.release_manifest_complete
+      error_message = "Provisioning requires one complete deployable release manifest with immutable artifact digests."
+    }
+    precondition {
+      condition     = !var.provisioning_authorized || local.release_manifest_compatible
+      error_message = "The release manifest must match the approved target and Alembic head before compatible services can activate."
+    }
+    precondition {
       condition     = data.digitalocean_project.shared[0].id == local.project_id
       error_message = "The project name does not resolve to the verified workloop-clinic-dev project ID."
     }
@@ -155,8 +210,12 @@ resource "terraform_data" "phase_14_guard" {
       error_message = "The fixed monthly configuration must stay at USD 65.15 and at or below the USD 70 ceiling."
     }
     precondition {
-      condition     = !var.release_promoted || var.release_promotion_approved
+      condition     = !var.release_promoted || (var.release_promotion_approved && local.release_manifest_compatible)
       error_message = "The provider default address must stay in maintenance mode without a recorded release promotion approval."
+    }
+    precondition {
+      condition     = !var.release_promoted || length(var.expiry_scopes) > 0
+      error_message = "Release promotion requires at least one approved synthetic expiry scope."
     }
   }
 }
@@ -347,6 +406,27 @@ resource "digitalocean_app" "shared" {
       type  = "GENERAL"
     }
 
+    env {
+      key   = "WORKLOOP_RELEASE_ID"
+      value = try(var.release_manifest.release_id, "")
+      scope = "RUN_AND_BUILD_TIME"
+      type  = "GENERAL"
+    }
+
+    env {
+      key   = "WORKLOOP_RELEASE_COMMIT"
+      value = try(var.release_manifest.git_commit, "")
+      scope = "RUN_AND_BUILD_TIME"
+      type  = "GENERAL"
+    }
+
+    env {
+      key   = "WORKLOOP_ALEMBIC_HEAD"
+      value = try(var.release_manifest.alembic_head, "")
+      scope = "RUN_TIME"
+      type  = "GENERAL"
+    }
+
     alert {
       rule = "DEPLOYMENT_FAILED"
     }
@@ -437,13 +517,12 @@ resource "digitalocean_app" "shared" {
       instance_count     = 1
       instance_size_slug = "apps-s-1vcpu-1gb-fixed"
       run_command        = "python -m app.db.cloud_migrate"
-      source_dir         = "backend"
-      dockerfile_path    = "backend/Dockerfile"
 
-      github {
-        repo           = local.github_repository
-        branch         = local.github_branch
-        deploy_on_push = false
+      image {
+        registry_type = try(var.release_manifest.backend_image.registry_type, "DOCR")
+        registry      = try(var.release_manifest.backend_image.registry, "invalid")
+        repository    = try(var.release_manifest.backend_image.repository, "invalid")
+        digest        = var.release_manifest.backend_image.digest
       }
 
       env {
@@ -473,6 +552,13 @@ resource "digitalocean_app" "shared" {
         scope = "RUN_TIME"
         type  = "GENERAL"
       }
+
+      env {
+        key   = "WORKLOOP_ALEMBIC_HEAD"
+        value = try(var.release_manifest.alembic_head, "")
+        scope = "RUN_TIME"
+        type  = "GENERAL"
+      }
     }
 
     service {
@@ -480,13 +566,12 @@ resource "digitalocean_app" "shared" {
       instance_count     = 1
       instance_size_slug = "apps-s-1vcpu-1gb-fixed"
       http_port          = 8000
-      source_dir         = "backend"
-      dockerfile_path    = "backend/Dockerfile"
 
-      github {
-        repo           = local.github_repository
-        branch         = local.github_branch
-        deploy_on_push = false
+      image {
+        registry_type = try(var.release_manifest.backend_image.registry_type, "DOCR")
+        registry      = try(var.release_manifest.backend_image.registry, "invalid")
+        repository    = try(var.release_manifest.backend_image.repository, "invalid")
+        digest        = var.release_manifest.backend_image.digest
       }
 
       env {
@@ -646,13 +731,12 @@ resource "digitalocean_app" "shared" {
       instance_size_slug = "apps-s-1vcpu-2gb"
       http_port          = 8080
       internal_ports     = [9000]
-      source_dir         = "keycloak"
-      dockerfile_path    = "keycloak/Dockerfile"
 
-      github {
-        repo           = local.github_repository
-        branch         = local.github_branch
-        deploy_on_push = false
+      image {
+        registry_type = try(var.release_manifest.keycloak_image.registry_type, "DOCR")
+        registry      = try(var.release_manifest.keycloak_image.registry, "invalid")
+        repository    = try(var.release_manifest.keycloak_image.repository, "invalid")
+        digest        = var.release_manifest.keycloak_image.digest
       }
 
       env {
@@ -718,14 +802,14 @@ resource "digitalocean_app" "shared" {
     static_site {
       name           = "web"
       source_dir     = "/"
-      build_command  = "npm ci && npm run build"
+      build_command  = "npm ci && npm run build && node scripts/verify-phase-14d-frontend.mjs --expected ${var.release_manifest.frontend_sha256} --root-expected ${var.release_manifest.frontend_root_sha256}"
       output_dir     = "dist"
       index_document = "index.html"
       error_document = "index.html"
 
       github {
         repo           = local.github_repository
-        branch         = local.github_branch
+        branch         = var.release_manifest.git_commit
         deploy_on_push = false
       }
 
@@ -778,13 +862,12 @@ resource "digitalocean_app" "shared" {
       instance_count     = 1
       instance_size_slug = "apps-s-1vcpu-0.5gb"
       run_command        = "python -m app.expiry_command"
-      source_dir         = "backend"
-      dockerfile_path    = "backend/Dockerfile"
 
-      github {
-        repo           = local.github_repository
-        branch         = local.github_branch
-        deploy_on_push = false
+      image {
+        registry_type = try(var.release_manifest.backend_image.registry_type, "DOCR")
+        registry      = try(var.release_manifest.backend_image.registry, "invalid")
+        repository    = try(var.release_manifest.backend_image.repository, "invalid")
+        digest        = var.release_manifest.backend_image.digest
       }
 
       env {
@@ -793,6 +876,20 @@ resource "digitalocean_app" "shared" {
         scope = "RUN_TIME"
         type  = "SECRET"
       }
+
+      env {
+        key   = "WORKLOOP_EXPIRY_PROCESSING_ENABLED"
+        value = tostring(local.expiry_processing_enabled)
+        scope = "RUN_TIME"
+        type  = "GENERAL"
+      }
+
+      env {
+        key   = "WORKLOOP_EXPIRY_SCOPES_JSON"
+        value = jsonencode(var.expiry_scopes)
+        scope = "RUN_TIME"
+        type  = "GENERAL"
+      }
     }
 
     worker {
@@ -800,13 +897,16 @@ resource "digitalocean_app" "shared" {
       instance_count     = 1
       instance_size_slug = "apps-s-1vcpu-0.5gb"
       run_command        = "python -m app.storage.scanner_worker"
-      source_dir         = "backend"
-      dockerfile_path    = "backend/Dockerfile"
 
-      github {
-        repo           = local.github_repository
-        branch         = local.github_branch
-        deploy_on_push = false
+      image {
+        registry_type = try(var.release_manifest.backend_image.registry_type, "DOCR")
+        registry      = try(var.release_manifest.backend_image.registry, "invalid")
+        repository    = try(var.release_manifest.backend_image.repository, "invalid")
+        digest        = var.release_manifest.backend_image.digest
+      }
+
+      termination {
+        grace_period_seconds = 120
       }
 
       env {
@@ -864,6 +964,13 @@ resource "digitalocean_app" "shared" {
         scope = "RUN_TIME"
         type  = "SECRET"
       }
+
+      env {
+        key   = "WORKLOOP_WORKER_PROCESSING_ENABLED"
+        value = tostring(local.worker_processing_enabled)
+        scope = "RUN_TIME"
+        type  = "GENERAL"
+      }
     }
 
     worker {
@@ -871,13 +978,16 @@ resource "digitalocean_app" "shared" {
       instance_count     = 1
       instance_size_slug = "apps-s-1vcpu-0.5gb"
       run_command        = "python -m app.storage.reconciler"
-      source_dir         = "backend"
-      dockerfile_path    = "backend/Dockerfile"
 
-      github {
-        repo           = local.github_repository
-        branch         = local.github_branch
-        deploy_on_push = false
+      image {
+        registry_type = try(var.release_manifest.backend_image.registry_type, "DOCR")
+        registry      = try(var.release_manifest.backend_image.registry, "invalid")
+        repository    = try(var.release_manifest.backend_image.repository, "invalid")
+        digest        = var.release_manifest.backend_image.digest
+      }
+
+      termination {
+        grace_period_seconds = 120
       }
 
       env {
@@ -927,6 +1037,13 @@ resource "digitalocean_app" "shared" {
         value = digitalocean_spaces_key.storage_reconciler[0].secret_key
         scope = "RUN_TIME"
         type  = "SECRET"
+      }
+
+      env {
+        key   = "WORKLOOP_WORKER_PROCESSING_ENABLED"
+        value = tostring(local.worker_processing_enabled)
+        scope = "RUN_TIME"
+        type  = "GENERAL"
       }
     }
 

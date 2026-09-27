@@ -124,7 +124,11 @@ export function validatePhase14BInfrastructure(sources) {
     if (size && !componentSource.includes(`instance_size_slug = "${size}"`)) {
       errors.push(`${name} has the wrong fixed size`)
     }
-    if (!componentSource.includes('deploy_on_push = false')) {
+    const immutableImage = componentSource.includes('image {')
+      && componentSource.includes('digest        = var.release_manifest.')
+      && !componentSource.includes('github {')
+      && !componentSource.includes('tag')
+    if (!componentSource.includes('deploy_on_push = false') && !immutableImage) {
       errors.push(`${name} must disable automatic deployment`)
     }
   }

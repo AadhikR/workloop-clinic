@@ -67,4 +67,69 @@ fi
 grep -q 'Provisioning requires distinct named primary' "$validation_directory/operator-rejected.log"
 grep -q 'requires the complete encrypted runtime-secret input' "$validation_directory/operator-rejected.log"
 
+cat >>"$validation_directory/approved-without-operators.tfvars" <<'EOF'
+operator_access = {
+  infrastructure_custodian = {
+    primary_name = "infra-primary"
+    primary_account_reference = "infra-primary-account"
+    primary_mfa = true
+    backup_name = "infra-backup"
+    backup_account_reference = "infra-backup-account"
+    backup_mfa = true
+  }
+  security_custodian = {
+    primary_name = "security-primary"
+    primary_account_reference = "security-primary-account"
+    primary_mfa = true
+    backup_name = "security-backup"
+    backup_account_reference = "security-backup-account"
+    backup_mfa = true
+  }
+  application_operator = {
+    primary_name = "application-primary"
+    primary_account_reference = "application-primary-account"
+    primary_mfa = true
+    backup_name = "application-backup"
+    backup_account_reference = "application-backup-account"
+    backup_mfa = true
+  }
+  incident_operator = {
+    primary_name = "incident-primary"
+    primary_account_reference = "incident-primary-account"
+    primary_mfa = true
+    backup_name = "incident-backup"
+    backup_account_reference = "incident-backup-account"
+    backup_mfa = true
+  }
+  release_reviewer = {
+    primary_name = "release-primary"
+    primary_account_reference = "release-primary-account"
+    primary_mfa = true
+    backup_name = "release-backup"
+    backup_account_reference = "release-backup-account"
+    backup_mfa = true
+  }
+}
+runtime_secrets = {
+  api_storage_signing_key = "synthetic"
+  api_attachment_object_key_hmac_key = "synthetic"
+  api_cursor_signing_key = "synthetic"
+  api_idempotency_current_key_id = "synthetic"
+  api_idempotency_current_key = "synthetic"
+  api_idempotency_previous_keys = "[]"
+  scanner_malware_signing_key = "synthetic"
+}
+EOF
+
+if terraform -chdir="$validation_directory" plan \
+  -refresh=false \
+  -input=false \
+  -lock=false \
+  -var-file="$validation_directory/approved-without-operators.tfvars" \
+  >"$validation_directory/manifest-rejected.log" 2>&1; then
+  printf '%s\n' 'An enabled plan without a release manifest did not fail.' >&2
+  exit 1
+fi
+grep -q 'requires one complete deployable release manifest' "$validation_directory/manifest-rejected.log"
+
 printf '%s\n' 'Phase 14B disabled Terraform plan contains no changes.'

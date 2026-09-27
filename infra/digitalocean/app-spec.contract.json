@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "automaticDeploy": false,
+  "maintenanceDefault": true,
+  "components": [
+    {
+      "name": "database-migrate",
+      "kind": "pre-deploy-job",
+      "artifact": "backendImage",
+      "completion": "one Alembic head at e8a1c3f5b7d9; a repeat run reports no pending migration"
+    },
+    {
+      "name": "api",
+      "kind": "service",
+      "artifact": "backendImage",
+      "health": "GET /health returns HTTP 200 with status ok and database ok within five seconds"
+    },
+    {
+      "name": "keycloak",
+      "kind": "service",
+      "artifact": "keycloakImage",
+      "health": "GET /management/health/ready on internal port 9000 returns HTTP 200 before issuer discovery and JWKS checks"
+    },
+    {
+      "name": "web",
+      "kind": "static-site",
+      "artifact": "frontendSha256",
+      "health": "GET / returns HTTP 200 and index.html matches frontendRootSha256"
+    },
+    {
+      "name": "expiry",
+      "kind": "scheduled-job",
+      "artifact": "backendImage",
+      "completion": "the invocation records every approved synthetic scope and its Dubai business date and exits zero"
+    },
+    {
+      "name": "file-scanner",
+      "kind": "worker",
+      "artifact": "backendImage",
+      "health": "one active instance and a safe heartbeat or completed claim no older than two minutes"
+    },
+    {
+      "name": "storage-reconciler",
+      "kind": "worker",
+      "artifact": "backendImage",
+      "health": "one active instance and a safe heartbeat or completed claim no older than two minutes"
+    }
+  ],
+  "worker": {
+    "instances": 1,
+    "claimBatchSize": 1,
+    "leaseMinutes": 15,
+    "maxAttempts": 8,
+    "retryMinutes": [1, 5, 15, 60, 360, 1440, 4320],
+    "idlePollSeconds": 5,
+    "heartbeatSeconds": 60,
+    "terminationGraceSeconds": 120,
+    "drainSeconds": 105
+  }
+}
