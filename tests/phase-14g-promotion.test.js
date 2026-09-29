@@ -46,8 +46,30 @@ test('14A-GC-032 binds apply approval to the exact manifest and cost', () => {
   const errors = validateTargetManifest({ ...template, pricing: { ...template.pricing, fixedMonthlyUsd: 70.01 } })
   assert.ok(errors.includes('price or duration boundary changed'))
   assert.ok(validateTargetManifest({ ...template, pricing: { ...template.pricing, ownerUsageCapUsd: 16 } }).includes('price or duration boundary changed'))
+  assert.ok(validateTargetManifest({
+    ...template,
+    pricing: {
+      ...template.pricing,
+      containerRegistry: { ...template.pricing.containerRegistry, plan: 'Starter' },
+    },
+  }).includes('private container registry plan or conservative charge assumption changed'))
   assert.ok(validateTargetManifest({ ...template, token: 'not-allowed' }).includes('target manifest contains protected material'))
   assert.throws(() => assertApplyAuthorized(template), /not enabled for provider mutation/)
+})
+
+test('14A-GC-032 budgets the full registry charge inside a 48-hour plan', () => {
+  const actual = JSON.parse(readPhase14GPromotion().target)
+  actual.template = false
+  actual.preflight.checkedAt = '2026-09-29T12:00:00Z'
+  actual.temporaryRun.startsAt = '2026-09-29T12:00:00Z'
+  actual.temporaryRun.cleanupDeadlineAt = '2026-10-01T12:00:01Z'
+  actual.pricing.currentAccruedUsageUsd = 0.95
+  actual.pricing.runtimeResourceProjectionUsd = 4.66
+  actual.pricing.taxAndVariableReserveUsd = 1.9
+  actual.pricing.reviewedRunForecastUsd = 7
+  const errors = validateTargetManifest(actual, { now: new Date('2026-09-29T12:05:00Z') })
+  assert.ok(errors.includes('temporary-run timestamps are missing or exceed the approved 48-hour plan'))
+  assert.ok(errors.includes('temporary-run forecast does not cover accrued usage, 48-hour resources, the full registry charge, and a positive reserve within the USD 15 cap'))
 })
 
 test('14A-GC-032 requires the solo operator and recovery model', () => {

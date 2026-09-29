@@ -211,8 +211,11 @@ workers stopped. It does not call Terraform or change DigitalOcean.
 
 The owner set a USD 15 total-usage cap for Part 14G and chose manual cleanup. The unchanged
 architecture is USD 65.15 for a full billing month, while the conservative 72-hour base projection
-is USD 6.99. An enabled plan requires a reviewed total-run forecast between that base projection
-and USD 15. The USD 20 account alert is only a notification; no cleanup is automatic.
+is USD 6.99. The release images use a DigitalOcean Basic private registry in `fra1`; the run forecast
+counts its full USD 5 monthly price. The approved plan is 48 hours, so the restricted manifest must
+cover USD 4.66 of runtime resources, the registry, current accrued usage, and a positive tax and
+variable-usage reserve without exceeding USD 15. The USD 20 account alert is only a notification;
+no cleanup is automatic.
 
 `phase-14g-live-record.example.json` lists every provisioning, backup, recovery, restart, redeploy,
 journey, promotion, retention, and rollback fact required after apply. Fill its restricted copy from

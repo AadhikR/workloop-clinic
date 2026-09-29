@@ -40,6 +40,10 @@ const requiredPromotionChecks = [
 const maximumPreflightAgeMs = 30 * 60 * 1000
 const maximumRuntimeHours = 72
 const projectedBaseUsageUsd = 6.99
+const plannedRuntimeHours = 48
+const containerRegistryMonthlyUsd = 5
+const billingMonthHours = 672
+const fixedMonthlyUsd = 65.15
 
 function canonical(value) {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`
@@ -128,9 +132,19 @@ export function validateTargetManifest(manifest, { now = new Date() } = {}) {
     || manifest?.pricing?.ceilingUsd !== 70 || manifest?.pricing?.ownerUsageCapUsd !== 15
     || manifest?.pricing?.ownerCapStatus !== 'eligible-timeboxed-manual-cleanup'
     || manifest?.pricing?.maximumRuntimeHours !== maximumRuntimeHours
-    || manifest?.pricing?.billingMonthHours !== 672
+    || manifest?.pricing?.plannedRuntimeHours !== plannedRuntimeHours
+    || manifest?.pricing?.billingMonthHours !== billingMonthHours
     || manifest?.pricing?.projectedBaseUsageUsd !== projectedBaseUsageUsd
     || manifest?.pricing?.duration !== 'maximum-72-hours-manual-cleanup') errors.push('price or duration boundary changed')
+  if (manifest?.pricing?.containerRegistry?.provider !== 'DigitalOcean'
+    || manifest?.pricing?.containerRegistry?.plan !== 'Basic'
+    || manifest?.pricing?.containerRegistry?.region !== 'fra1'
+    || manifest?.pricing?.containerRegistry?.monthlyUsd !== containerRegistryMonthlyUsd
+    || manifest?.pricing?.containerRegistry?.chargeAssumption !== 'full-month'
+    || manifest?.pricing?.containerRegistry?.includedStorageGiB !== 5
+    || manifest?.pricing?.containerRegistry?.includedRepositories !== 5) {
+    errors.push('private container registry plan or conservative charge assumption changed')
+  }
   if (!(manifest?.pricing?.variableCharges ?? []).every((item) => nonempty(item.ownerRole))) {
     errors.push('every variable charge needs an owner role')
   }
@@ -168,13 +182,27 @@ export function validateTargetManifest(manifest, { now = new Date() } = {}) {
     const cleanupDeadlineAt = Date.parse(manifest?.temporaryRun?.cleanupDeadlineAt ?? '')
     if (!Number.isFinite(startsAt) || !Number.isFinite(cleanupDeadlineAt)
       || cleanupDeadlineAt <= startsAt
-      || cleanupDeadlineAt - startsAt > maximumRuntimeHours * 60 * 60 * 1000) {
-      errors.push('temporary-run timestamps are missing or exceed 72 hours')
+      || cleanupDeadlineAt - startsAt > plannedRuntimeHours * 60 * 60 * 1000) {
+      errors.push('temporary-run timestamps are missing or exceed the approved 48-hour plan')
     }
-    if (typeof manifest?.pricing?.reviewedRunForecastUsd !== 'number'
-      || manifest.pricing.reviewedRunForecastUsd < projectedBaseUsageUsd
+    const minimumRuntimeProjection = Math.ceil(
+      ((fixedMonthlyUsd * plannedRuntimeHours) / billingMonthHours) * 100,
+    ) / 100
+    const minimumReviewedForecast = Number((
+      (manifest?.pricing?.currentAccruedUsageUsd ?? 0)
+      + minimumRuntimeProjection
+      + containerRegistryMonthlyUsd
+      + (manifest?.pricing?.taxAndVariableReserveUsd ?? 0)
+    ).toFixed(2))
+    if (manifest?.pricing?.runtimeResourceProjectionUsd !== minimumRuntimeProjection
+      || typeof manifest?.pricing?.currentAccruedUsageUsd !== 'number'
+      || manifest.pricing.currentAccruedUsageUsd < 0
+      || typeof manifest?.pricing?.taxAndVariableReserveUsd !== 'number'
+      || manifest.pricing.taxAndVariableReserveUsd <= 0
+      || typeof manifest?.pricing?.reviewedRunForecastUsd !== 'number'
+      || manifest.pricing.reviewedRunForecastUsd < minimumReviewedForecast
       || manifest.pricing.reviewedRunForecastUsd > manifest.pricing.ownerUsageCapUsd) {
-      errors.push('temporary-run forecast does not cover base usage within the USD 15 cap')
+      errors.push('temporary-run forecast does not cover accrued usage, 48-hour resources, the full registry charge, and a positive reserve within the USD 15 cap')
     }
     const operator = manifest?.operatorAccess
     if (operator?.model !== 'solo-owner'
@@ -220,6 +248,8 @@ export function assertApplyAuthorized(manifest, { now = new Date() } = {}) {
     || manifest?.approval?.ceilingUsd !== 70
     || manifest?.approval?.ownerUsageCapUsd !== 15
     || manifest?.approval?.maximumRuntimeHours !== maximumRuntimeHours
+    || manifest?.approval?.plannedRuntimeHours !== plannedRuntimeHours
+    || manifest?.approval?.containerRegistryMonthlyUsd !== containerRegistryMonthlyUsd
     || manifest?.approval?.projectedBaseUsageUsd !== projectedBaseUsageUsd
     || manifest?.approval?.reviewedRunForecastUsd !== manifest?.pricing?.reviewedRunForecastUsd) {
     errors.push('dated owner approval does not bind the exact manifest, runtime, and cost')
@@ -229,6 +259,8 @@ export function assertApplyAuthorized(manifest, { now = new Date() } = {}) {
     manifestSha256: digest,
     fixedMonthlyUsd: 65.15,
     projectedBaseUsageUsd,
+    plannedRuntimeHours,
+    containerRegistryMonthlyUsd,
     maximumRuntimeHours,
     ownerUsageCapUsd: 15,
     maintenanceEnabled: true,

@@ -50,17 +50,21 @@ storage location.
 Create the private target manifest from `phase-14g-target-manifest.example.json`. Replace its
 repository commit with the clean reviewed commit and attach the deployable release manifest. Run
 `scripts/phase-14g-control.mjs validate-target` before asking for approval. Ask the owner to approve
-the resulting SHA-256 digest, monthly reference cost, 72-hour maximum, temporary-run forecast,
-variable-charge ownership, exposure order, and exact manual cleanup boundary. Any edit after
+the resulting SHA-256 digest, monthly reference cost, 72-hour maximum, 48-hour planned run,
+temporary-run forecast, variable-charge ownership, exposure order, and exact manual cleanup boundary. Any edit after
 approval changes the digest and
 voids that approval.
 
 The owner set a USD 15 total-usage cap on 2026-09-28 and selected manual cleanup. The unchanged
 architecture costs USD 65.15 for a full billing month. Using the provider's 672-hour App Platform
 billing month as the conservative basis, 72 hours projects to USD 6.99 before tax and variable
-usage. The private manifest must include a reviewed total-run forecast between USD 6.99 and USD 15,
-an exact start time, and a cleanup deadline no more than 72 hours later. This is a planning guard,
-not a provider-enforced spending cap. Billing may lag, and no cleanup runs automatically.
+usage. The release also requires a DigitalOcean Basic private registry in `fra1`. Count its full
+USD 5 monthly price even for this short test. The approved plan uses 48 hours: USD 4.66 for the
+runtime resources, plus the full registry price, current accrued usage, and a positive tax and
+variable-usage reserve. The private manifest must keep the reviewed total at or below USD 15, set
+an exact start time, and set the cleanup deadline no more than 48 hours later. The 72-hour value is
+only the outer contract limit. This is a planning guard, not a provider-enforced spending cap.
+Billing may lag, and no cleanup runs automatically.
 
 ## Maintenance-first provisioning
 
@@ -125,6 +129,8 @@ worker, and reconciliation checks before traffic resumes.
 
 Runtime rollback does not delete a resource. When the owner directs cleanup, obtain fresh approval
 for the exact app, database, bucket, credentials, alerts, retained state, and backup disposition.
-Empty and delete the private bucket so its Spaces subscription ends, then verify that the app,
-database cluster, bucket, scoped credentials, and temporary alerts are absent. The project, default
+Empty and delete the private bucket so its Spaces subscription ends. Delete the Phase 14 registry
+only after its images are no longer needed and the exact registry is included in the cleanup
+approval. Then verify that the app, database cluster, bucket, registry, scoped credentials, and
+temporary alerts are absent. The project, default
 VPC, Phase 13 archive, and protected local volume are never cleanup targets.

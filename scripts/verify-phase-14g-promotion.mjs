@@ -70,7 +70,15 @@ export function validatePhase14GPromotion(sources, { final = false } = {}) {
     || target.pricing?.ownerUsageCapUsd !== 15
     || target.pricing?.ownerCapStatus !== 'eligible-timeboxed-manual-cleanup'
     || target.pricing?.maximumRuntimeHours !== 72
+    || target.pricing?.plannedRuntimeHours !== 48
     || target.pricing?.projectedBaseUsageUsd !== 6.99) errors.push('target cost boundary changed')
+  if (target.pricing?.containerRegistry?.provider !== 'DigitalOcean'
+    || target.pricing?.containerRegistry?.plan !== 'Basic'
+    || target.pricing?.containerRegistry?.region !== 'fra1'
+    || target.pricing?.containerRegistry?.monthlyUsd !== 5
+    || target.pricing?.containerRegistry?.chargeAssumption !== 'full-month') {
+    errors.push('target registry cost boundary changed')
+  }
   if (target.operatorAccess?.model !== 'solo-owner'
     || target.operatorAccess?.separateReviewRecord !== true
     || JSON.stringify(target.operatorAccess?.roleHats) !== JSON.stringify([
@@ -119,10 +127,12 @@ export function validatePhase14GPromotion(sources, { final = false } = {}) {
     'validateTargetManifest', 'assertApplyAuthorized', 'validateLiveRecord', 'assertPromotionAuthorized',
     'temporaryRunLimitState', 'validateRollbackRequest', 'manifestSha256', '30 * 60 * 1000',
     "operator?.model !== 'solo-owner'", 'recoveryMaterialCustodyReference', 'separateReviewRecord',
+    'containerRegistryMonthlyUsd', 'plannedRuntimeHours',
   ]) requireText(errors, sources.helper, marker, `14G control helper ${marker}`)
   for (const marker of [
     'Repeat the authenticated preflight', 'named solo operator', 'maintenance', 'provider-native', 'administrator, manager, and employee',
     'Restart the existing deployment', 'Then redeploy the same digest-bound release', '72 hours', 'manual cleanup',
+    'Basic private registry', '48-hour planned run',
   ]) requireText(errors, sources.runbook, marker, `14G runbook ${marker}`)
   for (const marker of [
     'var.provisioning_authorized && local.approval_complete', 'maintenance {',

@@ -106,8 +106,21 @@
     "ownerCapStatus": "eligible-timeboxed-manual-cleanup",
     "duration": "maximum-72-hours-manual-cleanup",
     "maximumRuntimeHours": 72,
+    "plannedRuntimeHours": 48,
     "billingMonthHours": 672,
     "projectedBaseUsageUsd": 6.99,
+    "containerRegistry": {
+      "provider": "DigitalOcean",
+      "plan": "Basic",
+      "region": "fra1",
+      "monthlyUsd": 5,
+      "chargeAssumption": "full-month",
+      "includedStorageGiB": 5,
+      "includedRepositories": 5
+    },
+    "currentAccruedUsageUsd": null,
+    "runtimeResourceProjectionUsd": null,
+    "taxAndVariableReserveUsd": null,
     "reviewedRunForecastUsd": null,
     "items": [
       {"name": "api", "monthlyUsd": 10},
@@ -175,6 +188,7 @@
       "workloop-clinic-dev App Platform app",
       "workloop-clinic-dev-db managed PostgreSQL cluster",
       "workloop-clinic-dev-634213f9 Spaces bucket",
+      "Phase 14 DigitalOcean Container Registry",
       "Phase 14 component credentials and alerts"
     ],
     "preserved": [
