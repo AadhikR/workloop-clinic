@@ -1,0 +1,188 @@
+{
+  "schemaVersion": 1,
+  "template": true,
+  "manifestId": "phase14g-example-not-approved",
+  "manifestSha256": null,
+  "approvalReady": false,
+  "providerMutationEnabled": false,
+  "environment": {
+    "name": "workloop-clinic-dev",
+    "purpose": "shared-development",
+    "dataClass": "synthetic-only",
+    "customDomain": false,
+    "automaticDeployment": false
+  },
+  "repository": {
+    "repository": "AadhikR/workloop-clinic",
+    "branch": "migration/fastapi-keycloak",
+    "commit": "cf6465c8b29d8fbd4ea2db06f9c0042c4e61ebb6",
+    "requiredRun": {
+      "url": "https://github.com/AadhikR/workloop-clinic/actions/runs/36347412004",
+      "status": "success",
+      "commit": "cf6465c8b29d8fbd4ea2db06f9c0042c4e61ebb6"
+    },
+    "appInstallation": {
+      "status": "blocked-github-sudo-required",
+      "installationId": "157009825",
+      "repositoryOnly": null,
+      "repositories": []
+    }
+  },
+  "preflight": {
+    "checkedAt": null,
+    "provider": {
+      "account": "unresolved",
+      "teamId": null,
+      "project": "unresolved",
+      "vpc": "unresolved",
+      "resources": "unresolved",
+      "productAvailability": "verified",
+      "prices": "verified",
+      "budgetAlert": "unresolved",
+      "budgetAlertUsd": null,
+      "budgetAlertThresholdPercent": [],
+      "resourceInventory": {
+        "projectResourceIds": null,
+        "vpcResourceIds": null,
+        "apps": null,
+        "databaseClusters": null,
+        "spacesBuckets": null
+      }
+    }
+  },
+  "target": {
+    "project": {
+      "name": "workloop-clinic-dev",
+      "id": "634213f9-2e43-4aea-8f4e-22ddc3ecdac9",
+      "retained": true
+    },
+    "vpc": {
+      "name": "fra1-default",
+      "id": "b8b6d17b-eae4-47de-b2b5-9d10baabdd2d",
+      "region": "fra1",
+      "cidr": "10.114.0.0/20",
+      "retained": true
+    },
+    "app": {
+      "name": "workloop-clinic-dev",
+      "region": "fra",
+      "defaultAddressOnly": true,
+      "maintenanceOnFirstApply": true
+    },
+    "database": {
+      "name": "workloop-clinic-dev-db",
+      "region": "fra1",
+      "engine": "postgresql-16",
+      "size": "db-s-1vcpu-1gb",
+      "nodes": 1,
+      "storageGiB": 10,
+      "databases": ["workloop", "keycloak"],
+      "publicAccess": false
+    },
+    "bucket": {
+      "name": "workloop-clinic-dev-634213f9",
+      "region": "fra1",
+      "private": true,
+      "versioning": true,
+      "forceDestroy": false
+    },
+    "components": [
+      {"name": "database-migrate", "kind": "pre-deploy-job", "size": "apps-s-1vcpu-1gb-fixed", "instances": 1},
+      {"name": "api", "kind": "service", "size": "apps-s-1vcpu-1gb-fixed", "instances": 1},
+      {"name": "keycloak", "kind": "service", "size": "apps-s-1vcpu-2gb", "instances": 1},
+      {"name": "web", "kind": "static-site", "size": "included", "instances": 1},
+      {"name": "expiry", "kind": "manual-job", "size": "apps-s-1vcpu-1gb-fixed", "instances": 1},
+      {"name": "file-scanner", "kind": "worker", "size": "apps-s-1vcpu-0.5gb", "instances": 1},
+      {"name": "storage-reconciler", "kind": "worker", "size": "apps-s-1vcpu-0.5gb", "instances": 1}
+    ],
+    "alembicHead": "e8a1c3f5b7d9"
+  },
+  "pricing": {
+    "currency": "USD",
+    "checkedOn": "2026-09-28",
+    "fixedMonthlyUsd": 65.15,
+    "ceilingUsd": 70,
+    "ownerUsageCapUsd": 15,
+    "ownerCapStatus": "eligible-timeboxed-manual-cleanup",
+    "duration": "maximum-72-hours-manual-cleanup",
+    "maximumRuntimeHours": 72,
+    "billingMonthHours": 672,
+    "projectedBaseUsageUsd": 6.99,
+    "reviewedRunForecastUsd": null,
+    "items": [
+      {"name": "api", "monthlyUsd": 10},
+      {"name": "keycloak", "monthlyUsd": 25},
+      {"name": "file-scanner", "monthlyUsd": 5},
+      {"name": "storage-reconciler", "monthlyUsd": 5},
+      {"name": "managed-postgresql", "monthlyUsd": 15.15},
+      {"name": "spaces-standard", "monthlyUsd": 5},
+      {"name": "web-static-site", "monthlyUsd": 0}
+    ],
+    "variableCharges": [
+      {"name": "migration-and-expiry-job-runtime", "ownerRole": "application-operator"},
+      {"name": "tax", "ownerRole": "infrastructure-custodian"},
+      {"name": "storage-and-bandwidth-overage", "ownerRole": "infrastructure-custodian"}
+    ]
+  },
+  "operatorAccess": {
+    "model": "solo-owner",
+    "operatorName": null,
+    "routineAccountReference": null,
+    "routineMfa": null,
+    "emergencyAccountReference": null,
+    "emergencyMfa": null,
+    "recoveryMaterialCustodyReference": null,
+    "recoveryTestedOn": null,
+    "roleHats": [
+      "infrastructureCustodian",
+      "securityCustodian",
+      "applicationOperator",
+      "incidentOperator",
+      "releaseReviewer"
+    ],
+    "separateReviewRecord": true
+  },
+  "release": null,
+  "custody": {
+    "stateCustodian": null,
+    "statePathReference": null,
+    "credentialCustodian": null,
+    "backupCustodian": null,
+    "variableChargeOwner": null
+  },
+  "exposureSequence": [
+    "apply-in-maintenance",
+    "run-migration-and-repeat-head-check",
+    "configure-keycloak-mfa-and-remove-bootstrap",
+    "verify-secret-routes-least-privilege-health-workers-safe-logs-and-backups",
+    "prove-isolated-recovery-restart-redeploy-and-three-synthetic-journeys",
+    "record-digest-bound-promotion-approval",
+    "enable-workers",
+    "disable-maintenance"
+  ],
+  "temporaryRun": {
+    "maximumRuntimeHours": 72,
+    "startsAt": null,
+    "cleanupDeadlineAt": null,
+    "manualCleanupOnly": true,
+    "automaticCleanup": false,
+    "ownerDirectsCleanup": true
+  },
+  "cleanup": {
+    "automaticDestruction": false,
+    "freshApprovalRequired": true,
+    "destructionCandidates": [
+      "workloop-clinic-dev App Platform app",
+      "workloop-clinic-dev-db managed PostgreSQL cluster",
+      "workloop-clinic-dev-634213f9 Spaces bucket",
+      "Phase 14 component credentials and alerts"
+    ],
+    "preserved": [
+      "workloop-clinic-dev",
+      "fra1-default",
+      "workloop-clinic_postgres_data",
+      "Phase 13 external archive"
+    ]
+  },
+  "approval": null
+}

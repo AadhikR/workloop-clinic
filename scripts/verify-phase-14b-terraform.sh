@@ -64,51 +64,26 @@ if terraform -chdir="$validation_directory" plan \
   printf '%s\n' 'An enabled plan without operator records did not fail.' >&2
   exit 1
 fi
-grep -q 'Provisioning requires distinct named primary' "$validation_directory/operator-rejected.log"
+grep -q 'Provisioning requires one named solo operator' "$validation_directory/operator-rejected.log"
 grep -q 'requires the complete encrypted runtime-secret input' "$validation_directory/operator-rejected.log"
 
 cat >>"$validation_directory/approved-without-operators.tfvars" <<'EOF'
 operator_access = {
-  infrastructure_custodian = {
-    primary_name = "infra-primary"
-    primary_account_reference = "infra-primary-account"
-    primary_mfa = true
-    backup_name = "infra-backup"
-    backup_account_reference = "infra-backup-account"
-    backup_mfa = true
-  }
-  security_custodian = {
-    primary_name = "security-primary"
-    primary_account_reference = "security-primary-account"
-    primary_mfa = true
-    backup_name = "security-backup"
-    backup_account_reference = "security-backup-account"
-    backup_mfa = true
-  }
-  application_operator = {
-    primary_name = "application-primary"
-    primary_account_reference = "application-primary-account"
-    primary_mfa = true
-    backup_name = "application-backup"
-    backup_account_reference = "application-backup-account"
-    backup_mfa = true
-  }
-  incident_operator = {
-    primary_name = "incident-primary"
-    primary_account_reference = "incident-primary-account"
-    primary_mfa = true
-    backup_name = "incident-backup"
-    backup_account_reference = "incident-backup-account"
-    backup_mfa = true
-  }
-  release_reviewer = {
-    primary_name = "release-primary"
-    primary_account_reference = "release-primary-account"
-    primary_mfa = true
-    backup_name = "release-backup"
-    backup_account_reference = "release-backup-account"
-    backup_mfa = true
-  }
+  operator_name = "synthetic-solo-operator"
+  routine_account_reference = "synthetic-routine-account"
+  routine_mfa = true
+  emergency_account_reference = "synthetic-emergency-account"
+  emergency_mfa = true
+  recovery_material_custody_reference = "synthetic-offline-recovery-location"
+  recovery_tested_on = "2026-09-27"
+  roles = [
+    "infrastructure_custodian",
+    "security_custodian",
+    "application_operator",
+    "incident_operator",
+    "release_reviewer",
+  ]
+  separate_review_record = true
 }
 runtime_secrets = {
   api_storage_signing_key = "synthetic"

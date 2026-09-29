@@ -21,7 +21,7 @@ bucket, network, or billing change. GitHub access was read-only. Unknown facts r
 | `EXT-009` | verified | Official availability pages list App Platform in Frankfurt and PostgreSQL shared CPU and Spaces in FRA1. | DigitalOcean regional and product availability pages, 2026-09-27 |
 | `EXT-010` | verified | Current inputs are USD 10 for `apps-s-1vcpu-1gb-fixed`, USD 25 for `apps-s-1vcpu-2gb`, USD 5 for `apps-s-1vcpu-0.5gb`, USD 15.15 for PostgreSQL 1 GiB with 10 GiB, USD 5 for Spaces Standard, and no charge for the included static site. | Official DigitalOcean pricing pages, 2026-09-27 |
 | `EXT-011` | unknown | The exact DigitalOcean GitHub App installation scope is not visible from the empty app inventory, and no authenticated CLI or token is available. 14G must verify repository-only access before apply. | 14A read-only discovery, 2026-09-27 |
-| `EXT-012` | unknown | The repository does not name primary and backup people for the five operator roles. 14G must record them in the approved target manifest. | Repository and provider read-only discovery, 2026-09-27 |
+| `EXT-012` | unknown | The repository does not name the solo operator, routine and emergency MFA account references, recovery custody, or recovery-test date. 14G must record them in the approved target manifest. | Repository and provider read-only discovery, 2026-09-27 |
 
 ## Price calculation
 

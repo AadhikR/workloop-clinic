@@ -27,14 +27,15 @@ if terraform -chdir="$validation_directory" plan \
   -input=false \
   -lock=false \
   -var='provisioning_authorized=true' \
-  -var='reviewed_monthly_forecast_usd=70.01' \
+  -var='reviewed_monthly_forecast_usd=65.15' \
+  -var='reviewed_run_forecast_usd=15.01' \
   >"$validation_directory/forecast-rejected.log" 2>&1; then
-  printf '%s\n' 'A reviewed forecast above USD 70 did not block new work.' >&2
+  printf '%s\n' 'A reviewed forecast above USD 15 did not block new work.' >&2
   exit 1
 fi
-if ! grep -q 'reviewed monthly forecast exceeds USD' "$validation_directory/forecast-rejected.log"; then
+if ! grep -q 'temporary-run forecast at or below the USD 15 owner cap' "$validation_directory/forecast-rejected.log"; then
   cat "$validation_directory/forecast-rejected.log" >&2
   exit 1
 fi
 
-printf '%s\n' 'Phase 14E disabled Terraform and USD 70 forecast guards passed.'
+printf '%s\n' 'Phase 14E disabled Terraform and USD 15 owner-cap guards passed.'

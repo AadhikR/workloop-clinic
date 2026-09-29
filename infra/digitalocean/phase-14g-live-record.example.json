@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "template": true,
+  "part": "14G",
+  "targetManifestSha256": null,
+  "providerMutationOccurred": false,
+  "resources": {
+    "projectId": null,
+    "vpcId": null,
+    "appId": null,
+    "appDefaultUrl": null,
+    "databaseClusterId": null,
+    "bucketName": null
+  },
+  "initialApply": {
+    "maintenanceEnabled": true,
+    "workersEnabled": false,
+    "alembicHead": "e8a1c3f5b7d9",
+    "result": "pending-approved-apply"
+  },
+  "promotionChecks": [
+    {"id": "alembic-head", "status": "pending"},
+    {"id": "repeat-migration", "status": "pending"},
+    {"id": "keycloak-mfa", "status": "pending"},
+    {"id": "bootstrap-removed", "status": "pending"},
+    {"id": "secret-routes", "status": "pending"},
+    {"id": "database-least-privilege", "status": "pending"},
+    {"id": "object-least-privilege", "status": "pending"},
+    {"id": "component-health", "status": "pending"},
+    {"id": "worker-controls", "status": "pending"},
+    {"id": "safe-logs", "status": "pending"},
+    {"id": "provider-native-backup", "status": "pending"},
+    {"id": "isolated-recovery", "status": "pending"}
+  ],
+  "persistence": {
+    "restart": {
+      "databaseState": "pending",
+      "keycloakSigningKeyIds": "pending",
+      "privateObjects": "pending",
+      "scannerState": "pending",
+      "reconcilerState": "pending",
+      "expiryState": "pending",
+      "releaseIdentity": "pending"
+    },
+    "redeploy": {
+      "databaseState": "pending",
+      "keycloakSigningKeyIds": "pending",
+      "privateObjects": "pending",
+      "scannerState": "pending",
+      "reconcilerState": "pending",
+      "expiryState": "pending",
+      "releaseIdentity": "pending"
+    }
+  },
+  "journeys": {
+    "administrator": "pending",
+    "manager": "pending",
+    "employee": "pending"
+  },
+  "providerNativeBackup": {
+    "schedule": null,
+    "retentionDays": null,
+    "workloopStatus": "pending",
+    "keycloakStatus": "pending",
+    "isolatedRestoreTargetId": null,
+    "isolatedRestoreStatus": "pending"
+  },
+  "release": {
+    "releaseId": null,
+    "manifestSha256": null,
+    "backendImageDigest": null,
+    "keycloakImageDigest": null,
+    "frontendDigest": null,
+    "alembicHead": "e8a1c3f5b7d9"
+  },
+  "promotion": {
+    "approved": false,
+    "ownerApprovalReference": null,
+    "approvedOn": null,
+    "executor": null,
+    "reviewer": null,
+    "executionRecordReference": null,
+    "reviewRecordReference": null,
+    "releaseManifestSha256": null,
+    "maintenanceEnabled": true,
+    "workersEnabled": false
+  },
+  "temporaryRun": {
+    "cleanupDeadlineAt": null,
+    "automaticCleanup": false,
+    "manualCleanupRequired": true
+  },
+  "rollback": {
+    "compatibleReleaseId": null,
+    "maintenanceFirst": true,
+    "workersStoppedFirst": true,
+    "automaticSchemaDowngrade": false
+  }
+}

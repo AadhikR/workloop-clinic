@@ -101,10 +101,13 @@ them. Bootstrap values are short lived and removed or revoked after setup. Terra
 encrypted in owner-controlled storage outside Git. Git contains no state, plan, backup, token,
 password, private key, signed URL, or private object.
 
-Five operator roles must have a named primary, named backup, least-privilege account, and MFA before
-apply: infrastructure custodian, security custodian, application operator, incident operator, and
-release reviewer. Routine work uses provider and application controls. Direct database, container,
-or Keycloak administrator access is break-glass access with a reason, start time, expiry, and review.
+One named solo operator may hold all five role hats: infrastructure custodian, security custodian,
+application operator, incident operator, and release reviewer. Before apply, the operator needs an
+MFA-protected least-privilege routine account, a distinct MFA-protected emergency access path,
+offline recovery material with a safe custody reference, and a dated recovery test. Execution and
+review remain separate recorded steps even though the same person performs them. Direct database,
+container, or Keycloak administrator access is break-glass access with a reason, start time,
+expiry, and review.
 
 ## Monitoring and evidence retention
 
@@ -150,7 +153,7 @@ evidence, then remove only the named recovery targets.
 Promotion needs all of the following in one record:
 
 - the approved target manifest, current price inputs, and resource identifiers;
-- named operators, MFA state, credential custody, and the dated owner approval;
+- the named solo operator, routine and emergency MFA state, recovery custody, and dated owner approval;
 - release, dependency, Terraform, app spec, frontend, image, and schema digests;
 - exact database and object permission routes;
 - component health, worker state, and safe-log results;
@@ -185,14 +188,15 @@ The current fixed estimate is USD 65.15 per month before tax and overages. It co
 Keycloak, two workers, PostgreSQL, Spaces, and the included static site. Migration and expiry jobs,
 storage beyond 250 GiB, and excess bandwidth are variable.
 
-The configuration ceiling is USD 70 per month. Part 14G stops before apply when the fixed plan exceeds
-USD 70 or any variable charge lacks an owner. The existing USD 20 alert is an early warning, not a
-spending cap. Part 14G must review the current price and alert state in the same target manifest that
-receives owner approval.
+The architecture configuration ceiling is USD 70 per month. The owner imposed a stricter USD 15
+total-usage cap for 14G and selected a temporary run of no more than 72 hours with manual cleanup.
+The current USD 65.15 monthly design projects to USD 6.99 for that window before tax and variable
+usage. Part 14G stops when the reviewed total-run forecast exceeds USD 15 or any variable charge
+lacks an owner. The existing USD 20 alert is an early warning, not a spending cap.
 
-Retain `workloop-clinic-dev` and `fra1-default`. After promotion, retain the approved app, database,
-and bucket while a named owner completes a cost and access review every 30 days. If the review,
-ownership, or cost evidence lapses, enable maintenance mode and stop workers. Do not destroy anything
+Retain `workloop-clinic-dev` and `fra1-default`. The approved app, database, and bucket are temporary
+and have an exact manual-cleanup deadline no more than 72 hours after creation. At the deadline,
+enable maintenance mode, stop workers, and require owner action; do not destroy anything
 automatically. Destruction needs fresh approval for exact named resources and retained Terraform
 state.
 
@@ -209,4 +213,4 @@ state.
 | Monitoring cannot retain the required safe evidence | Keep maintenance enabled until a repository-owned capture method passes without protected values. | 14E |
 | Native backup retention is shorter than required | Use the portable encrypted backup class and stop promotion until its isolated restore passes. | 14F |
 | An older artifact is incompatible with the current schema | Keep the current release in maintenance. Never select an automatic schema downgrade. | 14F, 14G |
-| Named operators or exact approval are missing | Do not apply or promote. Record the unresolved item without guessing. | 14G |
+| The solo operator, recovery controls, or exact approval are missing | Do not apply or promote. Record the unresolved item without guessing. | 14G |

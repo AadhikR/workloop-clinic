@@ -42,8 +42,10 @@ test('14A-GC-023 rejects missing worker conditions', () => {
 
 test('14A-GC-024 rejects a higher ceiling or spending-cap claim', () => {
   rejects(mutate('contract', '"configurationCeilingUsd": 70', '"configurationCeilingUsd": 71'), 'USD 70')
+  rejects(mutate('contract', '"ownerUsageCapUsd": 15', '"ownerUsageCapUsd": 16'), 'USD 15')
   rejects(mutate('contract', '"alertIsSpendingCap": false', '"alertIsSpendingCap": true'), 'must not claim')
   rejects(mutate('variables', 'var.reviewed_monthly_forecast_usd <= var.configuration_ceiling_usd', 'var.reviewed_monthly_forecast_usd <= 80'), 'reviewed forecast fail-closed')
+  rejects(mutate('variables', 'var.reviewed_run_forecast_usd <= var.owner_usage_cap_usd', 'var.reviewed_run_forecast_usd <= 80'), 'reviewed run forecast owner-cap')
 })
 
 test('14A-GC-025 rejects an incomplete incident record', () => {

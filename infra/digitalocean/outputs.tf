@@ -28,6 +28,11 @@ output "configuration_ceiling_usd" {
   value       = local.enabled ? local.configuration_ceiling_usd : null
 }
 
+output "projected_base_usage_usd" {
+  description = "Conservative base-cost projection for the approved temporary runtime, or null while provisioning is disabled."
+  value       = local.enabled ? local.projected_base_usage_usd : null
+}
+
 output "provisioning_enabled" {
   description = "True only for an enabled plan. It is absent from disabled state."
   value       = local.enabled ? true : null
@@ -56,7 +61,7 @@ output "object_identity_names" {
 }
 
 output "operator_access_ready" {
-  description = "True only when every operator role has distinct named MFA accounts."
+  description = "True only when the solo operator access and recovery controls are complete."
   value       = local.enabled ? local.operator_access_complete : null
 }
 

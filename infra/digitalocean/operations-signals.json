@@ -36,7 +36,7 @@
     {"id":"deployment-drift","component":"deployments","condition":"artifact-drift","owner":"release reviewer","severity":"critical","threshold":"Any running digest or schema head differs from the reviewed release manifest","response":"Enable maintenance and redeploy the exact reviewed manifest only after preserving drift evidence.","retentionDays":365,"testMethod":"Change one synthetic running digest and compare it with the manifest."},
     {"id":"backup-completion","component":"backups","condition":"completion","owner":"backup custodian","severity":"critical","threshold":"Any required backup record fails or misses its contracted schedule","response":"Keep maintenance enabled and open an incident; defer restore execution to Part 14F.","retentionDays":365,"testMethod":"Evaluate failed and overdue synthetic backup fixtures."},
     {"id":"monthly-spend","component":"cost","condition":"actual-spend","owner":"infrastructure custodian","severity":"warning","threshold":"Actual monthly spend reaches USD 15 or USD 20","response":"Review current resources and variable charges; treat the account alert only as an early warning.","retentionDays":365,"testMethod":"Evaluate synthetic spend at USD 15 and USD 20 and verify no spending-cap claim."},
-    {"id":"cost-forecast","component":"cost","condition":"forecast","owner":"release reviewer","severity":"critical","threshold":"Reviewed fixed plan or forecast exceeds USD 70, or a variable charge has no owner","response":"Block new work and provider mutation until a reviewed plan is at or below USD 70 and every variable charge has one owner.","retentionDays":365,"testMethod":"Validate synthetic plans at USD 70 and USD 70.01 plus an unowned variable charge."}
+    {"id":"cost-forecast","component":"cost","condition":"forecast","owner":"release reviewer","severity":"critical","threshold":"Reviewed fixed plan or forecast exceeds the USD 15 owner usage cap, or a variable charge has no owner","response":"Block new work and provider mutation until the total reviewed plan is at or below USD 15 and every variable charge has one owner.","retentionDays":365,"testMethod":"Validate synthetic plans at USD 15 and USD 15.01 plus an unowned variable charge."}
   ],
   "evidence": {
     "allowedContent": ["names of operators", "provider resource identifiers", "timestamps", "counts", "sizes", "safe key suffixes", "digests", "error codes", "release identifiers"],
@@ -46,6 +46,7 @@
   },
   "cost": {
     "configurationCeilingUsd": 70,
+    "ownerUsageCapUsd": 15,
     "blockNewWorkAboveCeiling": true,
     "alertIsSpendingCap": false
   }

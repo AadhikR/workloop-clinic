@@ -32,7 +32,7 @@ Each row has one action and one owner. Parts 14B through 14G implement and prove
 | `P14-SEC-006` | Keycloak has a separate database owner, while bootstrap access needs tighter removal proof. | `retain and harden` | 14C | repository-static, focused-test, provider-live |
 | `P14-SEC-007` | Phase 6G gives one read-write object key to the API and no worker-specific keys. | `replace proof control` | 14C | repository-static, focused-test, provider-live |
 | `P14-SEC-008` | Secret examples exist, but ownership, rotation, revocation, and routes are incomplete. | `replace proof control` | 14C | repository-static, focused-test, operator-record |
-| `P14-SEC-009` | Named operators, MFA state, time limits, and backup custody are unresolved. | `add missing control` | 14C | provider-readonly, operator-record, owner-approval |
+| `P14-SEC-009` | The solo operator, routine and emergency MFA state, recovery test, time limits, and recovery custody are unresolved. | `add missing control` | 14C | provider-readonly, operator-record, owner-approval |
 | `P14-DEP-001` | One Python image supplies the API, migration, expiry, scanner, and reconciler code. | `retain and harden` | 14D | repository-static, focused-test, local-runtime |
 | `P14-DEP-002` | Keycloak 26.7.3 is digest pinned and imports the cloud realm. | `retain and harden` | 14D | repository-static, focused-test, local-runtime |
 | `P14-DEP-003` | Vite emits `dist` with six public API and OIDC settings. | `retain and harden` | 14D | repository-static, focused-test, local-runtime |

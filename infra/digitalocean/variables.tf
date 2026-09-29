@@ -29,27 +29,26 @@ variable "provisioning_authorized" {
 
   validation {
     condition = !var.provisioning_authorized || try(
-      var.operator_access != null && alltrue([
-        for role in [
-          var.operator_access.infrastructure_custodian,
-          var.operator_access.security_custodian,
-          var.operator_access.application_operator,
-          var.operator_access.incident_operator,
-          var.operator_access.release_reviewer,
-          ] : (
-          length(trimspace(role.primary_name)) > 0 &&
-          length(trimspace(role.primary_account_reference)) > 0 &&
-          role.primary_mfa &&
-          length(trimspace(role.backup_name)) > 0 &&
-          length(trimspace(role.backup_account_reference)) > 0 &&
-          role.backup_mfa &&
-          role.primary_name != role.backup_name &&
-          role.primary_account_reference != role.backup_account_reference
-        )
+      var.operator_access != null &&
+      length(trimspace(var.operator_access.operator_name)) > 0 &&
+      length(trimspace(var.operator_access.routine_account_reference)) > 0 &&
+      var.operator_access.routine_mfa &&
+      length(trimspace(var.operator_access.emergency_account_reference)) > 0 &&
+      var.operator_access.emergency_mfa &&
+      var.operator_access.routine_account_reference != var.operator_access.emergency_account_reference &&
+      length(trimspace(var.operator_access.recovery_material_custody_reference)) > 0 &&
+      can(regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}$", var.operator_access.recovery_tested_on)) &&
+      var.operator_access.separate_review_record &&
+      var.operator_access.roles == toset([
+        "infrastructure_custodian",
+        "security_custodian",
+        "application_operator",
+        "incident_operator",
+        "release_reviewer",
       ]),
       false,
     )
-    error_message = "Provisioning requires distinct named primary and backup least-privilege accounts with MFA for all five operator roles."
+    error_message = "Provisioning requires one named solo operator, MFA-protected routine and emergency accounts, tested recovery custody, all five operator roles, and a separate review record."
   }
 
   validation {
@@ -78,10 +77,14 @@ variable "provisioning_authorized" {
   validation {
     condition = !var.provisioning_authorized || try(
       var.reviewed_monthly_forecast_usd != null &&
-      var.reviewed_monthly_forecast_usd <= var.configuration_ceiling_usd,
+      var.reviewed_monthly_forecast_usd <= var.configuration_ceiling_usd &&
+      var.reviewed_run_forecast_usd != null &&
+      var.reviewed_run_forecast_usd <= var.owner_usage_cap_usd &&
+      var.maximum_runtime_hours == 72 &&
+      6.99 <= var.owner_usage_cap_usd,
       false,
     )
-    error_message = "Provisioning blocks new work when the reviewed monthly forecast exceeds USD 70 or is missing."
+    error_message = "Provisioning requires a monthly architecture review at or below USD 70 and a temporary-run forecast at or below the USD 15 owner cap."
   }
 }
 
@@ -96,6 +99,17 @@ variable "configuration_ceiling_usd" {
   }
 }
 
+variable "owner_usage_cap_usd" {
+  description = "Hard owner-authorized cap for total Phase 14 usage before tax and variable charges."
+  type        = number
+  default     = 15
+
+  validation {
+    condition     = var.owner_usage_cap_usd == 15
+    error_message = "The owner usage cap is exactly USD 15."
+  }
+}
+
 variable "reviewed_monthly_forecast_usd" {
   description = "Reviewed monthly forecast before an approved provider mutation."
   type        = number
@@ -105,6 +119,29 @@ variable "reviewed_monthly_forecast_usd" {
   validation {
     condition     = var.reviewed_monthly_forecast_usd == null || var.reviewed_monthly_forecast_usd >= 0
     error_message = "The reviewed monthly forecast cannot be negative."
+  }
+}
+
+variable "maximum_runtime_hours" {
+  description = "Maximum approved runtime for the temporary shared-development deployment."
+  type        = number
+  default     = 72
+
+  validation {
+    condition     = var.maximum_runtime_hours == 72
+    error_message = "The approved maximum temporary deployment runtime is exactly 72 hours."
+  }
+}
+
+variable "reviewed_run_forecast_usd" {
+  description = "Reviewed total forecast for the approved temporary run, including reserve for tax and variable charges."
+  type        = number
+  default     = null
+  nullable    = true
+
+  validation {
+    condition     = var.reviewed_run_forecast_usd == null || var.reviewed_run_forecast_usd >= 0
+    error_message = "The reviewed temporary-run forecast cannot be negative."
   }
 }
 
@@ -242,73 +279,42 @@ variable "approval" {
 }
 
 variable "operator_access" {
-  description = "Named primary and backup accounts with MFA for every required operator role."
+  description = "One named solo operator with routine access, an emergency recovery path, and all required role hats."
   type = object({
-    infrastructure_custodian = object({
-      primary_name              = string
-      primary_account_reference = string
-      primary_mfa               = bool
-      backup_name               = string
-      backup_account_reference  = string
-      backup_mfa                = bool
-    })
-    security_custodian = object({
-      primary_name              = string
-      primary_account_reference = string
-      primary_mfa               = bool
-      backup_name               = string
-      backup_account_reference  = string
-      backup_mfa                = bool
-    })
-    application_operator = object({
-      primary_name              = string
-      primary_account_reference = string
-      primary_mfa               = bool
-      backup_name               = string
-      backup_account_reference  = string
-      backup_mfa                = bool
-    })
-    incident_operator = object({
-      primary_name              = string
-      primary_account_reference = string
-      primary_mfa               = bool
-      backup_name               = string
-      backup_account_reference  = string
-      backup_mfa                = bool
-    })
-    release_reviewer = object({
-      primary_name              = string
-      primary_account_reference = string
-      primary_mfa               = bool
-      backup_name               = string
-      backup_account_reference  = string
-      backup_mfa                = bool
-    })
+    operator_name                       = string
+    routine_account_reference           = string
+    routine_mfa                         = bool
+    emergency_account_reference         = string
+    emergency_mfa                       = bool
+    recovery_material_custody_reference = string
+    recovery_tested_on                  = string
+    roles                               = set(string)
+    separate_review_record              = bool
   })
   default   = null
   nullable  = true
   sensitive = false
 
   validation {
-    condition = var.operator_access == null ? true : alltrue([
-      for role in [
-        var.operator_access.infrastructure_custodian,
-        var.operator_access.security_custodian,
-        var.operator_access.application_operator,
-        var.operator_access.incident_operator,
-        var.operator_access.release_reviewer,
-        ] : (
-        length(trimspace(role.primary_name)) > 0 &&
-        length(trimspace(role.primary_account_reference)) > 0 &&
-        role.primary_mfa &&
-        length(trimspace(role.backup_name)) > 0 &&
-        length(trimspace(role.backup_account_reference)) > 0 &&
-        role.backup_mfa &&
-        role.primary_name != role.backup_name &&
-        role.primary_account_reference != role.backup_account_reference
-      )
-    ])
-    error_message = "Every operator role requires distinct named primary and backup least-privilege accounts with MFA."
+    condition = var.operator_access == null ? true : (
+      length(trimspace(var.operator_access.operator_name)) > 0 &&
+      length(trimspace(var.operator_access.routine_account_reference)) > 0 &&
+      var.operator_access.routine_mfa &&
+      length(trimspace(var.operator_access.emergency_account_reference)) > 0 &&
+      var.operator_access.emergency_mfa &&
+      var.operator_access.routine_account_reference != var.operator_access.emergency_account_reference &&
+      length(trimspace(var.operator_access.recovery_material_custody_reference)) > 0 &&
+      can(regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}$", var.operator_access.recovery_tested_on)) &&
+      var.operator_access.separate_review_record &&
+      var.operator_access.roles == toset([
+        "infrastructure_custodian",
+        "security_custodian",
+        "application_operator",
+        "incident_operator",
+        "release_reviewer",
+      ])
+    )
+    error_message = "Solo operator access requires a named operator, distinct MFA-protected routine and emergency accounts, tested recovery custody, all five role hats, and a separate review record."
   }
 }
 

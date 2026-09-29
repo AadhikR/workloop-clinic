@@ -55,9 +55,10 @@ test('14A-GC-011 rejects an incomplete rotation and revocation contract', () => 
   rejects(mutate('access', '## Revocation', '## Removal'), 'Revocation')
 })
 
-test('14A-GC-012 rejects missing operator backup or MFA gates', () => {
-  rejects(mutate('main', 'try(var.operator_access.release_reviewer.backup_name, "")', '"backup-not-required"'), 'release_reviewer backup guard')
-  rejects(mutate('main', 'try(var.operator_access.security_custodian.primary_mfa, false)', 'true'), 'security_custodian primary MFA guard')
+test('14A-GC-012 rejects incomplete solo operator and recovery gates', () => {
+  rejects(mutate('main', 'var.operator_access.emergency_mfa', 'true'), 'solo operator enabled-plan guard emergency_mfa')
+  rejects(mutate('main', '"release_reviewer",', '"release_observer",'), 'release_reviewer enabled-plan guard')
+  rejects(mutate('main', 'var.operator_access.routine_account_reference != var.operator_access.emergency_account_reference', 'true'), 'separate emergency access guard')
 })
 
 test('rejects secret-bearing Terraform output', () => {

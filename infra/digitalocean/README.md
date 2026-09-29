@@ -42,7 +42,9 @@ The fixed estimate is USD 65.15 per month before tax and overages:
 | Spaces Standard | 5.00 |
 | Static site | 0.00 |
 
-The configuration ceiling is USD 70. An enabled plan fails when the estimate exceeds that value.
+The architecture configuration ceiling is USD 70. The current owner cap is stricter: USD 15 total
+usage. Because the fixed target is USD 65.15, every enabled plan fails until the architecture is
+revised below the owner cap.
 Deployment and scheduled-job runtime, tax, storage above the included allowance, and bandwidth
 overages need named owners in the approved target manifest.
 
@@ -75,10 +77,12 @@ custody, five operator roles, backup custody, variable-charge ownership, and cle
 The approval object contains names and record references, never a token, password, private key,
 database URL, Spaces key, signed URL, or private object.
 
-The separate `operator_access` object requires primary and backup names, distinct least-privilege
-account references, and confirmed MFA for all five operator roles. It remains null in the committed
-example. Missing or incomplete operator data blocks an enabled plan. Part 14G must supply exact
-people and accounts in the approved target manifest. The repository does not invent them.
+The separate `operator_access` object uses a solo-owner model. It requires one named operator, an
+MFA-protected least-privilege routine account, a distinct MFA-protected emergency account, an
+offline recovery-material custody reference, a dated recovery test, all five role hats, and a
+separate review record. It remains null in the committed Terraform example. Missing or incomplete
+operator data blocks an enabled plan. Part 14G must supply the exact person and safe references in
+the approved target manifest. The repository does not invent them.
 
 ## Identities and secret routes
 
@@ -177,7 +181,7 @@ The plan must report no changes. Do not pass provider credentials during this ch
 test method to each frontend, API, security, database, object, worker, deployment, backup, and cost
 signal. `operations-alerts.json` maps those signals to provider or application sources. Provider
 mutation and external delivery remain disabled. Part 14G must add exact live resource references
-and named operators before it can activate any provider control.
+and the named solo operator before it can activate any provider control.
 
 The API emits request duration, status, and denial or rate-limit conditions without paths, query
 strings, headers, bodies, or identities. Workers emit heartbeat, queue-age, expired-lease, retry,
@@ -185,8 +189,36 @@ and terminal-failure events through the strict safe-field logger. Use the Part 1
 and incident schema for operator records. The persistent procedure is in
 `docs/migration/phase-14/PART_14E_OPERATIONS_RUNBOOK.md`.
 
-The USD 70 plan and forecast ceiling blocks new work and provider mutation. The existing USD 20
+The original USD 70 configuration ceiling remains an architecture check. The owner's stricter USD
+15 total-usage cap blocks every enabled plan for the current USD 65.15 target. The existing USD 20
 account alert is an early warning, not a spending cap.
+
+## Part 14G live control
+
+`phase-14g-target-manifest.example.json` fixes the approved target shape but cannot authorize work.
+Its provider facts, solo-operator record, custody references, release identity, digest, and approval stay
+empty. Keep the completed manifest outside Git. It must contain no credential or secret value.
+
+Run the target check before asking for paid-resource approval:
+
+```powershell
+node scripts/phase-14g-control.mjs validate-target --target <restricted-target-manifest.json>
+```
+
+After the owner approves that exact digest and cost, `authorize-apply` checks the approval and the
+30-minute authenticated preflight window. A successful check still leaves maintenance on and the
+workers stopped. It does not call Terraform or change DigitalOcean.
+
+The owner set a USD 15 total-usage cap for Part 14G and chose manual cleanup. The unchanged
+architecture is USD 65.15 for a full billing month, while the conservative 72-hour base projection
+is USD 6.99. An enabled plan requires a reviewed total-run forecast between that base projection
+and USD 15. The USD 20 account alert is only a notification; no cleanup is automatic.
+
+`phase-14g-live-record.example.json` lists every provisioning, backup, recovery, restart, redeploy,
+journey, promotion, retention, and rollback fact required after apply. Fill its restricted copy from
+safe evidence. Use `validate-live` before asking for release promotion, then use
+`authorize-promotion` against the same target and live record. These checks validate records only.
+The operator follows `docs/migration/phase-14/PART_14G_RUNBOOK.md` for every provider action.
 
 ## Rollback boundary
 

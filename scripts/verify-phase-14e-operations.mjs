@@ -91,12 +91,15 @@ export function validatePhase14EOperations(sources) {
   if (provider.delivery?.vendor !== null) errors.push('external alert delivery vendor must be absent')
 
   if (contract.cost?.configurationCeilingUsd !== 70) errors.push('cost ceiling must stay at USD 70')
+  if (contract.cost?.ownerUsageCapUsd !== 15) errors.push('owner usage cap must stay at USD 15')
   if (contract.cost?.blockNewWorkAboveCeiling !== true) errors.push('cost contract must block new work above the ceiling')
   if (contract.cost?.alertIsSpendingCap !== false) errors.push('cost alert must not claim to cap spending')
   requireText(errors, sources.terraform, 'local.estimated_monthly_usd <= var.configuration_ceiling_usd', 'Terraform cost fail-closed check')
+  requireText(errors, sources.terraform, 'local.projected_base_usage_usd <= local.owner_usage_cap_usd', 'Terraform owner-cap fail-closed check')
   requireText(errors, sources.variables, 'variable "reviewed_monthly_forecast_usd"', 'reviewed forecast input')
   requireText(errors, sources.variables, 'var.reviewed_monthly_forecast_usd <= var.configuration_ceiling_usd', 'reviewed forecast fail-closed check')
-  requireText(errors, sources.terraformVerifier, "reviewed_monthly_forecast_usd=70.01", 'forecast rejection fixture')
+  requireText(errors, sources.variables, 'var.reviewed_run_forecast_usd <= var.owner_usage_cap_usd', 'reviewed run forecast owner-cap check')
+  requireText(errors, sources.terraformVerifier, "reviewed_run_forecast_usd=15.01", 'forecast rejection fixture')
 
   for (const value of ['token', 'password', 'connection string', 'private key', 'object secret', 'signed URL', 'document content']) {
     if (!(contract.evidence?.prohibitedContent ?? []).includes(value)) errors.push(`evidence contract lacks prohibited ${value}`)

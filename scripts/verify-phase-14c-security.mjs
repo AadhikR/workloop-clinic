@@ -301,15 +301,24 @@ export function validatePhase14CSecurity(sources) {
   requireText(errors, variables, 'variable "runtime_secrets"', 'runtime secret input')
   requireText(errors, variables, 'sensitive = true', 'sensitive runtime secret input')
   requireText(errors, main, 'var.provisioning_authorized && local.approval_complete && local.operator_access_complete && local.runtime_secrets_complete', 'complete enabled-plan guard')
-  for (const role of operatorRoles) {
-    requireText(errors, variables, `${role} = object({`, `${role} operator record`)
-    requireText(errors, main, `try(var.operator_access.${role}.primary_name, "")`, `${role} primary guard`)
-    requireText(errors, main, `try(var.operator_access.${role}.primary_account_reference, "")`, `${role} primary least-privilege account guard`)
-    requireText(errors, main, `try(var.operator_access.${role}.backup_name, "")`, `${role} backup guard`)
-    requireText(errors, main, `try(var.operator_access.${role}.backup_account_reference, "")`, `${role} backup least-privilege account guard`)
-    requireText(errors, main, `try(var.operator_access.${role}.primary_mfa, false)`, `${role} primary MFA guard`)
-    requireText(errors, main, `try(var.operator_access.${role}.backup_mfa, false)`, `${role} backup MFA guard`)
+  for (const marker of [
+    'operator_name',
+    'routine_account_reference',
+    'routine_mfa',
+    'emergency_account_reference',
+    'emergency_mfa',
+    'recovery_material_custody_reference',
+    'recovery_tested_on',
+    'separate_review_record',
+  ]) {
+    requireText(errors, variables, marker, `solo operator field ${marker}`)
+    requireText(errors, main, `var.operator_access.${marker}`, `solo operator enabled-plan guard ${marker}`)
   }
+  for (const role of operatorRoles) {
+    requireText(errors, variables, `"${role}"`, `${role} solo operator role`)
+    requireText(errors, main, `"${role}"`, `${role} enabled-plan guard`)
+  }
+  requireText(errors, main, 'var.operator_access.routine_account_reference != var.operator_access.emergency_account_reference', 'separate emergency access guard')
   if (!/operator_access\s*=\s*null/.test(example)) errors.push('missing fail-closed missing operator example')
   if (!/runtime_secrets\s*=\s*null/.test(example)) errors.push('missing absent credential example')
 
@@ -330,8 +339,9 @@ export function validatePhase14CSecurity(sources) {
     '## Break-glass access',
     '## Safe evidence',
     'maximum overlap is 24 hours',
-    'named primary',
-    'named backup',
+    'solo operator',
+    'recovery material',
+    'separate review',
   ]) requireText(errors, access, value, `access rule ${value}`)
   rejectText(errors, readme, 'synthetic password injection', 'obsolete synthetic password route')
 

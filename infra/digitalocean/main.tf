@@ -31,6 +31,9 @@ locals {
   }
   estimated_monthly_usd     = sum(values(local.fixed_monthly_costs))
   configuration_ceiling_usd = 70
+  owner_usage_cap_usd       = var.owner_usage_cap_usd
+  billing_month_hours       = 672
+  projected_base_usage_usd  = 6.99
 
   approval_complete = var.approval != null && alltrue([
     for value in [
@@ -53,38 +56,25 @@ locals {
     ] : length(trimspace(value)) > 0
   ])
 
-  operator_access_complete = var.operator_access != null && alltrue([
-    length(trimspace(try(var.operator_access.infrastructure_custodian.primary_name, ""))) > 0,
-    length(trimspace(try(var.operator_access.infrastructure_custodian.primary_account_reference, ""))) > 0,
-    try(var.operator_access.infrastructure_custodian.primary_mfa, false),
-    length(trimspace(try(var.operator_access.infrastructure_custodian.backup_name, ""))) > 0,
-    length(trimspace(try(var.operator_access.infrastructure_custodian.backup_account_reference, ""))) > 0,
-    try(var.operator_access.infrastructure_custodian.backup_mfa, false),
-    length(trimspace(try(var.operator_access.security_custodian.primary_name, ""))) > 0,
-    length(trimspace(try(var.operator_access.security_custodian.primary_account_reference, ""))) > 0,
-    try(var.operator_access.security_custodian.primary_mfa, false),
-    length(trimspace(try(var.operator_access.security_custodian.backup_name, ""))) > 0,
-    length(trimspace(try(var.operator_access.security_custodian.backup_account_reference, ""))) > 0,
-    try(var.operator_access.security_custodian.backup_mfa, false),
-    length(trimspace(try(var.operator_access.application_operator.primary_name, ""))) > 0,
-    length(trimspace(try(var.operator_access.application_operator.primary_account_reference, ""))) > 0,
-    try(var.operator_access.application_operator.primary_mfa, false),
-    length(trimspace(try(var.operator_access.application_operator.backup_name, ""))) > 0,
-    length(trimspace(try(var.operator_access.application_operator.backup_account_reference, ""))) > 0,
-    try(var.operator_access.application_operator.backup_mfa, false),
-    length(trimspace(try(var.operator_access.incident_operator.primary_name, ""))) > 0,
-    length(trimspace(try(var.operator_access.incident_operator.primary_account_reference, ""))) > 0,
-    try(var.operator_access.incident_operator.primary_mfa, false),
-    length(trimspace(try(var.operator_access.incident_operator.backup_name, ""))) > 0,
-    length(trimspace(try(var.operator_access.incident_operator.backup_account_reference, ""))) > 0,
-    try(var.operator_access.incident_operator.backup_mfa, false),
-    length(trimspace(try(var.operator_access.release_reviewer.primary_name, ""))) > 0,
-    length(trimspace(try(var.operator_access.release_reviewer.primary_account_reference, ""))) > 0,
-    try(var.operator_access.release_reviewer.primary_mfa, false),
-    length(trimspace(try(var.operator_access.release_reviewer.backup_name, ""))) > 0,
-    length(trimspace(try(var.operator_access.release_reviewer.backup_account_reference, ""))) > 0,
-    try(var.operator_access.release_reviewer.backup_mfa, false),
-  ])
+  operator_access_complete = var.operator_access != null && try(
+    length(trimspace(var.operator_access.operator_name)) > 0 &&
+    length(trimspace(var.operator_access.routine_account_reference)) > 0 &&
+    var.operator_access.routine_mfa &&
+    length(trimspace(var.operator_access.emergency_account_reference)) > 0 &&
+    var.operator_access.emergency_mfa &&
+    var.operator_access.routine_account_reference != var.operator_access.emergency_account_reference &&
+    length(trimspace(var.operator_access.recovery_material_custody_reference)) > 0 &&
+    can(regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}$", var.operator_access.recovery_tested_on)) &&
+    var.operator_access.separate_review_record &&
+    var.operator_access.roles == toset([
+      "infrastructure_custodian",
+      "security_custodian",
+      "application_operator",
+      "incident_operator",
+      "release_reviewer",
+    ]),
+    false,
+  )
 
   runtime_secrets_complete = nonsensitive(var.runtime_secrets != null && alltrue([
     for value in [
@@ -161,10 +151,12 @@ data "digitalocean_vpc" "default" {
 resource "terraform_data" "phase_14_guard" {
   count = local.enabled ? 1 : 0
   input = {
-    app_name              = local.app_name
-    database_cluster_name = local.database_cluster_name
-    estimated_monthly_usd = local.estimated_monthly_usd
-    spaces_bucket_name    = local.spaces_bucket_name
+    app_name                 = local.app_name
+    database_cluster_name    = local.database_cluster_name
+    estimated_monthly_usd    = local.estimated_monthly_usd
+    projected_base_usage_usd = local.projected_base_usage_usd
+    maximum_runtime_hours    = var.maximum_runtime_hours
+    spaces_bucket_name       = local.spaces_bucket_name
   }
 
   lifecycle {
@@ -174,7 +166,7 @@ resource "terraform_data" "phase_14_guard" {
     }
     precondition {
       condition     = !var.provisioning_authorized || local.operator_access_complete
-      error_message = "Provisioning requires distinct named primary and backup least-privilege accounts with MFA for all five operator roles."
+      error_message = "Provisioning requires one named solo operator, MFA-protected routine and emergency accounts, tested recovery custody, all five operator roles, and a separate review record."
     }
     precondition {
       condition     = !var.provisioning_authorized || local.runtime_secrets_complete
@@ -187,6 +179,16 @@ resource "terraform_data" "phase_14_guard" {
     precondition {
       condition     = !var.provisioning_authorized || local.release_manifest_compatible
       error_message = "The release manifest must match the approved target and Alembic head before compatible services can activate."
+    }
+    precondition {
+      condition = try(
+        local.projected_base_usage_usd <= local.owner_usage_cap_usd &&
+        var.reviewed_run_forecast_usd != null &&
+        var.reviewed_run_forecast_usd >= local.projected_base_usage_usd &&
+        var.reviewed_run_forecast_usd <= local.owner_usage_cap_usd,
+        false,
+      )
+      error_message = "The temporary-run forecast must cover projected base usage and stay at or below the owner's USD 15 total-usage cap."
     }
     precondition {
       condition     = data.digitalocean_project.shared[0].id == local.project_id

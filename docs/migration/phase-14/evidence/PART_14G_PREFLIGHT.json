@@ -1,0 +1,120 @@
+{
+  "schemaVersion": 1,
+  "part": "14G",
+  "checkedAt": "2026-09-29T17:18:39Z",
+  "providerMutationOccurred": false,
+  "paidResourceCreated": false,
+  "publicExposureChanged": false,
+  "repository": {
+    "branch": "migration/fastapi-keycloak",
+    "commit": "cf6465c8b29d8fbd4ea2db06f9c0042c4e61ebb6",
+    "upstreamAhead": 0,
+    "upstreamBehind": 0,
+    "workingTree": "clean-before-14g-repository-work",
+    "requiredRun": {
+      "url": "https://github.com/AadhikR/workloop-clinic/actions/runs/36347412004",
+      "status": "success",
+      "jobs": [
+        "Classify and validate changes",
+        "Backend quality",
+        "Frontend regression",
+        "Full stack smoke"
+      ]
+    },
+    "digitalOceanApp": {
+      "installationId": "157009825",
+      "installed": true,
+      "scopeStatus": "verified-repository-only",
+      "repositoryOnly": true,
+      "repositories": ["AadhikR/workloop-clinic"]
+    }
+  },
+  "provider": {
+    "authenticatedReadOnlyStatus": "verified",
+    "checkedAt": "2026-09-29T14:38:08Z",
+    "accountReference": "digitalocean-team:My Team",
+    "signInMethod": "google-sso",
+    "teamRole": "owner",
+    "expectedProject": {
+      "name": "workloop-clinic-dev",
+      "id": "634213f9-2e43-4aea-8f4e-22ddc3ecdac9",
+      "currentStateVerified": true,
+      "resourceIds": []
+    },
+    "expectedVpc": {
+      "name": "fra1-default",
+      "id": "b8b6d17b-eae4-47de-b2b5-9d10baabdd2d",
+      "region": "fra1",
+      "cidr": "10.114.0.0/20",
+      "currentStateVerified": true,
+      "resourceIds": []
+    },
+    "currentResourcesVerified": true,
+    "resourceInventory": {
+      "apps": [],
+      "databaseClusters": [],
+      "spacesBuckets": []
+    },
+    "billing": {
+      "providerDataLastUpdatedAt": "2026-09-29T03:24:00Z",
+      "monthToDateUsageUsd": 0.95,
+      "estimatedBalanceUsd": 0,
+      "prepaymentsUsd": 20,
+      "remainingPrepaymentsUsd": 20
+    },
+    "budgetAlertVerified": true,
+    "budgetAlertUsd": 20,
+    "budgetAlertThresholdPercent": [75, 100],
+    "budgetAlertEnforcesOwnerCap": false
+  },
+  "availability": {
+    "source": "https://docs.digitalocean.com/platform/regional-availability/",
+    "checkedOn": "2026-09-28",
+    "appPlatformDynamicFra": "full",
+    "appPlatformStaticFra": "full",
+    "postgresqlSharedCpuFra1": "full",
+    "spacesStandardFra1": "full"
+  },
+  "pricing": {
+    "currency": "USD",
+    "checkedOn": "2026-09-28",
+    "fixedMonthlyUsd": 65.15,
+    "ceilingUsd": 70,
+    "ownerUsageCapUsd": 15,
+    "ownerCapStatus": "eligible-timeboxed-manual-cleanup",
+    "maximumRuntimeHours": 72,
+    "billingMonthHours": 672,
+    "projectedBaseUsageUsd": 6.99,
+    "appPlatformSource": "https://docs.digitalocean.com/products/app-platform/details/pricing/",
+    "databaseSource": "https://www.digitalocean.com/pricing/managed-databases",
+    "spacesSource": "https://docs.digitalocean.com/products/spaces/details/pricing/",
+    "items": [
+      {"name": "api", "monthlyUsd": 10},
+      {"name": "keycloak", "monthlyUsd": 25},
+      {"name": "file-scanner", "monthlyUsd": 5},
+      {"name": "storage-reconciler", "monthlyUsd": 5},
+      {"name": "managed-postgresql", "monthlyUsd": 15.15},
+      {"name": "spaces-standard", "monthlyUsd": 5},
+      {"name": "web-static-site", "monthlyUsd": 0}
+    ]
+  },
+  "localValidation": {
+    "checkedAt": "2026-09-29T17:18:39Z",
+    "phase14Tests": 71,
+    "eslint": "passed",
+    "terraform14b": "passed",
+    "terraform14e": "passed",
+    "diffCheck": "passed"
+  },
+  "readiness": {
+    "applyAuthorized": false,
+    "promotionAuthorized": false,
+    "blockers": [
+      "the named solo operator, routine and emergency MFA state, and recovery evidence are absent",
+      "state, credential, backup, and variable-charge custody references are absent",
+      "the immutable deployable release manifest and published image digests do not exist",
+      "the exact start time, manual cleanup deadline, and reviewed temporary-run forecast are absent",
+      "dated owner approval for the exact time-boxed manifest within the USD 15 cap is absent"
+    ]
+  }
+}

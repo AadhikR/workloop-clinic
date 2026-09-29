@@ -53,8 +53,8 @@ administrator is not acceptable evidence. The final check must include its MFA c
 
 ## Operator records
 
-The approved 14G target manifest must supply a named primary, named backup, separate
-least-privilege account reference, and confirmed MFA state for each role:
+The approved 14G target manifest uses a solo operator model. It records one named person who holds
+all five role hats:
 
 - infrastructure custodian;
 - security custodian;
@@ -62,16 +62,20 @@ least-privilege account reference, and confirmed MFA state for each role:
 - incident operator; and
 - release reviewer.
 
-Primary and backup names and accounts must differ within a role. One person may hold more than one
-role, but the release approval record must still distinguish reviewer from executor. Terraform
-keeps `operator_access` null in the committed example and refuses an enabled plan until all five
-records pass validation. No placeholder name, shared account, or claimed future MFA enrollment
-passes the gate.
+The operator record includes one least-privilege routine account reference with MFA, a distinct
+emergency account reference with MFA, an offline recovery-material custody reference, and the date
+recovery was last tested. The emergency account is a recovery path for the same person, not a fake
+backup operator, and it is not used for routine work. The release record must use a separate review
+record from the execution record and state which role hat applied to each action. This is procedural
+self-review, not independent review; evidence must not claim otherwise. Terraform keeps
+`operator_access` null in the committed example and refuses an enabled plan until the complete solo
+operator and recovery record passes validation. No placeholder name, shared routine account, or
+claimed future MFA enrollment passes the gate.
 
 ## Rotation
 
 The credential owner opens a rotation record before creating a replacement. The record names the
-credential class, owning component, primary operator, backup operator, start time, verification
+credential class, owning component, solo operator, active role hat, start time, verification
 method, rollback point, and planned revocation time. It contains no value or connection string.
 
 Create the replacement with the same or narrower rights. Route it only to the owning component,
@@ -99,11 +103,12 @@ evidence as part of credential revocation.
 
 ## Break-glass access
 
-Direct database, container, or Keycloak administrator access is break glass. The incident operator
-records a reason, exact target, approving security custodian, start time, and expiry before access.
-The maximum lifetime is one hour. The security custodian may approve one extension of at most one
-hour. The primary and backup custodians keep separate material in the owner-approved password
-manager. No shared standing administrator account is allowed.
+Direct database, container, or Keycloak administrator access is break glass. Acting under the
+incident-operator hat, the solo operator records a reason, exact target, start time, and expiry
+before access. The maximum lifetime is one hour, with one recorded extension of at most one hour.
+The distinct emergency account uses MFA, remains unused for routine work, and keeps its recovery
+material offline and separate from the routine credential. The custody record stores only a safe
+reference, never the recovery material. No shared standing administrator account is allowed.
 
 At expiry, revoke the session or temporary credential, prove later use fails, and review every
 action against provider and application audit records. Missing approval, missing MFA, an expired
@@ -127,9 +132,9 @@ DigitalOcean Spaces permissions are coarser than the application operation list.
 narrowest bucket-scoped provider permission and rejects `fullaccess`. Live verification in 14G must
 prove the expected allowed and denied actions. A mismatch stops before promotion.
 
-The repository does not name real operators. Guessing would turn an unresolved control into false
-evidence, so the committed input remains null. Part 14G must supply the exact names and account
-references in the approved target manifest.
+The repository does not name the real solo operator. Guessing would turn an unresolved control into
+false evidence, so the committed input remains null. Part 14G must supply the exact operator,
+account, recovery, and role-hat references in the approved target manifest.
 
 Bootstrap values do not belong in Terraform because they would remain in state and in the
 application specification. Part 14G may add them for the first start through its restricted

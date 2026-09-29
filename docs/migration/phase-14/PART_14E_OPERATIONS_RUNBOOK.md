@@ -12,8 +12,9 @@ The application operator owns routine service and worker response. The security 
 authentication, authorization, signing-key, and access-change response. The infrastructure
 custodian owns database capacity, object growth, and billing review. The backup custodian owns
 backup completion. The release reviewer owns deployment drift and cost-plan acceptance. The
-incident operator coordinates critical incidents. Part 14G must replace role names with named
-primary and backup people before apply.
+incident operator coordinates critical incidents. One person may hold every role hat. Part 14G
+must record that person, the MFA-protected routine and emergency account references, recovery
+custody, and the current role hat before apply.
 
 ## Daily operation
 
@@ -28,9 +29,10 @@ Every recovered expired lease needs a single-mutation check. Three retries for o
 15 minutes pause new related work. Attempt eight opens an incident. Expiry must have one successful
 record for every approved scope and business date by 02:00 Asia/Dubai.
 
-The reviewed fixed plan and forecast must remain at or below USD 70. A value above USD 70 blocks
-new work and provider mutation. The existing USD 20 account alert is an early warning. It is not a
-spending cap.
+The architecture ceiling remains USD 70, but the owner's current total-usage cap is USD 15. The
+temporary run may last no more than 72 hours; its conservative base projection is USD 6.99. A
+reviewed total-run forecast above USD 15 blocks new work and provider mutation. The existing USD 20
+account alert is an early warning. It is not a spending cap.
 
 ## Safe evidence capture
 
@@ -72,11 +74,11 @@ restore. Part 14F owns isolated restore and recovery rehearsal.
 
 ## Access and retention review
 
-Every 30 days, the security custodian checks the named primary and backup for each operator role,
-MFA state, break-glass records, credential rotation due dates, provider access, and alert ownership.
-An absent owner, expired review, disabled MFA, unknown key-ID change, or broader object scope blocks
-new work. The reviewer records names, roles, timestamps, and safe account references, never a
-credential.
+Before apply and before manual cleanup, the solo operator checks the account reference, MFA state,
+recovery controls, break-glass records, provider access, and alert ownership. An absent owner,
+disabled MFA, unknown key-ID change, or broader object scope blocks new work. The review records the
+operator name, role hats, timestamps, and safe account references, never a credential or recovery
+code.
 
 Retention expiry removes only records that have passed their contractual period and have no legal,
 security, incident, rollback, or recovery hold. Never delete current incident evidence during
