@@ -6,8 +6,10 @@ from __future__ import annotations
 import asyncio
 import os
 import uuid
+from datetime import datetime
 from decimal import Decimal
 from typing import cast
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import URL
@@ -42,6 +44,7 @@ RAVI_EMPLOYEE_ID = uuid.UUID("21000000-0000-4000-8000-000000000002")
 ANNUAL_BALANCE_ID = uuid.UUID("8e000000-0000-4000-8000-000000000001")
 PATERNITY_BALANCE_ID = uuid.UUID("8e000000-0000-4000-8000-000000000002")
 ATTACHMENT_ID = uuid.UUID("8e000000-0000-4000-8000-000000000003")
+VERIFICATION_NOW = datetime(2026, 9, 27, 12, 0, tzinfo=ZoneInfo("Asia/Dubai"))
 
 
 def database_url(user: str, password_name: str) -> URL:
@@ -191,7 +194,11 @@ async def main() -> None:
         engine=runtime_engine, issuer=seed.SEED_ISSUER, timeout_seconds=5
     )
     executor = AuthorizedServiceExecutor(
-        AuthorizationTransactionFactory(engine=runtime_engine, setup_timeout_seconds=5),
+        AuthorizationTransactionFactory(
+            engine=runtime_engine,
+            setup_timeout_seconds=5,
+            clock=lambda: VERIFICATION_NOW,
+        ),
         deadline_seconds=15,
     )
     principals = {
