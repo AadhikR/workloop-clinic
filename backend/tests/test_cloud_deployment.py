@@ -76,7 +76,7 @@ class BoundaryResult:
 class BoundaryConnection:
     def __init__(
         self,
-        ownership: tuple[object, ...] = ("doadmin", "workloop_migration", "public"),
+        ownership: tuple[object, ...] = ("postgres", "workloop_migration", "public"),
         create_roles: set[str] | None = None,
     ) -> None:
         self.ownership = ownership

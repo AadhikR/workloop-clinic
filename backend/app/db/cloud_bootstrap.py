@@ -60,7 +60,7 @@ JOIN pg_catalog.pg_namespace namespace ON namespace.oid = extension.extnamespace
 WHERE extension.extname = 'btree_gist'
 """
     ).fetchone()
-    if ownership != ("doadmin", "workloop_migration", "public"):
+    if ownership != ("postgres", "workloop_migration", "public"):
         raise RuntimeError("btree_gist is outside the approved provider ownership boundary")
 
     for role in roles:

@@ -198,7 +198,7 @@ export function validatePhase14CSecurity(sources) {
   requireText(
     errors,
     bootstrap,
-    'ownership != ("doadmin", "workloop_migration", "public")',
+    'ownership != ("postgres", "workloop_migration", "public")',
     'cloud provider extension boundary',
   )
   requireText(
