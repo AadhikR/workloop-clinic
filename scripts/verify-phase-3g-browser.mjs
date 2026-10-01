@@ -89,6 +89,11 @@ const financialJourney = {
   advanceId: null,
   expenseId: null,
 }
+const browserAdvanceRepaymentStartPeriod = (() => {
+  const now = new Date()
+  const nextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1))
+  return nextMonth.toISOString().slice(0, 7)
+})()
 const phase10Journey = {
   swapId: null,
 }
@@ -1744,7 +1749,7 @@ async function assertDepartmentApi(page, persona) {
 
 async function assertPhase9BrowserJourney(page, persona) {
   if (persona.role === 'employee') {
-    const result = await page.evaluate(async ({ payslipId }) => {
+    const result = await page.evaluate(async ({ payslipId, repaymentStartPeriod }) => {
       const { authenticationSession } = await import('/src/authSession.js')
       const { createExpense } = await import('/src/expenseApi.js')
       const { createSelfAdvance } = await import('/src/advanceApi.js')
@@ -1761,12 +1766,15 @@ async function assertPhase9BrowserJourney(page, persona) {
         amount: '1500.00',
         installmentCount: 3,
         reason: 'Phase 9H synthetic browser advance',
-        repaymentStartPeriod: '2026-09',
+        repaymentStartPeriod,
       })
       const payslips = await readSelfPayslips(authentication)
       const payslip = await readSelfPayslip(authentication, payslipId)
       return { advance, expense, payslip, payslipCount: payslips.items.length }
-    }, { payslipId: browserPayslipId })
+    }, {
+      payslipId: browserPayslipId,
+      repaymentStartPeriod: browserAdvanceRepaymentStartPeriod,
+    })
     assert.equal(result.expense.status, 'pending')
     assert.equal(result.advance.status, 'pending')
     assert.equal(result.payslip.id, browserPayslipId)
