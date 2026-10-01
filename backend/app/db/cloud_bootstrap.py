@@ -46,50 +46,30 @@ BOOTSTRAPS = (
 )
 
 
-def harden_btree_gist_functions(
+def verify_btree_gist_boundary(
     connection: psycopg.Connection[tuple[object, ...]],
     roles: tuple[DatabaseRole, ...],
 ) -> None:
-    role_names = sql.SQL(", ").join(sql.Literal(role.name) for role in roles)
-    connection.execute(
-        sql.SQL(
-            """
-DO $$
-DECLARE
-  signature pg_catalog.regprocedure;
-  role_name text;
-  function_count integer := 0;
-BEGIN
-  FOR signature IN
-    SELECT procedure.oid::pg_catalog.regprocedure
-    FROM pg_catalog.pg_depend dependency
-    JOIN pg_catalog.pg_extension extension ON extension.oid = dependency.refobjid
-    JOIN pg_catalog.pg_proc procedure ON procedure.oid = dependency.objid
-    WHERE dependency.classid = 'pg_catalog.pg_proc'::pg_catalog.regclass
-      AND dependency.refclassid = 'pg_catalog.pg_extension'::pg_catalog.regclass
-      AND dependency.deptype = 'e'
-      AND extension.extname = 'btree_gist'
-  LOOP
-    function_count := function_count + 1;
-    EXECUTE pg_catalog.format('ALTER FUNCTION %s OWNER TO workloop_migration', signature);
-    EXECUTE pg_catalog.format('REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC', signature);
-    FOREACH role_name IN ARRAY ARRAY[{}]::text[]
-    LOOP
-      EXECUTE pg_catalog.format(
-        'GRANT EXECUTE ON FUNCTION %s TO %I',
-        signature,
-        role_name
-      );
-    END LOOP;
-  END LOOP;
-  IF function_count = 0 THEN
-    RAISE EXCEPTION 'btree_gist has no functions to secure';
-  END IF;
-END
-$$
+    ownership = connection.execute(
+        """
+SELECT pg_catalog.pg_get_userbyid(extension.extowner),
+       pg_catalog.pg_get_userbyid(namespace.nspowner),
+       namespace.nspname
+FROM pg_catalog.pg_extension extension
+JOIN pg_catalog.pg_namespace namespace ON namespace.oid = extension.extnamespace
+WHERE extension.extname = 'btree_gist'
 """
-        ).format(role_names)
-    )
+    ).fetchone()
+    if ownership != ("doadmin", "workloop_migration", "public"):
+        raise RuntimeError("btree_gist is outside the approved provider ownership boundary")
+
+    for role in roles:
+        can_create = connection.execute(
+            "SELECT pg_catalog.has_schema_privilege(%s, 'public', 'CREATE')",
+            (role.name,),
+        ).fetchone()
+        if can_create != (False,):
+            raise RuntimeError(f"cloud database role {role.name} can create schema objects")
 
 
 def harden_migrated_schema(admin_connection_url: str) -> None:
@@ -98,16 +78,7 @@ def harden_migrated_schema(admin_connection_url: str) -> None:
         row = connection.execute("SELECT current_database(), current_user").fetchone()
         if row != ("workloop", "doadmin"):
             raise RuntimeError("schema hardening must use the workloop administrator identity")
-        extension_owner = connection.execute(
-            """
-SELECT pg_catalog.pg_get_userbyid(extowner)
-FROM pg_catalog.pg_extension
-WHERE extname = 'btree_gist'
-"""
-        ).fetchone()
-        if extension_owner != ("workloop_migration",):
-            raise RuntimeError("btree_gist must be owned by the migration identity")
-        harden_btree_gist_functions(connection, BOOTSTRAPS[0].roles)
+        verify_btree_gist_boundary(connection, BOOTSTRAPS[0].connect_roles)
 
 
 def validate_admin_connection_url(value: str, expected_database: str) -> str:

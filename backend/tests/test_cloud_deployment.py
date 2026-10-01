@@ -1,7 +1,11 @@
 import pytest
 
 from app.db import cloud_migrate
-from app.db.cloud_bootstrap import BOOTSTRAPS, validate_admin_connection_url
+from app.db.cloud_bootstrap import (
+    BOOTSTRAPS,
+    validate_admin_connection_url,
+    verify_btree_gist_boundary,
+)
 from app.db.cloud_seed import issuer_from_public_url
 from app.db.engine import normalize_psycopg_url
 
@@ -59,6 +63,50 @@ def test_cloud_bootstrap_grants_only_approved_database_connections() -> None:
     assert bootstraps["keycloak"].owner.name == "keycloak"
     assert bootstraps["keycloak"].owner.inherit is False
     assert bootstraps["keycloak"].connect_roles == ()
+
+
+class BoundaryResult:
+    def __init__(self, row: tuple[object, ...]) -> None:
+        self.row = row
+
+    def fetchone(self) -> tuple[object, ...]:
+        return self.row
+
+
+class BoundaryConnection:
+    def __init__(
+        self,
+        ownership: tuple[object, ...] = ("doadmin", "workloop_migration", "public"),
+        create_roles: set[str] | None = None,
+    ) -> None:
+        self.ownership = ownership
+        self.create_roles = create_roles or set()
+
+    def execute(
+        self,
+        statement: str,
+        parameters: tuple[object, ...] | None = None,
+    ) -> BoundaryResult:
+        if "pg_catalog.pg_extension" in statement:
+            return BoundaryResult(self.ownership)
+        if parameters is None or len(parameters) != 1:
+            raise AssertionError("schema privilege check requires one role")
+        return BoundaryResult((parameters[0] in self.create_roles,))
+
+
+def test_accepts_provider_owned_btree_gist_with_restricted_runtime_roles() -> None:
+    verify_btree_gist_boundary(
+        BoundaryConnection(),  # type: ignore[arg-type]
+        BOOTSTRAPS[0].connect_roles,
+    )
+
+
+def test_rejects_runtime_schema_creation_during_extension_check() -> None:
+    with pytest.raises(RuntimeError, match="can create schema objects"):
+        verify_btree_gist_boundary(
+            BoundaryConnection(create_roles={"workloop_runtime"}),  # type: ignore[arg-type]
+            BOOTSTRAPS[0].connect_roles,
+        )
 
 
 def test_builds_cloud_issuer_from_exact_origin() -> None:
