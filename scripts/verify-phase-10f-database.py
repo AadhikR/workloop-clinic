@@ -84,7 +84,7 @@ def instant(day: date, local_hour: int, minute: int = 0) -> datetime:
     return datetime.combine(day, time(local_hour - 4, minute), tzinfo=UTC)
 
 
-def cleanup_verification_state(connection: Any, *, today: date, period: str) -> None:
+def cleanup_verification_state(connection: Any, *, today: date) -> None:
     protected_tables = (
         "attendance_period_audit_log",
         "attendance_period_record_snapshots",
@@ -99,13 +99,15 @@ def cleanup_verification_state(connection: Any, *, today: date, period: str) -> 
         )
     )
     connection.execute(text("DROP FUNCTION IF EXISTS public.phase10f_verify_reject_audit()"))
+    first_day = today - timedelta(days=3)
+    periods = sorted({first_day.strftime("%Y-%m"), today.strftime("%Y-%m")})
     period_ids = list(
         connection.execute(
             text(
                 "SELECT id FROM public.attendance_periods WHERE company_id=:company "
-                "AND branch_id=:branch AND period=:period"
+                "AND branch_id=:branch AND period=ANY(:periods)"
             ),
-            {"company": COMPANY_ID, "branch": BRANCH_ID, "period": period},
+            {"company": COMPANY_ID, "branch": BRANCH_ID, "periods": periods},
         ).scalars()
     )
     if period_ids:
@@ -136,7 +138,6 @@ def cleanup_verification_state(connection: Any, *, today: date, period: str) -> 
             text("DELETE FROM public.attendance_periods WHERE id=ANY(:period_ids)"),
             {"period_ids": period_ids},
         )
-    first_day = today - timedelta(days=3)
     connection.execute(
         text(
             "DELETE FROM public.attendance_audit_log WHERE company_id=:company "
@@ -200,12 +201,21 @@ async def main() -> None:
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
             "e8a1c3f5b7d9"
         )
-        raw_today = connection.scalar(
+        raw_business_date = connection.scalar(
             text("SELECT timezone('Asia/Dubai',statement_timestamp())::date")
         )
-        today = raw_today if isinstance(raw_today, date) else date.fromisoformat(str(raw_today))
+        business_date = (
+            raw_business_date
+            if isinstance(raw_business_date, date)
+            else date.fromisoformat(str(raw_business_date))
+        )
+        today = (
+            business_date
+            if business_date.day >= 4
+            else business_date.replace(day=1) - timedelta(days=1)
+        )
         period = today.strftime("%Y-%m")
-        cleanup_verification_state(connection, today=today, period=period)
+        cleanup_verification_state(connection, today=today)
         clean(connection, rows)
         apply_rows(connection, rows)
         validate(connection, rows)
@@ -228,6 +238,16 @@ async def main() -> None:
             ).scalars()
         )
         assert TARGET_EMPLOYEE_ID in active_ids
+        approved_leave_ids = set(
+            connection.execute(
+                text(
+                    "SELECT employee_id FROM public.leave_requests "
+                    "WHERE company_id=:company AND branch_id=:branch "
+                    "AND status='Approved' AND start_date<=:today AND end_date>=:today"
+                ),
+                {"company": COMPANY_ID, "branch": BRANCH_ID, "today": today},
+            ).scalars()
+        )
         connection.execute(
             text(
                 "UPDATE public.employees SET employment_start_date=:today,updated_at=now() "
@@ -380,7 +400,8 @@ async def main() -> None:
         for employee_id in active_ids:
             if employee_id != TARGET_EMPLOYEE_ID:
                 record = await calculate(employee_id, today)
-                assert record.status == "WEEKEND"
+                expected_status = "ON_LEAVE" if employee_id in approved_leave_ids else "WEEKEND"
+                assert record.status == expected_status
         assert target_records[absence_date].status == "UNEXPLAINED_ABSENCE"
         assert target_records[late_date].late_minutes == 6
         assert target_records[overtime_date].overtime_hours == 2
@@ -618,7 +639,7 @@ async def main() -> None:
     finally:
         await runtime_engine.dispose()
         with migration_engine.begin() as connection:
-            cleanup_verification_state(connection, today=today, period=period)
+            cleanup_verification_state(connection, today=today)
             clean(connection, rows)
         migration_engine.dispose()
 
