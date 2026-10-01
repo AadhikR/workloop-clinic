@@ -21,8 +21,9 @@ mutable fields, and validates the current source artifacts before use.
 
 Terraform accepts only complete deployable release inputs. Backend-based components and Keycloak
 use reviewed image digests without a branch rebuild or mutable tag. The static site builds the
-manifest's full commit with automatic deployment disabled, then verifies both emitted frontend
-digests. No workflow applies Terraform or starts a provider deployment.
+reviewed migration branch with automatic deployment disabled, then verifies both emitted frontend
+digests against the commit-bound release manifest. No workflow applies Terraform or starts a
+provider deployment.
 
 The seven components remain in their fixed order: migration, API, Keycloak, web, expiry, scanner,
 and reconciler. The pre-deploy migration requires the manifest head, verifies exactly one database
@@ -50,7 +51,7 @@ the lease and schedules the bounded retry if work is still running.
 The Part 14D contract and release-manifest slice passed 13 tests. Combined Phase 14B, 14C, and 14D
 contract coverage passed 25 tests. Mutation cases rejected missing release digests, an incompatible
 schema head, incomplete health rules, changed claim or lease limits, a missing expiry lock, an
-unsafe shutdown path, branch deployment, mutable tags, and workflow deployment commands.
+unsafe shutdown path, automatic branch deployment, mutable tags, and workflow deployment commands.
 
 Backend deployment, expiry, worker-control, and health coverage passed 29 focused tests. The final
 backend gate passed 681 tests with six unchanged SQLAlchemy relationship warnings, Ruff lint and

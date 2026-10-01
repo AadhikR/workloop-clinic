@@ -415,7 +415,7 @@ try {
         if ($component.name -eq 'web') {
             $componentArtifactsMatch = $componentArtifactsMatch -and
                 $component.githubRepository -eq 'AadhikR/workloop-clinic' -and
-                $component.githubBranch -eq $release.gitCommit -and
+                $component.githubBranch -eq $target.repository.branch -and
                 $component.deployOnPush -eq $false
         } elseif ($component.name -eq 'keycloak') {
             $componentArtifactsMatch = $componentArtifactsMatch -and

@@ -10,6 +10,7 @@ locals {
   vpc_id                = "b8b6d17b-eae4-47de-b2b5-9d10baabdd2d"
   vpc_cidr              = "10.114.0.0/20"
   github_repository     = "AadhikR/workloop-clinic"
+  github_branch         = "migration/fastapi-keycloak"
   expected_alembic_head = "e8a1c3f5b7d9"
 
   ownership_labels = {
@@ -807,7 +808,7 @@ resource "digitalocean_app" "shared" {
 
       github {
         repo           = local.github_repository
-        branch         = var.release_manifest.git_commit
+        branch         = local.github_branch
         deploy_on_push = false
       }
 

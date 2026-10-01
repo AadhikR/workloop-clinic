@@ -131,9 +131,9 @@ manifest with the release evidence outside Terraform state.
 
 Terraform uses the backend image digest for migration, API, expiry, scanner, and reconciler. It
 uses the separate Keycloak image digest for Keycloak. The web component builds only the manifest's
-full commit and fails its build unless `dist` and `index.html` match the recorded digests.
-Automatic branch deployment stays disabled. A branch name, mutable tag, provider label, or rebuild
-with different bytes cannot satisfy the release contract.
+reviewed migration branch and fails its build unless `dist` and `index.html` match the recorded
+release digests. Automatic branch deployment stays disabled. A later branch change, mutable tag,
+provider label, or rebuild with different bytes cannot satisfy the release contract.
 
 App Platform runs `database-migrate` as the sole pre-deploy job. It checks the manifest head,
 applies Alembic, requires exactly one row at `e8a1c3f5b7d9`, and reports whether the schema was

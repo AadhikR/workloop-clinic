@@ -161,10 +161,10 @@ export function validatePhase14DDeployment(sources) {
   rejectText(errors, keycloak, 'github {', 'Keycloak source rebuild')
   rejectText(errors, keycloak, 'tag', 'Keycloak mutable tag')
   const web = blocks.get('web') ?? ''
-  requireText(errors, web, 'branch         = var.release_manifest.git_commit', 'web full commit source')
+  requireText(errors, sources.main, 'github_branch         = "migration/fastapi-keycloak"', 'web reviewed branch')
+  requireText(errors, web, 'branch         = local.github_branch', 'web reviewed branch source')
   requireText(errors, web, 'deploy_on_push = false', 'web automatic deployment block')
   requireText(errors, web, 'verify-phase-14d-frontend.mjs', 'web output digest check')
-  rejectText(errors, sources.main, 'branch         = local.github_branch', 'mutable branch release source')
   rejectText(errors, sources.main, 'deploy_on_push = true', 'automatic deployment')
   for (const marker of ['digitalocean/action-doctl', 'apps create-deployment', 'terraform apply']) {
     rejectText(errors, sources.workflow, marker, `workflow deployment command ${marker}`)
