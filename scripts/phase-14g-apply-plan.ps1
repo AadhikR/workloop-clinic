@@ -166,6 +166,15 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Terraform applied the plan but could not read its safe outputs.' }
     $outputs = ([string[]]$outputText -join [Environment]::NewLine) | ConvertFrom-Json -Depth 30
 
+    $databaseClusterId = $outputs.database_cluster_id.value
+    $apiHeaders = @{ Authorization = "Bearer $digitalOceanToken" }
+    $autoscaleResponse = Invoke-RestMethod -Method Get -Headers $apiHeaders -Uri (
+        "https://api.digitalocean.com/v2/databases/$databaseClusterId/autoscale"
+    )
+    if ($autoscaleResponse.storage_autoscale.enabled -ne $false) {
+        throw 'The database was created with storage autoscaling enabled. Maintenance remains active.'
+    }
+
     $applySummary = [ordered]@{
         schemaVersion = 1
         targetManifestSha256 = $target.manifestSha256
@@ -173,14 +182,15 @@ try {
         startedAt = $startedAt.ToString('o')
         completedAt = [DateTimeOffset]::UtcNow.ToString('o')
         success = $true
-        createdResourceCount = 18
+        createdResourceCount = $summary.managedCreateCount
         deletionCount = 0
         maintenanceEnabled = $true
         workersEnabled = $false
         expiryEnabled = $false
         appId = $outputs.app_id.value
         appUrl = $outputs.app_url.value
-        databaseClusterId = $outputs.database_cluster_id.value
+        databaseClusterId = $databaseClusterId
+        databaseStorageAutoscaleEnabled = $false
         spacesBucketName = $outputs.spaces_bucket_name.value
         estimatedMonthlyUsd = $outputs.estimated_monthly_usd.value
         projectedBaseUsageUsd = $outputs.projected_base_usage_usd.value
