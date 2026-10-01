@@ -91,7 +91,7 @@
       {"name": "api", "kind": "service", "size": "apps-s-1vcpu-1gb-fixed", "instances": 1},
       {"name": "keycloak", "kind": "service", "size": "apps-s-1vcpu-2gb", "instances": 1},
       {"name": "web", "kind": "static-site", "size": "included", "instances": 1},
-      {"name": "expiry", "kind": "manual-job", "size": "apps-s-1vcpu-1gb-fixed", "instances": 1},
+      {"name": "expiry", "kind": "manual-job", "size": "apps-s-1vcpu-0.5gb", "instances": 1},
       {"name": "file-scanner", "kind": "worker", "size": "apps-s-1vcpu-0.5gb", "instances": 1},
       {"name": "storage-reconciler", "kind": "worker", "size": "apps-s-1vcpu-0.5gb", "instances": 1}
     ],

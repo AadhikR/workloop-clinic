@@ -54,6 +54,9 @@ test('14A-GC-032 binds apply approval to the exact manifest and cost', () => {
     },
   }).includes('private container registry plan or conservative charge assumption changed'))
   assert.ok(validateTargetManifest({ ...template, token: 'not-allowed' }).includes('target manifest contains protected material'))
+  const wrongComponentSize = structuredClone(template)
+  wrongComponentSize.target.components.find((component) => component.name === 'expiry').size = 'apps-s-1vcpu-1gb-fixed'
+  assert.ok(validateTargetManifest(wrongComponentSize).includes('target component set changed'))
   assert.throws(() => assertApplyAuthorized(template), /not enabled for provider mutation/)
 })
 

@@ -234,10 +234,6 @@ resource "digitalocean_database_cluster" "shared" {
   private_network_uuid = data.digitalocean_vpc.default[0].id
   tags                 = local.ownership_tags
 
-  storage_autoscale {
-    enabled = false
-  }
-
   maintenance_window {
     day  = "sunday"
     hour = "03:00:00"

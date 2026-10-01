@@ -243,8 +243,8 @@ export function validatePhase14BInfrastructure(sources) {
   rejectText(errors, variables + example + main, 'phase_6g', 'Phase 6G identifier')
   rejectText(errors, variables + example + main, 'Phase 6G', 'Phase 6G prose')
 
-  requireText(errors, main, 'storage_autoscale {', 'explicit database storage limit')
-  requireText(errors, main, 'enabled = false', 'disabled database storage autoscaling')
+  rejectText(errors, main, 'storage_autoscale {', 'provider-broken database storage autoscaling block')
+  requireText(errors, readme, 'explicit disabled storage-autoscaling block during cluster creation because it sends a zero', 'live storage-autoscaling workaround')
   if (!/storage_size_mib\s*=\s*"10240"/.test(main)) errors.push('missing fixed 10 GiB database storage')
   requireText(errors, main, 'maintenance_window {', 'database maintenance window')
   requireText(errors, readme, 'provider-managed native backups', 'native backup policy')

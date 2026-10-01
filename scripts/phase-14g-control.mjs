@@ -44,6 +44,15 @@ const plannedRuntimeHours = 48
 const containerRegistryMonthlyUsd = 5
 const billingMonthHours = 672
 const fixedMonthlyUsd = 65.15
+const targetComponentSignatures = [
+  'api|service|apps-s-1vcpu-1gb-fixed|1',
+  'database-migrate|pre-deploy-job|apps-s-1vcpu-1gb-fixed|1',
+  'expiry|manual-job|apps-s-1vcpu-0.5gb|1',
+  'file-scanner|worker|apps-s-1vcpu-0.5gb|1',
+  'keycloak|service|apps-s-1vcpu-2gb|1',
+  'storage-reconciler|worker|apps-s-1vcpu-0.5gb|1',
+  'web|static-site|included|1',
+]
 
 function canonical(value) {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`
@@ -125,9 +134,9 @@ export function validateTargetManifest(manifest, { now = new Date() } = {}) {
     || manifest?.target?.bucket?.region !== 'fra1'
     || manifest?.target?.bucket?.private !== true
     || manifest?.target?.bucket?.versioning !== true) errors.push('target resource manifest changed')
-  if (!exactSet((manifest?.target?.components ?? []).map((item) => item.name), [
-    'database-migrate', 'api', 'keycloak', 'web', 'expiry', 'file-scanner', 'storage-reconciler',
-  ])) errors.push('target component set changed')
+  const componentSignatures = (manifest?.target?.components ?? [])
+    .map((item) => `${item.name}|${item.kind}|${item.size}|${item.instances}`)
+  if (!exactSet(componentSignatures, targetComponentSignatures)) errors.push('target component set changed')
   if (manifest?.pricing?.currency !== 'USD' || manifest?.pricing?.fixedMonthlyUsd !== 65.15
     || manifest?.pricing?.ceilingUsd !== 70 || manifest?.pricing?.ownerUsageCapUsd !== 15
     || manifest?.pricing?.ownerCapStatus !== 'eligible-timeboxed-manual-cleanup'

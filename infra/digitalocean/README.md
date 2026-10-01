@@ -64,8 +64,10 @@ separate recorded promotion approval.
 
 The managed database includes provider-managed native backups. DigitalOcean controls their live
 schedule and retention for this plan. Part 14G must record those provider settings, and Part 14F
-must prove the portable backup and isolated restore rules. Database storage autoscaling stays off
-so a plan cannot exceed the cost calculation without review.
+must prove the portable backup and isolated restore rules. Provider version `2.100.0` rejects an
+explicit disabled storage-autoscaling block during cluster creation because it sends a zero
+threshold. The module omits that optional block, which leaves storage autoscaling disabled on
+creation. Part 14G must verify the live disabled setting before traffic begins.
 
 ## Approval input
 
