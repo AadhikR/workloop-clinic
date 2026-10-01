@@ -58,8 +58,9 @@ test('14A-GC-019 rejects a worker without termination release', () => {
   rejects(mutate('main', 'grace_period_seconds = 120', 'grace_period_seconds = 30'), 'termination window')
 })
 
-test('14A-GC-020 rejects a branch or mutable tag deployment', () => {
-  rejects(mutate('main', 'branch         = var.release_manifest.git_commit', 'branch         = local.github_branch'), 'web full commit source')
+test('14A-GC-020 rejects an unreviewed or automatic branch deployment', () => {
+  rejects(mutate('main', 'github_branch         = "migration/fastapi-keycloak"', 'github_branch         = "main"'), 'web reviewed branch')
+  rejects(mutate('main', 'branch         = local.github_branch', 'branch         = var.release_manifest.git_commit'), 'web reviewed branch source')
   rejects(mutate('main', 'deploy_on_push = false', 'deploy_on_push = true'), 'automatic deployment')
   rejects(mutate('main', 'digest        = var.release_manifest.backend_image.digest', 'tag           = "latest"'), 'backend digest')
   rejects(mutate('workflow', 'npm run build', 'doctl apps create-deployment'), 'workflow deployment command')
