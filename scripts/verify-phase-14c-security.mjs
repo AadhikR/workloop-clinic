@@ -195,8 +195,21 @@ export function validatePhase14CSecurity(sources) {
   requireText(errors, postgresInit, 'ALTER DEFAULT PRIVILEGES FOR ROLE workloop_migration', 'local application default privileges')
   requireText(errors, postgresInit, 'ALTER DEFAULT PRIVILEGES FOR ROLE keycloak', 'local Keycloak default privileges')
   requireText(errors, bootstrap, "extension.extname = 'btree_gist'", 'cloud extension function scope')
-  requireText(errors, bootstrap, 'ALTER FUNCTION %s OWNER TO workloop_migration', 'cloud extension function ownership')
-  requireText(errors, bootstrap, 'REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC', 'cloud extension PUBLIC revocation')
+  requireText(
+    errors,
+    bootstrap,
+    'ownership != ("doadmin", "workloop_migration", "public")',
+    'cloud provider extension boundary',
+  )
+  requireText(
+    errors,
+    bootstrap,
+    "has_schema_privilege(%s, 'public', 'CREATE')",
+    'cloud runtime schema creation check',
+  )
+  requireText(errors, bootstrap, 'can_create != (False,)', 'cloud runtime schema creation denial')
+  rejectText(errors, bootstrap, 'ALTER FUNCTION %s OWNER TO workloop_migration', 'cloud provider extension ownership transfer')
+  rejectText(errors, bootstrap, 'REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC', 'cloud provider extension mutation')
   rejectText(errors, bootstrap, 'CREATE EXTENSION IF NOT EXISTS btree_gist', 'administrator-owned cloud extension')
   requireText(
     errors,
