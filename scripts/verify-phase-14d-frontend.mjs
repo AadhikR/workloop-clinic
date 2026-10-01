@@ -42,8 +42,11 @@ export async function verifyFrontend({
     throw new Error('recorded frontend digests are required')
   }
   if (!existsSync(path.join(directory, 'index.html'))) throw new Error('dist/index.html is missing')
-  if (digestDirectory(directory) !== expected) throw new Error('frontend output digest mismatch')
-  if (digestFile(path.join(directory, 'index.html')) !== rootExpected) throw new Error('frontend root digest mismatch')
+  const actual = digestDirectory(directory)
+  const rootActual = digestFile(path.join(directory, 'index.html'))
+  if (actual !== expected || rootActual !== rootExpected) {
+    throw new Error(`frontend digest mismatch: output ${actual}; root ${rootActual}`)
+  }
   if (url) {
     const response = await fetch(url, { redirect: 'error' })
     if (!(response.status === 200)) throw new Error('frontend root did not return HTTP 200')
