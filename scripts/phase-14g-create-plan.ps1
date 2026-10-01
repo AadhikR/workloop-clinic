@@ -216,7 +216,7 @@ $variables = [ordered]@{
     owner_usage_cap_usd = 15
     reviewed_monthly_forecast_usd = 65.15
     maximum_runtime_hours = 72
-    reviewed_run_forecast_usd = 12.5
+    reviewed_run_forecast_usd = $target.pricing.reviewedRunForecastUsd
     release_promoted = $false
     release_promotion_approved = $false
     expiry_scopes = @()
@@ -543,7 +543,7 @@ try {
                 keys = $spacesKeys
             }
             fixedMonthlyUsd = 65.15
-            reviewedRunForecastUsd = 12.5
+            reviewedRunForecastUsd = $target.pricing.reviewedRunForecastUsd
             ownerUsageCapUsd = 15
         }
         safeToRequestApplyApproval = (

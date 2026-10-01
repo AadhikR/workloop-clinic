@@ -501,7 +501,7 @@ resource "digitalocean_app" "shared" {
     }
 
     database {
-      name         = "keycloak"
+      name         = "keycloak-runtime"
       engine       = "PG"
       production   = true
       cluster_name = digitalocean_database_cluster.shared[0].name
