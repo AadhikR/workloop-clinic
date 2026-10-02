@@ -2,109 +2,104 @@ import { useEffect, useState } from 'react'
 
 import { authenticationSession } from './authSession.js'
 import { migrationPublicConfig } from './config.js'
-import OrganizationPanel from './OrganizationPanel.jsx'
-import {
-  createStorageProof,
-  deleteStorageProof,
-  readCurrentAccount,
-  readPublicStatus,
-  readStorageProof,
-} from './sampleApi.js'
+import PortalShell from './PortalShell.jsx'
+import { classifyAccountFailure } from './portalSession.js'
+import { readCurrentAccount, readPublicStatus } from './sampleApi.js'
 
-const messages = {
-  'account-unavailable': 'Your Workloop account is not active. Contact an administrator.',
-  'service-unavailable': 'Workloop could not check your account. Try again shortly.',
-  'session-expired': 'Your session ended. Sign in again to continue.',
-  error: 'Sign-in could not be completed. No account details were changed.',
-  loading: 'Checking your local Keycloak session...',
-  'logout-incomplete': 'Keycloak sign-out could not be confirmed. Retry before leaving this browser.',
-  'signed-in': 'Keycloak and FastAPI accepted this synthetic account.',
-  'signed-out': 'Sign in with a temporary local test account.',
+const stateContent = {
+  'account-unavailable': {
+    detail: 'Your Workloop account is inactive or incomplete. Contact an administrator.',
+    title: 'Account unavailable',
+  },
+  'configuration-error': {
+    detail: 'Workloop is missing required public sign-in settings.',
+    title: 'Configuration unavailable',
+  },
+  error: {
+    detail: 'Sign-in could not be completed. No account details were changed.',
+    title: 'Sign-in failed',
+  },
+  loading: {
+    detail: 'Checking your session and account.',
+    title: 'Loading Workloop',
+  },
+  'logout-incomplete': {
+    detail: 'Sign-out could not be confirmed. Retry before leaving this browser.',
+    title: 'Sign-out incomplete',
+  },
+  'service-unavailable': {
+    detail: 'Workloop could not check your account. Try again shortly.',
+    title: 'Service unavailable',
+  },
+  'session-expired': {
+    detail: 'Your session ended. Sign in again to continue.',
+    title: 'Session expired',
+  },
+  'signed-out': {
+    detail: 'Sign in to open your Workloop portal.',
+    title: 'Welcome to Workloop',
+  },
 }
 
-function CurrentAccountSample() {
-  const [accountSample, setAccountSample] = useState({ status: 'loading' })
-
-  useEffect(() => {
-    const controller = new AbortController()
-    readCurrentAccount(authenticationSession(), { signal: controller.signal })
-      .then((data) => setAccountSample({ status: 'ready', data }))
-      .catch(() => {
-        if (!controller.signal.aborted) setAccountSample({ status: 'unavailable' })
-      })
-    return () => controller.abort()
-  }, [])
-
+function SessionState({ authentication, status }) {
+  const content = stateContent[status] ?? stateContent.error
+  const canLogin = ['account-unavailable', 'error', 'session-expired', 'signed-out'].includes(status)
+  const canLogout = ['account-unavailable', 'logout-incomplete', 'service-unavailable'].includes(status)
   return (
-    <>
-      <div>
-        <dt>Protected account</dt>
-        <dd data-account-api-status={accountSample.status}>
-          {accountSample.status === 'ready' ? accountSample.data.role : accountSample.status}
-        </dd>
+    <section className="session-state" aria-live="polite">
+      <p className="eyebrow">Workloop Clinic</p>
+      <h1 tabIndex="-1">{content.title}</h1>
+      <p className={status === 'error' ? 'route-alert' : 'route-detail'} role={status === 'error' ? 'alert' : 'status'}>
+        {content.detail}
+      </p>
+      <div className="route-actions">
+        {canLogin && authentication && (
+          <button type="button" onClick={() => authentication.login()}>
+            Sign in
+          </button>
+        )}
+        {canLogout && authentication && (
+          <button type="button" className="secondary" onClick={() => authentication.logout()}>
+            {status === 'logout-incomplete' ? 'Retry sign out' : 'Sign out'}
+          </button>
+        )}
       </div>
-      {accountSample.status === 'ready' && (
-        <div className="account-sample">
-          <div><dt>App user</dt><dd>{accountSample.data.appUserId}</dd></div>
-          <div><dt>Company</dt><dd>{accountSample.data.companyId}</dd></div>
-          <div><dt>Employee</dt><dd>{accountSample.data.employeeId ?? 'Not linked'}</dd></div>
-          <div><dt>Branch</dt><dd>{accountSample.data.branchId ?? 'Not selected'}</dd></div>
-        </div>
-      )}
-    </>
-  )
-}
-
-function StorageProofSample() {
-  const [proof, setProof] = useState({ status: 'waiting' })
-
-  const run = async (operation) => {
-    setProof({ status: 'checking' })
-    try {
-      const data = await operation(authenticationSession())
-      setProof(data ? { status: 'persisted', data } : { status: 'removed' })
-    } catch {
-      setProof({ status: 'unavailable' })
-    }
-  }
-
-  return (
-    <div className="storage-proof">
-      <dt>Private object</dt>
-      <dd data-storage-proof-status={proof.status}>
-        {proof.status === 'persisted' ? `${proof.data.sizeBytes} bytes verified` : proof.status}
-      </dd>
-      <div className="proof-actions">
-        <button type="button" onClick={() => run(createStorageProof)}>Create or verify</button>
-        <button type="button" className="secondary" onClick={() => run(readStorageProof)}>Read again</button>
-        <button type="button" className="secondary" onClick={() => run(deleteStorageProof)}>Remove</button>
-      </div>
-    </div>
+    </section>
   )
 }
 
 export default function App() {
+  const [bootstrap] = useState(() => {
+    try {
+      return { authentication: authenticationSession(), error: false }
+    } catch {
+      return { authentication: null, error: true }
+    }
+  })
+  const authentication = bootstrap.authentication
   const [sessionState, setSessionState] = useState({ status: 'loading' })
-  const [publicSample, setPublicSample] = useState({ status: 'loading' })
+  const [accountState, setAccountState] = useState({ status: 'idle' })
+  const [publicStatus, setPublicStatus] = useState('loading')
 
   useEffect(() => {
     let active = true
-    let session
-    try {
-      session = authenticationSession()
-    } catch {
+    if (bootstrap.error) {
       queueMicrotask(() => {
         if (active) setSessionState({ status: 'configuration-error' })
       })
       return () => { active = false }
     }
 
-    const unsubscribe = session.subscribe(setSessionState)
+    const session = authentication
+    const unsubscribe = session.subscribe((state) => {
+      if (state.status !== 'signed-in') setAccountState({ status: 'idle' })
+      setSessionState(state)
+    })
     const controller = new AbortController()
     readPublicStatus(session, { signal: controller.signal })
-      .then((data) => setPublicSample({ status: 'ready', data }))
+      .then(() => setPublicStatus('ready'))
       .catch(() => {
-        if (!controller.signal.aborted) setPublicSample({ status: 'unavailable' })
+        if (!controller.signal.aborted) setPublicStatus('unavailable')
       })
     session.initialize().catch(() => setSessionState({ status: 'error' }))
     return () => {
@@ -112,59 +107,48 @@ export default function App() {
       controller.abort()
       unsubscribe()
     }
-  }, [])
+  }, [authentication, bootstrap.error])
 
-  const status = sessionState.status
-  const canLogin = ['account-unavailable', 'error', 'session-expired', 'signed-out'].includes(status)
-  const canLogout = ['account-unavailable', 'logout-incomplete', 'service-unavailable', 'signed-in'].includes(status)
+  useEffect(() => {
+    if (!authentication || sessionState.status !== 'signed-in') {
+      return undefined
+    }
+    const controller = new AbortController()
+    readCurrentAccount(authentication, { signal: controller.signal })
+      .then((account) => {
+        if (!controller.signal.aborted) setAccountState({ status: 'ready', account })
+      })
+      .catch(async (error) => {
+        if (controller.signal.aborted) return
+        const status = classifyAccountFailure(error)
+        if (status === 'cancelled') return
+        setAccountState({ status })
+        if (status === 'session-expired') await authentication.expireSession()
+      })
+    return () => controller.abort()
+  }, [authentication, sessionState.status])
+
+  let status = sessionState.status
+  if (status === 'signed-in' && accountState.status !== 'ready') {
+    status = accountState.status === 'idle' ? 'loading' : accountState.status
+  }
 
   return (
-    <main data-api-configured={Boolean(migrationPublicConfig.apiBaseUrl)} data-session-status={status}>
-      <section className="auth-panel" aria-live="polite">
-        <p className="eyebrow">Workloop Clinic</p>
-        <h1>Architecture proof</h1>
-        <p className="status">
-          {status === 'configuration-error'
-            ? 'The migration frontend is missing its public local configuration.'
-            : messages[status]}
-        </p>
-        <div className="actions">
-          {canLogin && (
-            <button type="button" onClick={() => authenticationSession().login()}>
-              Sign in
-            </button>
-          )}
-          {canLogout && (
-            <button type="button" className="secondary" onClick={() => authenticationSession().logout()}>
-              {status === 'logout-incomplete' ? 'Retry sign out' : 'Sign out'}
-            </button>
-          )}
-        </div>
-        <section className="sample-status" aria-label="Migration API sample status">
-          <h2>API sample</h2>
-          <dl>
-            <div>
-              <dt>Public status</dt>
-              <dd data-public-api-status={publicSample.status}>
-                {publicSample.status === 'ready' ? publicSample.data.status : publicSample.status}
-              </dd>
-            </div>
-            {status === 'signed-in' ? (
-              <>
-                <CurrentAccountSample />
-                <StorageProofSample />
-                <OrganizationPanel authentication={authenticationSession()} />
-              </>
-            ) : (
-              <div>
-                <dt>Protected account</dt>
-                <dd data-account-api-status="waiting">waiting</dd>
-              </div>
-            )}
-          </dl>
-        </section>
-        <p className="boundary">Synthetic identities only. Tokens are kept in memory.</p>
-      </section>
-    </main>
+    <>
+      <a className="skip-link" href="#portal-content">Skip to main content</a>
+      <main
+        data-api-configured={Boolean(migrationPublicConfig.apiBaseUrl)}
+        data-public-api-status={publicStatus}
+        data-session-status={status}
+        id="portal-content"
+        tabIndex="-1"
+      >
+        {status === 'signed-in' ? (
+          <PortalShell account={accountState.account} authentication={authentication} />
+        ) : (
+          <SessionState authentication={authentication} status={status} />
+        )}
+      </main>
+    </>
   )
 }

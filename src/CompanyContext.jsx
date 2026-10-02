@@ -7,6 +7,7 @@ import {
   readAllBranches,
   readCompany,
   readEmployer,
+  resolveStaffBranch,
 } from './organizationApi.js'
 
 function safeStatus(error, signal) {
@@ -49,14 +50,12 @@ export function CompanyProvider({ account, authentication, children }) {
         readAllBranches(authentication, { signal: controller.signal }),
       ])
       if (controller.signal.aborted) return
-      if (branches.length !== 1) {
-        throw new Error('Invalid staff branch response')
-      }
+      const selectedBranch = resolveStaffBranch(account, branches)
       setState({
         status: 'ready',
         employer,
         branches,
-        selectedBranch: branches[0],
+        selectedBranch,
       })
     }
 

@@ -254,7 +254,7 @@ test('maps normalized account errors and clears rejected tokens', async () => {
     [401, 'session-expired', true],
     [403, 'account-unavailable', false],
     [503, 'service-unavailable', false],
-    [500, 'error', false],
+    [500, 'service-unavailable', false],
   ]) {
     const { authentication, manager } = session({ fetch: async () => accountResponse(status) })
     await authentication.checkAccount({ access_token: 'not-a-real-token', expired: false })

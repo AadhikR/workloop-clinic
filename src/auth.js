@@ -304,7 +304,7 @@ export class AuthenticationSession {
       }
       if (
         error instanceof HttpClientError
-        && (error.status === 503 || ['network', 'availability'].includes(error.kind)
+        && (error.status >= 500 || ['network', 'availability'].includes(error.kind)
           || error.kind === 'timeout' && error.status === null)
       ) {
         this.setState(Object.freeze({ status: 'service-unavailable' }))

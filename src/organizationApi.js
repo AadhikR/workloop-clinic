@@ -201,6 +201,18 @@ export async function readAllBranches(authentication, options = {}) {
   return Object.freeze(branches)
 }
 
+export function resolveStaffBranch(account, branches) {
+  if (
+    !account
+    || !['manager', 'employee'].includes(account.role)
+    || !isUuid(account.branchId)
+    || !Array.isArray(branches)
+    || branches.length !== 1
+    || branches[0]?.id !== account.branchId
+  ) throw new Error('Invalid staff branch response')
+  return branches[0]
+}
+
 export async function readBranch(authentication, branchId, { signal } = {}) {
   if (!isUuid(branchId)) throw new TypeError('Invalid branch ID')
   const { data } = await authentication.request(`/api/v1/branches/${branchId}`, {

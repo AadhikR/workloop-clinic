@@ -8,6 +8,9 @@ export default function BranchChooser() {
     <section className="branch-chooser" aria-labelledby="branch-chooser-title">
       <h2 id="branch-chooser-title">Choose a branch</h2>
       <p>Select the branch you want to work with in this tab.</p>
+      {organization.branches.length === 0 && (
+        <p role="status">No active branches are available.</p>
+      )}
       <div className="branch-options">
         {organization.branches.map((branch) => (
           <button
