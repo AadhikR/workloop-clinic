@@ -161,6 +161,10 @@ export default function PortalShell({ account, authentication }) {
   const route = resolvePortalRoute(path, account.role)
 
   useEffect(() => {
+    document.title = `${route.title} | Workloop`
+  }, [route.title])
+
+  useEffect(() => {
     if (route.kind === 'redirect') navigator.go(route.path, { replace: true })
   }, [navigator, route.kind, route.path])
 

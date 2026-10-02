@@ -30,7 +30,7 @@ issuing a protected business request.
 The existing Phase 13 canonical-source test had frozen the frontend at exactly 75 files. Part 15B
 adds three canonical source modules, so the test now pins the original 75-file count and both
 historical digests while allowing later canonical additions. It still rejects a restored legacy
-tree, Supabase source, or a second frontend path.
+tree, retired client source, or a second frontend path.
 
 ## Focused verification
 
