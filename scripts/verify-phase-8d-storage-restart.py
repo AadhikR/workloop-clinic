@@ -7,9 +7,9 @@ import asyncio
 import hashlib
 import sys
 
-from app.core.config import Settings
 from app.storage.factory import create_object_storage
 from app.storage.synthetic import SyntheticObjectStorage
+from app.storage.worker_settings import StorageWorkerSettings
 
 BODY = b"Workloop Phase 8D restart proof\n"
 CONTENT_TYPE = "application/pdf"
@@ -18,7 +18,9 @@ KEY = "verification/phase8d/restart-proof"
 TOKEN_FILE = ".phase8d-restart-token"
 
 
-async def prepare(storage: SyntheticObjectStorage, settings: Settings) -> None:
+async def prepare(
+    storage: SyntheticObjectStorage, settings: StorageWorkerSettings
+) -> None:
     token_path = settings.synthetic_storage_path / TOKEN_FILE
     token_path.unlink(missing_ok=True)
     await storage.delete_object(key=KEY)
@@ -40,7 +42,9 @@ async def prepare(storage: SyntheticObjectStorage, settings: Settings) -> None:
     print(f"Phase 8D storage restart state prepared: {digest}")
 
 
-async def verify(storage: SyntheticObjectStorage, settings: Settings) -> None:
+async def verify(
+    storage: SyntheticObjectStorage, settings: StorageWorkerSettings
+) -> None:
     token_path = settings.synthetic_storage_path / TOKEN_FILE
     token = token_path.read_text(encoding="ascii")
     stored, download_name = await storage.resolve_download(token)
@@ -56,10 +60,10 @@ async def verify(storage: SyntheticObjectStorage, settings: Settings) -> None:
 async def main() -> None:
     if len(sys.argv) != 2 or sys.argv[1] not in {"prepare", "verify"}:
         raise SystemExit("usage: verify-phase-8d-storage-restart.py prepare|verify")
-    settings = Settings()
+    settings = StorageWorkerSettings()  # pyright: ignore[reportCallIssue]
     storage = create_object_storage(settings)
     if not isinstance(storage, SyntheticObjectStorage):
-        raise RuntimeError("the restart verifier requires synthetic storage")
+        raise TypeError("the restart verifier requires synthetic storage")
     try:
         if sys.argv[1] == "prepare":
             await prepare(storage, settings)

@@ -59,7 +59,12 @@ def main() -> None:
     restart_check = read("scripts/verify-phase-8d-storage-restart.py")
     require(
         restart_check,
-        ("async def prepare", "async def verify", "create_download_url"),
+        (
+            "StorageWorkerSettings",
+            "async def prepare",
+            "async def verify",
+            "create_download_url",
+        ),
         "storage restart verifier",
     )
     attachment_revision = read(
@@ -122,9 +127,13 @@ def main() -> None:
         "migration frontend",
     )
     if "supabase" in frontend.lower():
-        raise SystemExit("Phase 8D attachment check failed: migration frontend uses Supabase")
+        raise SystemExit(
+            "Phase 8D attachment check failed: migration frontend uses Supabase"
+        )
     if (ROOT / "src/utils/leaveStorage.js").exists():
-        raise SystemExit("Phase 8D attachment check failed: retired leave storage source was restored")
+        raise SystemExit(
+            "Phase 8D attachment check failed: retired leave storage source was restored"
+        )
     workflow = read(".github/workflows/migration-foundation.yml")
     require(
         workflow,
