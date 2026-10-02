@@ -35,7 +35,7 @@ try {
   assert.equal(await adminPage.locator('.skip-link').count(), 1)
 
   await adminPage.getByRole('link', { name: 'People' }).click()
-  await adminPage.locator('[data-route-state="unavailable"]').waitFor()
+  await adminPage.locator('[data-administrator-route="/admin/people"]').waitFor()
   assert.equal(new URL(adminPage.url()).pathname, '/admin/people')
   assert.equal(await adminPage.title(), 'People | Workloop')
   assert.equal(await adminPage.evaluate(() => document.activeElement?.tagName), 'H1')

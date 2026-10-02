@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
+import AdministratorPortal from './AdministratorPortal.jsx'
 import BranchChooser from './BranchChooser.jsx'
 import { CompanyProvider } from './CompanyContext.jsx'
 import Dashboard from './Dashboards.jsx'
 import NotificationBell from './NotificationBell.jsx'
 import Tasks from './Tasks.jsx'
 import { useCompanyContext } from './companyContextState.js'
+import { administratorRouteGroup } from './administratorRoutes.js'
 import {
   createBrowserNavigator,
   focusRouteHeading,
@@ -115,6 +117,9 @@ function PortalHome({ account, authentication, navigator, route }) {
   const organizationName = organization.company?.name ?? organization.employer?.companyName
   const navigation = roleNavigation(account.role)
   const dashboardKind = account.role === 'admin' ? 'admin' : 'self'
+  const administratorGroup = account.role === 'admin' ? administratorRouteGroup(route.path) : null
+  const description = administratorGroup?.description
+    ?? 'Your common work items are ready. Role-specific sections will open as their portal routes are completed.'
   return (
     <div className="portal" data-portal-role={account.role} data-route-state="ready">
       <header className="portal-header">
@@ -146,12 +151,25 @@ function PortalHome({ account, authentication, navigator, route }) {
       <div className="page-heading">
         <p className="current-page">Current page: {route.title}</p>
         <h1 ref={headingRef} tabIndex="-1">{route.title}</h1>
-        <p>Your common work items are ready. Role-specific sections will open as their portal routes are completed.</p>
+        <p>{description}</p>
       </div>
-      <div className="portal-columns">
-        <Dashboard authentication={authentication} branchId={branch.id} kind={dashboardKind} />
-        <Tasks account={account} authentication={authentication} branchId={branch.id} />
-      </div>
+      {account.role === 'admin' && route.path !== '/admin' ? (
+        <AdministratorPortal
+          account={account}
+          authentication={authentication}
+          branchId={branch.id}
+          clearBranch={organization.clearBranch}
+          path={route.path}
+        />
+      ) : (
+        <div className="portal-columns">
+          <Dashboard authentication={authentication} branchId={branch.id} kind={dashboardKind} />
+          {account.role === 'admin' && (
+            <Dashboard authentication={authentication} branchId={branch.id} kind="clinical" />
+          )}
+          <Tasks account={account} authentication={authentication} branchId={branch.id} />
+        </div>
+      )}
     </div>
   )
 }
@@ -171,7 +189,7 @@ export default function PortalShell({ account, authentication }) {
   if (route.kind === 'redirect') {
     return <RouteState detail="Opening your home page." kind="loading" title="Loading workspace" />
   }
-  if (route.kind !== 'home') {
+  if (!['home', 'portal'].includes(route.kind)) {
     return (
       <ProtectedRouteState
         account={account}
