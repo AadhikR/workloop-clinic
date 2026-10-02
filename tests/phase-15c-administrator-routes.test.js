@@ -31,14 +31,14 @@ test('assigns every approved administrator route to its existing views', () => {
   )
 })
 
-test('opens administrator routes while preserving role denial and the employee placeholder', () => {
+test('opens administrator routes while preserving role denial', () => {
   for (const [path] of expectedRoutes) {
     assert.equal(resolvePortalRoute(path, 'admin').kind, path === '/admin' ? 'home' : 'portal')
     assert.equal(resolvePortalRoute(path, 'manager').kind, 'forbidden')
     assert.equal(resolvePortalRoute(path, 'employee').kind, 'forbidden')
   }
   assert.equal(resolvePortalRoute('/manager/time', 'manager').kind, 'portal')
-  assert.equal(resolvePortalRoute('/employee/pay', 'employee').kind, 'unavailable')
+  assert.equal(resolvePortalRoute('/employee/pay', 'employee').kind, 'portal')
 })
 
 test('keeps administrator composition on existing clients and server output', async () => {

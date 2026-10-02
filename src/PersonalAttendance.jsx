@@ -18,7 +18,12 @@ export default function PersonalAttendance({ authentication }) {
   useEffect(() => {
     const refresh = async () => {
       try { await load() }
-      catch { setMessage('Personal attendance is unavailable.') }
+      catch {
+        setAttendance({ record: null, rawEvents: [] })
+        setHistory([])
+        setRequests([])
+        setMessage('Personal attendance is unavailable.')
+      }
     }
     void refresh()
   }, [load])

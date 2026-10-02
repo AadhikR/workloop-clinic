@@ -30,7 +30,7 @@ test('opens manager routes and keeps administrator and employee routes denied or
   }
   assert.equal(resolvePortalRoute('/admin/payroll', 'manager').kind, 'forbidden')
   assert.equal(resolvePortalRoute('/admin/records', 'manager').kind, 'forbidden')
-  assert.equal(resolvePortalRoute('/employee/pay', 'employee').kind, 'unavailable')
+  assert.equal(resolvePortalRoute('/employee/pay', 'employee').kind, 'portal')
 })
 
 test('keeps administrator-only views and browser authorization logic out of manager composition', async () => {

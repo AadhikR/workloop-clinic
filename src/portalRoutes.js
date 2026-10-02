@@ -74,6 +74,7 @@ export function resolvePortalRoute(path, role) {
   if (
     route.owner === '15C' && role === 'admin'
     || route.owner === '15D' && role === 'manager'
+    || route.owner === '15E' && role === 'employee'
   ) {
     return Object.freeze({ kind: 'portal', path, title: route.title })
   }

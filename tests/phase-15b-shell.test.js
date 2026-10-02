@@ -47,10 +47,10 @@ test('maps each server role to one home and denies cross-role navigation', () =>
   assert.equal(resolvePortalRoute('/admin/payroll', 'employee').kind, 'forbidden')
 })
 
-test('opens completed role routes, keeps employee routes unavailable, and rejects unknown paths', () => {
+test('opens completed role routes and rejects unknown paths', () => {
   assert.equal(resolvePortalRoute('/admin/people', 'admin').kind, 'portal')
   assert.equal(resolvePortalRoute('/manager/time', 'manager').kind, 'portal')
-  assert.equal(resolvePortalRoute('/employee/pay', 'employee').kind, 'unavailable')
+  assert.equal(resolvePortalRoute('/employee/pay', 'employee').kind, 'portal')
   assert.equal(resolvePortalRoute('/unavailable', 'employee').kind, 'unavailable')
   assert.equal(resolvePortalRoute('/forbidden', 'admin').kind, 'forbidden')
   assert.equal(resolvePortalRoute('/unlisted-record/secret', 'admin').kind, 'not-found')
