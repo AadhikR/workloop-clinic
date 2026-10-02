@@ -12,6 +12,7 @@
     "build": "vite build",
     "guard:repository": "node scripts/verify-phase-13e-repository-guard.mjs",
     "verify:phase14h:review": "node scripts/verify-phase-14h-review.mjs",
+    "verify:phase15a:contract": "node scripts/verify-phase-15a-contract.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "playwright test",

@@ -24,14 +24,17 @@ owner decision and a separate plan.
 
 ## Active release work
 
-1. Finish Phase 13 repository, clean-setup, retention, external-state, and independent-review gates.
-2. Deploy the approved stack to DigitalOcean with managed secrets, private networking, backups,
-   health checks, log retention, and rollback evidence.
-3. Integrate the real Workloop portal shell and run the final product, security, recovery, and
-   performance validation on DigitalOcean before release signoff.
+Phases 13 and 14 are complete. The approved stack runs on DigitalOcean with synthetic data,
+managed secrets, private networking, backups, health checks, retained logs, and recovery evidence.
 
-Phase 15 is the planned continuation for that product integration and validation. It does not have
-an approved subphase plan yet and does not authorize work on another cloud provider.
+Phase 15 is active. It replaces the architecture-proof page with the integrated Workloop portal,
+then runs the product, denial, accessibility, performance, promotion, recovery, and independent
+review gates on DigitalOcean. The canonical plan is
+`docs/migration/phase-15/SUBPHASE_PLAN.md`.
+
+Phase 15 reuses the current backend contracts. A missing UI capability stays unavailable instead of
+creating an unplanned business endpoint or widening a role. DigitalOcean remains the only active
+provider.
 
 The canonical phase plan is under `docs/migration/`. A feature is complete only when its API,
 permissions, persistence, frontend, regression tests, restart behavior, and recovery boundary pass.

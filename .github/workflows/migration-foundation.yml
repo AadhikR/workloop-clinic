@@ -78,6 +78,8 @@ jobs:
         run: npm run verify:phase13h:review
       - name: Verify Phase 14H independent review
         run: npm run verify:phase14h:review
+      - name: Verify Phase 15A portal integration contract
+        run: npm run verify:phase15a:contract
 
   backend-quality:
     name: Backend quality
