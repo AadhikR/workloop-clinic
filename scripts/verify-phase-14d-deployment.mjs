@@ -189,6 +189,18 @@ export function validatePhase14DDeployment(sources) {
 
   const expiry = blocks.get('expiry') ?? ''
   requireText(errors, expiry, 'kind               = "UNSPECIFIED"', 'manual expiry job kind')
+  requireText(
+    errors,
+    expiry,
+    'if [ \\"$WORKLOOP_EXPIRY_PROCESSING_ENABLED\\" = false ]; then exit 0',
+    'disabled expiry deployment exit',
+  )
+  requireText(
+    errors,
+    expiry,
+    'if [ \\"$WORKLOOP_EXPIRY_PROCESSING_ENABLED\\" != true ]; then exit 1',
+    'invalid expiry deployment gate',
+  )
   requireText(errors, expiry, 'WORKLOOP_EXPIRY_SCOPES_JSON', 'approved expiry scopes')
   requireText(errors, expiry, 'local.expiry_processing_enabled', 'expiry processing gate')
   requireText(errors, sources.expiry, 'pg_advisory_xact_lock', 'expiry advisory lock')

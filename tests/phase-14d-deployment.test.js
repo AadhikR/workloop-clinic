@@ -53,6 +53,17 @@ test('14A-GC-018 rejects removal of the expiry advisory lock', () => {
   rejects(mutate('expiry', 'pg_advisory_xact_lock', 'pg_sleep'), 'expiry advisory lock')
 })
 
+test('keeps disabled expiry deployments successful without enabling processing', () => {
+  rejects(
+    mutate('main', 'if [ \\"$WORKLOOP_EXPIRY_PROCESSING_ENABLED\\" = false ]; then exit 0', 'exit 0'),
+    'disabled expiry deployment exit',
+  )
+  rejects(
+    mutate('main', 'if [ \\"$WORKLOOP_EXPIRY_PROCESSING_ENABLED\\" != true ]; then exit 1', 'exit 1'),
+    'invalid expiry deployment gate',
+  )
+})
+
 test('14A-GC-019 rejects a worker without termination release', () => {
   rejects(mutate('workerControl', /release_claim/g, 'abandon_claim'), 'worker control release_claim')
   rejects(mutate('main', 'grace_period_seconds = 120', 'grace_period_seconds = 30'), 'termination window')

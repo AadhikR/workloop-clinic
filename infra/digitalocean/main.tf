@@ -860,7 +860,7 @@ resource "digitalocean_app" "shared" {
       kind               = "UNSPECIFIED"
       instance_count     = 1
       instance_size_slug = "apps-s-1vcpu-0.5gb"
-      run_command        = "python -m app.expiry_command"
+      run_command        = "sh -ec 'if [ \"$WORKLOOP_EXPIRY_PROCESSING_ENABLED\" = false ]; then exit 0; fi; if [ \"$WORKLOOP_EXPIRY_PROCESSING_ENABLED\" != true ]; then exit 1; fi; exec python -m app.expiry_command'"
 
       image {
         registry_type = try(var.release_manifest.backend_image.registry_type, "DOCR")
