@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
 import {
@@ -58,6 +59,13 @@ test('14A-GC-032 binds apply approval to the exact manifest and cost', () => {
   wrongComponentSize.target.components.find((component) => component.name === 'expiry').size = 'apps-s-1vcpu-1gb-fixed'
   assert.ok(validateTargetManifest(wrongComponentSize).includes('target component set changed'))
   assert.throws(() => assertApplyAuthorized(template), /not enabled for provider mutation/)
+})
+
+test('deployment secrets use unpadded base64url keys accepted by the runtime', () => {
+  const script = readFileSync(new URL('../scripts/phase-14g-create-plan.ps1', import.meta.url), 'utf8')
+  assert.match(script, /function New-RandomBase64UrlKey/)
+  assert.match(script, /\.TrimEnd\('='\)\.Replace\('\+', '-'\)\.Replace\('\/', '_'\)/)
+  assert.doesNotMatch(script, /New-RandomBase64Key/)
 })
 
 test('14A-GC-032 budgets the full registry charge inside a 48-hour plan', () => {

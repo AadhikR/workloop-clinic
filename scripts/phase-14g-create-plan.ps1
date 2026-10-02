@@ -34,11 +34,11 @@ function Get-ProtectedValue {
     }
 }
 
-function New-RandomBase64Key {
+function New-RandomBase64UrlKey {
     $bytes = [byte[]]::new(32)
     [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
     try {
-        return [Convert]::ToBase64String($bytes)
+        return [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
     } finally {
         [Array]::Clear($bytes, 0, $bytes.Length)
     }
@@ -201,13 +201,13 @@ $providerDestination = Join-Path $sessionDirectory '.terraform/providers'
 Copy-Item -LiteralPath $providerSource -Destination $providerDestination -Recurse
 
 $runtimeSecrets = [ordered]@{
-    api_storage_signing_key = New-RandomBase64Key
-    api_attachment_object_key_hmac_key = New-RandomBase64Key
-    api_cursor_signing_key = New-RandomBase64Key
+    api_storage_signing_key = New-RandomBase64UrlKey
+    api_attachment_object_key_hmac_key = New-RandomBase64UrlKey
+    api_cursor_signing_key = New-RandomBase64UrlKey
     api_idempotency_current_key_id = ([Guid]::NewGuid().ToString('N').Substring(0, 8))
-    api_idempotency_current_key = New-RandomBase64Key
+    api_idempotency_current_key = New-RandomBase64UrlKey
     api_idempotency_previous_keys = '[]'
-    scanner_malware_signing_key = New-RandomBase64Key
+    scanner_malware_signing_key = New-RandomBase64UrlKey
 }
 
 $variables = [ordered]@{
