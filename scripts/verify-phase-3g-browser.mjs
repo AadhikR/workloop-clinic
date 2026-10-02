@@ -816,6 +816,22 @@ async function waitForSettledStatus(page, expected, label) {
   assert.equal(status, expected)
 }
 
+function homeRoute(role) {
+  return role === 'admin' ? '/admin' : role === 'manager' ? '/manager' : '/employee'
+}
+
+async function navigatePortal(page, persona, route) {
+  await page.evaluate((pathName) => {
+    window.history.pushState(null, '', pathName)
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  }, route)
+  await page.waitForFunction((pathName) => {
+    const state = document.querySelector('[data-route-state]')?.dataset.routeState
+    return location.pathname === pathName && ['choose-branch', 'ready'].includes(state)
+  }, route, { timeout: 20_000 })
+  assert.equal(new URL(page.url()).pathname, route, `${persona.role} route navigation`)
+}
+
 async function interactiveLogin(page, persona) {
   stage(`${persona.role} login redirect`)
   await page.getByRole('button', { name: 'Sign in' }).click()
@@ -870,25 +886,24 @@ async function assertNoPersistedTokens(page) {
 async function assertSampleApi(page, persona) {
   await page.waitForFunction(
     () => document.querySelector('[data-public-api-status]')?.dataset.publicApiStatus === 'ready'
-      && document.querySelector('[data-account-api-status]')?.dataset.accountApiStatus === 'ready',
+      && document.querySelector('main')?.dataset.sessionStatus === 'signed-in',
     undefined,
     { timeout: 20_000 },
   )
-  assert.equal(await page.locator('[data-public-api-status]').textContent(), 'ok')
-  assert.equal(await page.locator('[data-account-api-status]').textContent(), persona.role)
-  const sampleText = await page.locator('.sample-status').textContent()
-  assert.ok(sampleText.includes(persona.appUserId))
-  assert.ok(sampleText.includes(companyId))
-  if (persona.employeeId) {
-    assert.ok(sampleText.includes(persona.employeeId))
-    assert.ok(sampleText.includes(branchId))
-  } else {
-    assert.ok(sampleText.includes('Not linked'))
-    assert.ok(sampleText.includes('Not selected'))
-  }
+  const account = await page.evaluate(async () => {
+    const { authenticationSession } = await import('/src/authSession.js')
+    const { readCurrentAccount } = await import('/src/sampleApi.js')
+    return readCurrentAccount(authenticationSession())
+  })
+  assert.equal(account.appUserId, persona.appUserId)
+  assert.equal(account.role, persona.role)
+  assert.equal(account.companyId, companyId)
+  assert.equal(account.employeeId, persona.employeeId)
+  assert.equal(account.branchId, persona.employeeId ? branchId : null)
 }
 
 async function assertLeaveAttachmentJourney(page) {
+  await navigatePortal(page, personas[2], '/employee/leave')
   const body = Buffer.from('%PDF-1.7\n% Phase 8D browser proof\n%%EOF\n')
   stage('employee leave attachment upload')
   await page.getByRole('heading', { name: 'My leave' }).waitFor({ timeout: 20_000 })
@@ -1058,6 +1073,7 @@ async function cancelLeaveThroughTable(page, { admin, requestId, date }) {
 
 async function assertLeaveSubmissionJourney(page, persona) {
   const admin = persona.role === 'admin'
+  await navigatePortal(page, persona, admin ? '/admin/leave' : '/employee/leave')
   if (admin && await page.locator('.branch-chooser').count()) {
     await page.getByRole('button', { name: 'Phase 3G main', exact: true }).click()
   }
@@ -1173,6 +1189,7 @@ async function decideApprovalThroughTable(page, { admin, requestId, date, reason
 
 async function assertLeaveApprovalJourney(page, persona) {
   const admin = persona.role === 'admin'
+  await navigatePortal(page, persona, admin ? '/admin/leave' : '/manager/leave')
   if (admin && await page.locator('.branch-chooser').count()) {
     await page.getByRole('button', { name: 'Phase 3G main', exact: true }).click()
   }
@@ -1246,6 +1263,12 @@ function businessFingerprint() {
 }
 
 async function assertEmployeeApi(page, persona) {
+  await navigatePortal(
+    page,
+    persona,
+    persona.role === 'admin' ? '/admin/people'
+      : persona.role === 'manager' ? '/manager/team' : '/employee/profile',
+  )
   if (persona.role === 'admin' && await page.locator('.branch-chooser').count()) {
     await page.getByRole('button', { name: 'Phase 3G main', exact: true }).click()
   }
@@ -1504,10 +1527,15 @@ async function assertEmployeeApi(page, persona) {
 }
 
 async function assertOrganizationApi(page, persona) {
+  await navigatePortal(
+    page,
+    persona,
+    persona.role === 'admin' ? '/admin/organization' : homeRoute(persona.role),
+  )
   await page.waitForFunction(
     (role) => role === 'admin'
       ? Boolean(document.querySelector('.branch-chooser'))
-      : Boolean(document.querySelector('.organization-summary')),
+      : Boolean(document.querySelector('[data-selected-branch-name]')),
     persona.role,
     { timeout: 20_000 },
   )
@@ -1579,7 +1607,7 @@ async function assertOrganizationApi(page, persona) {
     const chosen = page.getByRole('button', { name: 'Phase 3G main', exact: true })
     const chosenName = (await chosen.textContent()).trim()
     await chosen.click()
-    await page.locator('.organization-summary').waitFor()
+    await page.locator('.organization-settings').waitFor()
     assert.equal((await page.locator('[data-selected-branch-name]').textContent()).trim(), chosenName)
     assert.match(
       await page.evaluate(() => sessionStorage.getItem('workloop.branchId')),
@@ -1661,6 +1689,11 @@ async function assertOrganizationApi(page, persona) {
 }
 
 async function assertDepartmentApi(page, persona) {
+  await navigatePortal(
+    page,
+    persona,
+    persona.role === 'admin' ? '/admin/organization' : homeRoute(persona.role),
+  )
   if (persona.role !== 'admin') {
     assert.equal(await page.locator('.department-manager').count(), 0)
     const result = await page.evaluate(async ({ branchId }) => {
@@ -1748,6 +1781,12 @@ async function assertDepartmentApi(page, persona) {
 }
 
 async function assertPhase9BrowserJourney(page, persona) {
+  await navigatePortal(
+    page,
+    persona,
+    persona.role === 'admin' ? '/admin/payroll'
+      : persona.role === 'manager' ? '/manager/expenses' : '/employee/pay',
+  )
   if (persona.role === 'employee') {
     const result = await page.evaluate(async ({ payslipId, repaymentStartPeriod }) => {
       const { authenticationSession } = await import('/src/authSession.js')
@@ -1868,6 +1907,12 @@ async function assertPhase9BrowserJourney(page, persona) {
 }
 
 async function assertPhase10BrowserJourney(page, persona) {
+  await navigatePortal(
+    page,
+    persona,
+    persona.role === 'admin' ? '/admin/attendance'
+      : persona.role === 'manager' ? '/manager/time' : '/employee/time',
+  )
   stage(`${persona.role} Phase 10 attendance and roster journey`)
   const result = await page.evaluate(async ({ role, branchId, managerId, employeeId }) => {
     const { authenticationSession } = await import('/src/authSession.js')
@@ -1999,20 +2044,26 @@ async function assertPhase10BrowserJourney(page, persona) {
 
 async function assertPhase11BrowserJourney(page, persona) {
   stage(`${persona.role} Phase 11 records and offboarding journey`)
+  const recordsRoute = persona.role === 'admin' ? '/admin/records'
+    : persona.role === 'manager' ? '/manager/requests' : '/employee/records'
+  const developmentRoute = persona.role === 'admin' ? '/admin/development'
+    : persona.role === 'manager' ? '/manager/development' : '/employee/development'
+  const requestsRoute = persona.role === 'admin' ? '/admin/records'
+    : persona.role === 'manager' ? '/manager/requests' : '/employee/requests'
+  await navigatePortal(page, persona, recordsRoute)
   if (persona.role === 'admin' && (await page.locator('.branch-chooser').count())) {
     await page.getByRole('button', { name: 'Phase 3G main', exact: true }).click()
   }
-  for (const heading of [
-    'Records and benefits',
-    'Assets and professional development',
-    'Appraisals and clinical incidents',
-    'Letter and custom requests',
-  ]) {
-    await page.getByRole('heading', { name: heading, exact: true }).waitFor({ timeout: 20_000 })
-  }
+  await page.getByRole('heading', { name: 'Records and benefits', exact: true }).waitFor({ timeout: 20_000 })
   if (persona.role === 'admin') {
     await page.getByRole('heading', { name: 'Offboarding and final settlement' }).waitFor()
   }
+  await navigatePortal(page, persona, developmentRoute)
+  for (const heading of ['Assets and professional development', 'Appraisals and clinical incidents']) {
+    await page.getByRole('heading', { name: heading, exact: true }).waitFor({ timeout: 20_000 })
+  }
+  await navigatePortal(page, persona, requestsRoute)
+  await page.getByRole('heading', { name: 'Letter and custom requests', exact: true }).waitFor({ timeout: 20_000 })
 
   const result = await page.evaluate(async ({ role, branchId, employeeId }) => {
     const { authenticationSession } = await import('/src/authSession.js')
@@ -2180,6 +2231,7 @@ async function assertPhase11BrowserJourney(page, persona) {
 
 async function assertPhase12BrowserJourney(page, persona) {
   stage(`${persona.role} Phase 12 notification, task, dashboard, report, and output journey`)
+  await navigatePortal(page, persona, homeRoute(persona.role))
   await page.getByRole('heading', { name: 'Tasks', exact: true }).waitFor({ timeout: 20_000 })
   await page.getByRole('button', { name: /^Notifications/ }).click()
   await page.getByRole('heading', { name: 'Notifications', exact: true }).waitFor()
@@ -2187,7 +2239,8 @@ async function assertPhase12BrowserJourney(page, persona) {
   if (persona.role === 'admin') {
     await page.getByRole('heading', { name: 'Administrator dashboard', exact: true }).waitFor()
     await page.getByRole('heading', { name: 'Clinical dashboard', exact: true }).waitFor()
-    await page.getByRole('heading', { name: 'Reports', exact: true }).waitFor()
+    await navigatePortal(page, persona, '/admin/reports')
+    await page.getByRole('heading', { level: 3, name: 'Reports', exact: true }).waitFor()
   } else {
     await page.getByRole('heading', { name: 'My dashboard', exact: true }).waitFor()
   }
@@ -2434,10 +2487,11 @@ async function browserChecks(viteServer) {
       const afterEmployeeWorkflows = businessFingerprint()
       await assertDepartmentApi(page, persona)
       assert.equal(businessFingerprint(), afterEmployeeWorkflows)
+      await navigatePortal(page, persona, homeRoute(persona.role))
       assert.equal(accountRequestCount, 1)
       assert.ok(publicStatusRequestCount >= 1)
       assert.ok(currentAccountRequestCount >= 1)
-      assert.equal(new URL(page.url()).pathname, '/')
+      assert.equal(new URL(page.url()).pathname, homeRoute(persona.role))
       assert.equal(new URL(page.url()).search, '')
       stage(`${persona.role} callback captured ${Boolean(callbackUrl)}`)
       assert.ok(callbackUrl)

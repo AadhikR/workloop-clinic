@@ -173,7 +173,10 @@ export default function WpsNafis({ account, authentication, branchId }) {
       )}
       <h2>Nafis snapshots</h2>
       <p>One trusted snapshot is kept for each branch and payroll period.</p>
-      <input type="month" value={period} onChange={(event) => setPeriod(event.target.value)} />
+      <label>
+        Nafis period
+        <input type="month" value={period} onChange={(event) => setPeriod(event.target.value)} />
+      </label>
       <button type="button" onClick={() => action(async () => {
         const result = await replaceNafisSnapshot(authentication, branchId, period, currentNafis)
         setNafis((items) => [result, ...items.filter((item) => item.id !== result.id)])

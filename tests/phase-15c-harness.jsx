@@ -68,7 +68,7 @@ export function mountPhase15CAdministrator({ path = '/admin', storedBranchId = b
   createRoot(document.getElementById('phase-15c-root')).render(
     <>
       <a className="skip-link" href="#portal-content">Skip to main content</a>
-      <main id="portal-content">
+      <main id="portal-content" tabIndex="-1">
         <PortalShell account={account} authentication={authentication} />
       </main>
     </>,
@@ -88,7 +88,7 @@ export function mountPhase15CCrossRole({ path = '/admin/payroll' } = {}) {
     },
   }
   createRoot(document.getElementById('phase-15c-root')).render(
-    <main id="portal-content">
+    <main id="portal-content" tabIndex="-1">
       <PortalShell
         account={{
           appUserId,

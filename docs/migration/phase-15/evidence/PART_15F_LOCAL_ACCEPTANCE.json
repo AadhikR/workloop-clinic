@@ -1,0 +1,188 @@
+{
+  "schemaVersion": 1,
+  "phase": "15",
+  "part": "15F",
+  "status": "passed",
+  "recordedAt": "2026-10-02",
+  "alembicHead": "e8a1c3f5b7d9",
+  "journeys": {
+    "roles": ["admin", "manager", "employee"],
+    "routeCount": 25,
+    "syntheticOnly": true,
+    "command": "node scripts/verify-phase-13f-browser.mjs",
+    "result": "passed"
+  },
+  "denials": {
+    "backendAuthoritative": true,
+    "scopes": [
+      "cross-role",
+      "cross-company",
+      "cross-branch",
+      "cross-manager",
+      "cross-employee",
+      "record",
+      "file"
+    ],
+    "evidence": [
+      "scripts/verify-phase-3g-browser.mjs",
+      "backend/tests/test_authorization_scopes.py"
+    ]
+  },
+  "fileFlows": [
+    {
+      "id": "P15-FLOW-001",
+      "type": "passed",
+      "size": "passed",
+      "authorization": "passed",
+      "failure": "passed",
+      "cleanup": "passed",
+      "evidence": ["scripts/verify-phase-3g-browser.mjs", "scripts/verify-phase-8d-database.py"]
+    },
+    {
+      "id": "P15-FLOW-002",
+      "type": "passed",
+      "size": "passed",
+      "authorization": "passed",
+      "failure": "passed",
+      "cleanup": "passed",
+      "evidence": ["scripts/verify-phase-11c-database.py"]
+    },
+    {
+      "id": "P15-FLOW-003",
+      "type": "passed",
+      "size": "passed",
+      "authorization": "passed",
+      "failure": "passed",
+      "cleanup": "passed",
+      "evidence": ["scripts/verify-phase-9b-database.py"]
+    },
+    {
+      "id": "P15-FLOW-004",
+      "type": "passed",
+      "size": "passed",
+      "authorization": "passed",
+      "failure": "passed",
+      "cleanup": "passed",
+      "evidence": ["scripts/verify-phase-11d-database.py"]
+    },
+    {
+      "id": "P15-FLOW-005",
+      "type": "passed",
+      "size": "passed",
+      "authorization": "passed",
+      "failure": "passed",
+      "cleanup": "passed",
+      "evidence": ["scripts/verify-phase-12f-database.py", "scripts/verify-phase-3g-browser.mjs"]
+    },
+    {
+      "id": "P15-FLOW-006",
+      "type": "passed",
+      "size": "passed",
+      "authorization": "passed",
+      "failure": "passed",
+      "cleanup": "passed",
+      "evidence": ["scripts/verify-phase-12g-database.py", "scripts/verify-phase-3g-browser.mjs"]
+    }
+  ],
+  "accessibility": {
+    "routeGroupCount": 25,
+    "keyboardOnly": true,
+    "screenReaderSpotCheck": true,
+    "screenReaderMethod": "Playwright role, name, landmark, status, alert, and dialog queries",
+    "checks": [
+      "keyboard-order",
+      "visible-focus",
+      "skip-navigation",
+      "landmarks",
+      "accessible-names",
+      "status-updates",
+      "dialogs",
+      "contrast",
+      "200-percent-zoom",
+      "reduced-motion",
+      "error-recovery"
+    ],
+    "command": "npm run verify:phase15f:browser",
+    "result": "passed"
+  },
+  "performance": {
+    "profile": {
+      "name": "phase15f-local-loopback-chromium",
+      "runner": "win32-x64; Node v24.11.1",
+      "browser": "Chromium 148.0.7778.96",
+      "network": "127.0.0.1 loopback, no throttling",
+      "command": "npm run verify:phase15f:performance"
+    },
+    "budgets": {
+      "initialCompressedTransferBytes": 225000,
+      "laterRouteTransferBytes": 1024,
+      "largestRouteBundleCompressedBytes": 210000,
+      "routeChangeP95Ms": 300,
+      "formFeedbackP95Ms": 500,
+      "representativeApiP95Ms": 500
+    },
+    "measurements": {
+      "initialCompressedTransferBytes": {
+        "value": 176201,
+        "sampleCount": 1,
+        "percentile": "total",
+        "cacheState": "cold-build"
+      },
+      "laterRouteTransferBytes": {
+        "value": 0,
+        "sampleCount": 25,
+        "percentile": "total",
+        "cacheState": "warm-route"
+      },
+      "largestRouteBundleCompressedBytes": {
+        "value": 172563,
+        "sampleCount": 2,
+        "percentile": "maximum",
+        "cacheState": "cold-build"
+      },
+      "routeChangeP95Ms": {
+        "value": 209,
+        "sampleCount": 44,
+        "percentile": "p95",
+        "cacheState": "warm-application"
+      },
+      "formFeedbackP95Ms": {
+        "value": 49.5,
+        "sampleCount": 10,
+        "percentile": "p95",
+        "cacheState": "warm-application"
+      },
+      "representativeApiP95Ms": {
+        "value": 6.89,
+        "sampleCount": 25,
+        "percentile": "p95",
+        "cacheState": "no-store"
+      }
+    }
+  },
+  "restart": {
+    "passed": true,
+    "databaseFingerprint": "matched",
+    "keycloakSigningKeys": "matched",
+    "syntheticStorage": "matched",
+    "privateS3ObjectAndScanState": "matched"
+  },
+  "safeLogs": {
+    "passed": true,
+    "command": "scripts/verify-phase-3h-logs.sh",
+    "checked": ["tokens", "database credentials", "generated passwords", "application identity queries"]
+  },
+  "cleanup": {
+    "passed": true,
+    "exactIdentifiers": true,
+    "observedComposeProject": "workloop-phase15f-verify",
+    "composeProject": "workloop-phase15f-verify",
+    "volumes": [
+      "workloop-phase15f-verify_postgres_data",
+      "workloop-phase15f-verify_storage_data",
+      "workloop-phase15f-verify_phase11b_s3_data"
+    ],
+    "protectedVolume": "workloop-clinic_postgres_data",
+    "protectedVolumeResult": "present and not attached"
+  }
+}

@@ -140,7 +140,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
-      COMPOSE_PROJECT_NAME: workloop-phase13f-verify
+      COMPOSE_PROJECT_NAME: workloop-phase15f-verify
       COMPOSE_FILE: docker-compose.yml:docker-compose.phase11b.yml:docker-compose.phase13f.yml
       PHASE11B_S3_ACCESS_KEY: phase11b-ci-access
       PHASE11B_S3_SECRET_KEY: phase11b-ci-secret-key
@@ -170,7 +170,7 @@ jobs:
           )
       - name: Validate Compose configuration
         run: |
-          test "$COMPOSE_PROJECT_NAME" = "workloop-phase13f-verify"
+          test "$COMPOSE_PROJECT_NAME" = "workloop-phase15f-verify"
           docker compose --profile tools config --quiet
       - name: Start local stack
         run: docker compose up --build --detach --wait postgres backend keycloak seaweed-s3
@@ -240,6 +240,14 @@ jobs:
           python scripts/verify-phase-12g-boundary.py
           node --test tests/migration-rendered-output.test.js
           node scripts/cutover-record-validator.mjs docs/migration/phase-12/cutover/phase12-consumers.json
+      - name: Verify Phase 15F protected file flows
+        run: |
+          docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-8d-database.py
+          docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-9b-database.py
+          docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env PYTHONPATH=/phase13f:/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-11c-database.py
+          docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env PYTHONPATH=/phase13f:/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-11d-database.py
+          docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env-from-file ./backend/.env.migration --env-from-file ./backend/.env.api --env PYTHONPATH=/phase13f:/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-12f-database.py
+          docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env-from-file ./backend/.env.migration --env-from-file ./backend/.env.api --env PYTHONPATH=/phase13f:/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-12g-database.py
       - name: Verify Phase 12H completion boundary
         run: |
           node --test tests/phase-12h-boundary.test.js
@@ -553,6 +561,9 @@ jobs:
           fi
           python scripts/verify-phase-3c-keycloak.py
           node scripts/verify-phase-13f-browser.mjs
+          npm run verify:phase15f:browser
+          npm run verify:phase15f:performance
+          npm run verify:phase15f:acceptance
       - name: Verify cleanup and backend log safety
         run: |
           test "$(docker compose exec -T postgres psql --username postgres --dbname workloop --tuples-only --no-align --command 'SELECT count(*) FROM companies UNION ALL SELECT count(*) FROM branches UNION ALL SELECT count(*) FROM employees UNION ALL SELECT count(*) FROM app_users UNION ALL SELECT count(*) FROM user_profiles;' | sort -u)" = "0"

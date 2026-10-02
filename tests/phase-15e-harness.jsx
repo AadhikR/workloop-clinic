@@ -117,7 +117,7 @@ export function mountPhase15EEmployee({ path = '/employee', storedBranchId = bra
     },
   }
   createRoot(document.getElementById('phase-15e-root')).render(
-    <main id="portal-content">
+    <main id="portal-content" tabIndex="-1">
       <PortalShell account={account} authentication={authentication} />
     </main>,
   )
@@ -136,7 +136,7 @@ export function mountPhase15EForbidden({ path = '/admin/people' } = {}) {
     },
   }
   createRoot(document.getElementById('phase-15e-root')).render(
-    <main id="portal-content">
+    <main id="portal-content" tabIndex="-1">
       <PortalShell
         account={{ appUserId, role: 'employee', companyId, employeeId, branchId }}
         authentication={authentication}

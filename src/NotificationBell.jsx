@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import {
   markAllNotificationsRead,
@@ -8,6 +8,8 @@ import {
 } from './notificationApi.js'
 
 export default function NotificationBell({ account, authentication, branchId }) {
+  const closeButtonRef = useRef(null)
+  const toggleButtonRef = useRef(null)
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState([])
   const [unread, setUnread] = useState(0)
@@ -31,6 +33,21 @@ export default function NotificationBell({ account, authentication, branchId }) 
       globalThis.clearInterval(timer)
     }
   }, [refreshCount])
+
+  const closeInbox = useCallback(() => {
+    setOpen(false)
+    queueMicrotask(() => toggleButtonRef.current?.focus())
+  }, [])
+
+  useEffect(() => {
+    if (!open) return undefined
+    closeButtonRef.current?.focus()
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') closeInbox()
+    }
+    document.addEventListener('keydown', closeOnEscape)
+    return () => document.removeEventListener('keydown', closeOnEscape)
+  }, [closeInbox, open])
 
   const showInbox = async () => {
     setOpen(true)
@@ -67,7 +84,14 @@ export default function NotificationBell({ account, authentication, branchId }) 
 
   return (
     <section className="notification-bell" aria-label="Notifications">
-      <button type="button" className="notification-toggle secondary" onClick={showInbox}>
+      <button
+        ref={toggleButtonRef}
+        type="button"
+        className="notification-toggle secondary"
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        onClick={showInbox}
+      >
         Notifications{unread > 0 ? ` (${unread > 99 ? '99+' : unread})` : ''}
       </button>
       {open && (
@@ -76,7 +100,7 @@ export default function NotificationBell({ account, authentication, branchId }) 
             <h3>Notifications</h3>
             <div>
               {unread > 0 && <button type="button" className="secondary" onClick={readAll}>Mark all read</button>}
-              <button type="button" className="secondary" onClick={() => setOpen(false)}>Close</button>
+              <button ref={closeButtonRef} type="button" className="secondary" onClick={closeInbox}>Close</button>
             </div>
           </div>
           {status === 'loading' && <p>Loading notifications...</p>}

@@ -106,7 +106,7 @@ test('covers builds, browsers, backend processes, workers, and test helpers', ()
 
 test('routes the disposable proof and never names the preserved project for cleanup', () => {
   const workflow = read('.github/workflows/migration-foundation.yml')
-  assert.match(workflow, /COMPOSE_PROJECT_NAME: workloop-phase13f-verify/)
+  assert.match(workflow, /COMPOSE_PROJECT_NAME: workloop-phase15f-verify/)
   assert.match(workflow, /docker-compose\.phase13f\.yml/)
   assert.match(workflow, /npm run verify:phase13f:clean/)
   assert.match(workflow, /node scripts\/verify-phase-13f-browser\.mjs/)

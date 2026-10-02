@@ -117,7 +117,10 @@ export default function AttendanceIngestion({ authentication, branchId }) {
       <div className="settings-form">
         <h3>Biometric CSV import</h3>
         <p>Upload normalized columns badgeNo,eventType,eventTime and optional deviceName.</p>
-        <input type="file" accept=".csv,text/csv" onChange={selectCsv} />
+        <label>
+          Biometric CSV file
+          <input type="file" accept=".csv,text/csv" onChange={selectCsv} />
+        </label>
         {batch && <><p>{batch.candidates.length} rows ready; showing up to 100.</p><ol>{batch.preview.map((row, index) => <li key={`${row.badgeNo}-${row.eventTime}-${index}`}>{row.badgeNo} — {row.eventType} — {row.eventTime}</li>)}</ol><button type="button" onClick={submitImport}>Import punches</button></>}
         {result && <p>{result.acceptedCount} accepted, {result.duplicateCount} duplicates, {result.rejectedCount} rejected.</p>}
       </div>
