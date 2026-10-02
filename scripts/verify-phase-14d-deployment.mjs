@@ -220,6 +220,9 @@ export function validatePhase14DDeployment(sources) {
     requireText(errors, source, 'release_', `${name} shutdown lease release`)
     requireText(errors, source, 'run_claim_loop', `${name} controlled worker loop`)
   }
+  const scanner = blocks.get('file-scanner') ?? ''
+  requireText(errors, scanner, 'key   = "MALWARE_SCANNER_BACKEND"', 'file-scanner malware backend')
+  requireText(errors, scanner, 'value = "synthetic"', 'file-scanner synthetic malware backend')
   for (const marker of [
     'IDLE_POLL_SECONDS = 5',
     'HEARTBEAT_SECONDS = 60',

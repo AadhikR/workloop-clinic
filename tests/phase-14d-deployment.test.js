@@ -42,6 +42,10 @@ test('14A-GC-015 rejects an incomplete component health rule', () => {
 test('14A-GC-016 rejects scanner concurrency drift', () => {
   rejects(mutate('scanner', 'LIMIT 1', 'LIMIT 2'), 'single-row claim')
   rejects(mutate('scanner', "interval '15 minutes'", "interval '30 minutes'"), '15-minute lease')
+  rejects(
+    mutate('main', 'key   = "MALWARE_SCANNER_BACKEND"', 'key   = "MALWARE_SCANNER_DISABLED"'),
+    'file-scanner malware backend',
+  )
 })
 
 test('14A-GC-017 rejects reconciler lease or retry drift', () => {

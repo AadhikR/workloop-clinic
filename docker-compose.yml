@@ -133,10 +133,11 @@ services:
     profiles:
       - tools
     env_file:
-      - path: ./backend/.env.api
-        required: true
       - path: ./backend/.env.storage-reconciler
         required: true
+    environment:
+      WORKLOOP_ENVIRONMENT: local
+      WORKLOOP_DATA_CLASS: synthetic-only
     depends_on:
       postgres:
         condition: service_healthy
@@ -181,10 +182,11 @@ services:
     profiles:
       - tools
     env_file:
-      - path: ./backend/.env.api
-        required: true
       - path: ./backend/.env.file-scanner
         required: true
+    environment:
+      WORKLOOP_ENVIRONMENT: local
+      WORKLOOP_DATA_CLASS: synthetic-only
     depends_on:
       postgres:
         condition: service_healthy

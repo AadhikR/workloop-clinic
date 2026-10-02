@@ -61,7 +61,7 @@ async def test_disabled_entrypoint_skips_runtime_settings(
         del logger
         calls.append(worker_name)
 
-    monkeypatch.setattr(module, "Settings", reject_settings)
+    monkeypatch.setattr(module, "StorageWorkerSettings", reject_settings)
     monkeypatch.setattr(module, "run_disabled_loop", record_disabled_loop)
 
     await module.run()  # type: ignore[attr-defined]

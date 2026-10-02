@@ -965,6 +965,13 @@ resource "digitalocean_app" "shared" {
       }
 
       env {
+        key   = "MALWARE_SCANNER_BACKEND"
+        value = "synthetic"
+        scope = "RUN_TIME"
+        type  = "GENERAL"
+      }
+
+      env {
         key   = "WORKLOOP_WORKER_PROCESSING_ENABLED"
         value = tostring(local.worker_processing_enabled)
         scope = "RUN_TIME"

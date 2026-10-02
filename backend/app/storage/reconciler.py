@@ -12,7 +12,6 @@ from uuid import UUID
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
-from app.core.config import Settings
 from app.core.logging import configure_logging, safe_event
 from app.db.engine import create_database_engine
 from app.storage import ObjectStorage, create_object_storage
@@ -24,6 +23,7 @@ from app.storage.worker_control import (
     run_claim_loop,
     run_disabled_loop,
 )
+from app.storage.worker_settings import StorageWorkerSettings
 
 logger = logging.getLogger(__name__)
 RETRY_DELAYS = (
@@ -294,7 +294,7 @@ async def run() -> None:
         configure_logging(os.environ.get("LOG_LEVEL", "INFO"))
         await run_disabled_loop(worker_name="storage_reconciler", logger=logger)
         return
-    settings = Settings()  # pyright: ignore[reportCallIssue]
+    settings = StorageWorkerSettings()  # pyright: ignore[reportCallIssue]
     configure_logging(settings.log_level)
     engine = create_database_engine(settings.database_url.get_secret_value())
     storage = create_object_storage(settings)

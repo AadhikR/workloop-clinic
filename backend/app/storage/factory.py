@@ -2,9 +2,10 @@ from app.core.config import Settings
 from app.storage.base import ObjectStorage
 from app.storage.spaces import DisabledObjectStorage, SpacesObjectStorage
 from app.storage.synthetic import SyntheticObjectStorage
+from app.storage.worker_settings import StorageWorkerSettings
 
 
-def create_object_storage(settings: Settings) -> ObjectStorage:
+def create_object_storage(settings: Settings | StorageWorkerSettings) -> ObjectStorage:
     if settings.storage_backend == "disabled":
         return DisabledObjectStorage()
     if settings.storage_backend == "synthetic":
