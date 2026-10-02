@@ -71,7 +71,10 @@ export function resolvePortalRoute(path, role) {
     return Object.freeze({ kind: 'forbidden', path, title: 'Access denied' })
   }
   if (path === home) return Object.freeze({ kind: 'home', path, title: route.title })
-  if (route.owner === '15C' && role === 'admin') {
+  if (
+    route.owner === '15C' && role === 'admin'
+    || route.owner === '15D' && role === 'manager'
+  ) {
     return Object.freeze({ kind: 'portal', path, title: route.title })
   }
   return Object.freeze({ kind: 'unavailable', path, title: route.title })

@@ -170,14 +170,14 @@ function DevelopmentWorkspace({ account, authentication, branchId }) {
 
   const load = useCallback(async () => {
     if (account.role === 'admin' && targetEmployee === null) { setTraining([]); setCertifications([]); return }
-    if (account.role === 'manager' && targetEmployee === null) {
-      const [ownTraining, ownCertifications] = await Promise.all([
-        readTraining(authentication, null, 'employee'),
-        readCertifications(authentication, null, 'employee'),
-      ])
-      setTraining(ownTraining.items); setCertifications(ownCertifications.items); return
-    }
     try {
+      if (account.role === 'manager' && targetEmployee === null) {
+        const [ownTraining, ownCertifications] = await Promise.all([
+          readTraining(authentication, null, 'employee'),
+          readCertifications(authentication, null, 'employee'),
+        ])
+        setTraining(ownTraining.items); setCertifications(ownCertifications.items); return
+      }
       const [trainingResult, certificationResult] = await Promise.all([
         readTraining(authentication, branchId, account.role, targetEmployee),
         readCertifications(authentication, branchId, account.role, targetEmployee),

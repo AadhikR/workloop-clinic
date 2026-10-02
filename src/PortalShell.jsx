@@ -4,10 +4,12 @@ import AdministratorPortal from './AdministratorPortal.jsx'
 import BranchChooser from './BranchChooser.jsx'
 import { CompanyProvider } from './CompanyContext.jsx'
 import Dashboard from './Dashboards.jsx'
+import ManagerPortal from './ManagerPortal.jsx'
 import NotificationBell from './NotificationBell.jsx'
 import Tasks from './Tasks.jsx'
 import { useCompanyContext } from './companyContextState.js'
 import { administratorRouteGroup } from './administratorRoutes.js'
+import { managerRouteGroup } from './managerRoutes.js'
 import {
   createBrowserNavigator,
   focusRouteHeading,
@@ -118,7 +120,9 @@ function PortalHome({ account, authentication, navigator, route }) {
   const navigation = roleNavigation(account.role)
   const dashboardKind = account.role === 'admin' ? 'admin' : 'self'
   const administratorGroup = account.role === 'admin' ? administratorRouteGroup(route.path) : null
+  const managerGroup = account.role === 'manager' ? managerRouteGroup(route.path) : null
   const description = administratorGroup?.description
+    ?? managerGroup?.description
     ?? 'Your common work items are ready. Role-specific sections will open as their portal routes are completed.'
   return (
     <div className="portal" data-portal-role={account.role} data-route-state="ready">
@@ -159,6 +163,13 @@ function PortalHome({ account, authentication, navigator, route }) {
           authentication={authentication}
           branchId={branch.id}
           clearBranch={organization.clearBranch}
+          path={route.path}
+        />
+      ) : account.role === 'manager' && route.path !== '/manager' ? (
+        <ManagerPortal
+          account={account}
+          authentication={authentication}
+          branchId={branch.id}
           path={route.path}
         />
       ) : (
