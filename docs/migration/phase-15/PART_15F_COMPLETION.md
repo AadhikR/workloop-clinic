@@ -98,5 +98,5 @@ Phase 3G browser selectors. It leaves the Phase 15B shell, the three role portal
 database, identity provider, protected storage, and cloud state unchanged.
 
 After every routed GitHub job passes and the branch is clean and synchronized, Part 15G runs in a
-new Codex task. It owns the Phase 15 documentation, operator runbook, rollback reconciliation,
-independent review, and the final whole-phase owner signoff gate.
+new Codex task. It owns the reviewed DigitalOcean portal promotion and the live synthetic product,
+denial, performance, restart, rollback, recovery, safe-log, and exact-cleanup acceptance.
