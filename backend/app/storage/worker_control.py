@@ -70,6 +70,27 @@ async def _wait_or_stop(stop_event: asyncio.Event, seconds: float) -> None:
         await asyncio.wait_for(stop_event.wait(), timeout=seconds)
 
 
+async def run_disabled_loop(
+    *,
+    worker_name: str,
+    logger: logging.Logger,
+    stop_event: asyncio.Event | None = None,
+) -> None:
+    stop = stop_event or asyncio.Event()
+    if stop_event is None:
+        install_shutdown_handlers(stop)
+    while not stop.is_set():
+        safe_event(
+            logger,
+            logging.INFO,
+            "worker_heartbeat",
+            worker=worker_name,
+            condition="heartbeat",
+            processing_enabled=False,
+        )
+        await _wait_or_stop(stop, HEARTBEAT_SECONDS)
+
+
 async def _process_claim[Claim](
     *,
     claim: Claim,

@@ -17,7 +17,13 @@ from app.core.logging import configure_logging, safe_event
 from app.db.engine import create_database_engine
 from app.storage import ObjectStorage, create_object_storage
 from app.storage.base import StorageError, StorageNotFoundError
-from app.storage.worker_control import emit_expired_lease, emit_queue_observed, run_claim_loop
+from app.storage.worker_control import (
+    emit_expired_lease,
+    emit_queue_observed,
+    processing_enabled,
+    run_claim_loop,
+    run_disabled_loop,
+)
 
 logger = logging.getLogger(__name__)
 RETRY_DELAYS = (
@@ -284,6 +290,10 @@ WHERE status IN ('succeeded','reconciled')
 
 
 async def run() -> None:
+    if not processing_enabled():
+        configure_logging(os.environ.get("LOG_LEVEL", "INFO"))
+        await run_disabled_loop(worker_name="storage_reconciler", logger=logger)
+        return
     settings = Settings()  # pyright: ignore[reportCallIssue]
     configure_logging(settings.log_level)
     engine = create_database_engine(settings.database_url.get_secret_value())

@@ -7,7 +7,7 @@ import logging
 import pytest
 
 from app.core.logging import JsonFormatter
-from app.storage import worker_control
+from app.storage import reconciler, scanner_worker, worker_control
 
 
 @pytest.mark.asyncio
@@ -36,6 +36,37 @@ async def test_worker_gate_stops_claims_before_promotion(
     )
 
     assert calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("module", "worker_name"),
+    [
+        (scanner_worker, "file_scanner"),
+        (reconciler, "storage_reconciler"),
+    ],
+)
+async def test_disabled_entrypoint_skips_runtime_settings(
+    monkeypatch: pytest.MonkeyPatch,
+    module: object,
+    worker_name: str,
+) -> None:
+    calls: list[str] = []
+    monkeypatch.delenv("WORKLOOP_WORKER_PROCESSING_ENABLED", raising=False)
+
+    def reject_settings() -> None:
+        pytest.fail("disabled worker loaded runtime settings")
+
+    async def record_disabled_loop(*, worker_name: str, logger: logging.Logger) -> None:
+        del logger
+        calls.append(worker_name)
+
+    monkeypatch.setattr(module, "Settings", reject_settings)
+    monkeypatch.setattr(module, "run_disabled_loop", record_disabled_loop)
+
+    await module.run()  # type: ignore[attr-defined]
+
+    assert calls == [worker_name]
 
 
 @pytest.mark.asyncio
