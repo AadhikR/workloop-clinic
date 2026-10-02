@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "phase": "14",
+  "part": "14H",
+  "result": "passed-with-correction",
+  "findingId": "P14H-F-001",
+  "releaseId": "phase-14g-dc6e54a",
+  "reviewedCommit": "dc6e54afb4e16665a62b933999d85b83a57cb40a",
+  "originalManifest": {
+    "path": "docs/migration/phase-14/evidence/PART_14G_RELEASE_MANIFEST.json",
+    "sha256": "sha256:5330f3253763598793250530dead62830e4ec783115b32f4d15300716538166c",
+    "localFrontendSha256": "sha256:9b7626fb8f894a938ca83ac777ba9e4fb7ca5ac2c210ab23933c7814bbd445db",
+    "localFrontendRootSha256": "sha256:257a96e1afbf232376c8e9ed22fa9470de24aa30436fe4d41d4e3afaf94ee415"
+  },
+  "deployedFrontend": {
+    "providerSourceCommit": "ba12774e30539093d8f71d75cd010f64aa4ca777",
+    "sourceMatchesReviewedCommit": true,
+    "sourceParityPaths": ["src", "package.json", "package-lock.json", "vite.config.js", ".env.example"],
+    "publicSettingsSha256": "sha256:badc21102007e7db166c082694fb662c68cadda6fba3829319958e2c3d56bb9c",
+    "frontendSha256": "sha256:75c0d4e932cab5dc937e68dc47dc0e30d107fdacf39912d355ac97e53ebf65d2",
+    "frontendRootSha256": "sha256:68a681042c29e4be17c4d7d05d68a043087c087a6b765aa9b4eaedfddb7657e5",
+    "deliveredRootStatus": 200,
+    "deliveredRootSha256": "sha256:68a681042c29e4be17c4d7d05d68a043087c087a6b765aa9b4eaedfddb7657e5",
+    "automaticDeployment": false
+  },
+  "otherArtifacts": {
+    "backendImageDigest": "sha256:e2bc596879407af3dcefadd8d0957950f4aadf67713f8252d4c5523a4e8bf11c",
+    "keycloakImageDigest": "sha256:1aa6bad0f5cfd750cad33d9a0bd1ec957ec234be29da562c68c00ee7a606014c",
+    "terraformSha256": "sha256:027c40a412d5eb778cc0652b7e19d4fc6a263602d22ac34f7ac5e70e9fe10efd",
+    "appSpecSha256": "sha256:b25764d02d66f9452061376a12682a45d2a54e301ae9efe3671c49f6f871f63f",
+    "alembicHead": "e8a1c3f5b7d9"
+  },
+  "decision": {
+    "liveChangeRequired": false,
+    "reason": "The deployed frontend rebuilds the reviewed unchanged source with the six public DigitalOcean settings. Its build and delivered-root digests reproduce exactly. The original manifest recorded the local build output, so this additive record corrects the evidence label without replacing the signed Phase 14G record or changing the live target.",
+    "ownerSignoffRequired": true
+  }
+}

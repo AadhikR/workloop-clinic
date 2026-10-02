@@ -25,16 +25,17 @@ PostgreSQL, private object storage, Keycloak, FastAPI, the React static site, ex
 reviewed release promotion. It adds cost controls, least privilege, monitoring, backups, restore
 proof, rollback evidence, and operator ownership.
 
-This phase does not deploy real clinic data or claim production readiness. Phase 15 owns the final
-cross-system validation, recovery acceptance, and Azure UAE handoff evidence. Phase 14 may prepare
-portable artifacts for that work, but it cannot provision Azure resources or weaken the current
-DigitalOcean synthetic-only restriction.
+This phase does not deploy real clinic data or claim production readiness. Phase 15 is the planned
+continuation for the integrated Workloop portal, final cross-system validation, recovery acceptance,
+and release validation on DigitalOcean. Phase 15 has no approved subphase plan or standing
+authorization yet. Phase 14 may prepare portable artifacts for that work, but it cannot weaken the
+current DigitalOcean synthetic-only restriction.
 
 The following work remains outside standing authorization:
 
 - No real patient, employee, payroll, banking, biometric, identity, or document data.
 - No custom domain, email, SMS, push delivery, external scheduler, or analytics service.
-- No Azure resource, Azure credential, or Azure production decision.
+- No second cloud provider, provider-migration credential, or provider-migration decision.
 - No live DigitalOcean apply, paid resource, persistent credential, or public exposure until 14G
   records the exact target, price, duration, owners, credential custody, and owner approval.
 - No deletion or modification of the retained Phase 13 external archive.
@@ -149,7 +150,7 @@ point, and review time without storing a credential or private value.
 14H traces every 14A inventory item and golden case against current source, Terraform, tests,
 workflow, deployment evidence, provider state, operating records, backup and restore proof, release
 artifacts, cost, logs, and owners. It verifies that no unapproved resource, secret, public path,
-automatic deployment, real data, external archive change, or Azure work entered Phase 14.
+automatic deployment, real data, external archive change, or second-provider work entered Phase 14.
 
 The closing gate runs the complete local proof and the routed GitHub gate. It checks the live shared
 environment read-only where possible, repeats the agreed synthetic journey, validates recovery and

@@ -76,6 +76,8 @@ jobs:
         run: npm run guard:repository
       - name: Verify Phase 13H independent review
         run: npm run verify:phase13h:review
+      - name: Verify Phase 14H independent review
+        run: npm run verify:phase14h:review
 
   backend-quality:
     name: Backend quality

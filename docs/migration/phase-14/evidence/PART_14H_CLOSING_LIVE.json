@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "phase": "14",
+  "part": "14H",
+  "result": "passed",
+  "checkedAt": "2026-10-02T14:58:18+04:00",
+  "target": {
+    "provider": "DigitalOcean",
+    "project": "workloop-clinic-dev",
+    "region": "fra1",
+    "defaultUrl": "https://workloop-clinic-dev-e9uk5.ondigitalocean.app",
+    "dataClass": "synthetic-only",
+    "customDomain": false,
+    "automaticDeployment": false,
+    "presentation": "architecture-proof"
+  },
+  "checks": {
+    "providerReadOnly": "passed",
+    "publicWeb": "passed",
+    "publicHealth": "passed",
+    "administrator": "passed",
+    "manager": "passed",
+    "employee": "passed",
+    "fileFlow": "passed",
+    "safeLogs": "passed"
+  },
+  "syntheticCleanup": {
+    "status": "passed",
+    "namedFixturesOnly": true,
+    "identitiesRemoved": 3,
+    "databaseRowsRemoved": 7
+  },
+  "providerMutation": {
+    "journeyOnly": true,
+    "infrastructureChanged": false
+  },
+  "cost": {
+    "monthToDateUsageUsd": 1.81,
+    "reviewedRunForecastUsd": 13.63,
+    "ownerUsageCapUsd": 15,
+    "withinCap": true
+  },
+  "releaseIdentity": {
+    "findingId": "P14H-F-001",
+    "correction": "docs/migration/phase-14/evidence/PART_14H_RELEASE_IDENTITY.json"
+  },
+  "architectureBoundary": {
+    "integratedPortal": false,
+    "productionReady": false,
+    "phase15Authorized": false
+  },
+  "preservedResources": [
+    "workloop-clinic-dev",
+    "fra1-default",
+    "Phase 13 external archive",
+    "workloop-clinic_postgres_data"
+  ]
+}

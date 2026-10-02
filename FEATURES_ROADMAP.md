@@ -4,7 +4,8 @@
 
 The current application uses one React frontend, one FastAPI API, Keycloak, portable PostgreSQL, and
 private object storage. The three portals share that runtime and differ by API-enforced role and
-scope.
+scope. DigitalOcean is the only active hosting target. Moving to another provider requires a new
+owner decision and a separate plan.
 
 ## Implemented areas
 
@@ -26,7 +27,11 @@ scope.
 1. Finish Phase 13 repository, clean-setup, retention, external-state, and independent-review gates.
 2. Deploy the approved stack to DigitalOcean with managed secrets, private networking, backups,
    health checks, log retention, and rollback evidence.
-3. Run the final portal, security, recovery, and performance validation before release signoff.
+3. Integrate the real Workloop portal shell and run the final product, security, recovery, and
+   performance validation on DigitalOcean before release signoff.
+
+Phase 15 is the planned continuation for that product integration and validation. It does not have
+an approved subphase plan yet and does not authorize work on another cloud provider.
 
 The canonical phase plan is under `docs/migration/`. A feature is complete only when its API,
 permissions, persistence, frontend, regression tests, restart behavior, and recovery boundary pass.
@@ -41,7 +46,6 @@ The following items remain outside the current migration scope and need separate
 - Maps and geofenced attendance
 - DEWS and GPSSA contribution workflows
 - Production analytics, alerting, and service-level objectives
-- Azure production mapping after the DigitalOcean development and staging design is stable
 
 ## Product decision rules
 
