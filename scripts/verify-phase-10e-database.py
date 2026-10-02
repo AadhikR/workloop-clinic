@@ -761,12 +761,13 @@ async def main() -> None:
             connection.execute(
                 text(
                     "DELETE FROM public.attendance_periods "
-                    "WHERE company_id=:company AND branch_id=:branch AND period=:period"
+                    "WHERE company_id=:company AND branch_id=:branch "
+                    "AND period=ANY(:periods)"
                 ),
                 {
                     "company": COMPANY_ID,
                     "branch": BRANCH_ID,
-                    "period": closed_date.strftime("%Y-%m"),
+                    "periods": sorted({item.strftime("%Y-%m") for item in dynamic_dates}),
                 },
             )
             clean(connection, rows)
