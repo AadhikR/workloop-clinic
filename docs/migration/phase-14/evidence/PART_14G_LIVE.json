@@ -1,0 +1,132 @@
+{
+  "schemaVersion": 1,
+  "template": false,
+  "part": "14G",
+  "result": "passed",
+  "providerMutationOccurred": true,
+  "targetManifestSha256": "sha256:81165f0b021388143476ff16bafff5c8b2e89d9e61cd000e3d87810318fd3593",
+  "resources": {
+    "projectId": "634213f9-2e43-4aea-8f4e-22ddc3ecdac9",
+    "vpcId": "b8b6d17b-eae4-47de-b2b5-9d10baabdd2d",
+    "appId": "02b3a86a-707f-4608-9e73-4c994bef7138",
+    "appDefaultUrl": "https://workloop-clinic-dev-e9uk5.ondigitalocean.app",
+    "databaseClusterId": "893eea11-0e67-4696-aca6-18e543c0b0e5",
+    "bucketName": "workloop-clinic-dev-634213f9"
+  },
+  "initialApply": {
+    "maintenanceEnabled": true,
+    "workersEnabled": false,
+    "alembicHead": "e8a1c3f5b7d9",
+    "result": "passed"
+  },
+  "promotionChecks": [
+    {"id": "alembic-head", "status": "passed"},
+    {"id": "repeat-migration", "status": "passed"},
+    {"id": "keycloak-mfa", "status": "passed"},
+    {"id": "bootstrap-removed", "status": "passed"},
+    {"id": "secret-routes", "status": "passed"},
+    {"id": "database-least-privilege", "status": "passed"},
+    {"id": "object-least-privilege", "status": "passed"},
+    {"id": "component-health", "status": "passed"},
+    {"id": "worker-controls", "status": "passed"},
+    {"id": "safe-logs", "status": "passed"},
+    {"id": "provider-native-backup", "status": "passed"},
+    {"id": "isolated-recovery", "status": "passed"}
+  ],
+  "persistence": {
+    "restart": {
+      "databaseState": "passed",
+      "keycloakSigningKeyIds": "passed",
+      "privateObjects": "passed",
+      "scannerState": "passed",
+      "reconcilerState": "passed",
+      "expiryState": "passed",
+      "releaseIdentity": "passed"
+    },
+    "redeploy": {
+      "databaseState": "passed",
+      "keycloakSigningKeyIds": "passed",
+      "privateObjects": "passed",
+      "scannerState": "passed",
+      "reconcilerState": "passed",
+      "expiryState": "passed",
+      "releaseIdentity": "passed"
+    }
+  },
+  "journeys": {
+    "administrator": "passed",
+    "manager": "passed",
+    "employee": "passed"
+  },
+  "providerNativeBackup": {
+    "schedule": "daily automated backup with point-in-time recovery",
+    "retentionDays": 7,
+    "workloopStatus": "passed",
+    "keycloakStatus": "passed",
+    "isolatedRestoreTargetId": "c5daadf3-441b-4827-a1c8-d98db77bed88",
+    "isolatedRestoreStatus": "passed",
+    "isolatedRestoreCleanupStatus": "passed"
+  },
+  "release": {
+    "releaseId": "phase-14g-dc6e54a",
+    "manifestSha256": "sha256:81165f0b021388143476ff16bafff5c8b2e89d9e61cd000e3d87810318fd3593",
+    "artifactManifestSha256": "sha256:5330f3253763598793250530dead62830e4ec783115b32f4d15300716538166c",
+    "backendImageDigest": "sha256:e2bc596879407af3dcefadd8d0957950f4aadf67713f8252d4c5523a4e8bf11c",
+    "keycloakImageDigest": "sha256:1aa6bad0f5cfd750cad33d9a0bd1ec957ec234be29da562c68c00ee7a606014c",
+    "frontendDigest": "sha256:9b7626fb8f894a938ca83ac777ba9e4fb7ca5ac2c210ab23933c7814bbd445db",
+    "alembicHead": "e8a1c3f5b7d9"
+  },
+  "deployments": {
+    "reviewedRelease": "ee47d5cc-d6c4-47fd-9799-53e3f09a8539",
+    "controlledWorkerFailure": "027d7436-3a57-48b6-8572-e3cc5cd67377c",
+    "workerRollback": "3dbb54b7-a104-458f-b406-b0fef27c3394",
+    "correctedWorkers": "d367af43-b5f5-49e9-be21-6abad8ea8566",
+    "promotedRelease": "c7d795db-5a93-422d-b122-0ff13b6055c3"
+  },
+  "correction": {
+    "condition": "expiry scope was empty when the first worker deployment started",
+    "safetyState": "maintenance stayed enabled and every worker was returned to disabled",
+    "resolution": "bind the existing synthetic clinic scope before enabling processing",
+    "result": "passed"
+  },
+  "runtime": {
+    "publicHealthStatus": 200,
+    "publicWebStatus": 200,
+    "expiryScopes": 1,
+    "expiryInserted": 0,
+    "scannerProcessingEnabled": true,
+    "reconcilerProcessingEnabled": true,
+    "protectedLogMatches": 0,
+    "unexpectedSevereMarkers": 0
+  },
+  "promotion": {
+    "approved": true,
+    "ownerApprovalReference": "Aadhik exact live deployment approval 2026-10-02 for target sha256:81165f0b021388143476ff16bafff5c8b2e89d9e61cd000e3d87810318fd3593",
+    "approvedOn": "2026-10-02",
+    "executor": "Aadhik",
+    "reviewer": "Aadhik",
+    "executionRecordReference": "phase14g-dc6e54a-live-execution-2026-10-02",
+    "reviewRecordReference": "phase14g-dc6e54a-live-review-2026-10-02",
+    "releaseManifestSha256": "sha256:81165f0b021388143476ff16bafff5c8b2e89d9e61cd000e3d87810318fd3593",
+    "artifactManifestSha256": "sha256:5330f3253763598793250530dead62830e4ec783115b32f4d15300716538166c",
+    "reviewedRunForecastUsd": 13.63,
+    "ownerUsageCapUsd": 15,
+    "maintenanceEnabled": false,
+    "workersEnabled": true
+  },
+  "temporaryRun": {
+    "cleanupDeadlineAt": "2026-10-04T09:37:00+04:00",
+    "automaticCleanup": false,
+    "manualCleanupRequired": true
+  },
+  "rollback": {
+    "compatibleReleaseId": "phase-14g-ba12774",
+    "maintenanceFirst": true,
+    "workersStoppedFirst": true,
+    "automaticSchemaDowngrade": false
+  },
+  "github": {
+    "runUrl": "https://github.com/AadhikR/workloop-clinic/actions/runs/36988853511",
+    "status": "passed"
+  }
+}

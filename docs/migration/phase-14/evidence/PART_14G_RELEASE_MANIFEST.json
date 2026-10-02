@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "phase-14g-dc6e54a",
+  "deployable": true,
+  "gitCommit": "dc6e54afb4e16665a62b933999d85b83a57cb40a",
+  "backendImage": {
+    "registryType": "DOCR",
+    "registry": "",
+    "repository": "workloop-backend",
+    "digest": "sha256:e2bc596879407af3dcefadd8d0957950f4aadf67713f8252d4c5523a4e8bf11c"
+  },
+  "keycloakImage": {
+    "registryType": "DOCR",
+    "registry": "",
+    "repository": "workloop-keycloak",
+    "digest": "sha256:1aa6bad0f5cfd750cad33d9a0bd1ec957ec234be29da562c68c00ee7a606014c"
+  },
+  "frontendSha256": "sha256:9b7626fb8f894a938ca83ac777ba9e4fb7ca5ac2c210ab23933c7814bbd445db",
+  "frontendRootSha256": "sha256:257a96e1afbf232376c8e9ed22fa9470de24aa30436fe4d41d4e3afaf94ee415",
+  "dependencyLockSha256": {
+    "frontend": "sha256:096efb5a89ac2dc5f1b279fddc83efc91c098ae9f601038c666951e3528a8d85",
+    "backend": "sha256:dc6d06fe3e77cbb4601888bbadea245cefd42e25dd1ab040266beb92bdea869f",
+    "backendDev": "sha256:5edae8ae0b1711578ece93424bd433d7e19eee87d19d9fb543c41f2b638d1780"
+  },
+  "terraformSha256": "sha256:027c40a412d5eb778cc0652b7e19d4fc6a263602d22ac34f7ac5e70e9fe10efd",
+  "appSpecSha256": "sha256:b25764d02d66f9452061376a12682a45d2a54e301ae9efe3671c49f6f871f63f",
+  "alembicHead": "e8a1c3f5b7d9",
+  "createdAt": "2026-10-02T09:29:43.236Z",
+  "reviewedBy": "Aadhik"
+}
