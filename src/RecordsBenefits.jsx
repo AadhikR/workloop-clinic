@@ -55,6 +55,10 @@ function EmployeeDocuments({ account, authentication, branchId, employeeId }) {
   const submit = async (event) => {
     event.preventDefault()
     if (file === null) return
+    if (file.size > 10 * 1024 * 1024) {
+      setMessage('Choose a PDF, JPG, or PNG file no larger than 10 MB.')
+      return
+    }
     setBusy(true)
     setMessage('')
     try {
@@ -98,13 +102,14 @@ function EmployeeDocuments({ account, authentication, branchId, employeeId }) {
   return <section aria-labelledby="employee-documents-title">
     <h3 id="employee-documents-title">Employee documents</h3>
     {message && <p role="status">{message}</p>}
-    <form className="expense-form" onSubmit={submit}>
+    <form className="expense-form document-drop-zone" onSubmit={submit} aria-busy={busy}>
       <label>Document type<select value={form.documentType} onChange={(event) => setForm({ ...form, documentType: event.target.value })}>{documentTypes.map((type) => <option key={type}>{type}</option>)}</select></label>
       <label>Document number<input required maxLength="120" value={form.documentNumber} onChange={(event) => setForm({ ...form, documentNumber: event.target.value })} /></label>
       <label>Expiry date<input type="date" value={form.expiryDate} onChange={(event) => setForm({ ...form, expiryDate: event.target.value })} /></label>
       <label>Notes<textarea maxLength="1000" value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></label>
-      <label>File<input required type="file" accept="application/pdf,image/png,image/jpeg" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /></label>
-      <button type="submit" disabled={busy}>Upload document</button>
+      <label>File<input required type="file" accept="application/pdf,image/png,image/jpeg" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /><span>PDF, JPG, or PNG up to 10 MB{file ? ` · ${file.name}` : ''}</span></label>
+      {busy && <progress aria-label="Uploading document" />}
+      <button type="submit" disabled={busy}>{busy ? 'Uploading...' : 'Upload document'}</button>
     </form>
     <table className="expense-table"><thead><tr><th>Type</th><th>File</th><th>Status</th><th>Expiry</th><th>Actions</th></tr></thead>
       <tbody>{items.map((document) => <tr key={document.id}>
@@ -289,13 +294,13 @@ function ContractHistory({ authentication, branchId, employeeId }) {
   </section>
 }
 
-export default function RecordsBenefits({ account, authentication, branchId }) {
+export default function RecordsBenefits({ account, authentication, branchId, documentsOnly = false }) {
   const [employeeId, setEmployeeId] = useState('')
-  return <section aria-labelledby="records-benefits-title"><h2 id="records-benefits-title">Records and benefits</h2>
+  return <section aria-labelledby="records-benefits-title"><h2 id="records-benefits-title">{documentsOnly ? 'Documents' : 'Records and benefits'}</h2>
     {account.role === 'admin' && <label>Employee ID<input value={employeeId} onChange={(event) => setEmployeeId(event.target.value.trim())} placeholder="UUID" /></label>}
     <EmployeeDocuments account={account} authentication={authentication} branchId={branchId} employeeId={employeeId} />
-    {account.role === 'admin'
+    {!documentsOnly && (account.role === 'admin'
       ? <><AdminInsurance authentication={authentication} branchId={branchId} employeeId={employeeId} /><ContractHistory authentication={authentication} branchId={branchId} employeeId={employeeId} /></>
-      : <SelfInsurance authentication={authentication} />}
+      : <SelfInsurance authentication={authentication} />)}
   </section>
 }

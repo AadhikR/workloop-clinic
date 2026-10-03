@@ -12,7 +12,21 @@ function mergePage(current, next) {
   }
 }
 
-export default function Tasks({ account, authentication, branchId }) {
+const employeeScreens = {
+  advances: '/employee/advances',
+  attendance: '/employee/attendance',
+  certifications: '/employee/training',
+  developmentAssets: '/employee/training',
+  documents: '/employee/documents',
+  expenses: '/employee/expenses',
+  leave: '/employee/leave',
+  letterRequests: '/employee/requests',
+  personalAttendance: '/employee/attendance',
+  recordsBenefits: '/employee/documents',
+  requests: '/employee/requests',
+}
+
+export default function Tasks({ account, authentication, branchId, navigator }) {
   const [catalogue, setCatalogue] = useState(null)
   const [status, setStatus] = useState('loading')
   const [category, setCategory] = useState('')
@@ -78,7 +92,10 @@ export default function Tasks({ account, authentication, branchId }) {
             <ol>
               {value.items.map((task) => (
                 <li key={task.id} data-urgency={task.urgency}>
-                  <a href={`#${task.navigation.screen}`} data-task-id={task.id}>
+                  <a href={account.role === 'employee' ? employeeScreens[task.navigation.screen] ?? '/employee/tasks' : `#${task.navigation.screen}`} data-task-id={task.id} onClick={account.role === 'employee' && navigator ? (event) => {
+                    event.preventDefault()
+                    navigator.go(employeeScreens[task.navigation.screen] ?? '/employee/tasks')
+                  } : undefined}>
                     <strong>{task.title}</strong>
                     <span>{task.subtitle}</span>
                     {task.dueDate && <time dateTime={task.dueDate}>Due {task.dueDate}</time>}

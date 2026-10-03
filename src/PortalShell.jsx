@@ -54,11 +54,15 @@ function PortalLink({ children, className, current = false, navigator, path }) {
 function NavigationIcon({ name }) {
   const paths = {
     Attendance: <><circle cx="12" cy="12" r="8" /><path d="M12 7v5l3 2" /></>,
+    Advances: <><path d="M6 3h12v18H6z" /><path d="M9 8h6M9 12h6M9 16h3" /></>,
+    Appraisals: <><path d="m12 3 2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4-3.9-3.8 5.4-.8z" /></>,
     Development: <><path d="M4 19V9l8-4 8 4v10" /><path d="M8 19v-6h8v6" /></>,
+    Documents: <><path d="M6 3h9l3 3v15H6z" /><path d="M15 3v4h4M9 12h6M9 16h6" /></>,
     Expenses: <><path d="M6 3h12v18H6z" /><path d="M9 8h6M9 12h6M9 16h3" /></>,
     Leave: <><path d="M5 5h14v15H5z" /><path d="M8 3v4M16 3v4M5 9h14" /></>,
     Organization: <><path d="M4 21V7h10v14M14 11h6v10" /><path d="M8 11h2M8 15h2M8 19h2M17 15h1M17 19h1" /></>,
     Pay: <><rect x="4" y="5" width="16" height="14" rx="2" /><path d="M8 12h8M12 9v6" /></>,
+    Payslips: <><path d="M6 3h12v18H6z" /><path d="M9 8h6M9 12h6M9 16h3" /></>,
     Payroll: <><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M9 8h6M9 12h6M9 16h4" /></>,
     People: <><circle cx="9" cy="8" r="3" /><circle cx="17" cy="9" r="2" /><path d="M3 20c0-4 2-6 6-6s6 2 6 6M15 15c3 0 5 2 5 5" /></>,
     Profile: <><circle cx="12" cy="8" r="4" /><path d="M4 21c0-5 3-8 8-8s8 3 8 8" /></>,
@@ -66,10 +70,13 @@ function NavigationIcon({ name }) {
     Reports: <><path d="M5 20V10M12 20V4M19 20v-7" /></>,
     Requests: <><path d="M5 4h14v16H5z" /><path d="M8 8h8M8 12h8M8 16h5" /></>,
     Roster: <><path d="M4 6h16v14H4z" /><path d="M8 3v6M16 3v6M4 10h16" /></>,
+    Schedule: <><path d="M4 6h16v14H4z" /><path d="M8 3v6M16 3v6M4 10h16" /></>,
     Team: <><circle cx="8" cy="8" r="3" /><circle cx="16" cy="8" r="3" /><path d="M2 20c0-4 2-6 6-6s6 2 6 6M10 20c0-4 2-6 6-6s6 2 6 6" /></>,
     Time: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l4 2" /></>,
+    Tasks: <><path d="M6 4h12v17H6z" /><path d="m9 9 1.5 1.5L14 7M9 15h5" /></>,
+    Training: <><path d="m3 8 9-5 9 5-9 5z" /><path d="M7 11v5c3 2 7 2 10 0v-5" /></>,
   }
-  const isHome = name.endsWith('home')
+  const isHome = name.toLowerCase().endsWith('home')
   return (
     <svg aria-hidden="true" className="nav-icon" viewBox="0 0 24 24">
       {isHome ? <><rect x="4" y="4" width="6" height="6" rx="1" /><rect x="14" y="4" width="6" height="6" rx="1" /><rect x="4" y="14" width="6" height="6" rx="1" /><rect x="14" y="14" width="6" height="6" rx="1" /></> : paths[name]}
@@ -221,7 +228,7 @@ function PortalHome({ account, authentication, navigator, route }) {
           )}
         </header>
         <div className="page-body">
-          {route.path === roleHome(account.role) && (
+          {route.path === roleHome(account.role) && account.role !== 'employee' && (
             <section className="welcome-banner" aria-label="Welcome">
               <h2>Workloop - UAE Payroll &amp; HRMS</h2>
               <p>Welcome back to {organizationName}</p>
@@ -242,11 +249,12 @@ function PortalHome({ account, authentication, navigator, route }) {
               branchId={branch.id}
               path={route.path}
             />
-          ) : account.role === 'employee' && route.path !== '/employee' ? (
+          ) : account.role === 'employee' ? (
             <EmployeePortal
               account={account}
               authentication={authentication}
               branchId={branch.id}
+              navigator={navigator}
               path={route.path}
             />
           ) : (

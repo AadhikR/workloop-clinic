@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import {
   initializeLeaveBalances,
@@ -65,6 +65,30 @@ function BalanceTable({ balances }) {
   )
 }
 
+function EmployeeBalanceCards({ balances }) {
+  if (balances.length === 0) return <div className="empty-state"><h3>No balances</h3><p>No leave balances exist for this year.</p></div>
+  return <div className="leave-balance-grid">{balances.map((balance) => {
+    const allowance = Number(balance.entitledDays) + Number(balance.carriedForward)
+    const used = Number(balance.usedDays) + Number(balance.pendingDays)
+    const percent = allowance > 0 ? Math.min(100, Math.round((used / allowance) * 100)) : 0
+    return <article className="leave-balance-card" key={`${balance.employeeId}:${balance.leaveTypeId}:${balance.leaveYear}`}><h3>{balance.leaveTypeId}</h3><div className="leave-balance-value"><strong>{balance.remainingDays}</strong><span>days remaining</span></div><dl><div><dt>Allowance</dt><dd>{balance.entitledDays}</dd></div><div><dt>Used</dt><dd>{balance.usedDays}</dd></div><div><dt>Pending</dt><dd>{balance.pendingDays}</dd></div></dl><div className="progress-track" aria-label={`${percent}% of leave used`}><span style={{ width: `${percent}%` }} /></div></article>
+  })}</div>
+}
+
+function LeaveCalendar({ month, onMonthChange, requests }) {
+  const [year, monthNumber] = month.split('-').map(Number)
+  const firstWeekday = new Date(Date.UTC(year, monthNumber - 1, 1)).getUTCDay()
+  const daysInMonth = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate()
+  const approved = requests.filter((request) => request.status === 'Approved')
+  const cells = [...Array(firstWeekday).fill(null), ...Array.from({ length: daysInMonth }, (_, index) => index + 1)]
+  return <><div className="month-toolbar"><label>Month<input type="month" value={month} onChange={(event) => onMonthChange(event.target.value)} /></label></div><div className="leave-calendar" role="grid" aria-label={`Approved leave for ${month}`}><div className="calendar-weekdays" role="row">{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => <span role="columnheader" key={day}>{day}</span>)}</div><div className="calendar-days">{cells.map((day, index) => {
+    if (day === null) return <span aria-hidden="true" className="calendar-day empty" key={`empty-${index}`} />
+    const date = `${month}-${String(day).padStart(2, '0')}`
+    const entries = approved.filter((request) => request.startDate <= date && request.endDate >= date)
+    return <article className="calendar-day" role="gridcell" key={date}><time dateTime={date}>{day}</time>{entries.map((request) => <span key={request.id} title={request.reason || 'Approved leave'}>{request.daysRequested} day leave</span>)}</article>
+  })}</div></div>{approved.length === 0 && <p className="empty-copy">No approved leave appears in this month.</p>}</>
+}
+
 const emptySubmission = Object.freeze({
   employeeId: '',
   leaveTypeId: '',
@@ -117,6 +141,17 @@ function LeaveRequestForm({ admin, authentication, branchId, employees, leaveTyp
   const [retry, setRetry] = useState(null)
   const [status, setStatus] = useState({ busy: false, message: '', result: null })
   const selectedType = leaveTypes.find((leaveType) => leaveType.id === form.leaveTypeId)
+  const requestedDays = useMemo(() => {
+    if (!form.startDate || !form.endDate || form.endDate < form.startDate) return null
+    if (form.isHalfDay) return '0.5'
+    const start = new Date(`${form.startDate}T00:00:00Z`)
+    const end = new Date(`${form.endDate}T00:00:00Z`)
+    let days = 0
+    for (const cursor = new Date(start); cursor <= end; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
+      if (![0, 6].includes(cursor.getUTCDay())) days += 1
+    }
+    return String(days)
+  }, [form.endDate, form.isHalfDay, form.startDate])
   const eligibleEmployees = employees.filter((employee) => (
     employee.active && ['active', 'probation', 'on_leave'].includes(employee.employmentStatus)
   ))
@@ -390,6 +425,7 @@ function LeaveRequestForm({ admin, authentication, branchId, employees, leaveTyp
           />
         </label>
       </div>
+      {requestedDays !== null && <p className="leave-day-preview"><strong>{requestedDays}</strong> estimated working day{requestedDays === '1' ? '' : 's'}. The server applies branch holidays and leave rules when you submit.</p>}
       <button type="submit" disabled={status.busy || leaveTypes.length === 0}>
         {status.busy ? 'Working...' : 'Submit request'}
       </button>
@@ -408,11 +444,11 @@ function RequestTable({
   const today = new Date().toISOString().slice(0, 10)
   if (requests.length === 0) return <p>No leave requests overlap this leave year.</p>
   return (
-    <div className="table-wrap">
-      <table>
+    <div className="table-wrap leave-history-table">
+      <table className="leave-request-table">
         <thead>
           <tr>
-            <th>Employee</th>
+            {admin && <th>Employee</th>}
             <th>Dates</th>
             <th>Days</th>
             <th>Status</th>
@@ -424,18 +460,18 @@ function RequestTable({
         <tbody>
           {requests.map((request) => (
             <tr key={request.id}>
-              <td>{request.employeeId}</td>
-              <td>{request.startDate} to {request.endDate}</td>
-              <td>{request.daysRequested}</td>
-              <td>{request.status}</td>
-              <td>{request.reason || 'No reason supplied'}</td>
-              <td>
+              {admin && <td data-label="Employee">{request.employeeId}</td>}
+              <td className="leave-request-dates" data-label="Dates"><span className="leave-request-date-range"><time dateTime={request.startDate}>{request.startDate}</time><span className="leave-request-date-separator">to</span><time dateTime={request.endDate}>{request.endDate}</time></span></td>
+              <td data-label="Days">{request.daysRequested}</td>
+              <td data-label="Status"><span className="status-pill" data-status={request.status.toLowerCase()}>{request.status}</span>{request.rejectionReason && <small>{request.rejectionReason}</small>}</td>
+              <td className="leave-request-reason-cell" data-label="Reason">{request.reason || 'No reason supplied'}</td>
+              <td className="leave-request-attachment" data-label="Attachment">
                 {request.attachment ? (
                   <button type="button" className="secondary" onClick={() => onDownload(request)}>
                     Download {request.attachment.fileName}
                   </button>
                 ) : request.status === 'Pending' ? (
-                  <label>
+                  <label className="compact-file-picker">
                     <span className="sr-only">Upload attachment for request {request.id}</span>
                     <input
                       type="file"
@@ -449,7 +485,7 @@ function RequestTable({
                 )}
                 {uploadState[request.id] && <span role="status">{uploadState[request.id]}</span>}
               </td>
-              <td>
+              <td className="leave-request-actions" data-label="Actions">
                 {((!admin && request.status === 'Pending') || (
                   admin && request.status === 'Approved' && request.startDate > today
                 )) && (
@@ -477,6 +513,8 @@ export default function LeaveOverview({ account, authentication, branchId }) {
   const [uploadState, setUploadState] = useState({})
   const [referenceData, setReferenceData] = useState({ leaveTypes: [], employees: [] })
   const [cancellingId, setCancellingId] = useState(null)
+  const [tab, setTab] = useState('requests')
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date().toISOString().slice(0, 7))
   const admin = account.role === 'admin'
 
   const read = useCallback(async (signal) => {
@@ -583,6 +621,7 @@ export default function LeaveOverview({ account, authentication, branchId }) {
   }
 
   const cancel = async (leaveRequest) => {
+    if (!globalThis.confirm('Cancel this pending leave request?')) return
     setCancellingId(leaveRequest.id)
     setState((current) => ({ ...current, message: 'Cancelling leave request...' }))
     try {
@@ -605,19 +644,24 @@ export default function LeaveOverview({ account, authentication, branchId }) {
 
   return (
     <section className="leave-overview" aria-labelledby="leave-overview-title">
-      <h2 id="leave-overview-title">{admin ? 'Branch leave overview' : 'My leave'}</h2>
-      <label>
-        Leave year
-        <input
-          type="number"
-          min="2000"
-          max="2100"
-          value={year}
-          onChange={(event) => setYear(Number(event.target.value))}
-        />
-      </label>
+      <header className="employee-module-toolbar leave-toolbar">
+        <div>
+          <h2 id="leave-overview-title">{admin ? 'Branch leave overview' : 'My leave'}</h2>
+          <p>{admin ? 'Review branch requests and balances for the selected year.' : 'Submit requests and track balances, approvals, and planned leave.'}</p>
+        </div>
+        <label className="leave-year-control">
+          <span>Leave year</span>
+          <input
+            type="number"
+            min="2000"
+            max="2100"
+            value={year}
+            onChange={(event) => setYear(Number(event.target.value))}
+          />
+        </label>
+      </header>
       {admin && (
-        <div className="actions">
+        <div className="actions module-actions">
           <button type="button" onClick={() => changeBalances('initialize')}>Initialize missing</button>
           <button type="button" className="secondary" onClick={() => changeBalances('recalculate')}>
             Recalculate all
@@ -627,31 +671,41 @@ export default function LeaveOverview({ account, authentication, branchId }) {
           </button>
         </div>
       )}
-      {state.message && <p role="status">{state.message}</p>}
-      {state.status === 'loading' && <p>Loading leave details...</p>}
-      {state.status === 'error' && <p>Try refreshing after the leave service is available.</p>}
+      {state.message && <p className="feedback" role="status">{state.message}</p>}
+      {state.status === 'loading' && <p className="module-loading">Loading leave details...</p>}
+      {state.status === 'error' && <p className="feedback danger">Try refreshing after the leave service is available.</p>}
       {state.status === 'ready' && (
         <>
-          <LeaveRequestForm
-            admin={admin}
-            authentication={authentication}
-            branchId={branchId}
-            employees={referenceData.employees}
-            leaveTypes={referenceData.leaveTypes}
-            onSubmitted={refresh}
-          />
-          <h3>Balances</h3>
-          <BalanceTable balances={state.balances} />
-          <h3>Request calendar</h3>
-          <RequestTable
-            admin={admin}
-            requests={state.requests}
-            onCancel={cancel}
-            onDownload={download}
-            onUpload={upload}
-            uploadState={uploadState}
-            cancellingId={cancellingId}
-          />
+          {!admin && <div className="tabs" role="tablist" aria-label="Leave views">{[['requests', 'Requests'], ['balances', 'Balances'], ['calendar', 'Calendar']].map(([id, label]) => <button type="button" role="tab" aria-selected={tab === id} className={`tab-btn${tab === id ? ' active' : ''}`} key={id} onClick={() => setTab(id)}>{label}</button>)}</div>}
+          {(admin || tab === 'requests') && <div className="leave-tab-panel" role={admin ? undefined : 'tabpanel'}>
+            <LeaveRequestForm
+              admin={admin}
+              authentication={authentication}
+              branchId={branchId}
+              employees={referenceData.employees}
+              leaveTypes={referenceData.leaveTypes}
+              onSubmitted={refresh}
+            />
+            <section className="employee-panel leave-history-panel" aria-labelledby="leave-history-title">
+              <div className="panel-heading">
+                <div>
+                  <h3 id="leave-history-title">Request history</h3>
+                  <p>{state.requests.length} request{state.requests.length === 1 ? '' : 's'} in {year}</p>
+                </div>
+              </div>
+              <RequestTable
+                admin={admin}
+                requests={state.requests}
+                onCancel={cancel}
+                onDownload={download}
+                onUpload={upload}
+                uploadState={uploadState}
+                cancellingId={cancellingId}
+              />
+            </section>
+          </div>}
+          {(admin || tab === 'balances') && <section className="employee-panel leave-tab-panel" role={admin ? undefined : 'tabpanel'}><div className="panel-heading"><h3>Balances</h3></div>{admin ? <BalanceTable balances={state.balances} /> : <EmployeeBalanceCards balances={state.balances} />}</section>}
+          {(admin || tab === 'calendar') && <section className="employee-panel leave-tab-panel leave-calendar-panel" role={admin ? undefined : 'tabpanel'}><div className="panel-heading"><h3>Request calendar</h3></div><LeaveCalendar month={calendarMonth} onMonthChange={setCalendarMonth} requests={state.requests} /></section>}
         </>
       )}
     </section>

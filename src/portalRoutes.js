@@ -30,6 +30,26 @@ const routeDefinitions = [
   ['P15-ROUTE-029', '/employee/requests', ['employee'], '15E', 'Requests'],
 ]
 
+const employeeParityDefinitions = [
+  ['/employee/schedule', 'Schedule'],
+  ['/employee/attendance', 'Attendance'],
+  ['/employee/payslips', 'Payslips'],
+  ['/employee/advances', 'Advances'],
+  ['/employee/expenses', 'Expenses'],
+  ['/employee/training', 'Training'],
+  ['/employee/appraisals', 'Appraisals'],
+  ['/employee/documents', 'Documents'],
+  ['/employee/tasks', 'Tasks'],
+]
+
+const employeeNavigation = [
+  ['/employee', 'Home'],
+  ['/employee/leave', 'Leave'],
+  ...employeeParityDefinitions,
+  ['/employee/requests', 'Requests'],
+  ['/employee/profile', 'Profile'],
+]
+
 export const portalRouteContracts = Object.freeze(routeDefinitions.map(
   ([id, path, roles, owner]) => Object.freeze({
     id, path, roles: Object.freeze([...roles]), owner,
@@ -50,6 +70,9 @@ export function roleHome(role) {
 
 export function roleNavigation(role) {
   roleHome(role)
+  if (role === 'employee') {
+    return Object.freeze(employeeNavigation.map(([path, title]) => Object.freeze({ path, title })))
+  }
   return Object.freeze(routeDefinitions
     .filter(([, path, roles]) => path.startsWith(`/${role}`) && roles.includes(role))
     .map(([, path, , , title]) => Object.freeze({ path, title })))
@@ -59,6 +82,11 @@ export function resolvePortalRoute(path, role) {
   const home = roleHome(role)
   if (path === '/') {
     return Object.freeze({ kind: 'redirect', path: home, title: routes.get(home).title })
+  }
+  const employeeParityRoute = employeeParityDefinitions.find(([routePath]) => routePath === path)
+  if (employeeParityRoute) {
+    if (role !== 'employee') return Object.freeze({ kind: 'forbidden', path, title: 'Access denied' })
+    return Object.freeze({ kind: 'portal', path, title: employeeParityRoute[1] })
   }
   const route = routes.get(path)
   if (!route) return Object.freeze({ kind: 'not-found', path, title: 'Page not found' })

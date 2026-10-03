@@ -38,6 +38,10 @@ function Source({ source }) {
   </div>
 }
 
+function requestStatus(status) {
+  return status === 'completed' ? 'Ready' : status.charAt(0).toUpperCase() + status.slice(1)
+}
+
 export default function LetterRequests({ account, authentication, branchId }) {
   const [items, setItems] = useState([])
   const [form, setForm] = useState(emptyForm)
@@ -101,10 +105,7 @@ export default function LetterRequests({ account, authentication, branchId }) {
   return <section className="records-benefits" aria-labelledby="letter-requests-title">
     <h2 id="letter-requests-title">Letter and custom requests</h2>
     <Message>{message}</Message>
-    {account.role !== 'admin' && <form className="expense-form" onSubmit={submit}>
-      <label>Request kind<select value={form.requestKind} onChange={(event) => setForm({
-        ...form, requestKind: event.target.value,
-      })}><option value="letter">HR letter</option><option value="custom">Custom request</option></select></label>
+    {account.role !== 'admin' && <><div className="tabs" role="tablist" aria-label="Request type"><button type="button" role="tab" aria-selected={form.requestKind === 'letter'} className={`tab-btn${form.requestKind === 'letter' ? ' active' : ''}`} onClick={() => setForm({ ...form, requestKind: 'letter' })}>HR letters</button><button type="button" role="tab" aria-selected={form.requestKind === 'custom'} className={`tab-btn${form.requestKind === 'custom' ? ' active' : ''}`} onClick={() => setForm({ ...form, requestKind: 'custom' })}>Custom requests</button></div><form className="expense-form" onSubmit={submit}>
       {form.requestKind === 'letter' ? <>
         <label>Letter type<select value={form.letterType} onChange={(event) => setForm({
           ...form, letterType: event.target.value,
@@ -121,7 +122,7 @@ export default function LetterRequests({ account, authentication, branchId }) {
         })} /></label>
       </>}
       <button type="submit" disabled={busy}>Submit request</button>
-    </form>}
+    </form></>}
     <table className="expense-table"><thead><tr>
       {account.role === 'admin' && <th>Employee</th>}<th>Request</th><th>Details</th>
       <th>Requested</th><th>Status</th><th>Actions</th>
@@ -129,7 +130,7 @@ export default function LetterRequests({ account, authentication, branchId }) {
       {account.role === 'admin' && <td>{item.employeeName}<small>{item.jobTitle}</small></td>}
       <td>{item.requestKind === 'letter' ? letterTypeLabels[item.letterType] : item.letterType}</td>
       <td>{item.purpose}{item.rejectionReason && <small>{item.rejectionReason}</small>}</td>
-      <td>{item.requestedAt.slice(0, 10)}</td><td>{item.status}</td><td>
+      <td>{item.requestedAt.slice(0, 10)}</td><td><span className="status-pill" data-status={item.status === 'completed' ? 'ready' : item.status}>{requestStatus(item.status)}</span></td><td>
         {account.role === 'admin' && item.status === 'pending' && <>
           <button type="button" disabled={busy} onClick={() => decide(item, 'complete')}>Complete</button>
           <button type="button" className="danger" disabled={busy} onClick={() => decide(item, 'reject')}>Reject</button>

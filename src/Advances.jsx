@@ -12,6 +12,7 @@ import {
   settleAdvance,
   withdrawAdvance,
 } from './advanceApi.js'
+import { readEmployeeSelf } from './employeeApi.js'
 
 const currentPeriod = new Date().toISOString().slice(0, 7)
 const emptyPlan = { amount: '', reason: '', installmentCount: 3, repaymentStartPeriod: currentPeriod }
@@ -60,6 +61,7 @@ export default function Advances({ account, authentication, branchId }) {
   const [message, setMessage] = useState('')
   const [employeeId, setEmployeeId] = useState('')
   const [plan, setPlan] = useState(emptyPlan)
+  const [basicSalary, setBasicSalary] = useState(null)
 
   const load = useCallback(async () => {
     setStatus('loading')
@@ -79,8 +81,21 @@ export default function Advances({ account, authentication, branchId }) {
     return () => globalThis.clearTimeout(pending)
   }, [load])
 
+  useEffect(() => {
+    if (admin) return undefined
+    const controller = new AbortController()
+    readEmployeeSelf(authentication, { signal: controller.signal })
+      .then((employee) => { if (!controller.signal.aborted) setBasicSalary(employee.basicSalary) })
+      .catch(() => { if (!controller.signal.aborted) setBasicSalary(null) })
+    return () => controller.abort()
+  }, [admin, authentication])
+
   const submit = async (event) => {
     event.preventDefault()
+    if (basicSalary !== null && Number(plan.amount) > Number(basicSalary)) {
+      setMessage(`The requested amount cannot exceed your basic monthly salary of AED ${basicSalary}.`)
+      return
+    }
     setBusy(true)
     setMessage('')
     try {
@@ -138,15 +153,19 @@ export default function Advances({ account, authentication, branchId }) {
       {message && <p role="status">{message}</p>}
       <form className="expense-form" onSubmit={submit}>
         <h3>{admin ? 'Create an employee advance' : 'Request an advance'}</h3>
+        {!admin && <p>Requests cannot exceed one month of your current basic salary. HR confirms the repayment schedule before approval.</p>}
         {admin && <label>Employee ID<input required value={employeeId} onChange={(event) => setEmployeeId(event.target.value)} /></label>}
-        <label>Amount<input required inputMode="decimal" pattern="(?:0|[1-9][0-9]{0,9})\.[0-9]{2}" placeholder="0.00" value={plan.amount} onChange={(event) => setPlan({ ...plan, amount: event.target.value })} /></label>
+        <label>Amount<input required type="number" min="0.01" max={!admin && basicSalary !== null ? basicSalary : undefined} step="0.01" placeholder="0.00" value={plan.amount} onChange={(event) => setPlan({ ...plan, amount: event.target.value })} /></label>
         <label>Reason<textarea required maxLength="500" value={plan.reason} onChange={(event) => setPlan({ ...plan, reason: event.target.value })} /></label>
         <label>Installments<input required type="number" min="1" max="120" value={plan.installmentCount} onChange={(event) => setPlan({ ...plan, installmentCount: event.target.value })} /></label>
         <label>First repayment period<input required type="month" value={plan.repaymentStartPeriod} onChange={(event) => setPlan({ ...plan, repaymentStartPeriod: event.target.value })} /></label>
         <button type="submit" disabled={busy}>Submit advance</button>
       </form>
-      <h3>{admin ? 'Selected-branch advances' : 'My advances'}</h3>
-      <AdvanceRows items={items} admin={admin} busy={busy} onAction={action} />
+      {admin ? <><h3>Selected-branch advances</h3><AdvanceRows items={items} admin busy={busy} onAction={action} /></> : <>
+        <h3>Pending requests</h3><AdvanceRows items={items.filter((item) => item.status === 'pending')} admin={false} busy={busy} onAction={action} />
+        <h3>Active advances</h3><AdvanceRows items={items.filter((item) => item.status === 'active')} admin={false} busy={busy} onAction={action} />
+        <h3>History</h3><AdvanceRows items={items.filter((item) => ['settled', 'cancelled'].includes(item.status))} admin={false} busy={busy} onAction={action} />
+      </>}
       {status === 'loading' && <p>Loading salary advances...</p>}
       {status === 'unavailable' && <p>Salary advances are unavailable.</p>}
     </section>

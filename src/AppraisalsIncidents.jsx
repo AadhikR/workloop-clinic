@@ -26,11 +26,12 @@ function Message({ children }) {
 }
 
 function AppraisalRows({ appraisals, account, authentication, branchId, reload, run }) {
-  return <div className="records-benefits-grid">{appraisals.map((appraisal) => <article key={appraisal.id}>
-    <h4>{appraisal.employeeName}</h4>
-    <p>{appraisal.cycleName} · {appraisal.status.replaceAll('_', ' ')} · Rating {appraisal.overallRating ?? 'pending'}</p>
-    <ul>{appraisal.sections.map((section) => <li key={section.id}>
-      {section.sectionName}: {section.rating ?? 'not rated'}
+  if (appraisals.length === 0) return <div className="empty-state"><h3>No appraisals</h3><p>No appraisal results are available.</p></div>
+  return <div className="appraisal-list">{appraisals.map((appraisal) => <details className="employee-panel appraisal-card" key={appraisal.id}>
+    <summary><span><strong>{account.role === 'employee' ? appraisal.cycleName : appraisal.employeeName}</strong><small>{appraisal.reviewFrom} to {appraisal.reviewTo}</small></span><span className="status-pill" data-status={appraisal.status}>{appraisal.status.replaceAll('_', ' ')}</span><strong>{appraisal.overallRating ? `${appraisal.overallRating} / 5.0` : 'Pending'}</strong></summary>
+    <div className="appraisal-detail">
+    <h4>Section results</h4><ul>{appraisal.sections.map((section) => <li key={section.id}>
+      <span><strong>{section.sectionName}</strong><small>Weight {section.weight}%</small></span><span>{section.rating ?? 'Not rated'} / 5</span>{section.comments && <p>{section.comments}</p>}
       {account.role === 'manager' && appraisal.status === 'pending' && <button type="button" onClick={() => {
         const value = globalThis.prompt(`Rating for ${section.sectionName} (1.0 to 5.0)`)?.trim()
         if (value) run(() => rateAppraisalSection(authentication, appraisal, section, {
@@ -38,6 +39,7 @@ function AppraisalRows({ appraisals, account, authentication, branchId, reload, 
         }), 'Section rating saved.').then(reload)
       }}>Rate</button>}
     </li>)}</ul>
+    {(appraisal.reviewerComments || appraisal.developmentPlan || appraisal.reviewedAt) && <dl className="appraisal-summary"><div><dt>Reviewer comments</dt><dd>{appraisal.reviewerComments || 'None'}</dd></div><div><dt>Development plan</dt><dd>{appraisal.developmentPlan || 'None'}</dd></div><div><dt>Reviewed</dt><dd>{appraisal.reviewedAt ? new Date(appraisal.reviewedAt).toLocaleDateString() : 'Not reviewed'}</dd></div></dl>}
     {account.role === 'admin' && appraisal.status === 'pending' && <button type="button" onClick={() => run(
       () => reviewAppraisal(authentication, branchId, appraisal, {
         reviewerComments: globalThis.prompt('Reviewer comments')?.trim() ?? '',
@@ -48,7 +50,8 @@ function AppraisalRows({ appraisals, account, authentication, branchId, reload, 
       const value = globalThis.prompt('Final calibrated rating (1.0 to 5.0)', appraisal.overallRating)?.trim()
       if (value) run(() => calibrateAppraisal(authentication, branchId, appraisal, value), 'Appraisal calibrated.').then(reload)
     }}>Calibrate</button>}
-  </article>)}</div>
+    </div>
+  </details>)}</div>
 }
 
 function Appraisals({ account, authentication, branchId }) {
@@ -206,7 +209,7 @@ function Incidents({ authentication, branchId }) {
 
 export default function AppraisalsIncidents({ account, authentication, branchId }) {
   return <section className="records-benefits" aria-labelledby="appraisals-incidents-title">
-    <h2 id="appraisals-incidents-title">Appraisals and clinical incidents</h2>
+    <h2 id="appraisals-incidents-title">{account.role === 'admin' ? 'Appraisals and clinical incidents' : 'Appraisals'}</h2>
     <Appraisals account={account} authentication={authentication} branchId={branchId} />
     {account.role === 'admin' && <Incidents authentication={authentication} branchId={branchId} />}
   </section>

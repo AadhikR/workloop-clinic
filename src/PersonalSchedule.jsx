@@ -5,6 +5,16 @@ import { cancelShiftSwap, readPersonalShiftSwaps, submitShiftSwap } from './shif
 
 function currentPeriod() { return new Date().toISOString().slice(0, 7) }
 
+function movePeriod(period, amount) {
+  const [year, month] = period.split('-').map(Number)
+  const value = new Date(Date.UTC(year, month - 1 + amount, 1))
+  return value.toISOString().slice(0, 7)
+}
+
+function periodLabel(period) {
+  return new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${period}-01T00:00:00Z`))
+}
+
 export default function PersonalSchedule({ authentication }) {
   const [period, setPeriod] = useState(currentPeriod())
   const [schedule, setSchedule] = useState([])
@@ -59,20 +69,18 @@ export default function PersonalSchedule({ authentication }) {
 
   return (
     <section className="personal-schedule" aria-labelledby="personal-schedule-title">
-      <h2 id="personal-schedule-title">My schedule</h2>
-      <p>Only your current published roster is shown here.</p>
-      <label>Month<input type="month" value={period} onChange={(event) => setPeriod(event.target.value)} /></label>
-      {schedule.length === 0 && !message && <p>No published shifts for this month.</p>}
-      <ul>{schedule.map((item) => <li key={item.rosterAssignmentId}><strong>{item.date} — {item.shiftCode ?? item.shiftName}</strong><span>{item.plannedHours} planned hours{item.actualHours === null ? '' : ` · ${item.actualHours} actual hours`}{item.overtimeHours === '0.00' ? '' : ` · ${item.overtimeHours} approved overtime hours`}</span></li>)}</ul>
-      <section className="shift-swaps"><h3>Request a shift swap</h3><form onSubmit={submit}>
+      <div className="employee-section-heading"><div><h2 id="personal-schedule-title">Schedule</h2><p>Only your published shifts are shown.</p></div></div>
+      <div className="month-toolbar"><button type="button" className="secondary" aria-label="Previous month" onClick={() => setPeriod(movePeriod(period, -1))}>‹</button><strong>{periodLabel(period)}</strong><button type="button" className="secondary" aria-label="Next month" onClick={() => setPeriod(movePeriod(period, 1))}>›</button><label><span className="sr-only">Choose month</span><input type="month" value={period} onChange={(event) => setPeriod(event.target.value)} /></label></div>
+      {schedule.length === 0 && !message ? <div className="empty-state"><h3>No published shifts</h3><p>Your schedule for this month has not been published.</p></div> : <ol className="schedule-list">{schedule.map((item) => <li key={item.rosterAssignmentId} data-shift-category={item.shiftCategory}><time dateTime={item.date}><strong>{new Date(`${item.date}T00:00:00`).toLocaleDateString([], { weekday: 'short', day: 'numeric' })}</strong><span>{item.date}</span></time><div><strong>{item.shiftName}{item.shiftCode ? ` · ${item.shiftCode}` : ''}</strong><span>{item.plannedHours} expected hours{item.actualHours === null ? '' : ` · ${item.actualHours} actual`}{item.overtimeHours === '0.00' ? '' : ` · ${item.overtimeHours} overtime`}</span>{item.notes && <small>{item.notes}</small>}</div></li>)}</ol>}
+      <section className="shift-swaps employee-panel"><h3>Request a shift swap</h3><form className="settings-form" onSubmit={submit}>
         <label>Your shift<select required value={requesterAssignmentId} onChange={(event) => setRequesterAssignmentId(event.target.value)}><option value="">Choose a published shift</option>{schedule.filter((item) => item.actualHours === null).map((item) => <option key={item.rosterAssignmentId} value={item.rosterAssignmentId}>{item.date} — {item.shiftCode ?? item.shiftName}</option>)}</select></label>
         <label>Colleague shift date<input required type="date" value={targetDate} onChange={(event) => { setTargetDate(event.target.value); setTargetEmployeeId(''); setColleagues([]) }} /></label>
         <label>Colleague<select required value={targetEmployeeId} onChange={(event) => setTargetEmployeeId(event.target.value)}><option value="">Choose a same-branch colleague</option>{colleagues.map((item) => <option key={item.rosterAssignmentId} value={item.employeeId}>{item.employeeName} — {item.shiftCode ?? item.shiftName}</option>)}</select></label>
         <label>Reason<input required minLength="3" maxLength="500" value={reason} onChange={(event) => setReason(event.target.value)} /></label>
         <button type="submit">Request swap</button>
       </form></section>
-      <section className="shift-swap-history"><h3>My swap requests</h3>{swaps.length === 0 ? <p>No swap requests.</p> : <ul>{swaps.map((swap) => <li key={swap.id}><span><strong>{swap.requesterDate} ↔ {swap.targetDate}</strong><small>{swap.requesterEmployeeName} and {swap.targetEmployeeName} · {swap.status}</small></span>{swap.status === 'pending' && <button type="button" className="secondary" onClick={() => cancel(swap)}>Cancel request</button>}</li>)}</ul>}</section>
-      {message && <p role="status">{message}</p>}
+      <section className="shift-swap-history employee-panel"><h3>My swap requests</h3>{swaps.length === 0 ? <p className="empty-copy">No swap requests.</p> : <ul className="employee-detail-list">{swaps.map((swap) => <li key={swap.id}><span><strong>{swap.requesterDate} ↔ {swap.targetDate}</strong><small>{swap.requesterEmployeeName} and {swap.targetEmployeeName}</small></span><span className="status-pill" data-status={swap.status}>{swap.status}</span>{swap.status === 'pending' && <button type="button" className="secondary" onClick={() => cancel(swap)}>Cancel request</button>}</li>)}</ul>}</section>
+      {message && <p role="status" className="feedback">{message}</p>}
     </section>
   )
 }

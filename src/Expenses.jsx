@@ -59,6 +59,7 @@ export default function Expenses({ account, authentication, branchId }) {
   const [message, setMessage] = useState('')
   const [form, setForm] = useState({ category: '', amount: '', expenseDate: '', description: '' })
   const [receipt, setReceipt] = useState(null)
+  const [filter, setFilter] = useState('')
 
   const load = useCallback(async () => {
     setStatus('loading')
@@ -136,14 +137,14 @@ export default function Expenses({ account, authentication, branchId }) {
           <form className="expense-form" onSubmit={submit}>
             <h3>Submit an expense claim</h3>
             <label>Category<input required maxLength="80" value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} /></label>
-            <label>Amount<input required inputMode="decimal" pattern="(?:0|[1-9][0-9]{0,9})\.[0-9]{2}" placeholder="0.00" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} /></label>
-            <label>Expense date<input required type="date" value={form.expenseDate} onChange={(event) => setForm({ ...form, expenseDate: event.target.value })} /></label>
+            <label>Amount<input required type="number" min="0.01" max="100000.00" step="0.01" placeholder="0.00" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} /></label>
+            <label>Expense date<input required type="date" max={new Date().toISOString().slice(0, 10)} value={form.expenseDate} onChange={(event) => setForm({ ...form, expenseDate: event.target.value })} /></label>
             <label>Description<textarea required maxLength="2000" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></label>
             <label>Receipt<input type="file" accept="application/pdf,image/png,image/jpeg" onChange={(event) => setReceipt(event.target.files?.[0] ?? null)} /></label>
             <button type="submit" disabled={busy}>Submit claim</button>
           </form>
-          <h3>My claims</h3>
-          <ExpenseRows items={selfItems} role="self" busy={busy} onAction={(kind, claim) => action(kind, claim, 'self')} />
+          <div className="employee-section-heading"><h3>My claims</h3><label>Status<select value={filter} onChange={(event) => setFilter(event.target.value)}><option value="">All states</option>{['pending', 'manager_approved', 'manager_rejected', 'approved', 'paid', 'rejected'].map((value) => <option value={value} key={value}>{value.replaceAll('_', ' ')}</option>)}</select></label></div>
+          <ExpenseRows items={filter ? selfItems.filter((item) => item.status === filter) : selfItems} role="self" busy={busy} onAction={(kind, claim) => action(kind, claim, 'self')} />
         </>
       )}
       {account.role === 'manager' && <>

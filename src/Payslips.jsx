@@ -43,11 +43,11 @@ export default function Payslips({ account, authentication }) {
       <p>Issued payroll snapshots are read-only. Printable PDFs come from the same server snapshot.</p>
       {status === 'unavailable' && <p>Payslips are unavailable.</p>}
       {status === 'loading' && <p>Loading payslips…</p>}
-      {items.map((item) => (
-        <button type="button" className="secondary" key={item.id} onClick={() => open(item.id)}>
-          <strong>{item.period}</strong> · AED {item.netPay}
+      <div className="payslip-list">{[...items].sort((left, right) => right.period.localeCompare(left.period)).map((item) => (
+        <button type="button" className="secondary" aria-expanded={selected?.id === item.id} key={item.id} onClick={() => open(item.id)}>
+          <span><strong>{item.period}</strong><small>Paid {item.paymentDate}</small></span><span className="status-pill" data-status="paid">Issued</span><strong>AED {item.netPay}</strong>
         </button>
-      ))}
+      ))}</div>
       {status === 'ready' && items.length === 0 && <p>No payslips have been issued.</p>}
       {selected && (
         <article className="payslip-detail">

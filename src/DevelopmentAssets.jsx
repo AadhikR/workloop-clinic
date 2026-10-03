@@ -166,6 +166,7 @@ function DevelopmentWorkspace({ account, authentication, branchId }) {
   const [certificationForm, setCertificationForm] = useState(emptyCertification)
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
+  const [tab, setTab] = useState('training')
   const targetEmployee = employeeId.trim() || null
 
   const load = useCallback(async () => {
@@ -219,31 +220,35 @@ function DevelopmentWorkspace({ account, authentication, branchId }) {
 
   return <section aria-labelledby="development-title">
     <h3 id="development-title">Training, certifications, and CME</h3><Status message={message} />
+    {account.role === 'employee' && <><div className="employee-kpi-grid compact"><article className="employee-kpi-card"><span>Total training</span><strong>{training.length}</strong></article><article className="employee-kpi-card"><span>Completed</span><strong>{training.filter((item) => item.status === 'completed').length}</strong></article><article className="employee-kpi-card"><span>Certifications</span><strong>{certifications.length}</strong></article></div><div className="tabs" role="tablist" aria-label="Development records"><button type="button" role="tab" aria-selected={tab === 'training'} className={`tab-btn${tab === 'training' ? ' active' : ''}`} onClick={() => setTab('training')}>Training</button><button type="button" role="tab" aria-selected={tab === 'certifications'} className={`tab-btn${tab === 'certifications' ? ' active' : ''}`} onClick={() => setTab('certifications')}>Certifications</button></div></>}
     {account.role !== 'employee' && <label>{account.role === 'admin' ? 'Employee ID' : 'Direct report ID (leave blank for yourself)'}
       <input value={employeeId} onChange={(event) => setEmployeeId(event.target.value)} /></label>}
     {canCreate && <div className="records-benefits-grid">
-      <form className="expense-form" onSubmit={addTraining}>
+      {(account.role !== 'employee' || tab === 'training') && <form className="expense-form" onSubmit={addTraining}>
         <h4>{editingTraining === null ? 'Add planned training' : 'Edit planned training'}</h4>
         <label>Title<input required maxLength="180" value={trainingForm.trainingTitle} onChange={(event) => setTrainingForm({ ...trainingForm, trainingTitle: event.target.value })} /></label>
         <label>Type<input required maxLength="120" value={trainingForm.trainingType} onChange={(event) => setTrainingForm({ ...trainingForm, trainingType: event.target.value })} /></label>
         <label>Provider<input maxLength="180" value={trainingForm.provider} onChange={(event) => setTrainingForm({ ...trainingForm, provider: event.target.value })} /></label>
         <label>Start date<input type="date" value={trainingForm.startDate ?? ''} onChange={(event) => setTrainingForm({ ...trainingForm, startDate: event.target.value || null })} /></label>
         <label>End date<input type="date" value={trainingForm.endDate ?? ''} onChange={(event) => setTrainingForm({ ...trainingForm, endDate: event.target.value || null })} /></label>
+        <label>Duration hours<input inputMode="decimal" pattern="[0-9]+\.[0-9]{2}" value={trainingForm.durationHours ?? ''} onChange={(event) => setTrainingForm({ ...trainingForm, durationHours: event.target.value || null })} /></label>
+        <label>Notes<textarea maxLength="1000" value={trainingForm.notes} onChange={(event) => setTrainingForm({ ...trainingForm, notes: event.target.value })} /></label>
         {account.role === 'admin' && <label>Cost<input required pattern="[0-9]+\.[0-9]{2}" value={trainingForm.cost} onChange={(event) => setTrainingForm({ ...trainingForm, cost: event.target.value })} /></label>}
         <button type="submit" disabled={busy}>{editingTraining === null ? 'Add training' : 'Update training'}</button>
         {editingTraining !== null && <button type="button" disabled={busy} onClick={() => { setEditingTraining(null); setTrainingForm(emptyTraining) }}>Cancel edit</button>}
-      </form>
-      <form className="expense-form" onSubmit={addCertification}>
+      </form>}
+      {(account.role !== 'employee' || tab === 'certifications') && <form className="expense-form" onSubmit={addCertification}>
         <h4>Add certification</h4>
         <label>Name<input required maxLength="180" value={certificationForm.certificationName} onChange={(event) => setCertificationForm({ ...certificationForm, certificationName: event.target.value })} /></label>
         <label>Issuing body<input required maxLength="180" value={certificationForm.issuingBody} onChange={(event) => setCertificationForm({ ...certificationForm, issuingBody: event.target.value })} /></label>
         <label>Certificate number<input maxLength="120" value={certificationForm.certificateNo} onChange={(event) => setCertificationForm({ ...certificationForm, certificateNo: event.target.value })} /></label>
         <label>Issue date<input type="date" value={certificationForm.issuedDate ?? ''} onChange={(event) => setCertificationForm({ ...certificationForm, issuedDate: event.target.value || null })} /></label>
         <label>Expiry date<input type="date" value={certificationForm.expiryDate ?? ''} onChange={(event) => setCertificationForm({ ...certificationForm, expiryDate: event.target.value || null })} /></label>
+        <label>Notes<textarea maxLength="1000" value={certificationForm.notes} onChange={(event) => setCertificationForm({ ...certificationForm, notes: event.target.value })} /></label>
         <button type="submit" disabled={busy}>Add certification</button>
-      </form>
+      </form>}
     </div>}
-    <h4>Training records</h4>
+    {(account.role !== 'employee' || tab === 'training') && <><h4>Training records</h4>
     <table className="expense-table"><thead><tr><th>Training</th><th>Status</th><th>Hours</th><th>Evidence</th><th>Actions</th></tr></thead>
       <tbody>{training.map((record) => <tr key={record.id}><td>{record.trainingTitle}<small>{record.provider}</small></td>
         <td>{record.status.replaceAll('_', ' ')}</td><td>{record.durationHours ?? 'Not set'}</td>
@@ -259,8 +264,8 @@ function DevelopmentWorkspace({ account, authentication, branchId }) {
           }}>Edit</button>}
           {record.status !== 'completed' && account.role !== 'employee' && <button type="button" disabled={busy} onClick={() => run(() => completeTraining(authentication, account.role === 'admin' ? branchId : null, record, { endDate: new Date().toISOString().slice(0, 10), durationHours: record.durationHours ?? '1.00', score: '', passed: true, isCme: record.isCme }), 'Training completed.')}>Complete</button>}
           {record.status === 'planned' && <button type="button" className="danger" disabled={busy} onClick={() => run(() => deleteTraining(authentication, account.role === 'admin' ? branchId : null, record), 'Training removed.')}>Remove</button>}</td></tr>)}</tbody>
-    </table>
-    <h4>Certifications</h4>
+    </table></>}
+    {(account.role !== 'employee' || tab === 'certifications') && <><h4>Certifications</h4>
     <table className="expense-table"><thead><tr><th>Certification</th><th>Status</th><th>Expiry</th><th>Evidence</th><th>Actions</th></tr></thead>
       <tbody>{certifications.map((certification) => <tr key={certification.id}><td>{certification.certificationName}<small>{certification.issuingBody}</small></td>
         <td>{certification.status.replaceAll('_', ' ')}</td><td>{certification.expiryDate ?? 'None'}</td><td>{certification.hasEvidence ? certification.fileName : 'None'}</td>
@@ -273,7 +278,7 @@ function DevelopmentWorkspace({ account, authentication, branchId }) {
             }}>Reject</button></>}
           {certification.status !== 'verified' && <button type="button" className="danger" disabled={busy} onClick={() => run(() => deleteCertification(authentication, account.role === 'admin' ? branchId : null, certification), 'Certification removed.')}>Remove</button>}
         </td></tr>)}</tbody>
-    </table>
+    </table></>}
     {account.role === 'admin'
       ? targetEmployee && <CmeRequirement authentication={authentication} branchId={branchId} employeeId={targetEmployee} busy={busy} run={run} />
       : <CmeSummary authentication={authentication} />}
@@ -332,10 +337,10 @@ function CmeSummary({ authentication }) {
     <p>Target: {summary.targetHours} hours · Achieved: {summary.achievedHours} hours · Gap: {summary.gapHours} hours</p></section>
 }
 
-export default function DevelopmentAssets({ account, authentication, branchId }) {
+export default function DevelopmentAssets({ account, authentication, branchId, trainingOnly = false }) {
   return <section className="records-benefits" aria-labelledby="development-assets-title">
-    <h2 id="development-assets-title">Assets and professional development</h2>
-    <AssetWorkspace account={account} authentication={authentication} branchId={branchId} />
+    <h2 id="development-assets-title">{trainingOnly ? 'Training' : 'Assets and professional development'}</h2>
+    {!trainingOnly && <AssetWorkspace account={account} authentication={authentication} branchId={branchId} />}
     <DevelopmentWorkspace account={account} authentication={authentication} branchId={branchId} />
   </section>
 }
