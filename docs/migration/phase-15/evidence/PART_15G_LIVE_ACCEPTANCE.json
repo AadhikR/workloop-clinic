@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "phase": "15",
+  "part": "15G",
+  "status": "pending",
+  "releaseId": "phase-15g-94edc0c",
+  "reviewedCommit": "94edc0ca2d9e1a2073d4027d7bc50b985b23159b",
+  "provider": {
+    "defaultAddress": "https://workloop-clinic-dev-e9uk5.ondigitalocean.app",
+    "automaticDeployment": false,
+    "customDomains": [],
+    "previousDeploymentId": "c7d795db-5a93-422d-b122-0ff13b6055c3",
+    "promotedDeploymentId": null
+  },
+  "journeys": {
+    "syntheticOnly": true,
+    "administrator": "pending",
+    "manager": "pending",
+    "employee": "pending",
+    "routeGroups": 25,
+    "logout": "pending",
+    "expiry": "pending"
+  },
+  "fileFlows": [],
+  "denials": {
+    "backendAuthoritative": true,
+    "scopes": [],
+    "status": "pending"
+  },
+  "safeLogs": {
+    "status": "pending",
+    "protectedMatches": null,
+    "unexpectedSevereMarkers": null
+  },
+  "performance": {
+    "profile": {
+      "name": "phase15g-digitalocean-default-address-chromium",
+      "browser": "Chromium",
+      "network": "provider default address, unthrottled",
+      "cacheStates": ["cold", "warm"]
+    },
+    "budgets": {
+      "availabilityP95Ms": 1500,
+      "initialCompressedTransferBytes": 225000,
+      "laterRouteTransferBytes": 1024,
+      "routeChangeP95Ms": 500,
+      "interactionP95Ms": 750,
+      "representativeApiP95Ms": 750
+    },
+    "measurements": {}
+  },
+  "resilience": {
+    "restart": "pending",
+    "rollback": "pending",
+    "recovery": "pending",
+    "databaseState": "pending",
+    "keycloakSigningKeyIds": "pending",
+    "privateObjects": "pending",
+    "routeBehavior": "pending",
+    "authorizationBehavior": "pending",
+    "automaticSchemaDowngrade": false
+  },
+  "cleanup": {
+    "status": "pending",
+    "exactIdentifiers": true,
+    "identities": [],
+    "rows": [],
+    "objects": [],
+    "remaining": null
+  },
+  "resources": {
+    "newPaidResources": 0,
+    "monthToDateUsageUsd": 2.46,
+    "ownerCapUsd": 15,
+    "withinCap": true,
+    "preserved": [
+      "workloop-clinic-dev",
+      "fra1-default",
+      "Phase 13 external archive",
+      "workloop-clinic_postgres_data"
+    ]
+  }
+}

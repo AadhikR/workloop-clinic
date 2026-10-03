@@ -564,6 +564,9 @@ jobs:
           npm run verify:phase15f:browser
           npm run verify:phase15f:performance
           npm run verify:phase15f:acceptance
+          npm run verify:phase15g:visual
+          npm run verify:phase15g:visual-browser
+          npm run verify:phase15g:promotion -- --preflight
       - name: Verify cleanup and backend log safety
         run: |
           test "$(docker compose exec -T postgres psql --username postgres --dbname workloop --tuples-only --no-align --command 'SELECT count(*) FROM companies UNION ALL SELECT count(*) FROM branches UNION ALL SELECT count(*) FROM employees UNION ALL SELECT count(*) FROM app_users UNION ALL SELECT count(*) FROM user_profiles;' | sort -u)" = "0"

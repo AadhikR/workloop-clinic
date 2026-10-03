@@ -88,11 +88,16 @@ export default function NotificationBell({ account, authentication, branchId }) 
         ref={toggleButtonRef}
         type="button"
         className="notification-toggle secondary"
+        aria-label={`Notifications${unread > 0 ? ` (${unread > 99 ? '99+' : unread})` : ''}`}
         aria-expanded={open}
         aria-haspopup="dialog"
         onClick={showInbox}
       >
         Notifications{unread > 0 ? ` (${unread > 99 ? '99+' : unread})` : ''}
+        <svg aria-hidden="true" viewBox="0 0 24 24">
+          <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
+          <path d="M10 21h4" />
+        </svg>
       </button>
       {open && (
         <div className="notification-panel" role="dialog" aria-label="Notification inbox">

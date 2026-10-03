@@ -34,16 +34,18 @@ export default function Dashboard({ authentication, branchId, kind }) {
   const view = state.requestKey === requestKey ? state : { status: 'loading' }
 
   return (
-    <section className="dashboard" data-dashboard-kind={kind} data-dashboard-status={view.status}>
-      <h3>{titles[kind]}</h3>
+    <section className="dashboard card" data-dashboard-kind={kind} data-dashboard-status={view.status}>
+      <div className="card-header dashboard-heading">
+        <h3>{titles[kind]}</h3>
+        {view.status === 'ready' && <time dateTime={view.data.businessDate}>{view.data.businessDate}</time>}
+      </div>
       {view.status === 'loading' && <p>Loading dashboard...</p>}
       {view.status === 'unavailable' && <p role="alert">Dashboard data is unavailable.</p>}
       {view.status === 'ready' && (
-        <>
-          <p>Business date <time dateTime={view.data.businessDate}>{view.data.businessDate}</time></p>
-          <div className="dashboard-cards">
+        <div className="card-body">
+          <div className="dashboard-cards stats-grid">
             {view.data.cards.map((card) => (
-              <article key={card.code} data-card-code={card.code} data-severity={card.severity}>
+              <article className="stat-card" key={card.code} data-card-code={card.code} data-severity={card.severity}>
                 <h4>{card.label}</h4>
                 <p>{displayValue(card)}</p>
                 {card.comparison && (
@@ -53,7 +55,7 @@ export default function Dashboard({ authentication, branchId, kind }) {
               </article>
             ))}
           </div>
-        </>
+        </div>
       )}
     </section>
   )

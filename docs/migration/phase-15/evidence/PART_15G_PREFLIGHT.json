@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "phase": "15",
+  "part": "15G",
+  "status": "passed",
+  "checkedAt": "2026-10-02T20:39:04+04:00",
+  "repository": {
+    "branch": "migration/fastapi-keycloak",
+    "commit": "94edc0ca2d9e1a2073d4027d7bc50b985b23159b",
+    "workingTree": "clean",
+    "upstreamAhead": 0,
+    "upstreamBehind": 0,
+    "requiredRun": {
+      "id": "37034163039",
+      "status": "passed"
+    }
+  },
+  "provider": {
+    "name": "DigitalOcean",
+    "team": "My Team",
+    "project": {
+      "id": "634213f9-2e43-4aea-8f4e-22ddc3ecdac9",
+      "name": "workloop-clinic-dev",
+      "resources": {
+        "apps": 1,
+        "databaseClusters": 1,
+        "spacesBuckets": 1
+      }
+    },
+    "network": {
+      "id": "b8b6d17b-eae4-47de-b2b5-9d10baabdd2d",
+      "name": "fra1-default",
+      "region": "fra1",
+      "cidr": "10.114.0.0/20",
+      "resourceCount": 2,
+      "resourceTypes": ["app", "database"]
+    },
+    "application": {
+      "id": "02b3a86a-707f-4608-9e73-4c994bef7138",
+      "name": "workloop-clinic-dev",
+      "region": "fra",
+      "status": "healthy",
+      "defaultAddress": "https://workloop-clinic-dev-e9uk5.ondigitalocean.app",
+      "customDomains": [],
+      "automaticDeployment": false,
+      "currentDeploymentId": "c7d795db-5a93-422d-b122-0ff13b6055c3",
+      "currentSourceCommit": "ba12774e30539093d8f71d75cd010f64aa4ca777",
+      "components": [
+        {"name": "database-migrate", "kind": "pre-deploy-job", "instances": 1},
+        {"name": "api", "kind": "service", "instances": 1},
+        {"name": "keycloak", "kind": "service", "instances": 1},
+        {"name": "web", "kind": "static-site", "instances": 1},
+        {"name": "expiry", "kind": "manual-job", "instances": 1},
+        {"name": "file-scanner", "kind": "worker", "instances": 1},
+        {"name": "storage-reconciler", "kind": "worker", "instances": 1}
+      ]
+    },
+    "database": {
+      "id": "893eea11-0e67-4696-aca6-18e543c0b0e5",
+      "name": "workloop-clinic-dev-db",
+      "status": "online",
+      "region": "fra1",
+      "engine": "PostgreSQL 16",
+      "size": "1 GB RAM, 1 vCPU, 10 GiB disk",
+      "backup": {
+        "pointInTimeRestoreAvailable": true,
+        "retentionDays": 7,
+        "restoreCreatesNewCluster": true
+      }
+    },
+    "billing": {
+      "lastUpdatedAt": "2026-10-02T10:50:00+04:00",
+      "monthToDateUsageUsd": 2.46,
+      "ownerCapUsd": 15,
+      "availableUnderCapUsd": 12.54,
+      "reviewedRunForecastUsd": 14.28,
+      "forecastHeadroomUsd": 0.72,
+      "withinCap": true
+    }
+  },
+  "preservedResources": {
+    "workloop-clinic-dev": "observed",
+    "fra1-default": "observed",
+    "Phase 13 external archive": "outside Part 15G and unchanged",
+    "workloop-clinic_postgres_data": "present and not attached"
+  },
+  "decision": {
+    "promotionAllowed": true,
+    "reason": "The existing resource set, backup window, disabled auto-deploy setting, current usage, cap forecast, and preserved-resource checks passed. Part 15G will update only the reviewed application release."
+  }
+}

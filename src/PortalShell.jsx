@@ -51,6 +51,32 @@ function PortalLink({ children, className, current = false, navigator, path }) {
   )
 }
 
+function NavigationIcon({ name }) {
+  const paths = {
+    Attendance: <><circle cx="12" cy="12" r="8" /><path d="M12 7v5l3 2" /></>,
+    Development: <><path d="M4 19V9l8-4 8 4v10" /><path d="M8 19v-6h8v6" /></>,
+    Expenses: <><path d="M6 3h12v18H6z" /><path d="M9 8h6M9 12h6M9 16h3" /></>,
+    Leave: <><path d="M5 5h14v15H5z" /><path d="M8 3v4M16 3v4M5 9h14" /></>,
+    Organization: <><path d="M4 21V7h10v14M14 11h6v10" /><path d="M8 11h2M8 15h2M8 19h2M17 15h1M17 19h1" /></>,
+    Pay: <><rect x="4" y="5" width="16" height="14" rx="2" /><path d="M8 12h8M12 9v6" /></>,
+    Payroll: <><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M9 8h6M9 12h6M9 16h4" /></>,
+    People: <><circle cx="9" cy="8" r="3" /><circle cx="17" cy="9" r="2" /><path d="M3 20c0-4 2-6 6-6s6 2 6 6M15 15c3 0 5 2 5 5" /></>,
+    Profile: <><circle cx="12" cy="8" r="4" /><path d="M4 21c0-5 3-8 8-8s8 3 8 8" /></>,
+    Records: <><path d="M6 3h9l3 3v15H6z" /><path d="M15 3v4h4M9 12h6M9 16h6" /></>,
+    Reports: <><path d="M5 20V10M12 20V4M19 20v-7" /></>,
+    Requests: <><path d="M5 4h14v16H5z" /><path d="M8 8h8M8 12h8M8 16h5" /></>,
+    Roster: <><path d="M4 6h16v14H4z" /><path d="M8 3v6M16 3v6M4 10h16" /></>,
+    Team: <><circle cx="8" cy="8" r="3" /><circle cx="16" cy="8" r="3" /><path d="M2 20c0-4 2-6 6-6s6 2 6 6M10 20c0-4 2-6 6-6s6 2 6 6" /></>,
+    Time: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l4 2" /></>,
+  }
+  const isHome = name.endsWith('home')
+  return (
+    <svg aria-hidden="true" className="nav-icon" viewBox="0 0 24 24">
+      {isHome ? <><rect x="4" y="4" width="6" height="6" rx="1" /><rect x="14" y="4" width="6" height="6" rx="1" /><rect x="4" y="14" width="6" height="6" rx="1" /><rect x="14" y="14" width="6" height="6" rx="1" /></> : paths[name]}
+    </svg>
+  )
+}
+
 function RouteState({ action, detail, kind, title }) {
   const headingRef = useRef(null)
   useEffect(() => focusRouteHeading(headingRef.current), [kind, title])
@@ -129,69 +155,111 @@ function PortalHome({ account, authentication, navigator, route }) {
     ?? managerGroup?.description
     ?? 'Your common work items are ready. Role-specific sections will open as their portal routes are completed.'
   return (
-    <div className="portal" data-portal-role={account.role} data-route-state="ready">
-      <header className="portal-header">
-        <div>
-          <p className="eyebrow">Workloop Clinic</p>
-          <p className="organization-name">{organizationName}</p>
-          <p className="branch-name" data-selected-branch-name>{branch.name}</p>
-        </div>
-        <div className="header-actions">
-          <NotificationBell account={account} authentication={authentication} branchId={branch.id} />
-          {account.role === 'admin' && (
-            <button type="button" className="secondary" onClick={organization.clearBranch}>Change branch</button>
+    <div className="portal app-layout" data-portal-role={account.role} data-route-state="ready">
+      <aside className="sidebar">
+        <div className="sidebar-logo">
+          <div className="sidebar-brand-row">
+            <p className="sidebar-brand">Workloop</p>
+            <span aria-hidden="true" className="sidebar-mark">W</span>
+          </div>
+          {account.role === 'admin' ? (
+            <button
+              type="button"
+              className="sidebar-branch"
+              onClick={organization.clearBranch}
+              aria-label="Change branch"
+            >
+              <span aria-hidden="true" className="branch-symbol">▦</span>
+              <span data-selected-branch-name>{branch.name}</span>
+              <span aria-hidden="true" className="branch-chevron">⌄</span>
+            </button>
+          ) : (
+            <div className="sidebar-branch" aria-label={`Current branch: ${branch.name}`}>
+              <span aria-hidden="true" className="branch-symbol">▦</span>
+              <span data-selected-branch-name>{branch.name}</span>
+            </div>
           )}
-          <button type="button" className="secondary" onClick={() => authentication.logout()}>Sign out</button>
         </div>
-      </header>
-      <nav className="portal-navigation" aria-label="Primary">
-        {navigation.map((item) => (
-          <PortalLink
-            current={item.path === route.path}
-            key={item.path}
-            navigator={navigator}
-            path={item.path}
-          >
-            {item.title}
-          </PortalLink>
-        ))}
-      </nav>
-      <div className="page-heading">
-        <p className="current-page">Current page: {route.title}</p>
-        <h1 ref={headingRef} tabIndex="-1">{route.title}</h1>
-        <p>{description}</p>
+        <nav className="portal-navigation sidebar-nav" aria-label="Primary">
+          <p className="nav-section-label">Navigation</p>
+          {navigation.map((item) => (
+            <PortalLink
+              className="nav-item"
+              current={item.path === route.path}
+              key={item.path}
+              navigator={navigator}
+              path={item.path}
+            >
+              <NavigationIcon name={item.title} />
+              <span>{item.title}</span>
+            </PortalLink>
+          ))}
+        </nav>
+        <div className="sidebar-footer">
+          <div className="sidebar-user">
+            <span aria-hidden="true" className="user-avatar">{account.role.slice(0, 1).toUpperCase()}</span>
+            <span className="sidebar-user-copy">
+              <strong>{organizationName}</strong>
+              <small>{account.role === 'admin' ? 'HR Admin' : account.role === 'manager' ? 'Manager' : 'Employee'}</small>
+            </span>
+            <NotificationBell account={account} authentication={authentication} branchId={branch.id} />
+          </div>
+          <button type="button" className="sidebar-signout" onClick={() => authentication.logout()}>
+            <span aria-hidden="true">↪</span>
+            Sign out
+          </button>
+        </div>
+      </aside>
+      <div className="main-content">
+        <header className="page-header portal-header">
+          <div>
+            <h1 ref={headingRef} tabIndex="-1">{route.title}</h1>
+            <p className="route-description">{description}</p>
+          </div>
+          {account.role === 'admin' && (
+            <button type="button" className="btn btn-outline branch-action" onClick={organization.clearBranch}>Change branch</button>
+          )}
+        </header>
+        <div className="page-body">
+          {route.path === roleHome(account.role) && (
+            <section className="welcome-banner" aria-label="Welcome">
+              <h2>Workloop - UAE Payroll &amp; HRMS</h2>
+              <p>Welcome back to {organizationName}</p>
+            </section>
+          )}
+          {account.role === 'admin' && route.path !== '/admin' ? (
+            <AdministratorPortal
+              account={account}
+              authentication={authentication}
+              branchId={branch.id}
+              clearBranch={organization.clearBranch}
+              path={route.path}
+            />
+          ) : account.role === 'manager' && route.path !== '/manager' ? (
+            <ManagerPortal
+              account={account}
+              authentication={authentication}
+              branchId={branch.id}
+              path={route.path}
+            />
+          ) : account.role === 'employee' && route.path !== '/employee' ? (
+            <EmployeePortal
+              account={account}
+              authentication={authentication}
+              branchId={branch.id}
+              path={route.path}
+            />
+          ) : (
+            <div className="portal-columns">
+              <Dashboard authentication={authentication} branchId={branch.id} kind={dashboardKind} />
+              {account.role === 'admin' && (
+                <Dashboard authentication={authentication} branchId={branch.id} kind="clinical" />
+              )}
+              <Tasks account={account} authentication={authentication} branchId={branch.id} />
+            </div>
+          )}
+        </div>
       </div>
-      {account.role === 'admin' && route.path !== '/admin' ? (
-        <AdministratorPortal
-          account={account}
-          authentication={authentication}
-          branchId={branch.id}
-          clearBranch={organization.clearBranch}
-          path={route.path}
-        />
-      ) : account.role === 'manager' && route.path !== '/manager' ? (
-        <ManagerPortal
-          account={account}
-          authentication={authentication}
-          branchId={branch.id}
-          path={route.path}
-        />
-      ) : account.role === 'employee' && route.path !== '/employee' ? (
-        <EmployeePortal
-          account={account}
-          authentication={authentication}
-          branchId={branch.id}
-          path={route.path}
-        />
-      ) : (
-        <div className="portal-columns">
-          <Dashboard authentication={authentication} branchId={branch.id} kind={dashboardKind} />
-          {account.role === 'admin' && (
-            <Dashboard authentication={authentication} branchId={branch.id} kind="clinical" />
-          )}
-          <Tasks account={account} authentication={authentication} branchId={branch.id} />
-        </div>
-      )}
     </div>
   )
 }

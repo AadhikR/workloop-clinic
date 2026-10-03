@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "phase": "15",
+  "part": "15G",
+  "status": "passed",
+  "boundAt": "2026-10-02T20:37:48+04:00",
+  "releaseId": "phase-15g-94edc0c",
+  "reviewedCommit": "94edc0ca2d9e1a2073d4027d7bc50b985b23159b",
+  "requiredRun": {
+    "id": "37034163039",
+    "status": "passed"
+  },
+  "frontend": {
+    "sourceChangedSincePhase14": true,
+    "localBuild": {
+      "command": "npm run build",
+      "moduleCount": 99,
+      "sha256": "sha256:36f51b1ba86d38110b6ce0f52f3562e63100db3d6891caeb463a359ac800eca4",
+      "rootSha256": "sha256:b92d386901f74b691627558b1a67355c0d34fab018a3fee60cd6e76dfbde991e"
+    },
+    "providerBuild": {
+      "expectedSha256": "sha256:36f51b1ba86d38110b6ce0f52f3562e63100db3d6891caeb463a359ac800eca4",
+      "expectedRootSha256": "sha256:b92d386901f74b691627558b1a67355c0d34fab018a3fee60cd6e76dfbde991e",
+      "automaticDeployment": false,
+      "sourceBranch": "migration/fastapi-keycloak",
+      "sourceCommit": "94edc0ca2d9e1a2073d4027d7bc50b985b23159b"
+    },
+    "publicSettings": {
+      "VITE_API_BASE_URL": "https://workloop-clinic-dev-e9uk5.ondigitalocean.app",
+      "VITE_OIDC_AUDIENCE": "workloop-api",
+      "VITE_OIDC_AUTHORITY": "https://workloop-clinic-dev-e9uk5.ondigitalocean.app/auth/realms/workloop-dev",
+      "VITE_OIDC_CLIENT_ID": "workloop-migration-web",
+      "VITE_OIDC_POST_LOGOUT_REDIRECT_URI": "https://workloop-clinic-dev-e9uk5.ondigitalocean.app/",
+      "VITE_OIDC_REDIRECT_URI": "https://workloop-clinic-dev-e9uk5.ondigitalocean.app/oidc/callback",
+      "sha256": "sha256:21bde3fabc5161168c91f4184bf97ff124bf64edb25f536af05cfd51a0cd99f7"
+    }
+  },
+  "backendImage": {
+    "sourceChangedSincePhase14": false,
+    "repository": "workloop-backend",
+    "digest": "sha256:e2bc596879407af3dcefadd8d0957950f4aadf67713f8252d4c5523a4e8bf11c"
+  },
+  "keycloakImage": {
+    "sourceChangedSincePhase14": false,
+    "repository": "workloop-keycloak",
+    "digest": "sha256:1aa6bad0f5cfd750cad33d9a0bd1ec957ec234be29da562c68c00ee7a606014c"
+  },
+  "dependencyLocks": {
+    "frontend": "sha256:096efb5a89ac2dc5f1b279fddc83efc91c098ae9f601038c666951e3528a8d85",
+    "backend": "sha256:dc6d06fe3e77cbb4601888bbadea245cefd42e25dd1ab040266beb92bdea869f",
+    "backendDev": "sha256:5edae8ae0b1711578ece93424bd433d7e19eee87d19d9fb543c41f2b638d1780"
+  },
+  "terraform": {
+    "sourceChangedSincePhase14": false,
+    "sha256": "sha256:027c40a412d5eb778cc0652b7e19d4fc6a263602d22ac34f7ac5e70e9fe10efd"
+  },
+  "appSpec": {
+    "sourceChangedSincePhase14": false,
+    "sha256": "sha256:b25764d02d66f9452061376a12682a45d2a54e301ae9efe3671c49f6f871f63f"
+  },
+  "alembicHead": "e8a1c3f5b7d9",
+  "promotion": {
+    "manualOnly": true,
+    "automaticDeployment": false,
+    "defaultAddressOnly": true,
+    "allowed": true
+  }
+}
