@@ -17,7 +17,7 @@ export default function ManagerPortal({ account, authentication, branchId, path 
 
   const shared = { account, authentication, branchId }
   return (
-    <div className="manager-route" data-manager-route={path}>
+    <div className="portal-route manager-route" data-manager-route={path}>
       {path === '/manager/team' && <EmployeeDirectory {...shared} />}
       {path === '/manager/leave' && (
         <>

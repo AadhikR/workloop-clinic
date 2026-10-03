@@ -19,7 +19,7 @@ export default function EmployeePortal({ account, authentication, branchId, navi
 
   const shared = { account, authentication, branchId }
   return (
-    <div className="employee-route" data-employee-route={path}>
+    <div className="portal-route employee-route" data-employee-route={path}>
       {path === '/employee' && <EmployeeHome authentication={authentication} navigator={navigator} />}
       {path === '/employee/profile' && <EmployeeProfile authentication={authentication} onSignOut={() => authentication.logout()} />}
       {path === '/employee/leave' && <LeaveOverview {...shared} />}

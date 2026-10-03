@@ -36,7 +36,7 @@ export default function AdministratorPortal({
 
   const shared = { account, authentication, branchId }
   return (
-    <div className="administrator-route" data-administrator-route={path}>
+    <div className="portal-route administrator-route" data-administrator-route={path}>
       {path === '/admin/organization' && (
         <>
           <OrganizationSettings authentication={authentication} />
