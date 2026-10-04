@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import PortalDialog from './PortalDialog.jsx'
 
 import { HttpClientError } from './http.js'
 import {
@@ -47,6 +48,7 @@ function useLoad(load, dependencies) {
 }
 
 function EmployeeRows({ employees, onSelect }) {
+  if (onSelect) return <div className="table-wrap employee-directory-table"><table><thead><tr><th>Employee</th><th>Job title</th><th>Department</th><th>Status</th><th aria-label="Actions" /></tr></thead><tbody>{employees.map((employee) => <tr key={employee.id}><td><button type="button" className="employee-name-link" onClick={() => onSelect(employee.id)}>{employee.name}</button><small>{employee.empNo}</small></td><td>{employee.jobTitle || 'Not assigned'}</td><td>{employee.department || 'Not assigned'}</td><td><span className={`badge ${employee.active ? 'badge-green' : 'badge-gray'}`}>{employee.employmentStatus.replaceAll('_', ' ')}</span></td><td><button type="button" className="btn btn-ghost btn-sm" onClick={() => onSelect(employee.id)}>View</button></td></tr>)}</tbody></table></div>
   return (
     <ul className="employee-list">
       {employees.map((employee) => (
@@ -542,6 +544,7 @@ function EmployeeImportPanel({ authentication, branchId, onSaved }) {
 }
 
 function AdminDirectory({ authentication, branchId, clearBranch }) {
+  const [dialog, setDialog] = useState(null)
   const [search, setSearch] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [selectedId, setSelectedId] = useState(null)
@@ -575,6 +578,7 @@ function AdminDirectory({ authentication, branchId, clearBranch }) {
   )
 
   const saved = (employee) => {
+    setDialog(null)
     if (employee?.id) setSelectedId(employee.id)
     setRevision((value) => value + 1)
   }
@@ -589,21 +593,8 @@ function AdminDirectory({ authentication, branchId, clearBranch }) {
 
   return (
     <section className="employee-directory" aria-label="Employee directory">
-      <h3>Employee directory</h3>
-      <div className="actions">
-        <button type="button" onClick={async () => saveDownload(await downloadEmployees(authentication, branchId))}>Download employee CSV</button>
-        <button type="button" className="secondary" onClick={async () => saveDownload(await downloadEmployeeTemplate(authentication, branchId))}>Download import template</button>
-      </div>
-      {choices.status === 'ready' && (
-        <EmployeeCreateForm
-          authentication={authentication}
-          branchId={branchId}
-          departments={choices.data[0]}
-          managers={choices.data[1]}
-          onSaved={saved}
-        />
-      )}
-      <EmployeeImportPanel authentication={authentication} branchId={branchId} onSaved={saved} />
+      <div className="employee-module-toolbar"><div><h3>Employee directory</h3><p>Manage employee records, pay details, and employment changes.</p></div><div className="actions"><button type="button" className="btn btn-outline" onClick={async () => saveDownload(await downloadEmployees(authentication, branchId))}>Export CSV</button><button type="button" className="btn btn-outline" onClick={() => setDialog('import')}>Import employees</button><button type="button" className="btn btn-primary" disabled={choices.status !== 'ready'} onClick={() => setDialog('create')}>Add Employee</button></div></div>
+      {dialog && <PortalDialog labelledBy="employee-dialog-title" onClose={() => setDialog(null)}><div className="modal-header"><h3 id="employee-dialog-title">{dialog === 'create' ? 'Add Employee' : 'Import employees'}</h3><button type="button" className="btn btn-ghost btn-icon" aria-label="Close employee form" onClick={() => setDialog(null)}>×</button></div><div className="modal-body">{dialog === 'create' && choices.status === 'ready' ? <EmployeeCreateForm authentication={authentication} branchId={branchId} departments={choices.data[0]} managers={choices.data[1]} onSaved={saved} /> : <><p><button type="button" className="btn btn-outline btn-sm" onClick={async () => saveDownload(await downloadEmployeeTemplate(authentication, branchId))}>Download import template</button></p><EmployeeImportPanel authentication={authentication} branchId={branchId} onSaved={saved} /></>}</div></PortalDialog>}
       <form onSubmit={(event) => { event.preventDefault(); setAppliedSearch(search.trim()) }}>
         <label htmlFor="employee-search">Search employees</label>
         <div className="employee-search-row">

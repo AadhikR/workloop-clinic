@@ -16,6 +16,7 @@ import LeaveApprovals from './LeaveApprovals.jsx'
 import LeaveConfiguration from './LeaveConfiguration.jsx'
 import LeaveOverview from './LeaveOverview.jsx'
 import LetterRequests from './LetterRequests.jsx'
+import ModuleWorkspace from './ModuleWorkspace.jsx'
 import Offboarding from './Offboarding.jsx'
 import OrganizationSettings from './OrganizationSettings.jsx'
 import Payroll from './Payroll.jsx'
@@ -67,11 +68,11 @@ export default function AdministratorPortal({
         <OrganizationSettings authentication={authentication} />
       )}
       {path === '/admin/employees' && (
-        <>
-          <EmployeeDirectory {...shared} clearBranch={clearBranch} />
-          <RecordsBenefits {...shared} />
-          <Offboarding {...shared} />
-        </>
+        <ModuleWorkspace label="Employee views" views={[
+          { id: 'directory', label: 'Employees', content: <EmployeeDirectory {...shared} clearBranch={clearBranch} /> },
+          { id: 'records', label: 'Documents & Benefits', content: <RecordsBenefits {...shared} /> },
+          { id: 'offboarding', label: 'Offboarding', content: <Offboarding {...shared} /> },
+        ]} />
       )}
       {path === '/admin/departments' && (
         <DepartmentManager authentication={authentication} branchId={branchId} clearBranch={clearBranch} />
@@ -81,26 +82,26 @@ export default function AdministratorPortal({
         <EmployeeDirectory {...shared} clearBranch={clearBranch} />
       )}
       {path === '/admin/leave' && (
-        <>
-          <LeaveConfiguration authentication={authentication} branchId={branchId} />
-          <LeaveOverview {...shared} />
-          <LeaveApprovals {...shared} />
-        </>
+        <ModuleWorkspace label="Leave module views" views={[
+          { id: 'overview', label: 'Overview', content: <LeaveOverview {...shared} /> },
+          { id: 'approvals', label: 'Approvals', content: <LeaveApprovals {...shared} /> },
+          { id: 'settings', label: 'Settings', content: <LeaveConfiguration authentication={authentication} branchId={branchId} /> },
+        ]} />
       )}
       {path === '/admin/attendance' && (
-        <>
-          <AttendanceConfiguration authentication={authentication} branchId={branchId} />
-          <AttendanceIngestion authentication={authentication} branchId={branchId} />
-          <AttendanceCalculation authentication={authentication} branchId={branchId} />
-          <AttendanceExceptions authentication={authentication} branchId={branchId} />
-          <AttendancePeriods authentication={authentication} branchId={branchId} />
-        </>
+        <ModuleWorkspace label="Attendance module views" views={[
+          { id: 'records', label: 'Records', content: <AttendanceCalculation authentication={authentication} branchId={branchId} /> },
+          { id: 'entry', label: 'Manual Entry', content: <AttendanceIngestion authentication={authentication} branchId={branchId} /> },
+          { id: 'corrections', label: 'Corrections & Absences', content: <AttendanceExceptions authentication={authentication} branchId={branchId} /> },
+          { id: 'periods', label: 'Periods', content: <AttendancePeriods authentication={authentication} branchId={branchId} /> },
+          { id: 'settings', label: 'Settings', content: <AttendanceConfiguration authentication={authentication} branchId={branchId} /> },
+        ]} />
       )}
       {path === '/admin/roster' && (
-        <>
-          <RosterDrafts authentication={authentication} branchId={branchId} />
-          <ShiftSwapQueue {...shared} />
-        </>
+        <ModuleWorkspace label="Roster module views" views={[
+          { id: 'roster', label: 'Roster', content: <RosterDrafts authentication={authentication} branchId={branchId} /> },
+          { id: 'swaps', label: 'Shift Swaps', content: <ShiftSwapQueue {...shared} /> },
+        ]} />
       )}
       {path === '/admin/payroll' && (
         <PayrollWorkspace shared={shared} />

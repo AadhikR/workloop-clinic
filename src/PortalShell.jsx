@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import './portal-ui.css'
 
 import AdministratorPortal from './AdministratorPortal.jsx'
 import BranchChooser from './BranchChooser.jsx'
@@ -214,7 +215,7 @@ function PortalHome({ account, authentication, navigator, route }) {
     () => focusRouteHeading(headingRef.current),
     [organization.status, route.path],
   )
-  useLayoutEffect(measureNavigationPill, [measureNavigationPill, navigation.length, route.path, sidebarCollapsed])
+  useLayoutEffect(measureNavigationPill, [measureNavigationPill, navigation.length, organization.status, route.path, sidebarCollapsed])
   useEffect(() => {
     const timer = window.setTimeout(measureNavigationPill, 300)
     window.addEventListener('resize', measureNavigationPill)
@@ -222,7 +223,7 @@ function PortalHome({ account, authentication, navigator, route }) {
       window.clearTimeout(timer)
       window.removeEventListener('resize', measureNavigationPill)
     }
-  }, [measureNavigationPill, navigation.length, route.path, sidebarCollapsed])
+  }, [measureNavigationPill, navigation.length, organization.status, route.path, sidebarCollapsed])
 
   if (organization.status === 'loading') {
     return <RouteState detail="Loading your company and branch context." kind="loading" title="Loading workspace" />

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import PortalDialog from './PortalDialog.jsx'
 
 import {
   initializeLeaveBalances,
@@ -29,7 +30,7 @@ function currentYear() {
   return new Date().getUTCFullYear()
 }
 
-function BalanceTable({ balances }) {
+function BalanceTable({ balances, employees, leaveTypes }) {
   if (balances.length === 0) return <p>No balances exist for this leave year.</p>
   return (
     <div className="table-wrap">
@@ -49,8 +50,8 @@ function BalanceTable({ balances }) {
         <tbody>
           {balances.map((balance) => (
             <tr key={`${balance.employeeId}:${balance.leaveTypeId}:${balance.leaveYear}`}>
-              <td>{balance.employeeId}</td>
-              <td>{balance.leaveTypeId}</td>
+              <td>{employees.find((employee) => employee.id === balance.employeeId)?.name ?? 'Employee unavailable'}</td>
+              <td>{leaveTypes.find((type) => type.id === balance.leaveTypeId)?.name ?? 'Leave type unavailable'}</td>
               <td>{balance.entitledDays}</td>
               <td>{balance.accruedDays}</td>
               <td>{balance.usedDays}</td>
@@ -65,13 +66,13 @@ function BalanceTable({ balances }) {
   )
 }
 
-function EmployeeBalanceCards({ balances }) {
+function EmployeeBalanceCards({ balances, leaveTypes }) {
   if (balances.length === 0) return <div className="empty-state"><h3>No balances</h3><p>No leave balances exist for this year.</p></div>
   return <div className="leave-balance-grid">{balances.map((balance) => {
     const allowance = Number(balance.entitledDays) + Number(balance.carriedForward)
     const used = Number(balance.usedDays) + Number(balance.pendingDays)
     const percent = allowance > 0 ? Math.min(100, Math.round((used / allowance) * 100)) : 0
-    return <article className="leave-balance-card" key={`${balance.employeeId}:${balance.leaveTypeId}:${balance.leaveYear}`}><h3>{balance.leaveTypeId}</h3><div className="leave-balance-value"><strong>{balance.remainingDays}</strong><span>days remaining</span></div><dl><div><dt>Allowance</dt><dd>{balance.entitledDays}</dd></div><div><dt>Used</dt><dd>{balance.usedDays}</dd></div><div><dt>Pending</dt><dd>{balance.pendingDays}</dd></div></dl><div className="progress-track" aria-label={`${percent}% of leave used`}><span style={{ width: `${percent}%` }} /></div></article>
+    return <article className="leave-balance-card" key={`${balance.employeeId}:${balance.leaveTypeId}:${balance.leaveYear}`}><h3>{leaveTypes.find((type) => type.id === balance.leaveTypeId)?.name ?? 'Leave type unavailable'}</h3><div className="leave-balance-value"><strong>{balance.remainingDays}</strong><span>days remaining</span></div><dl><div><dt>Allowance</dt><dd>{balance.entitledDays}</dd></div><div><dt>Used</dt><dd>{balance.usedDays}</dd></div><div><dt>Pending</dt><dd>{balance.pendingDays}</dd></div></dl><div className="progress-track" aria-label={`${percent}% of leave used`}><span style={{ width: `${percent}%` }} /></div></article>
   })}</div>
 }
 
@@ -439,7 +440,7 @@ function LeaveRequestForm({ admin, authentication, branchId, employees, leaveTyp
 }
 
 function RequestTable({
-  admin, requests, onCancel, onDownload, onUpload, uploadState, cancellingId,
+  admin, requests, employees, onCancel, onDownload, onUpload, uploadState, cancellingId,
 }) {
   const today = new Date().toISOString().slice(0, 10)
   if (requests.length === 0) return <p>No leave requests overlap this leave year.</p>
@@ -460,7 +461,7 @@ function RequestTable({
         <tbody>
           {requests.map((request) => (
             <tr key={request.id}>
-              {admin && <td data-label="Employee">{request.employeeId}</td>}
+              {admin && <td data-label="Employee">{employees.find((employee) => employee.id === request.employeeId)?.name ?? 'Employee unavailable'}</td>}
               <td className="leave-request-dates" data-label="Dates"><span className="leave-request-date-range"><time dateTime={request.startDate}>{request.startDate}</time><span className="leave-request-date-separator">to</span><time dateTime={request.endDate}>{request.endDate}</time></span></td>
               <td data-label="Days">{request.daysRequested}</td>
               <td data-label="Status"><span className="status-pill" data-status={request.status.toLowerCase()}>{request.status}</span>{request.rejectionReason && <small>{request.rejectionReason}</small>}</td>
@@ -514,6 +515,7 @@ export default function LeaveOverview({ account, authentication, branchId }) {
   const [referenceData, setReferenceData] = useState({ leaveTypes: [], employees: [] })
   const [cancellingId, setCancellingId] = useState(null)
   const [tab, setTab] = useState('requests')
+  const [showRequest, setShowRequest] = useState(false)
   const [calendarMonth, setCalendarMonth] = useState(() => new Date().toISOString().slice(0, 7))
   const admin = account.role === 'admin'
 
@@ -659,6 +661,7 @@ export default function LeaveOverview({ account, authentication, branchId }) {
             onChange={(event) => setYear(Number(event.target.value))}
           />
         </label>
+        <button type="button" className="btn btn-primary" disabled={state.status !== 'ready'} onClick={() => setShowRequest(true)}>Request Leave</button>
       </header>
       {admin && (
         <div className="actions module-actions">
@@ -676,16 +679,16 @@ export default function LeaveOverview({ account, authentication, branchId }) {
       {state.status === 'error' && <p className="feedback danger">Try refreshing after the leave service is available.</p>}
       {state.status === 'ready' && (
         <>
-          {!admin && <div className="tabs" role="tablist" aria-label="Leave views">{[['requests', 'Requests'], ['balances', 'Balances'], ['calendar', 'Calendar']].map(([id, label]) => <button type="button" role="tab" aria-selected={tab === id} className={`tab-btn${tab === id ? ' active' : ''}`} key={id} onClick={() => setTab(id)}>{label}</button>)}</div>}
-          {(admin || tab === 'requests') && <div className="leave-tab-panel" role={admin ? undefined : 'tabpanel'}>
-            <LeaveRequestForm
+          <div className="tabs" role="tablist" aria-label="Leave views">{[['requests', 'Requests'], ['balances', 'Balances'], ['calendar', 'Calendar']].map(([id, label]) => <button type="button" role="tab" aria-selected={tab === id} className={`tab-btn${tab === id ? ' active' : ''}`} key={id} onClick={() => setTab(id)}>{label}</button>)}</div>
+          {showRequest && <PortalDialog labelledBy="leave-request-dialog-title" onClose={() => setShowRequest(false)}><div className="modal-header"><h3 id="leave-request-dialog-title">Request Leave</h3><button type="button" className="btn btn-ghost btn-icon" aria-label="Close leave request" onClick={() => setShowRequest(false)}>×</button></div><div className="modal-body"><LeaveRequestForm
               admin={admin}
               authentication={authentication}
               branchId={branchId}
               employees={referenceData.employees}
               leaveTypes={referenceData.leaveTypes}
-              onSubmitted={refresh}
-            />
+              onSubmitted={async () => { await refresh(); setShowRequest(false) }}
+            /></div></PortalDialog>}
+          {tab === 'requests' && <div className="leave-tab-panel" role="tabpanel">
             <section className="employee-panel leave-history-panel" aria-labelledby="leave-history-title">
               <div className="panel-heading">
                 <div>
@@ -696,6 +699,7 @@ export default function LeaveOverview({ account, authentication, branchId }) {
               <RequestTable
                 admin={admin}
                 requests={state.requests}
+                employees={referenceData.employees}
                 onCancel={cancel}
                 onDownload={download}
                 onUpload={upload}
@@ -704,8 +708,8 @@ export default function LeaveOverview({ account, authentication, branchId }) {
               />
             </section>
           </div>}
-          {(admin || tab === 'balances') && <section className="employee-panel leave-tab-panel" role={admin ? undefined : 'tabpanel'}><div className="panel-heading"><h3>Balances</h3></div>{admin ? <BalanceTable balances={state.balances} /> : <EmployeeBalanceCards balances={state.balances} />}</section>}
-          {(admin || tab === 'calendar') && <section className="employee-panel leave-tab-panel leave-calendar-panel" role={admin ? undefined : 'tabpanel'}><div className="panel-heading"><h3>Request calendar</h3></div><LeaveCalendar month={calendarMonth} onMonthChange={setCalendarMonth} requests={state.requests} /></section>}
+          {tab === 'balances' && <section className="employee-panel leave-tab-panel" role="tabpanel"><div className="panel-heading"><h3>Balances</h3></div>{admin ? <BalanceTable balances={state.balances} employees={referenceData.employees} leaveTypes={referenceData.leaveTypes} /> : <EmployeeBalanceCards balances={state.balances} leaveTypes={referenceData.leaveTypes} />}</section>}
+          {tab === 'calendar' && <section className="employee-panel leave-tab-panel leave-calendar-panel" role="tabpanel"><div className="panel-heading"><h3>Request calendar</h3></div><LeaveCalendar month={calendarMonth} onMonthChange={setCalendarMonth} requests={state.requests} /></section>}
         </>
       )}
     </section>

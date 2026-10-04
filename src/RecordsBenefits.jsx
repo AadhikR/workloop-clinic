@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
+import EmployeePicker from './EmployeePicker.jsx'
+import ModuleWorkspace from './ModuleWorkspace.jsx'
 
 import { readEmployee } from './employeeApi.js'
 
@@ -297,10 +299,11 @@ function ContractHistory({ authentication, branchId, employeeId }) {
 export default function RecordsBenefits({ account, authentication, branchId, documentsOnly = false }) {
   const [employeeId, setEmployeeId] = useState('')
   return <section aria-labelledby="records-benefits-title"><h2 id="records-benefits-title">{documentsOnly ? 'Documents' : 'Records and benefits'}</h2>
-    {account.role === 'admin' && <label>Employee ID<input value={employeeId} onChange={(event) => setEmployeeId(event.target.value.trim())} placeholder="UUID" /></label>}
-    <EmployeeDocuments account={account} authentication={authentication} branchId={branchId} employeeId={employeeId} />
-    {!documentsOnly && (account.role === 'admin'
-      ? <><AdminInsurance authentication={authentication} branchId={branchId} employeeId={employeeId} /><ContractHistory authentication={authentication} branchId={branchId} employeeId={employeeId} /></>
-      : <SelfInsurance authentication={authentication} />)}
+    {account.role === 'admin' && <EmployeePicker authentication={authentication} branchId={branchId} value={employeeId} onChange={setEmployeeId} />}
+    {documentsOnly ? <EmployeeDocuments account={account} authentication={authentication} branchId={branchId} employeeId={employeeId} /> : <ModuleWorkspace label="Record views" views={[
+      { id: 'documents', label: 'Documents', content: <EmployeeDocuments account={account} authentication={authentication} branchId={branchId} employeeId={employeeId} /> },
+      { id: 'insurance', label: 'Insurance', content: account.role === 'admin' ? <AdminInsurance authentication={authentication} branchId={branchId} employeeId={employeeId} /> : <SelfInsurance authentication={authentication} /> },
+      ...(account.role === 'admin' ? [{ id: 'contracts', label: 'Contracts', content: <ContractHistory authentication={authentication} branchId={branchId} employeeId={employeeId} /> }] : []),
+    ]} />}
   </section>
 }

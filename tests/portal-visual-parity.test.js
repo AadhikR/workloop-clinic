@@ -65,7 +65,7 @@ test('restores the historical payroll workspace against FastAPI actions', async 
   assert.match(payroll, /submitPayrollRun/)
   assert.match(payroll, /generatePayrollRun/)
   assert.match(payroll, /className="payroll-table table-wrap"/)
-  assert.match(payroll, /className="modal-overlay"/)
+  assert.match(payroll, /PortalDialog/)
 })
 
 test('keeps advances and expenses as separate role-specific modules', async () => {

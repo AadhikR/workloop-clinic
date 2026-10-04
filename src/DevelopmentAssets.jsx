@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import EmployeePicker from './EmployeePicker.jsx'
 
 import {
   assignAsset,
@@ -221,8 +222,7 @@ function DevelopmentWorkspace({ account, authentication, branchId }) {
   return <section aria-labelledby="development-title">
     <h3 id="development-title">Training, certifications, and CME</h3><Status message={message} />
     {account.role === 'employee' && <><div className="employee-kpi-grid compact"><article className="employee-kpi-card"><span>Total training</span><strong>{training.length}</strong></article><article className="employee-kpi-card"><span>Completed</span><strong>{training.filter((item) => item.status === 'completed').length}</strong></article><article className="employee-kpi-card"><span>Certifications</span><strong>{certifications.length}</strong></article></div><div className="tabs" role="tablist" aria-label="Development records"><button type="button" role="tab" aria-selected={tab === 'training'} className={`tab-btn${tab === 'training' ? ' active' : ''}`} onClick={() => setTab('training')}>Training</button><button type="button" role="tab" aria-selected={tab === 'certifications'} className={`tab-btn${tab === 'certifications' ? ' active' : ''}`} onClick={() => setTab('certifications')}>Certifications</button></div></>}
-    {account.role !== 'employee' && <label>{account.role === 'admin' ? 'Employee ID' : 'Direct report ID (leave blank for yourself)'}
-      <input value={employeeId} onChange={(event) => setEmployeeId(event.target.value)} /></label>}
+    {account.role !== 'employee' && <EmployeePicker authentication={authentication} branchId={branchId} role={account.role} value={employeeId} onChange={setEmployeeId} label={account.role === 'admin' ? 'Employee' : 'Training for'} emptyLabel={account.role === 'admin' ? 'Choose employee' : 'My training'} />}
     {canCreate && <div className="records-benefits-grid">
       {(account.role !== 'employee' || tab === 'training') && <form className="expense-form" onSubmit={addTraining}>
         <h4>{editingTraining === null ? 'Add planned training' : 'Edit planned training'}</h4>

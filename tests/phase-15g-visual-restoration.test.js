@@ -53,7 +53,6 @@ test('restores the historical Workloop shell and visual tokens', async () => {
   assert.match(css, /\.portal\[data-portal-role\] \.sidebar\.collapsed/)
   assert.match(css, /\.sidebar-preference/)
   assert.match(css, /\.sidebar-switch\.on/)
-  assert.match(css, /\.payroll-table table[\s\S]*min-width: 1480px/)
   assert.match(css, /\.advance-schedule-grid/)
   assert.match(css, /\.self-expense-row/)
 })

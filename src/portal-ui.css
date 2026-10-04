@@ -1,0 +1,160 @@
+.portal[data-portal-role] {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Segoe UI', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.portal[data-portal-role] :is(button, input, select, textarea) { font-family: inherit; }
+.portal[data-portal-role] :is(h2, h3, h4, p) { margin-top: 0; }
+.portal[data-portal-role] .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; }
+.portal[data-portal-role] .stat-card { padding: 20px; border-radius: 16px; box-shadow: var(--shadow); }
+.portal[data-portal-role] .stat-label { font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--gray-500); }
+.portal[data-portal-role] .stat-value { margin-top: 6px; font-size: 28px; font-weight: 700; letter-spacing: -.5px; line-height: 1.5; color: var(--gray-900); font-variant-numeric: tabular-nums; }
+.portal[data-portal-role] .stat-sub { margin-top: 2px; font-size: 12px; color: var(--gray-500); }
+.portal[data-portal-role] .payroll-grand-total .stat-value { color: var(--primary); }
+
+.portal[data-portal-role] .form-grid { display: grid; gap: 18px; }
+.portal[data-portal-role] .form-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.portal[data-portal-role] .form-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.portal[data-portal-role] .form-grid > * { min-width: 0; }
+.portal[data-portal-role] .form-group { display: flex; flex-direction: column; gap: 6px; }
+.portal[data-portal-role] .form-group label { font-size: 13px; font-weight: 500; color: var(--gray-700); }
+.portal[data-portal-role] .hint { font-size: 11.5px; color: var(--gray-500); }
+.portal[data-portal-role] :is(.form-control, .form-group input, .form-group select, .form-group textarea) {
+  width: 100%; min-height: 40px; padding: 9px 13px; border: 1px solid rgba(100,116,139,.2);
+  border-radius: 12px; font-size: 13.5px; color: var(--gray-900); background: var(--gray-50);
+}
+.portal[data-portal-role] .form-group textarea { min-height: 96px; resize: vertical; }
+.portal[data-portal-role] :is(input, select, textarea):focus-visible { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); }
+.portal[data-portal-role] input[type='checkbox'] { accent-color: var(--primary); }
+
+.portal[data-portal-role] .badge {
+  display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 980px;
+  font-size: 11px; font-weight: 600; letter-spacing: .01em; white-space: nowrap;
+}
+.portal[data-portal-role] .badge-blue { background: rgba(37,99,235,.12); color: #1d4ed8; border: 1px solid rgba(37,99,235,.18); }
+.portal[data-portal-role] .badge-green { background: rgba(22,163,74,.11); color: #15803d; border: 1px solid rgba(22,163,74,.18); }
+.portal[data-portal-role] .badge-red { background: rgba(220,38,38,.1); color: #b91c1c; border: 1px solid rgba(220,38,38,.18); }
+.portal[data-portal-role] :is(.badge-yellow, .badge-amber) { background: rgba(217,119,6,.1); color: #b45309; border: 1px solid rgba(217,119,6,.18); }
+.portal[data-portal-role] .badge-gray { background: rgba(100,116,139,.1); color: var(--gray-600); border: 1px solid rgba(100,116,139,.16); }
+.portal[data-portal-role] .badge-cyan { background: rgba(6,182,212,.12); color: #0e7490; border: 1px solid rgba(6,182,212,.22); }
+
+.portal[data-portal-role] .alert { display: flex; align-items: flex-start; gap: 10px; padding: 13px 17px; border-radius: 12px; font-size: 13.5px; }
+.portal[data-portal-role] .alert-info { background: rgba(37,99,235,.09); color: #1d4ed8; border: 1px solid rgba(37,99,235,.18); }
+.portal[data-portal-role] .alert-success { background: rgba(22,163,74,.09); color: #15803d; border: 1px solid rgba(22,163,74,.18); }
+.portal[data-portal-role] .alert-warning { background: rgba(217,119,6,.09); color: #92400e; border: 1px solid rgba(217,119,6,.22); }
+.portal[data-portal-role] .alert-danger { background: rgba(220,38,38,.09); color: #991b1b; border: 1px solid rgba(220,38,38,.18); }
+
+.portal[data-portal-role] .btn { min-height: 36px; padding: 8px 16px; border-radius: 12px; font-size: 13.5px; font-weight: 500; cursor: pointer; }
+.portal[data-portal-role] .btn-primary { border-color: transparent; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; box-shadow: 0 2px 12px rgba(37,99,235,.32); }
+.portal[data-portal-role] .btn-success { border-color: transparent; background: linear-gradient(135deg, #16a34a, #15803d); color: #fff; box-shadow: 0 2px 12px rgba(22,163,74,.26); }
+.portal[data-portal-role] .btn-danger { border-color: transparent; background: linear-gradient(135deg, #dc2626, #b91c1c); color: #fff; box-shadow: 0 2px 12px rgba(220,38,38,.26); }
+.portal[data-portal-role] .btn-outline { border-color: rgba(100,116,139,.2); background: var(--gray-100); color: var(--gray-700); box-shadow: var(--shadow-xs); }
+.portal[data-portal-role] .btn-ghost { border-color: transparent; background: transparent; color: var(--gray-600); box-shadow: none; }
+.portal[data-portal-role] .btn-ghost:hover:not(:disabled) { background: rgba(15,23,42,.05); color: var(--gray-900); box-shadow: none; }
+.portal[data-portal-role] .btn-sm { min-height: 30px; padding: 5px 12px; font-size: 12px; border-radius: 9px; }
+.portal[data-portal-role] .btn-icon { padding: 7px; border-radius: 10px; }
+.portal[data-portal-role] button:disabled { opacity: .45; cursor: not-allowed; }
+.portal[data-portal-role] button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.portal[data-portal-role] .btn:hover:not(:disabled) { transform: translateY(-1px); }
+
+.portal[data-portal-role] .card > .card-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 0; padding: 18px 22px; }
+.portal[data-portal-role] .card-header h3 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -.2px; }
+.portal[data-portal-role] .card-body { padding: 22px; }
+.portal[data-portal-role] .empty-state { border: 0; padding: 56px 24px; background: transparent; }
+.portal[data-portal-role] .empty-state h3 { margin-bottom: 6px; font-size: 16px; }
+.portal[data-portal-role] .empty-state p { margin: 0; font-size: 13.5px; color: var(--gray-500); }
+.portal[data-portal-role] .module-subnav { margin: 0; min-height: 0; }
+.portal[data-portal-role] .financial-workspace { gap: 16px; }
+.portal[data-portal-role] .module-workspace { display: grid; min-width: 0; gap: 16px; }
+.portal[data-portal-role] .module-view-tabs { margin: 0; }
+.portal[data-portal-role] [hidden] { display: none !important; }
+.portal[data-portal-role] .employee-name-link { min-height: 0; padding: 0; border: 0; background: none; box-shadow: none; color: var(--gray-900); font-weight: 600; text-align: left; }
+.portal[data-portal-role] .employee-name-link:hover:not(:disabled) { background: none; box-shadow: none; color: var(--primary); }
+.portal[data-portal-role] .employee-directory-table small { display: block; font-size: 11px; color: var(--gray-500); margin-top: 3px; }
+.portal[data-portal-role] .modal .employee-admin-form { margin: 0; padding: 0; border: 0; background: transparent; }
+.portal[data-portal-role] .modal .employee-import { margin: 0; }
+.portal[data-portal-role] .modal .leave-request-form { margin: 0; padding: 0; border: 0; background: transparent; }
+.portal[data-portal-role] .employee-picker { display: grid; gap: 6px; max-width: 420px; margin: 16px 0; color: var(--gray-700); font-size: 13px; }
+
+.portal[data-portal-role] .payroll { display: block; min-width: 0; margin: 0; padding: 0; border: 0; background: transparent; box-shadow: none; }
+.portal[data-portal-role] .payroll-detail-toolbar { flex-wrap: wrap; padding: 10px 22px; }
+.portal[data-portal-role] .payroll-detail-heading { flex-wrap: wrap; }
+.portal[data-portal-role] .payroll-actions { display: flex; flex-direction: row; flex-wrap: wrap; gap: 8px; }
+.portal[data-portal-role] .payroll-meta-grid { padding: 22px; }
+.portal[data-portal-role] .payroll-summary-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.portal[data-portal-role] .payroll-save-state { display: inline-flex; padding: 4px 10px; border: 1px solid rgba(22,163,74,.18); border-radius: 980px; background: var(--success-light); color: #15803d; font-size: 11.5px; white-space: nowrap; }
+.portal[data-portal-role] .payroll-save-state.unsaved { color: #b45309; border-color: rgba(217,119,6,.2); background: var(--warning-light); }
+.portal[data-portal-role] .payroll-validation-summary { margin: 0 0 16px; align-items: center; flex-wrap: wrap; }
+.portal[data-portal-role] .payroll-validation-summary > div { flex: 1; min-width: 180px; }
+.portal[data-portal-role] .payroll-validation-summary p { margin: 3px 0 0; font-size: 12px; }
+.portal[data-portal-role] .payroll-entries-header { flex-wrap: wrap; }
+.portal[data-portal-role] .payroll-entries-toolbar { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.portal[data-portal-role] .payroll-entry-search { width: 200px; }
+.portal[data-portal-role] .payroll-entry-search input { min-height: 32px; padding: 6px 9px; border-radius: 9px; font-size: 12px; }
+.portal[data-portal-role] .payroll-status-filter { width: auto; min-height: 32px; padding: 5px 9px; border-radius: 9px; font-size: 12px; }
+.portal[data-portal-role] .payroll-table table { min-width: 1180px; table-layout: fixed; width: 100%; font-variant-numeric: tabular-nums; }
+.portal[data-portal-role] .payroll-table :is(th, td) { padding: 11px 8px; text-align: right; }
+.portal[data-portal-role] .payroll-table th { white-space: normal; font-size: 10px; }
+.portal[data-portal-role] .payroll-table :is(th, td):nth-child(-n+2) { text-align: left; }
+.portal[data-portal-role] .payroll-table :is(th, td):first-child { width: 34px; }
+.portal[data-portal-role] .payroll-table :is(th, td):nth-child(2) { width: 145px; }
+.portal[data-portal-role] .payroll-table :is(th, td):nth-last-child(-n+2) { width: 100px; }
+.portal[data-portal-role] .payroll-table td { font-size: 12px; vertical-align: middle; }
+.portal[data-portal-role] .payroll-table input:not([type='checkbox']) { width: 100%; min-width: 0; min-height: 32px; height: 32px; padding: 6px 7px; border-radius: 8px; font-size: 12px; text-align: right; }
+.portal[data-portal-role] .payroll-table .adjustment-cell { min-width: 0; }
+.portal[data-portal-role] .payroll-employee-link { min-height: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; color: var(--gray-900); font-size: 12px; font-weight: 600; text-align: left; justify-content: flex-start; white-space: normal; }
+.portal[data-portal-role] .payroll-employee-link:hover:not(:disabled) { background: none; color: var(--primary); box-shadow: none; text-decoration: underline; }
+.portal[data-portal-role] .payroll-row-status { display: table; margin-top: 4px; padding: 2px 7px; border-radius: 980px; font-size: 9.5px; font-weight: 700; }
+.portal[data-portal-role] .payroll-row-status.ready { color: #15803d; background: var(--success-light); }
+.portal[data-portal-role] .payroll-row-status.changed { color: #1d4ed8; background: var(--primary-light); }
+.portal[data-portal-role] .payroll-row-status.excluded { color: var(--gray-600); background: var(--gray-100); }
+.portal[data-portal-role] .payroll-row-status.needs_review { color: #b91c1c; background: var(--danger-light); }
+.portal[data-portal-role] .payroll-table tbody tr:hover { background: rgba(37,99,235,.03); }
+.portal[data-portal-role] .payroll-table .gross-earnings { color: var(--primary-dark); background: var(--primary-light); font-weight: 700; }
+.portal[data-portal-role] .payroll-table tfoot :is(th, td) { padding: 12px 8px; font-weight: 700; }
+.portal[data-portal-role] .payroll-table-note { margin: 0; padding: 12px 22px; border-top: 1px solid var(--gray-100); color: var(--gray-500); font-size: 11.5px; }
+.portal[data-portal-role] .payroll-readiness-list { display: grid; gap: 10px; padding: 0; list-style: none; }
+.portal[data-portal-role] .payroll-readiness-list li { padding: 12px 14px; background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: 9px; font-size: 13px; }
+.portal[data-portal-role] .payroll-readiness-list p { margin: 4px 0 0; color: var(--gray-600); font-size: 12px; }
+.portal[data-portal-role] .payroll-breakdown-section { margin-bottom: 20px; padding: 15px; border: 1px solid var(--gray-200); border-radius: 12px; background: var(--gray-50); }
+.portal[data-portal-role] .payroll-breakdown-section h4 { margin-bottom: 9px; color: var(--gray-700); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+.portal[data-portal-role] .payroll-breakdown-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid rgba(100,116,139,.1); font-size: 12.5px; }
+.portal[data-portal-role] .payroll-breakdown-row:last-child { border: 0; }
+.portal[data-portal-role] .payroll-breakdown-row strong { white-space: nowrap; }
+.portal[data-portal-role] .payroll-net-result { display: flex; justify-content: space-between; gap: 12px; padding: 16px 18px; border-radius: 12px; color: #fff; background: linear-gradient(135deg, #2563eb, #1d4ed8); }
+.portal[data-portal-role] .payroll-drawer-backdrop { justify-content: flex-end; padding: 0; }
+.portal[data-portal-role] .payroll-detail-drawer { width: min(480px, 100vw); height: 100%; max-height: 100%; border-radius: 0; box-shadow: -16px 0 50px rgba(15,23,42,.2); }
+
+@media (max-width: 1100px) {
+  .portal[data-portal-role] .payroll-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 768px) {
+  .portal.app-layout[data-portal-role='admin'] .sidebar { position: relative; top: auto; bottom: auto; left: auto; width: calc(100% - 20px); margin: 10px; }
+  .portal[data-portal-role='admin'] .sidebar-collapse-btn { display: none; }
+  .portal[data-portal-role='admin'] .sidebar-logo { padding: 12px 16px; }
+  .portal[data-portal-role='admin'] .portal-navigation.sidebar-nav { padding: 8px; }
+  .portal[data-portal-role='admin'] .portal-navigation.sidebar-nav .nav-item { padding: 8px 10px; }
+  .portal[data-portal-role='admin'] .portal-navigation.sidebar-nav .nav-item-label { display: inline; }
+  .portal.app-layout[data-portal-role] .nav-pill { display: none; }
+  .portal[data-portal-role='admin'] .portal-navigation.sidebar-nav .nav-item[aria-current='page'] { background: linear-gradient(135deg, #2563eb, #06b6d4); }
+  .portal.app-layout[data-portal-role='admin'] .main-content { margin-left: 0; }
+  .portal[data-portal-role] :is(.form-grid-2, .form-grid-3) { grid-template-columns: minmax(0, 1fr); }
+  .portal[data-portal-role] .payroll-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .portal[data-portal-role] .stat-card { padding: 16px; }
+  .portal[data-portal-role] .stat-value { font-size: 24px; }
+  .portal[data-portal-role] .payroll-detail-toolbar { align-items: flex-start; gap: 12px; padding: 14px 16px; }
+  .portal[data-portal-role] .payroll-detail-heading h2 { font-size: 16px; }
+  .portal[data-portal-role] .payroll-actions { width: 100%; justify-content: flex-start; }
+  .portal[data-portal-role] .payroll-actions .btn { flex: 0 1 auto; }
+  .portal[data-portal-role] .payroll-detail-toolbar .payroll-actions .btn { width: auto; }
+  .portal[data-portal-role] .card > .card-header { padding: 16px; }
+  .portal[data-portal-role] .payroll-meta-grid { padding: 16px; }
+  .portal[data-portal-role] .payroll-entries-toolbar { width: 100%; justify-content: flex-start; }
+  .portal[data-portal-role] .payroll-entry-search { flex: 1; min-width: 150px; }
+  .portal[data-portal-role] .modal-overlay { padding: 12px; }
+  .portal[data-portal-role] :is(.modal-header, .modal-body, .modal-footer) { padding: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .portal[data-portal-role] * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}

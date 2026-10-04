@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import EmployeePicker from './EmployeePicker.jsx'
 
 import {
   addTask,
@@ -87,7 +88,7 @@ export default function Offboarding({ account, authentication, branchId }) {
     <h2 id="offboarding-title">Offboarding and final settlement</h2>
     <p role="status" aria-live="polite">{message}</p>
     <form className="expense-form" onSubmit={initialize}>
-      <label>Employee ID<input required value={employeeId} onChange={(event) => setEmployeeId(event.target.value)} /></label>
+      <EmployeePicker authentication={authentication} branchId={branchId} required value={employeeId} onChange={setEmployeeId} />
       <button type="submit" disabled={busy}>Initialize checklist</button>
     </form>
     {items.map((checklist) => <article className="card" key={checklist.id}>

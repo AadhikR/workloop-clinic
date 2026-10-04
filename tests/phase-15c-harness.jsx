@@ -44,12 +44,13 @@ function commonResponse(path) {
   throw new Error('Synthetic protected service is unavailable')
 }
 
-export function mountPhase15CAdministrator({ path = '/admin', storedBranchId = branchId } = {}) {
+export function mountPhase15CAdministrator({ path = '/admin', storedBranchId = branchId, responses = {} } = {}) {
   document.body.innerHTML = '<div id="phase-15c-root"></div>'
   window.history.replaceState(null, '', path)
   sessionStorage.clear()
   if (storedBranchId !== null) sessionStorage.setItem('workloop.branchId', storedBranchId)
   window.__phase15cCalls = []
+  window.__phase15cRequests = []
   window.__phase15cLoggedOut = false
   const account = {
     appUserId,
@@ -60,8 +61,10 @@ export function mountPhase15CAdministrator({ path = '/admin', storedBranchId = b
   }
   const authentication = {
     async logout() { window.__phase15cLoggedOut = true },
-    async request(requestPath) {
+    async request(requestPath, options) {
       window.__phase15cCalls.push(requestPath)
+      window.__phase15cRequests.push({ path: requestPath, options })
+      if (Object.hasOwn(responses, requestPath)) return structuredClone(responses[requestPath])
       return commonResponse(requestPath)
     },
   }
