@@ -2073,7 +2073,7 @@ async function assertPhase11BrowserJourney(page, persona) {
   const recordsRoute = persona.role === 'admin' ? '/admin/records'
     : persona.role === 'manager' ? '/manager/documents' : '/employee/records'
   const developmentRoute = persona.role === 'admin' ? '/admin/development'
-    : persona.role === 'manager' ? '/manager/development' : '/employee/development'
+    : `/${persona.role}/training`
   const requestsRoute = persona.role === 'admin' ? '/admin/records'
     : persona.role === 'manager' ? '/manager/requests' : '/employee/requests'
   await navigatePortal(page, persona, recordsRoute)
@@ -2087,9 +2087,15 @@ async function assertPhase11BrowserJourney(page, persona) {
     await page.getByRole('heading', { name: 'Offboarding and final settlement' }).waitFor()
   }
   await navigatePortal(page, persona, developmentRoute)
-  for (const heading of ['Assets and professional development', 'Appraisals and clinical incidents']) {
-    await page.getByRole('heading', { name: heading, exact: true }).waitFor({ timeout: 20_000 })
+  await page.getByRole('heading', {
+    level: 2, name: persona.role === 'admin' ? 'Assets and professional development' : 'Training', exact: true,
+  }).waitFor({ timeout: 20_000 })
+  if (persona.role !== 'admin') {
+    await navigatePortal(page, persona, `/${persona.role}/appraisals`)
   }
+  await page.getByRole('heading', {
+    level: 2, name: persona.role === 'admin' ? 'Appraisals and clinical incidents' : 'Appraisals', exact: true,
+  }).waitFor({ timeout: 20_000 })
   await navigatePortal(page, persona, requestsRoute)
   await page.getByRole('heading', { name: 'Letter and custom requests', exact: true }).waitFor({ timeout: 20_000 })
 

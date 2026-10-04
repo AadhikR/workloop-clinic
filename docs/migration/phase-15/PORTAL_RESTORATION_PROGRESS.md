@@ -94,9 +94,10 @@ failure, reporting hierarchy/search/collapse, staffing edits, creation context, 
 failed certificate edits, CME targets, appraisal review, incident time/people/investigation, and
 390-pixel page containment. Evidence is in `evidence/restoration-a`.
 
-The final local gate passed 416 frontend tests, including the production build, and 720 backend
+The final local gate passed 417 frontend tests, including the production build, and 720 backend
 tests. Changed frontend files pass lint. Backend lint, formatting, types, and dependency checks
 pass. The populated browser verifier passes after waiting for the navigation pill to settle.
+Shared route accessibility and failed-contact-save recovery checks pass all 46 navigation routes.
 See `PORTAL_RESTORATION_A_COMPLETION.md` for the execution environment and evidence limits.
 
 These tests do not prove every backend transaction against PostgreSQL or every role-specific

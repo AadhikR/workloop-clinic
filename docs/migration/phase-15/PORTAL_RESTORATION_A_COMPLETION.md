@@ -51,6 +51,12 @@ role-specific pages, dialogs, tabs, and dedicated task and approval routes. Actu
 authorization denials, response codes, versions, and write-result assertions remain in place.
 The next independent run must prove this correction and finish the gate.
 
+That run passed backend quality, restart persistence, and authentication. It then found another
+obsolete browser heading expectation. Staff appraisals now use the narrower Appraisals heading,
+because clinical incidents are admin-only. The journey now visits dedicated staff training and
+appraisal pages and checks their role-specific headings. The 46-route local check verifies those
+headings too. This verifier correction still requires a successful independent run.
+
 The expanded browser check exposed faint sidebar and tab text, inaccessible financial route
 headings, and an overescaped phone pattern that rejected valid UAE numbers. This task corrected
 the shared colors and heading semantics without changing financial layouts. The phone pattern now

@@ -131,6 +131,12 @@ try {
     await mount(page, role, route)
     assert.equal(new URL(page.url()).pathname, route)
     assert.equal(await page.getByRole('heading', { level: 1 }).textContent({ timeout: 5000 }), heading, route)
+    if (route.endsWith('/appraisals')) {
+      assert.equal(await page.locator('#appraisals-incidents-title').textContent(), 'Appraisals')
+    }
+    if (route.endsWith('/training')) {
+      assert.equal(await page.locator('#development-assets-title').textContent(), 'Training')
+    }
     assert.equal(await page.locator('main').count(), 1)
     assert.equal(await page.getByRole('navigation', { name: 'Primary' }).count(), 1)
     assert.equal(await page.getByRole('navigation', { name: 'Primary' })
