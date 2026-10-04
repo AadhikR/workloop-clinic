@@ -708,6 +708,40 @@ export async function updateEmployee(
   return employee
 }
 
+export async function saveEmployeeProfile(
+  authentication, branchId, employeeId, values, { idempotencyKey, signal } = {},
+) {
+  if (!isUuid(branchId) || !isUuid(employeeId) || !uuid4Pattern.test(idempotencyKey)
+    || !isRecord(values)) throw invalidEmployeeMutation()
+  const exact = [
+    'expectedUpdatedAt', 'reason', 'profile', 'jobTitle', 'department',
+    'reportingManagerId', 'basicSalary', 'allowance', 'housingAllowance',
+    'transportAllowance', 'otherAllowances', 'otherAllowancesLabel',
+  ]
+  if (!exactKeys(values, exact) || !validReason(values.reason)) throw invalidEmployeeMutation()
+  validateUpdateMutation(values.profile)
+  if (values.profile.expectedUpdatedAt !== values.expectedUpdatedAt) throw invalidEmployeeMutation()
+  validateWorkflowBase(values, exact, exact)
+  if (!validateTextField(values.jobTitle, { empty: false })
+    || !validateTextField(values.department, { empty: false })
+    || values.reportingManagerId !== null && !isUuid(values.reportingManagerId)
+    || exact.slice(6, 11).some((field) => !moneyPattern.test(values[field]))
+    || !validateTextField(values.otherAllowancesLabel)) throw invalidEmployeeMutation()
+  const response = await authentication.request(`/api/v1/employees/${employeeId}/profile-save`, {
+    access: 'protected',
+    method: 'POST',
+    headers: {
+      'X-Workloop-Branch-ID': branchId,
+      'Idempotency-Key': idempotencyKey,
+    },
+    json: values,
+    signal,
+  })
+  const employee = parseAdminDetail(response.data)
+  if (response.status !== 200 || employee.id !== employeeId) throw invalidEmployeeResponse()
+  return employee
+}
+
 export async function importEmployees(
   authentication,
   branchId,

@@ -61,7 +61,11 @@ def _executor(request: Request) -> AuthorizedServiceExecutor:
 def _branch(request: Request, principal: AuthorizationPrincipal) -> uuid.UUID:
     if principal.role is AppRole.ADMIN:
         return report_branch(request, principal)
-    if principal.role is AppRole.EMPLOYEE and principal.employee_id and principal.branch_id:
+    if (
+        principal.role in {AppRole.MANAGER, AppRole.EMPLOYEE}
+        and principal.employee_id
+        and principal.branch_id
+    ):
         if request.headers.getlist("x-workloop-branch-id"):
             raise ServiceExecutionError("operation_not_permitted")
         return principal.branch_id

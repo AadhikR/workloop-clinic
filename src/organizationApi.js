@@ -271,7 +271,7 @@ const branchTextLimits = {
   address: 2000,
   contactEmail: 320,
   freeZoneName: 200,
-  logoUrl: 2048,
+  logoUrl: 100000,
 }
 
 function validateBranchMutation(body) {

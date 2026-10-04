@@ -32,7 +32,7 @@ const documentTypes = [
   'Educational Certificate', 'Professional License', 'NOC / Reference Letter', 'Other',
 ]
 
-function EmployeeDocuments({ account, authentication, branchId, employeeId }) {
+export function EmployeeDocuments({ account, authentication, branchId, employeeId }) {
   const [items, setItems] = useState([])
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
@@ -130,7 +130,7 @@ function EmployeeDocuments({ account, authentication, branchId, employeeId }) {
   </section>
 }
 
-function SelfInsurance({ authentication }) {
+export function SelfInsurance({ authentication }) {
   const [coverage, setCoverage] = useState(undefined)
   useEffect(() => {
     readSelfInsurance(authentication).then(setCoverage).catch(() => setCoverage(null))
@@ -142,7 +142,7 @@ function SelfInsurance({ authentication }) {
   </section>
 }
 
-function AdminInsurance({ authentication, branchId, employeeId }) {
+export function AdminInsurance({ authentication, branchId, employeeId, policiesOnly = false }) {
   const empty = { insurerName: '', policyNumber: '', tierName: '', annualPremium: '0.00', renewalDate: '', brokerName: '', brokerContact: '', notes: '' }
   const emptyCoverage = { policyId: '', memberId: '', cardNumber: '', effectiveDate: '', expiryDate: '', tierName: '', expectedUpdatedAt: '' }
   const emptyDependant = { name: '', relationship: '', dateOfBirth: '', cardNumber: '' }
@@ -213,7 +213,7 @@ function AdminInsurance({ authentication, branchId, employeeId }) {
     } catch { setMessage('The insurance dependant could not be saved.') }
   }
 
-  return <section aria-labelledby="insurance-admin-title"><h3 id="insurance-admin-title">Insurance administration</h3>
+  return <section aria-labelledby="insurance-admin-title"><h3 id="insurance-admin-title">{policiesOnly ? 'Medical insurance policies' : 'Insurance administration'}</h3>
     {message && <p role="status">{message}</p>}
     <form className="expense-form" onSubmit={submit}>
       <label>Insurer<input required maxLength="180" value={form.insurerName} onChange={(event) => setForm({ ...form, insurerName: event.target.value })} /></label>
@@ -225,7 +225,7 @@ function AdminInsurance({ authentication, branchId, employeeId }) {
       {editingPolicy && <button type="button" className="secondary" onClick={() => { setEditingPolicy(null); setForm(empty) }}>Cancel edit</button>}
     </form>
     <ul>{policies.map((policy) => <li key={policy.id}>{policy.insurerName} · {policy.tierName} · AED {policy.annualPremium} <button type="button" onClick={() => { setEditingPolicy(policy); setForm({ insurerName: policy.insurerName, policyNumber: policy.policyNumber, tierName: policy.tierName, annualPremium: policy.annualPremium, renewalDate: policy.renewalDate ?? '', brokerName: policy.brokerName, brokerContact: policy.brokerContact, notes: policy.notes }) }}>Edit</button> <button type="button" className="danger" onClick={() => deleteInsurancePolicy(authentication, branchId, policy).then(load).catch(() => setMessage('The policy is still in use or changed.'))}>Delete</button></li>)}</ul>
-    {employeeId && <>
+    {!policiesOnly && employeeId && <>
       <h4>Employee coverage</h4>
       <form className="expense-form" onSubmit={assign}>
         <label>Policy<select required value={coverage.policyId} onChange={(event) => { const policy = policies.find((item) => item.id === event.target.value); setCoverage({ ...coverage, policyId: event.target.value, tierName: policy?.tierName ?? coverage.tierName }) }}><option value="">Choose policy</option>{policies.map((policy) => <option key={policy.id} value={policy.id}>{policy.insurerName} · {policy.tierName}</option>)}</select></label>
@@ -250,7 +250,7 @@ function AdminInsurance({ authentication, branchId, employeeId }) {
   </section>
 }
 
-function ContractHistory({ authentication, branchId, employeeId }) {
+export function ContractHistory({ authentication, branchId, employeeId }) {
   const [items, setItems] = useState([])
   const [employee, setEmployee] = useState(null)
   const [message, setMessage] = useState('')
@@ -296,14 +296,26 @@ function ContractHistory({ authentication, branchId, employeeId }) {
   </section>
 }
 
-export default function RecordsBenefits({ account, authentication, branchId, documentsOnly = false }) {
+export function EmployeeRecordsEditor({ account, authentication, branchId, employeeId, view }) {
+  if (view === 'documents') return <EmployeeDocuments account={account} authentication={authentication} branchId={branchId} employeeId={employeeId} />
+  if (view === 'insurance') return <AdminInsurance authentication={authentication} branchId={branchId} employeeId={employeeId} />
+  if (view === 'contracts') return <ContractHistory authentication={authentication} branchId={branchId} employeeId={employeeId} />
+  return <ModuleWorkspace label="Employee record tabs" views={[
+    { id: 'documents', label: 'Documents', content: <EmployeeDocuments account={account} authentication={authentication} branchId={branchId} employeeId={employeeId} /> },
+    { id: 'insurance', label: 'Insurance', content: <AdminInsurance authentication={authentication} branchId={branchId} employeeId={employeeId} /> },
+    { id: 'contracts', label: 'Contracts', content: <ContractHistory authentication={authentication} branchId={branchId} employeeId={employeeId} /> },
+  ]} />
+}
+
+export default function RecordsBenefits({ account, authentication, branchId, documentsOnly = false, selectedEmployeeId = null }) {
   const [employeeId, setEmployeeId] = useState('')
+  const effectiveEmployeeId = selectedEmployeeId ?? employeeId
   return <section aria-labelledby="records-benefits-title"><h2 id="records-benefits-title">{documentsOnly ? 'Documents' : 'Records and benefits'}</h2>
-    {account.role === 'admin' && <EmployeePicker authentication={authentication} branchId={branchId} value={employeeId} onChange={setEmployeeId} />}
-    {documentsOnly ? <EmployeeDocuments account={account} authentication={authentication} branchId={branchId} employeeId={employeeId} /> : <ModuleWorkspace label="Record views" views={[
-      { id: 'documents', label: 'Documents', content: <EmployeeDocuments account={account} authentication={authentication} branchId={branchId} employeeId={employeeId} /> },
-      { id: 'insurance', label: 'Insurance', content: account.role === 'admin' ? <AdminInsurance authentication={authentication} branchId={branchId} employeeId={employeeId} /> : <SelfInsurance authentication={authentication} /> },
-      ...(account.role === 'admin' ? [{ id: 'contracts', label: 'Contracts', content: <ContractHistory authentication={authentication} branchId={branchId} employeeId={employeeId} /> }] : []),
+    {account.role === 'admin' && selectedEmployeeId === null && <EmployeePicker authentication={authentication} branchId={branchId} value={employeeId} onChange={setEmployeeId} />}
+    {documentsOnly ? <EmployeeDocuments account={account} authentication={authentication} branchId={branchId} employeeId={effectiveEmployeeId} /> : <ModuleWorkspace label="Record views" views={[
+      { id: 'documents', label: 'Documents', content: <EmployeeDocuments account={account} authentication={authentication} branchId={branchId} employeeId={effectiveEmployeeId} /> },
+      { id: 'insurance', label: 'Insurance', content: account.role === 'admin' ? <AdminInsurance authentication={authentication} branchId={branchId} employeeId={effectiveEmployeeId} /> : <SelfInsurance authentication={authentication} /> },
+      ...(account.role === 'admin' ? [{ id: 'contracts', label: 'Contracts', content: <ContractHistory authentication={authentication} branchId={branchId} employeeId={effectiveEmployeeId} /> }] : []),
     ]} />}
   </section>
 }

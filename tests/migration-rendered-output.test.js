@@ -73,6 +73,7 @@ test('print opens the authorized PDF bytes and revokes the viewer URL later', ()
 
 test('requested-letter PDF controls stay within the approved role table', async () => {
   const source = await readFile(new URL('../src/LetterRequests.jsx', import.meta.url), 'utf8')
-  assert.match(source, /item\.status === 'completed' && account\.role !== 'manager'/)
+  assert.match(source, /item\.status === 'completed' && item\.requestKind === 'letter'/)
+  assert.doesNotMatch(source, /account\.role !== 'manager'/)
   assert.match(source, /downloadRequestLetterPdf/)
 })

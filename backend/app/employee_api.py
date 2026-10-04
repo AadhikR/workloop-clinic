@@ -41,6 +41,7 @@ from app.schemas.employees import (
     EmployeeProbationConfirmationRequest,
     EmployeeProbationExtensionRequest,
     EmployeeProbationTerminationRequest,
+    EmployeeProfileSaveRequest,
     EmployeeSalaryChangeRequest,
     EmployeeSelfContactRequest,
     EmployeeSelfResponse,
@@ -633,6 +634,35 @@ async def change_employee_salary(
         operation_id="change_employee_salary",
         body=body,
         mutation=lambda service: service.change_salary(
+            principal, selected_branch_id, parsed_id, body
+        ),
+    )
+
+
+@router.post(
+    "/employees/{employee_id}/profile-save",
+    response_model=DataResponse[EmployeeAdminDetailResponse],
+    operation_id="save_employee_profile",
+    responses={**success_response_documentation(200, "Saved employee profile"), **EMPLOYEE_ERRORS},
+)
+async def save_employee_profile(
+    request: Request,
+    body: EmployeeProfileSaveRequest,
+    employee_id: EmployeeId,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedWritePrincipal,
+    selected_branch_id: AdminSelectedBranch,
+) -> Response:
+    parsed_id = uuid.UUID(employee_id)
+    return await _employee_workflow_response(
+        request=request,
+        claims=claims,
+        principal=principal,
+        selected_branch_id=selected_branch_id,
+        employee_id=parsed_id,
+        operation_id="save_employee_profile",
+        body=body,
+        mutation=lambda service: service.save_profile(
             principal, selected_branch_id, parsed_id, body
         ),
     )

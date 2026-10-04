@@ -22,7 +22,7 @@ const zeroAdjustments = {
   otherDeductions: '0.00', adjustmentReason: '',
 }
 
-export default function Offboarding({ account, authentication, branchId }) {
+export default function Offboarding({ account, authentication, branchId, selectedEmployeeId = null }) {
   const [items, setItems] = useState([])
   const [employeeId, setEmployeeId] = useState('')
   const [message, setMessage] = useState('')
@@ -42,6 +42,8 @@ export default function Offboarding({ account, authentication, branchId }) {
 
   if (account.role !== 'admin') return null
 
+  const effectiveEmployeeId = selectedEmployeeId ?? employeeId
+
   const run = async (action, success) => {
     setBusy(true); setMessage(''); setPreview(null)
     try { await action(); setMessage(success); await load() }
@@ -51,7 +53,7 @@ export default function Offboarding({ account, authentication, branchId }) {
 
   const initialize = (event) => {
     event.preventDefault()
-    run(() => initializeChecklist(authentication, branchId, employeeId.trim()), 'Checklist initialized.')
+    run(() => initializeChecklist(authentication, branchId, effectiveEmployeeId.trim()), 'Checklist initialized.')
   }
 
   const taskAction = (checklist, task) => run(
@@ -84,14 +86,18 @@ export default function Offboarding({ account, authentication, branchId }) {
     )
   }
 
+  const visibleItems = selectedEmployeeId
+    ? items.filter((item) => item.employeeId === selectedEmployeeId)
+    : items
+
   return <section className="records-benefits" aria-labelledby="offboarding-title">
     <h2 id="offboarding-title">Offboarding and final settlement</h2>
     <p role="status" aria-live="polite">{message}</p>
     <form className="expense-form" onSubmit={initialize}>
-      <EmployeePicker authentication={authentication} branchId={branchId} required value={employeeId} onChange={setEmployeeId} />
+      {selectedEmployeeId === null && <EmployeePicker authentication={authentication} branchId={branchId} required value={employeeId} onChange={setEmployeeId} />}
       <button type="submit" disabled={busy}>Initialize checklist</button>
     </form>
-    {items.map((checklist) => <article className="card" key={checklist.id}>
+    {visibleItems.map((checklist) => <article className="card" key={checklist.id}>
       <h3>{checklist.employeeName}</h3>
       <p>Status: {checklist.status}. Visa: {checklist.visaCancellationStatus}.</p>
       <ul>{checklist.tasks.map((task) => <li key={task.id}>

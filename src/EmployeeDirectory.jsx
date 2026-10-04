@@ -1,14 +1,12 @@
 import { useEffect, useState } from 'react'
 import PortalDialog from './PortalDialog.jsx'
+import Offboarding from './Offboarding.jsx'
+import { EmployeeRecordsEditor } from './RecordsBenefits.jsx'
 
 import { HttpClientError } from './http.js'
 import {
   archiveEmployee,
-  changeEmployeeDepartment,
-  changeEmployeeManager,
-  changeEmployeeSalary,
   changeEmployeeStatus,
-  changeEmployeeTitle,
   confirmEmployeeProbation,
   createEmployee,
   extendEmployeeProbation,
@@ -22,14 +20,15 @@ import {
   readEmployeeSelf,
   readEmployeePortalRole,
   setEmployeePortalRole,
+  saveEmployeeProfile,
   terminateEmployeeProbation,
-  updateEmployee,
   updateEmployeeSelfContact,
 } from './employeeApi.js'
 import { parseEmployeeCsv } from './employeeCsv.js'
 import { readAllDepartments } from './departmentApi.js'
 import { downloadEmployees, downloadEmployeeTemplate } from './outputApi.js'
 import { saveDownload } from './outputDelivery.js'
+import { readEmployeeDocuments } from './recordsBenefitsApi.js'
 
 function useLoad(load, dependencies) {
   const [state, setState] = useState({ status: 'loading' })
@@ -153,22 +152,61 @@ function EmployeeCreateForm({ authentication, branchId, departments, managers, o
   )
 }
 
-function EmployeeEditor({ authentication, branchId, employee, onSaved }) {
-  const [form, setForm] = useState({
-    empNo: employee.empNo,
-    name: employee.name,
-    molId: employee.molId,
-    personalEmail: employee.personalEmail,
-    phone: employee.phone,
-    bankName: employee.bankName,
-    bankRoutingCode: employee.bankRoutingCode,
-    iban: employee.iban,
-    employmentStartDate: employee.employmentStartDate ?? '',
-    nationality: employee.nationality,
+const employeeTabs = [
+  ['personal', 'Personal'],
+  ['job', 'Job and contract'],
+  ['salary', 'Salary and bank'],
+  ['compliance', 'UAE compliance'],
+  ['documents', 'Documents'],
+  ['insurance', 'Insurance'],
+  ['contracts', 'Contracts'],
+]
+const profileFields = [
+  'empNo', 'name', 'photoUrl', 'molId', 'personalEmail', 'phone',
+  'homeCountryAddress', 'emergencyContactName', 'emergencyContactRelationship',
+  'emergencyContactPhone', 'bankName', 'bankRoutingCode', 'bankAccountHolder', 'iban',
+  'nationality', 'visaNumber', 'passportNumber', 'emiratesId', 'labourCardNumber',
+  'sponsoringEntity', 'freeZoneName', 'nafisRegistrationNo', 'licenceAuthority', 'licenceNumber',
+]
+const profileDateFields = [
+  'dateOfBirth', 'employmentStartDate', 'visaExpiry', 'passportExpiry',
+  'emiratesIdExpiry', 'labourCardExpiry', 'licenceExpiry',
+]
+const salaryFields = [
+  'basicSalary', 'allowance', 'housingAllowance', 'transportAllowance', 'otherAllowances',
+]
+
+function editorState(employee) {
+  const fields = [...profileFields, 'jobTitle', 'department', 'otherAllowancesLabel']
+  const result = Object.fromEntries(fields.map((field) => [field, employee[field] ?? '']))
+  for (const field of profileDateFields) result[field] = employee[field] ?? ''
+  for (const field of salaryFields) result[field] = employee[field]
+  return {
+    ...result,
+    gender: employee.gender,
+    maritalStatus: employee.maritalStatus,
+    visaType: employee.visaType,
     workLocationType: employee.workLocationType,
-    freeZoneName: employee.freeZoneName,
-  })
+    reportingManagerId: employee.reportingManagerId ?? '',
+  }
+}
+
+function profileInputs(form, change, definitions) {
+  return definitions.map(([label, field, kind = 'text', required = false]) => <label key={field}>{label}<input
+    required={required}
+    type={kind === 'date' ? 'date' : undefined}
+    inputMode={kind === 'decimal' ? 'decimal' : undefined}
+    value={form[field]}
+    onChange={change(field)}
+  /></label>)
+}
+
+function EmployeeEditor({ account, authentication, branchId, employee, employees, departments, history, onSaved }) {
+  const [form, setForm] = useState(() => editorState(employee))
+  const [activeTab, setActiveTab] = useState('personal')
+  const [reason, setReason] = useState('Profile details updated')
   const [status, setStatus] = useState('idle')
+  const tabs = employee?.id ? employeeTabs : employeeTabs.slice(0, 4)
   const change = (field) => (event) => setForm((current) => ({
     ...current,
     [field]: event.target.value,
@@ -177,11 +215,21 @@ function EmployeeEditor({ authentication, branchId, employee, onSaved }) {
     event.preventDefault()
     setStatus('saving')
     try {
-      const updated = await updateEmployee(authentication, branchId, employee.id, {
-        ...form,
-        employmentStartDate: form.employmentStartDate || null,
+      const profile = {
         expectedUpdatedAt: employee.updatedAt,
-      })
+        ...Object.fromEntries([...profileFields, 'gender', 'maritalStatus', 'visaType', 'workLocationType'].map((field) => [field, form[field]])),
+        ...Object.fromEntries(profileDateFields.map((field) => [field, form[field] || null])),
+      }
+      const updated = await saveEmployeeProfile(authentication, branchId, employee.id, {
+        expectedUpdatedAt: employee.updatedAt,
+        reason: reason.trim(),
+        profile,
+        jobTitle: form.jobTitle,
+        department: form.department,
+        reportingManagerId: form.reportingManagerId || null,
+        ...Object.fromEntries(salaryFields.map((field) => [field, form[field]])),
+        otherAllowancesLabel: form.otherAllowancesLabel,
+      }, { idempotencyKey: crypto.randomUUID() })
       setStatus('saved')
       onSaved(updated)
     } catch {
@@ -189,31 +237,63 @@ function EmployeeEditor({ authentication, branchId, employee, onSaved }) {
     }
   }
   return (
-    <form className="employee-admin-form" onSubmit={submit} data-employee-edit-form>
-      <h5>Edit employee details</h5>
-      <div className="employee-form-grid">
-        <label>Employee number<input value={form.empNo} onChange={change('empNo')} /></label>
-        <label>Name<input required value={form.name} onChange={change('name')} /></label>
-        <label>MOL ID<input required value={form.molId} onChange={change('molId')} /></label>
-        <label>Personal email<input type="email" value={form.personalEmail} onChange={change('personalEmail')} /></label>
-        <label>Phone<input value={form.phone} onChange={change('phone')} /></label>
-        <label>Start date<input type="date" value={form.employmentStartDate} onChange={change('employmentStartDate')} /></label>
-        <label>Bank name<input value={form.bankName} onChange={change('bankName')} /></label>
-        <label>Routing code<input value={form.bankRoutingCode} onChange={change('bankRoutingCode')} /></label>
-        <label>IBAN<input value={form.iban} onChange={change('iban')} /></label>
-        <label>Nationality<input value={form.nationality} onChange={change('nationality')} /></label>
-        <label>
-          Work location
-          <select value={form.workLocationType} onChange={change('workLocationType')}>
-            <option value="mainland">Mainland</option>
-            <option value="free_zone">Free zone</option>
-          </select>
-        </label>
-        <label>Free zone name<input value={form.freeZoneName} onChange={change('freeZoneName')} /></label>
+    <div className="employee-editor">
+      <div className="tabs" role="tablist" aria-label="Employee profile tabs">
+        {tabs.map(([id, label]) => <button key={id} type="button" role="tab" className={`tab-btn${activeTab === id ? ' active' : ''}`} aria-selected={activeTab === id} onClick={() => setActiveTab(id)}>{label}</button>)}
       </div>
-      <button type="submit" disabled={status === 'saving'}>Save details</button>
-      <p role="status" data-employee-edit-status={status}>{status === 'error' ? 'Employee details could not be saved.' : status === 'saved' ? 'Employee details saved.' : ''}</p>
-    </form>
+      {['documents', 'insurance', 'contracts'].includes(activeTab) ? (
+        <EmployeeRecordsEditor account={account} authentication={authentication} branchId={branchId} employeeId={employee.id} view={activeTab} />
+      ) : <form className="employee-admin-form" onSubmit={submit} data-employee-edit-form>
+        {activeTab === 'personal' && <div className="employee-form-grid">
+          {profileInputs(form, change, [
+            ['Employee number', 'empNo'], ['Name', 'name', 'text', true], ['Photo URL', 'photoUrl'],
+            ['Personal email', 'personalEmail'], ['Phone', 'phone'], ['Date of birth', 'dateOfBirth', 'date'],
+            ['Home-country address', 'homeCountryAddress'], ['Emergency contact', 'emergencyContactName'],
+            ['Emergency relationship', 'emergencyContactRelationship'], ['Emergency phone', 'emergencyContactPhone'],
+          ])}
+          <label>Work email<input readOnly value={employee.workEmail} /></label>
+          <label>Gender<select value={form.gender ?? ''} onChange={change('gender')}><option value="">Not specified</option><option value="male">Male</option><option value="female">Female</option><option value="other">Other</option></select></label>
+          <label>Marital status<select value={form.maritalStatus ?? ''} onChange={change('maritalStatus')}><option value="">Not specified</option><option value="single">Single</option><option value="married">Married</option><option value="divorced">Divorced</option><option value="widowed">Widowed</option></select></label>
+        </div>}
+        {activeTab === 'job' && <>
+          <div className="employee-form-grid">
+            {profileInputs(form, change, [['Job title', 'jobTitle', 'text', true], ['Employment start date', 'employmentStartDate', 'date']])}
+            <label>Department<select required value={form.department} onChange={change('department')}><option value="">Choose department</option>{departments.map((item) => <option key={item.id}>{item.name}</option>)}</select></label>
+            <label>Reporting manager<select value={form.reportingManagerId} onChange={change('reportingManagerId')}><option value="">No manager</option>{employees.filter((item) => item.id !== employee.id && item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+            <label>Employment status<input readOnly value={employee.employmentStatus.replaceAll('_', ' ')} /></label>
+            <label>Probation end date<input readOnly value={employee.probationEndDate ?? ''} /></label>
+          </div>
+          <section aria-labelledby="job-history-title"><h5 id="job-history-title">Job history</h5>{history.length ? <ul>{history.map((entry) => <li key={entry.id}>{entry.changeType.replaceAll('_', ' ')}: {entry.oldValue} to {entry.newValue}. {entry.reason}</li>)}</ul> : <p>No recorded changes.</p>}</section>
+        </>}
+        {activeTab === 'salary' && <div className="employee-form-grid">
+          {profileInputs(form, change, [
+            ['Basic salary', 'basicSalary', 'decimal'], ['Allowance', 'allowance', 'decimal'],
+            ['Housing allowance', 'housingAllowance', 'decimal'], ['Transport allowance', 'transportAllowance', 'decimal'],
+            ['Other allowances', 'otherAllowances', 'decimal'], ['Other allowance label', 'otherAllowancesLabel'],
+            ['Bank name', 'bankName'], ['Routing code', 'bankRoutingCode'],
+            ['Account holder', 'bankAccountHolder'], ['IBAN', 'iban'],
+          ])}
+        </div>}
+        {activeTab === 'compliance' && <div className="employee-form-grid">
+          {profileInputs(form, change, [
+            ['MOL ID', 'molId', 'text', true], ['Nationality', 'nationality'], ['Visa number', 'visaNumber'],
+            ['Visa expiry', 'visaExpiry', 'date'], ['Passport number', 'passportNumber'],
+            ['Passport expiry', 'passportExpiry', 'date'], ['Emirates ID', 'emiratesId'],
+            ['Emirates ID expiry', 'emiratesIdExpiry', 'date'], ['Labour card number', 'labourCardNumber'],
+            ['Labour card expiry', 'labourCardExpiry', 'date'], ['Sponsoring entity', 'sponsoringEntity'],
+            ['Free-zone name', 'freeZoneName'], ['Nafis registration number', 'nafisRegistrationNo'],
+            ['Licence authority', 'licenceAuthority'], ['Licence number', 'licenceNumber'],
+            ['Licence expiry', 'licenceExpiry', 'date'],
+          ])}
+          <label>Visa type<select value={form.visaType ?? ''} onChange={change('visaType')}><option value="">Not specified</option><option value="employment_visa">Employment visa</option><option value="investor_visa">Investor visa</option><option value="dependent_visa">Dependent visa</option><option value="tourist_temp">Tourist (temporary)</option><option value="exempt">Exempt</option></select></label>
+          <label>Work location<select value={form.workLocationType} onChange={change('workLocationType')}><option value="mainland">Mainland</option><option value="free_zone">Free zone</option></select></label>
+        </div>}
+        <label>Reason for profile changes<textarea required maxLength={1000} value={reason} onChange={(event) => setReason(event.target.value)} /></label>
+        <button type="submit" disabled={status === 'saving'}>Save employee profile</button>
+        <p role="status" data-employee-edit-status={status}>{status === 'error' ? 'Employee profile could not be saved.' : status === 'saved' ? 'Employee profile saved.' : ''}</p>
+      </form>}
+      {activeTab === 'job' && <Offboarding account={account} authentication={authentication} branchId={branchId} selectedEmployeeId={employee.id} />}
+    </div>
   )
 }
 
@@ -260,10 +340,9 @@ function EmployeeLifecyclePanel({
   branchId,
   employee,
   employees,
-  departments,
   onSaved,
 }) {
-  const [action, setAction] = useState('title')
+  const [action, setAction] = useState('status')
   const [reason, setReason] = useState('')
   const [value, setValue] = useState('')
   const [replacements, setReplacements] = useState({})
@@ -288,35 +367,13 @@ function EmployeeLifecyclePanel({
     const options = { idempotencyKey: crypto.randomUUID() }
     try {
       let updated
-      if (action === 'title') {
-        updated = await changeEmployeeTitle(
-          authentication, branchId, employee.id, { ...shared, jobTitle: value }, options,
-        )
-      } else if (action === 'department') {
-        updated = await changeEmployeeDepartment(
-          authentication, branchId, employee.id, { ...shared, department: value }, options,
-        )
-      } else if (action === 'salary') {
-        updated = await changeEmployeeSalary(authentication, branchId, employee.id, {
-          ...shared,
-          allowance: employee.allowance,
-          housingAllowance: employee.housingAllowance,
-          transportAllowance: employee.transportAllowance,
-          otherAllowances: employee.otherAllowances,
-          otherAllowancesLabel: employee.otherAllowancesLabel,
-          basicSalary: value,
-        }, options)
-      } else if (action === 'status') {
+      if (action === 'status') {
         updated = await changeEmployeeStatus(authentication, branchId, employee.id, {
           ...shared,
           employmentStatus: value,
           ...(value === 'terminated' ? {
             reportReassignments: reassignmentBody(reports, replacements),
           } : {}),
-        }, options)
-      } else if (action === 'manager') {
-        updated = await changeEmployeeManager(authentication, branchId, employee.id, {
-          ...shared, reportingManagerId: value || null,
         }, options)
       } else if (action === 'probation-confirmation') {
         updated = await confirmEmployeeProbation(
@@ -350,39 +407,13 @@ function EmployeeLifecyclePanel({
       <label>
         Workflow
         <select value={action} onChange={(event) => { setAction(event.target.value); setValue('') }}>
-          <option value="title">Change title</option>
-          <option value="department">Change department</option>
-          <option value="salary">Change basic salary</option>
           <option value="status">Change employment status</option>
-          <option value="manager">Change reporting manager</option>
           <option value="probation-confirmation">Confirm probation</option>
           <option value="probation-extension">Extend probation</option>
           <option value="probation-termination">Terminate during probation</option>
           <option value="archive">Archive employee</option>
         </select>
       </label>
-      {action === 'department' && (
-        <label>
-          New department
-          <select required value={value} onChange={(event) => setValue(event.target.value)}>
-            <option value="">Choose department</option>
-            {departments.map((department) => (
-              <option key={department.id} value={department.name}>{department.name}</option>
-            ))}
-          </select>
-        </label>
-      )}
-      {action === 'manager' && (
-        <label>
-          New manager
-          <select value={value} onChange={(event) => setValue(event.target.value)}>
-            <option value="">No manager</option>
-            {eligibleManagers.map((manager) => (
-              <option key={manager.id} value={manager.id}>{manager.name}</option>
-            ))}
-          </select>
-        </label>
-      )}
       {action === 'status' && (
         <label>
           New status
@@ -393,17 +424,6 @@ function EmployeeLifecyclePanel({
             <option value="on_leave">On leave</option>
             <option value="terminated">Terminated</option>
           </select>
-        </label>
-      )}
-      {['title', 'salary'].includes(action) && (
-        <label>
-          {action === 'title' ? 'New title' : 'New basic salary'}
-          <input
-            required
-            inputMode={action === 'salary' ? 'decimal' : undefined}
-            value={value}
-            onChange={(event) => setValue(event.target.value)}
-          />
         </label>
       )}
       {action === 'probation-extension' && (
@@ -543,8 +563,9 @@ function EmployeeImportPanel({ authentication, branchId, onSaved }) {
   )
 }
 
-function AdminDirectory({ authentication, branchId, clearBranch }) {
+function AdminDirectory({ account, authentication, branchId, clearBranch }) {
   const [dialog, setDialog] = useState(null)
+  const [directoryView, setDirectoryView] = useState('list')
   const [search, setSearch] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [selectedId, setSelectedId] = useState(null)
@@ -567,6 +588,20 @@ function AdminDirectory({ authentication, branchId, clearBranch }) {
     (signal) => readBranchJobHistory(authentication, branchId, { signal, limit: 10 }),
     [authentication, branchId],
   )
+  const directoryDetails = useLoad(
+    async (signal) => {
+      const employees = await readAllEmployees(authentication, branchId, { signal })
+      const details = await Promise.all(employees.map(async (employee) => {
+        const [record, documents] = await Promise.all([
+          readEmployee(authentication, branchId, employee.id, { signal }),
+          readEmployeeDocuments(authentication, branchId, employee.id),
+        ])
+        return { ...record, documentExpiries: documents.items.map((item) => item.expiryDate).filter(Boolean) }
+      }))
+      return [details, Date.now() + 90 * 24 * 60 * 60 * 1000]
+    },
+    [authentication, branchId, revision],
+  )
   const detail = useLoad(
     (signal) => selectedId === null
       ? Promise.resolve(null)
@@ -583,6 +618,19 @@ function AdminDirectory({ authentication, branchId, clearBranch }) {
     setRevision((value) => value + 1)
   }
 
+  const allDetails = directoryDetails.status === 'ready' ? directoryDetails.data[0] : []
+  const expiryThreshold = directoryDetails.status === 'ready' ? directoryDetails.data[1] : 0
+  const expiring = allDetails.filter((employee) => {
+    const dates = [employee.visaExpiry, employee.passportExpiry, employee.emiratesIdExpiry, employee.labourCardExpiry, employee.licenceExpiry, ...employee.documentExpiries].filter(Boolean)
+    return dates.some((value) => new Date(`${value}T00:00:00Z`).valueOf() <= expiryThreshold)
+  })
+  const terminated = allDetails.filter((employee) => employee.employmentStatus === 'terminated')
+  const visibleEmployees = directoryView === 'expiry'
+    ? expiring
+    : directoryView === 'terminated'
+      ? terminated
+      : listing.status === 'ready' ? listing.data.data : []
+
   useEffect(() => {
     if (
       listing.status === 'error'
@@ -593,7 +641,12 @@ function AdminDirectory({ authentication, branchId, clearBranch }) {
 
   return (
     <section className="employee-directory" aria-label="Employee directory">
-      <div className="employee-module-toolbar"><div><h3>Employee directory</h3><p>Manage employee records, pay details, and employment changes.</p></div><div className="actions"><button type="button" className="btn btn-outline" onClick={async () => saveDownload(await downloadEmployees(authentication, branchId))}>Export CSV</button><button type="button" className="btn btn-outline" onClick={() => setDialog('import')}>Import employees</button><button type="button" className="btn btn-primary" disabled={choices.status !== 'ready'} onClick={() => setDialog('create')}>Add Employee</button></div></div>
+      <div className="employee-module-toolbar"><h3>Employees</h3><div className="actions"><button type="button" className="btn btn-outline" onClick={async () => saveDownload(await downloadEmployees(authentication, branchId))}>Export CSV</button><button type="button" className="btn btn-outline" onClick={() => setDialog('import')}>Import employees</button><button type="button" className="btn btn-primary" disabled={choices.status !== 'ready'} onClick={() => setDialog('create')}>Add Employee</button></div></div>
+      <div className="employee-summary-tabs" role="tablist" aria-label="Employee summaries">
+        <button type="button" role="tab" aria-selected={directoryView === 'list'} onClick={() => setDirectoryView('list')}>Employee list <strong>{allDetails.filter((item) => item.active).length}</strong></button>
+        <button type="button" role="tab" aria-selected={directoryView === 'expiry'} onClick={() => setDirectoryView('expiry')}>Document expiry <strong>{expiring.length}</strong></button>
+        <button type="button" role="tab" aria-selected={directoryView === 'terminated'} onClick={() => setDirectoryView('terminated')}>Terminated employees <strong>{terminated.length}</strong></button>
+      </div>
       {dialog && <PortalDialog labelledBy="employee-dialog-title" onClose={() => setDialog(null)}><div className="modal-header"><h3 id="employee-dialog-title">{dialog === 'create' ? 'Add Employee' : 'Import employees'}</h3><button type="button" className="btn btn-ghost btn-icon" aria-label="Close employee form" onClick={() => setDialog(null)}>×</button></div><div className="modal-body">{dialog === 'create' && choices.status === 'ready' ? <EmployeeCreateForm authentication={authentication} branchId={branchId} departments={choices.data[0]} managers={choices.data[1]} onSaved={saved} /> : <><p><button type="button" className="btn btn-outline btn-sm" onClick={async () => saveDownload(await downloadEmployeeTemplate(authentication, branchId))}>Download import template</button></p><EmployeeImportPanel authentication={authentication} branchId={branchId} onSaved={saved} /></>}</div></PortalDialog>}
       <form onSubmit={(event) => { event.preventDefault(); setAppliedSearch(search.trim()) }}>
         <label htmlFor="employee-search">Search employees</label>
@@ -610,36 +663,33 @@ function AdminDirectory({ authentication, branchId, clearBranch }) {
       {listing.status === 'loading' && <p>Loading employees...</p>}
       {listing.status === 'error' && <p role="status">Employee directory is unavailable.</p>}
       {listing.status === 'ready' && (
-        listing.data.data.length
-          ? <EmployeeRows employees={listing.data.data} onSelect={setSelectedId} />
+        visibleEmployees.length
+          ? <EmployeeRows employees={visibleEmployees} onSelect={setSelectedId} />
           : <p>No employees match this branch query.</p>
       )}
       {detail.status === 'ready' && detail.data && (
-        <section className="employee-detail">
-          <h4>{detail.data[0].name}</h4>
-          <dl>
-            <div><dt>Work email</dt><dd>{detail.data[0].workEmail}</dd></div>
-            <div><dt>Status</dt><dd>{detail.data[0].employmentStatus}</dd></div>
-            <div><dt>Department</dt><dd>{detail.data[0].department || 'Not assigned'}</dd></div>
-          </dl>
-          <h5>Job history</h5>
-          <p>{detail.data[1].data.length} recorded changes</p>
+        <PortalDialog labelledBy="employee-profile-dialog-title" onClose={() => setSelectedId(null)}>
+          <div className="modal-header"><div><h3 id="employee-profile-dialog-title">{detail.data[0].name}</h3><p>{detail.data[0].empNo} · {detail.data[0].employmentStatus.replaceAll('_', ' ')}</p></div><button type="button" className="btn btn-ghost btn-icon" aria-label="Close employee profile" onClick={() => setSelectedId(null)}>×</button></div>
+          <div className="modal-body employee-profile-modal">
+          {choices.status === 'ready' && <>
           <EmployeeEditor
-            key={`${detail.data[0].id}-${detail.data[0].updatedAt}`}
+            key={detail.data[0].id}
+            account={account}
             authentication={authentication}
             branchId={branchId}
             employee={detail.data[0]}
+            employees={choices.data[1]}
+            departments={choices.data[0]}
+            history={detail.data[1].data}
             onSaved={saved}
           />
-          {choices.status === 'ready' && (
-            <>
+          <details><summary>Lifecycle and portal access</summary>
               <EmployeeLifecyclePanel
                 key={`lifecycle-${detail.data[0].id}-${detail.data[0].updatedAt}`}
                 authentication={authentication}
                 branchId={branchId}
                 employee={detail.data[0]}
                 employees={choices.data[1]}
-                departments={choices.data[0]}
                 onSaved={saved}
               />
               <EmployeePortalRolePanel
@@ -650,9 +700,10 @@ function AdminDirectory({ authentication, branchId, clearBranch }) {
                 employees={choices.data[1]}
                 onSaved={saved}
               />
-            </>
-          )}
-        </section>
+          </details>
+          </>}
+          </div>
+        </PortalDialog>
       )}
       <div className="employee-history-summary">
         <h4>Recent branch job history</h4>
@@ -756,6 +807,7 @@ export default function EmployeeDirectory({ account, authentication, branchId, c
   return account.role === 'admin'
     ? (
       <AdminDirectory
+        account={account}
         authentication={authentication}
         branchId={branchId}
         clearBranch={clearBranch}

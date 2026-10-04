@@ -44,6 +44,7 @@ function requestStatus(status) {
 
 export default function LetterRequests({ account, authentication, branchId }) {
   const [items, setItems] = useState([])
+  const [filter, setFilter] = useState('pending')
   const [form, setForm] = useState(emptyForm)
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
@@ -123,10 +124,20 @@ export default function LetterRequests({ account, authentication, branchId }) {
       </>}
       <button type="submit" disabled={busy}>Submit request</button>
     </form></>}
-    <table className="expense-table"><thead><tr>
+    {account.role === 'admin' && <div className="tabs request-filter-tabs" role="tablist" aria-label="Request filters">
+      {['pending', 'completed', 'rejected', 'all'].map((status) => <button
+        key={status}
+        type="button"
+        role="tab"
+        aria-selected={filter === status}
+        className={`tab-btn${filter === status ? ' active' : ''}`}
+        onClick={() => setFilter(status)}
+      >{status === 'all' ? 'All requests' : status.charAt(0).toUpperCase() + status.slice(1)} <span className="badge">{status === 'all' ? items.length : items.filter((item) => item.status === status).length}</span></button>)}
+    </div>}
+    <div className="table-wrap"><table className="expense-table"><thead><tr>
       {account.role === 'admin' && <th>Employee</th>}<th>Request</th><th>Details</th>
       <th>Requested</th><th>Status</th><th>Actions</th>
-    </tr></thead><tbody>{items.map((item) => <tr key={item.id}>
+    </tr></thead><tbody>{items.filter((item) => account.role !== 'admin' || filter === 'all' || item.status === filter).map((item) => <tr key={item.id}>
       {account.role === 'admin' && <td>{item.employeeName}<small>{item.jobTitle}</small></td>}
       <td>{item.requestKind === 'letter' ? letterTypeLabels[item.letterType] : item.letterType}</td>
       <td>{item.purpose}{item.rejectionReason && <small>{item.rejectionReason}</small>}</td>
@@ -135,8 +146,8 @@ export default function LetterRequests({ account, authentication, branchId }) {
           <button type="button" disabled={busy} onClick={() => decide(item, 'complete')}>Complete</button>
           <button type="button" className="danger" disabled={busy} onClick={() => decide(item, 'reject')}>Reject</button>
         </>}
-        {item.status === 'completed' && <button type="button" disabled={busy} onClick={() => showSource(item)}>View source</button>}
-        {item.status === 'completed' && account.role !== 'manager' && <>
+        {item.status === 'completed' && item.requestKind === 'letter' && <button type="button" disabled={busy} onClick={() => showSource(item)}>View source</button>}
+        {item.status === 'completed' && item.requestKind === 'letter' && <>
           <button type="button" disabled={busy} onClick={() => run(
             async () => openPdf(await downloadRequestLetterPdf(
               authentication, account.role === 'admin' ? branchId : null, item.id,
@@ -151,7 +162,7 @@ export default function LetterRequests({ account, authentication, branchId }) {
           )}>Download PDF</button>
         </>}
       </td>
-    </tr>)}</tbody></table>
+    </tr>)}</tbody></table></div>
     <Source source={source} />
   </section>
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { useCompanyContext } from './companyContextState.js'
 import { HttpClientError } from './http.js'
@@ -11,6 +11,21 @@ import {
   updateBranch,
   updateCompany,
 } from './organizationApi.js'
+import { AdminInsurance } from './RecordsBenefits.jsx'
+
+const logoLimit = 64 * 1024
+
+function readLogo(file) {
+  if (!['image/png', 'image/jpeg', 'image/webp'].includes(file?.type) || file.size > logoLimit) {
+    throw new TypeError('Choose a PNG, JPG, or WebP logo no larger than 64 KB.')
+  }
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.onerror = () => reject(new Error('The logo file could not be read.'))
+    reader.readAsDataURL(file)
+  })
+}
 
 function errorMessage(error) {
   if (!(error instanceof HttpClientError)) return 'The request failed. No changes were saved.'
@@ -26,8 +41,6 @@ function CompanyForm({ authentication }) {
   const [draft, setDraft] = useState(organization.company)
   const [message, setMessage] = useState('')
   const [saving, setSaving] = useState(false)
-
-  useEffect(() => setDraft(organization.company), [organization.company])
 
   const submit = async (event) => {
     event.preventDefault()
@@ -54,14 +67,15 @@ function CompanyForm({ authentication }) {
   }
 
   return (
-    <form className="settings-form" onSubmit={submit}>
-      <h3>Company</h3>
-      <label>Name<input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} required /></label>
-      <label>Sector<input value={draft.sector} onChange={(event) => setDraft({ ...draft, sector: event.target.value })} /></label>
-      <label>Nafis quota percent<input value={draft.nafisQuotaPercent} inputMode="decimal" onChange={(event) => setDraft({ ...draft, nafisQuotaPercent: event.target.value })} required /></label>
-      <label className="checkbox"><input type="checkbox" checked={draft.enableNafis} onChange={(event) => setDraft({ ...draft, enableNafis: event.target.checked })} /> Enable Nafis</label>
-      <button type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save company'}</button>
-      {message && <p role="status">{message}</p>}
+    <form className="settings-form restoration-settings-card card" onSubmit={submit}>
+      <div className="card-header"><h3>Employer information</h3></div>
+      <div className="card-body employee-form-grid">
+        <label>Company name<input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} required /></label>
+        <label>Industry sector<input value={draft.sector} onChange={(event) => setDraft({ ...draft, sector: event.target.value })} /></label>
+        <label>Required Emiratization rate (%)<input value={draft.nafisQuotaPercent} inputMode="decimal" onChange={(event) => setDraft({ ...draft, nafisQuotaPercent: event.target.value })} required /></label>
+        <label className="checkbox"><input type="checkbox" checked={draft.enableNafis} onChange={(event) => setDraft({ ...draft, enableNafis: event.target.checked })} /> Enable Nafis</label>
+      </div>
+      <div className="card-footer"><button type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save employer information'}</button>{message && <p role="status">{message}</p>}</div>
     </form>
   )
 }
@@ -72,11 +86,8 @@ function BranchForm({ authentication }) {
   const [message, setMessage] = useState('')
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
-
-  useEffect(() => {
-    setDraft(organization.selectedBranch)
-    setConfirmDelete(false)
-  }, [organization.selectedBranch])
+  const [logoMessage, setLogoMessage] = useState('')
+  const logoInput = useRef(null)
 
   const field = (name) => (event) => setDraft({
     ...draft,
@@ -136,31 +147,54 @@ function BranchForm({ authentication }) {
     }
   }
 
+  const chooseLogo = async (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    setLogoMessage('')
+    try {
+      const logoUrl = await readLogo(file)
+      setDraft((current) => ({ ...current, logoUrl }))
+    } catch (error) {
+      setLogoMessage(error.message)
+    } finally {
+      event.target.value = ''
+    }
+  }
+
   return (
-    <form className="settings-form" onSubmit={submit}>
-      <h3>Selected branch</h3>
-      <label>Name<input value={draft.name} onChange={field('name')} required /></label>
-      <label>MOL employer ID<input value={draft.molEmployerId} onChange={field('molEmployerId')} /></label>
-      <label>Bank routing code<input value={draft.defaultBankRoutingCode} onChange={field('defaultBankRoutingCode')} /></label>
-      <label>Address<textarea value={draft.address} onChange={field('address')} /></label>
-      <label>Contact email<input type="email" value={draft.contactEmail} onChange={field('contactEmail')} /></label>
-      <label>Default salary day<input type="number" min="1" max="31" value={draft.defaultSalaryDay ?? ''} onChange={field('defaultSalaryDay')} /></label>
-      <label>Work location<select value={draft.workLocationType} onChange={field('workLocationType')}><option value="mainland">Mainland</option><option value="free_zone">Free zone</option></select></label>
-      <label>Free zone name<input value={draft.freeZoneName} onChange={field('freeZoneName')} /></label>
-      <label>Logo URL<input value={draft.logoUrl} onChange={field('logoUrl')} /></label>
-      <label className="checkbox"><input type="checkbox" checked={draft.enableStaffingRules} onChange={field('enableStaffingRules')} /> Enable staffing rules</label>
-      <label className="checkbox"><input type="checkbox" checked={draft.enableBiometricImport} onChange={field('enableBiometricImport')} /> Enable biometric import</label>
-      <div className="settings-actions">
+    <form className="settings-form restoration-settings-sections" onSubmit={submit}>
+      <section className="card"><div className="card-header"><h3>Branch details</h3></div><div className="card-body employee-form-grid">
+        <label>Branch or entity label<input value={draft.name} onChange={field('name')} required /></label>
+        <label>MOL employer ID<input value={draft.molEmployerId} onChange={field('molEmployerId')} /></label>
+        <label>Contact email<input type="email" value={draft.contactEmail} onChange={field('contactEmail')} /></label>
+        <label className="full-row">Address<textarea value={draft.address} onChange={field('address')} /></label>
+      </div></section>
+      <section className="card"><div className="card-header"><h3>Payroll settings</h3></div><div className="card-body employee-form-grid">
+        <label>Default bank routing code<input value={draft.defaultBankRoutingCode} onChange={field('defaultBankRoutingCode')} /></label>
+        <label>Default salary payment day<input type="number" min="1" max="31" value={draft.defaultSalaryDay ?? ''} onChange={field('defaultSalaryDay')} /></label>
+        <div className="company-logo-field full-row"><span>Company logo for payslips and letters</span>{draft.logoUrl && <img src={draft.logoUrl} alt="Company logo preview" />}
+          <input ref={logoInput} className="sr-only" aria-label="Logo file" type="file" accept="image/png,image/jpeg,image/webp" onChange={chooseLogo} />
+          <div className="actions"><button type="button" className="secondary" onClick={() => logoInput.current?.click()}>{draft.logoUrl ? 'Replace logo' : 'Upload logo'}</button><button type="button" className="secondary" disabled={!draft.logoUrl} onClick={() => setDraft({ ...draft, logoUrl: '' })}>Remove logo</button></div>
+          {logoMessage && <p role="status">{logoMessage}</p>}
+        </div>
+      </div></section>
+      <section className="card"><div className="card-header"><h3>Work location and jurisdiction</h3></div><div className="card-body employee-form-grid">
+        <label>Work location<select value={draft.workLocationType} onChange={field('workLocationType')}><option value="mainland">Mainland</option><option value="free_zone">Free zone</option></select></label>
+        {draft.workLocationType === 'free_zone' && <label>Free zone name<input value={draft.freeZoneName} onChange={field('freeZoneName')} /></label>}
+      </div></section>
+      <section className="card"><div className="card-header"><h3>Modules and features</h3></div><div className="card-body"><label className="checkbox"><input type="checkbox" checked={draft.enableStaffingRules} onChange={field('enableStaffingRules')} /> Enable staffing rules</label></div></section>
+      <div className="settings-actions card">
         <button type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save branch'}</button>
         <button type="button" className="danger" disabled={saving} onClick={remove}>{confirmDelete ? 'Confirm delete' : 'Delete branch'}</button>
+        {message && <p role="status">{message}</p>}
       </div>
-      {message && <p role="status">{message}</p>}
     </form>
   )
 }
 
 function CreateBranchForm({ authentication }) {
   const organization = useCompanyContext()
+  const refreshOrganization = organization.refresh
   const recovery = useMemo(() => createIdempotencyRecoveryStore({ localStorage: globalThis.localStorage }), [])
   const [name, setName] = useState('')
   const [namespace, setNamespace] = useState(null)
@@ -192,7 +226,7 @@ function CreateBranchForm({ authentication }) {
           }
         }
         if (completed.length) {
-          await organization.refresh()
+          await refreshOrganization()
           completed.forEach((key) => recovery.complete(key))
         }
         setUnresolvedKeys(unresolved)
@@ -210,7 +244,7 @@ function CreateBranchForm({ authentication }) {
         }
       })
     return () => controller.abort()
-  }, [authentication, organization.refresh, recovery])
+  }, [authentication, recovery, refreshOrganization])
 
   const submit = async (event) => {
     event.preventDefault()
@@ -280,8 +314,10 @@ export default function OrganizationSettings({ authentication }) {
   return (
     <section className="organization-settings" aria-labelledby="organization-settings-title">
       <h2 id="organization-settings-title">Organization settings</h2>
-      <CompanyForm authentication={authentication} />
-      <BranchForm authentication={authentication} />
+      <CompanyForm key={organization.company.updatedAt} authentication={authentication} />
+      <BranchForm key={`${organization.selectedBranch.id}-${organization.selectedBranch.updatedAt}`} authentication={authentication} />
+      <section className="card" aria-label="Medical insurance policies"><AdminInsurance authentication={authentication} branchId={organization.selectedBranch.id} policiesOnly /></section>
+      <section className="card"><div className="card-header"><h3>WPS and SIF file reference</h3></div></section>
       <CreateBranchForm authentication={authentication} />
     </section>
   )

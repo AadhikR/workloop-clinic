@@ -649,6 +649,52 @@ class EmployeeSalaryChangeRequest(EmployeeWorkflowRequest):
         return value.strip()
 
 
+class EmployeeProfileSaveRequest(EmployeeWorkflowRequest):
+    profile: EmployeeUpdateRequest
+    job_title: str = Field(min_length=1, max_length=200)
+    department: str = Field(min_length=1, max_length=200)
+    reporting_manager_id: uuid.UUID | None
+    basic_salary: Decimal = Field(ge=0, le=Decimal("9999999999.99"))
+    allowance: Decimal = Field(ge=0, le=Decimal("9999999999.99"))
+    housing_allowance: Decimal = Field(ge=0, le=Decimal("9999999999.99"))
+    transport_allowance: Decimal = Field(ge=0, le=Decimal("9999999999.99"))
+    other_allowances: Decimal = Field(ge=0, le=Decimal("9999999999.99"))
+    other_allowances_label: str = Field(max_length=200)
+
+    @field_validator(
+        "basic_salary",
+        "allowance",
+        "housing_allowance",
+        "transport_allowance",
+        "other_allowances",
+        mode="before",
+    )
+    @classmethod
+    def validate_money(cls, value: object) -> object:
+        if not isinstance(value, str) or re.fullmatch(MONEY_PATTERN, value) is None:
+            raise ValueError("invalid money")
+        return value
+
+    @field_validator("job_title", "department")
+    @classmethod
+    def normalize_required_text(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("value must not be blank")
+        return value
+
+    @field_validator("other_allowances_label")
+    @classmethod
+    def normalize_allowance_label(cls, value: str) -> str:
+        return value.strip()
+
+    @model_validator(mode="after")
+    def validate_profile_version(self) -> Self:
+        if self.profile.expected_updated_at != self.expected_updated_at:
+            raise ValueError("profile versions must match")
+        return self
+
+
 class EmployeeStatusChangeRequest(EmployeeWorkflowRequest):
     employment_status: EmploymentStatus
     report_reassignments: list[ReportReassignment] = Field(

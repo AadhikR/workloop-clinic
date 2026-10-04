@@ -272,6 +272,8 @@ WHERE id=:id
         row = await self._get_row(principal, branch_id, request_id, include_salary=True)
         if row["status"] != "completed" or row["completed_at"] is None:
             raise ServiceExecutionError("state_conflict")
+        if row["request_kind"] != "letter":
+            raise ServiceExecutionError("operation_not_permitted")
         return LetterRequestPrintSource.model_validate(
             {
                 "request_id": row["id"],

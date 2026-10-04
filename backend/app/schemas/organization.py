@@ -132,7 +132,7 @@ class BranchFields(StrictRequestSchema):
     default_salary_day: int | None = Field(default=25, ge=1, le=31)
     work_location_type: Literal["mainland", "free_zone"] = "mainland"
     free_zone_name: str = Field(default="", max_length=200)
-    logo_url: str = Field(default="", max_length=2_048)
+    logo_url: str = Field(default="", max_length=100_000)
     enable_staffing_rules: bool = True
     enable_biometric_import: bool = True
 
@@ -174,7 +174,7 @@ class BranchUpdateRequest(ExpectedUpdatedAt):
     default_salary_day: int | None = Field(default=None, ge=1, le=31)
     work_location_type: Literal["mainland", "free_zone"] | None = None
     free_zone_name: str | None = Field(default=None, max_length=200)
-    logo_url: str | None = Field(default=None, max_length=2_048)
+    logo_url: str | None = Field(default=None, max_length=100_000)
     enable_staffing_rules: bool | None = None
     enable_biometric_import: bool | None = None
 

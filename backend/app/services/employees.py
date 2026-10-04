@@ -8,7 +8,7 @@ import secrets
 import unicodedata
 import uuid
 import zlib
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal, cast
@@ -40,6 +40,7 @@ from app.schemas.employees import (
     EmployeeProbationConfirmationRequest,
     EmployeeProbationExtensionRequest,
     EmployeeProbationTerminationRequest,
+    EmployeeProfileSaveRequest,
     EmployeeSalaryChangeRequest,
     EmployeeSelfContactRequest,
     EmployeeSelfResponse,
@@ -308,6 +309,15 @@ _MANAGER_GUARD = MutationFieldGuard(
     allowed_input_fields=frozenset({"reporting_manager_id"}),
     approved_protected_fields=frozenset({"reporting_manager_id"}),
 )
+_PROFILE_SAVE_FIELDS = (
+    _UPDATE_INPUT_FIELDS
+    | _SALARY_FIELDS
+    | frozenset({"job_title", "department", "reporting_manager_id"})
+)
+_PROFILE_SAVE_GUARD = MutationFieldGuard(
+    allowed_input_fields=_PROFILE_SAVE_FIELDS,
+    approved_protected_fields=_PROFILE_SAVE_FIELDS & _EMPLOYEE_PROTECTED_FIELDS,
+)
 _PROBATION_CONFIRM_GUARD = MutationFieldGuard(
     allowed_input_fields=frozenset({"employment_status", "probation_end_date"}),
     approved_protected_fields=frozenset({"employment_status"}),
@@ -429,7 +439,9 @@ def _same_version(actual: datetime, expected: datetime) -> bool:
     return milliseconds(actual) == milliseconds(expected)
 
 
-def _salary_snapshot(row: RowMapping | EmployeeSalaryChangeRequest) -> str:
+def _salary_snapshot(
+    row: RowMapping | Mapping[str, Any] | EmployeeSalaryChangeRequest | EmployeeProfileSaveRequest,
+) -> str:
     names = {
         "basicSalary": "basic_salary",
         "allowance": "allowance",
@@ -438,11 +450,11 @@ def _salary_snapshot(row: RowMapping | EmployeeSalaryChangeRequest) -> str:
         "otherAllowances": "other_allowances",
     }
     values = {
-        output: f"{(row[source] if isinstance(row, RowMapping) else getattr(row, source)):.2f}"
+        output: f"{(row[source] if isinstance(row, Mapping) else getattr(row, source)):.2f}"
         for output, source in names.items()
     }
     values["otherAllowancesLabel"] = (
-        row["other_allowances_label"] if isinstance(row, RowMapping) else row.other_allowances_label
+        row["other_allowances_label"] if isinstance(row, Mapping) else row.other_allowances_label
     )
     return json.dumps(values, separators=(",", ":"), sort_keys=True)
 
@@ -660,6 +672,109 @@ class EmployeeService:
         except IntegrityError:
             raise ServiceExecutionError("employee_conflict") from None
         return EmployeeAdminDetailResponse(**_detail_values(row))
+
+    async def save_profile(
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        employee_id: uuid.UUID,
+        request: EmployeeProfileSaveRequest,
+    ) -> EmployeeAdminDetailResponse:
+        self._require_admin(principal)
+        ids = {employee_id}
+        if request.reporting_manager_id is not None:
+            ids.add(request.reporting_manager_id)
+        await self._repository.acquire_relationship_locks(ids)
+        locked = await self._repository.lock_employee_set(
+            company_id=principal.company_id,
+            branch_id=branch_id,
+            employee_ids=ids,
+        )
+        row = locked.get(employee_id)
+        if row is None:
+            raise ServiceExecutionError("resource_not_found")
+        if not _same_version(row["updated_at"], request.expected_updated_at):
+            raise ServiceExecutionError("state_conflict")
+        manager_id = request.reporting_manager_id
+        if manager_id == employee_id:
+            raise ServiceExecutionError("manager_reassignment_conflict")
+        if manager_id is not None:
+            manager = locked.get(manager_id)
+            if (
+                manager is None
+                or manager["active"] is not True
+                or manager["employment_status"] not in {"Active", "Probation", "On Leave"}
+                or await self._repository.would_create_manager_cycle(
+                    company_id=principal.company_id,
+                    branch_id=branch_id,
+                    employee_id=employee_id,
+                    new_manager_id=manager_id,
+                )
+            ):
+                raise ServiceExecutionError("manager_reassignment_conflict")
+        if row["department"] != request.department:
+            try:
+                await self._repository.lock_department(
+                    company_id=principal.company_id,
+                    branch_id=branch_id,
+                    name=request.department,
+                )
+            except ResourceNotFoundError:
+                raise ServiceExecutionError("resource_not_found") from None
+
+        changes = request.profile.changes()
+        changes.update(
+            {
+                "job_title": request.job_title,
+                "department": request.department,
+                "reporting_manager_id": manager_id,
+                **{name: getattr(request, name) for name in _SALARY_FIELDS},
+            }
+        )
+        values = _PROFILE_SAVE_GUARD.prepare(changes)
+        history = (
+            ("title_change", row["job_title"], request.job_title),
+            ("department_change", row["department"], request.department),
+            ("salary_change", _salary_snapshot(row), _salary_snapshot(request)),
+        )
+        for change_type, old_value, new_value in history:
+            if old_value != new_value:
+                await self._repository.append_job_history(
+                    company_id=principal.company_id,
+                    branch_id=branch_id,
+                    employee_id=employee_id,
+                    actor_id=principal.app_user_id,
+                    change_type=change_type,
+                    old_value=old_value,
+                    new_value=new_value,
+                    reason=request.reason,
+                )
+        try:
+            updated = await self._repository.update_workflow_employee(
+                company_id=principal.company_id,
+                branch_id=branch_id,
+                employee_id=employee_id,
+                values=values,
+            )
+        except IntegrityError:
+            raise ServiceExecutionError("employee_conflict") from None
+        if row["reporting_manager_id"] != manager_id:
+            await self._repository.append_employee_audit(
+                action="employee_manager_changed",
+                entity_type="employee",
+                entity_id=employee_id,
+                changed_fields=["reporting_manager_id"],
+                reason=request.reason,
+                metadata={
+                    "previous_manager_id": (
+                        None
+                        if row["reporting_manager_id"] is None
+                        else str(row["reporting_manager_id"])
+                    ),
+                    "new_manager_id": None if manager_id is None else str(manager_id),
+                },
+            )
+        return EmployeeAdminDetailResponse(**_detail_values(updated))
 
     async def import_employees(
         self,
