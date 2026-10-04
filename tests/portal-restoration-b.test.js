@@ -56,8 +56,15 @@ test('records and offboarding accept selected employee context', () => {
   assert.ok(source('Offboarding.jsx').includes('selectedEmployeeId'))
 })
 
-test('historical browser journey targets the restored branch settings form', () => {
+test('historical browser journey targets restored settings and profile controls', () => {
   const text = readFileSync(new URL('../scripts/verify-phase-3g-browser.mjs', import.meta.url), 'utf8')
   assert.ok(text.includes('form.restoration-settings-sections'))
+  assert.ok(text.includes("getByLabel('Branch or entity label', { exact: true })"))
+  assert.ok(text.includes('/profile-save'))
+  assert.ok(text.includes("name: 'Save employee profile'"))
+  assert.ok(text.includes("name: 'Close employee profile'"))
+  assert.ok(text.includes("getByText('Lifecycle and portal access')"))
   assert.ok(!text.includes("name: 'Selected branch'"))
+  assert.ok(!text.includes("name: 'Save details'"))
+  assert.ok(!text.includes('/title-change'))
 })

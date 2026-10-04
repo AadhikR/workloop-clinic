@@ -1353,6 +1353,7 @@ async function assertEmployeeApi(page, persona) {
     assert.equal(result.headerOnSelf.error.code, 'operation_not_permitted')
     await page.getByRole('button', { name: /Phase employee/ }).click()
     await page.getByRole('heading', { name: 'Phase employee' }).waitFor()
+    await page.getByRole('button', { name: 'Close employee profile' }).click()
 
     stage('admin employee creation')
     await page.getByRole('button', { name: 'Add Employee', exact: true }).click()
@@ -1378,22 +1379,29 @@ async function assertEmployeeApi(page, persona) {
     createdRows.employees.push(createBody.data.id)
     await page.getByRole('heading', { name: 'Phase 7F browser employee' }).waitFor()
 
-    stage('admin ordinary employee edit')
+    stage('admin atomic employee profile edit')
     const editForm = page.locator('[data-employee-edit-form]')
     await editForm.getByLabel('Name', { exact: true }).fill('Phase 7F browser employee edited')
     await editForm.getByLabel('Personal email').fill('browser-edit@example.test')
+    await page.getByRole('tab', { name: 'Job and contract' }).click()
+    await editForm.getByLabel('Job title').fill('Senior browser verifier')
+    await editForm.getByLabel('Reason for profile changes')
+      .fill('Approved browser profile proof')
     const editPromise = page.waitForResponse((response) => {
       const request = response.request()
-      return request.method() === 'PATCH'
-        && new URL(response.url()).pathname === `/api/v1/employees/${createBody.data.id}`
+      return request.method() === 'POST'
+        && new URL(response.url()).pathname
+          === `/api/v1/employees/${createBody.data.id}/profile-save`
     })
-    await editForm.getByRole('button', { name: 'Save details' }).click()
+    await editForm.getByRole('button', { name: 'Save employee profile' }).click()
     const editResponse = await editPromise
     const editBody = await editResponse.json()
     assert.equal(editResponse.status(), 200)
     assert.equal(editBody.data.name, 'Phase 7F browser employee edited')
     assert.equal(editBody.data.personalEmail, 'browser-edit@example.test')
+    assert.equal(editBody.data.jobTitle, 'Senior browser verifier')
     await page.getByRole('heading', { name: 'Phase 7F browser employee edited' }).waitFor()
+    await page.getByRole('button', { name: 'Close employee profile' }).click()
 
     stage('admin employee CSV import')
     await page.getByRole('button', { name: 'Import employees', exact: true }).click()
@@ -1421,22 +1429,6 @@ async function assertEmployeeApi(page, persona) {
     assert.deepEqual(importBody.data.rows.map(({ rowNumber }) => rowNumber), [2, 3])
     createdRows.employees.push(...importBody.data.rows.map(({ employeeId }) => employeeId))
     await page.getByRole('dialog').waitFor({ state: 'detached' })
-    await page.getByRole('heading', { name: 'Phase 7F browser employee edited' }).waitFor()
-
-    stage('admin employee lifecycle title change')
-    const lifecycleForm = page.locator('[data-employee-lifecycle-form]')
-    await lifecycleForm.getByLabel('New title').fill('Senior browser verifier')
-    await lifecycleForm.getByLabel('Reason').fill('Approved browser lifecycle proof')
-    const lifecyclePromise = page.waitForResponse((response) => {
-      const request = response.request()
-      return request.method() === 'POST'
-        && new URL(response.url()).pathname === `/api/v1/employees/${createBody.data.id}/title-change`
-    })
-    await lifecycleForm.getByRole('button', { name: 'Run workflow' }).click()
-    const lifecycleResponse = await lifecyclePromise
-    assert.equal(lifecycleResponse.status(), 200)
-    assert.equal((await lifecycleResponse.json()).data.jobTitle, 'Senior browser verifier')
-    await page.getByRole('heading', { name: 'Phase 7F browser employee edited' }).waitFor()
 
     stage('admin employee portal role round trip')
     const portalReadPromise = page.waitForResponse((response) => (
@@ -1465,6 +1457,7 @@ async function assertEmployeeApi(page, persona) {
       employeeId: personas[2].employeeId,
       role: 'employee',
     })
+    await page.getByText('Lifecycle and portal access').click()
     const portalPanel = page.locator('.employee-portal-role')
     await portalPanel.getByText('Current role: employee').waitFor()
     const promotePromise = page.waitForResponse((response) => {
@@ -1692,7 +1685,8 @@ async function assertOrganizationApi(page, persona) {
       'Phase 7C browser branch',
     )
 
-    await selectedBranchForm.getByLabel('Name', { exact: true }).fill('Phase 7C browser branch updated')
+    await selectedBranchForm.getByLabel('Branch or entity label', { exact: true })
+      .fill('Phase 7C browser branch updated')
     await selectedBranchForm.getByRole('button', { name: 'Save branch' }).click()
     await selectedBranchForm.getByText('Branch settings saved.').waitFor()
     await selectedBranchForm.getByRole('button', { name: 'Delete branch' }).click()
