@@ -152,9 +152,10 @@ verifier file passes lint, and repository whitespace validation passes. The sche
 `e8a1c3f5b7d9`. A focused backend boundary run passed 99 leave, attendance, roster, shift-swap,
 and department tests with the six existing SQLAlchemy relationship warnings.
 
-Six focused source tests cover the restored work areas, removal of biometric controls, effective
+Seven focused source tests cover the restored work areas, removal of biometric controls, effective
 shift concurrency fields, staffing visibility, and administrator route wiring. The Part C browser
-fixture covers keyboard tab navigation; leave requests, settings, and delegations; failed manual
+fixture covers keyboard tab navigation; cross-tab leave refresh, requests, settings, and
+delegations; failed manual
 attendance writes; overtime; monthly roster edits, validation, publication, and swaps; both
 staffing states; effective-shift failure retention and retry; and 390-pixel containment. Nine
 desktop and mobile screenshots are in `evidence/restoration-c`.

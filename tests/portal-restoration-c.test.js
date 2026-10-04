@@ -13,6 +13,8 @@ test('leave administration restores the historical work areas around current cli
   for (const component of ['LeaveOverview', 'LeaveApprovals', 'LeaveConfiguration']) {
     assert.ok(text.includes(component), component)
   }
+  assert.ok(text.includes('refreshKey'))
+  assert.ok(text.includes('onChanged'))
   assert.ok(source('LeaveApprovals.jsx').includes('Approval delegations'))
   assert.ok(source('LeaveConfiguration.jsx').includes('Public holidays'))
 })

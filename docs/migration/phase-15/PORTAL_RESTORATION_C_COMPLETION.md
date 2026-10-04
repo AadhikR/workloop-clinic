@@ -8,6 +8,9 @@ policy, holidays, and delegations on the current scoped clients. Attendance now 
 dashboard, manual entry, records, absences, overtime, corrections, periods, and settings. Biometric
 mapping and import controls remain excluded.
 
+Successful leave changes advance a shared refresh revision so already-mounted leave views do not
+show stale request or balance data when the administrator changes tabs.
+
 Roster administration now separates shift templates, the monthly roster, and swap requests. The
 monthly roster uses an employee-by-day grid and retains validation, exact-version publication,
 actual-hours, overtime, and swap operations. Failed writes keep the entered values available for a
@@ -30,11 +33,11 @@ populated interaction, presentation, and database proof for A-06 and B-02.
 - The schema head remains `e8a1c3f5b7d9`.
 - A focused backend boundary run passed 99 leave, attendance, roster, shift-swap, and department
   tests. It emitted the six existing SQLAlchemy relationship warnings.
-- Six focused frontend tests cover work-area wiring, biometric exclusion, effective-shift
+- Seven focused frontend tests cover work-area wiring, biometric exclusion, effective-shift
   concurrency fields, branch staffing visibility, and administrator routes.
 - The Part C browser check passed leave, attendance, roster, staffing, and employee-shift journeys.
-  It covers keyboard tab movement, failed-write retention and retry, exact assignment concurrency
-  fields, publication, both staffing states, and 390-pixel containment.
+  It covers keyboard tab movement, cross-tab leave refresh, failed-write retention and retry, exact
+  assignment concurrency fields, publication, both staffing states, and 390-pixel containment.
 - Nine desktop and mobile screenshots are stored in `evidence/restoration-c`.
 
 The full-stack browser verifier now follows the restored leave tabs. Its cleanup contract assumes

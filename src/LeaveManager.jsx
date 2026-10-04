@@ -1,10 +1,19 @@
+import { useState } from 'react'
+
 import LeaveApprovals from './LeaveApprovals.jsx'
 import LeaveConfiguration from './LeaveConfiguration.jsx'
 import LeaveOverview from './LeaveOverview.jsx'
 import ModuleWorkspace from './ModuleWorkspace.jsx'
 
 export default function LeaveManager({ account, authentication, branchId }) {
-  const shared = { account, authentication, branchId }
+  const [refreshKey, setRefreshKey] = useState(0)
+  const shared = {
+    account,
+    authentication,
+    branchId,
+    refreshKey,
+    onChanged: () => setRefreshKey((current) => current + 1),
+  }
   return (
     <section className="restored-domain-workspace leave-management" aria-labelledby="leave-management-title">
       <header className="employee-module-toolbar">

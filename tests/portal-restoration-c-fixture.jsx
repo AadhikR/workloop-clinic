@@ -27,6 +27,7 @@ const leaveType = { id: id(31), branchId, code: 'ANNUAL', name: 'Annual Leave', 
 const holiday = { id: id(32), branchId, date: '2026-12-02', name: 'National Day', type: 'federal', year: 2026, createdAt: timestamp }
 const leaveBalance = { employeeId, leaveTypeId: leaveType.id, leaveYear: 2026, entitledDays: '30.00', accruedDays: '22.50', usedDays: '5.00', pendingDays: '2.00', carriedForward: '3.00', remainingDays: '26.00', sickFullPayUsed: '0.00', sickHalfPayUsed: '0.00', sickUnpaidUsed: '0.00' }
 let leaveRequest = { id: id(33), branchId, employeeId, leaveTypeId: leaveType.id, startDate: '2026-10-04', endDate: '2026-10-05', isHalfDay: false, halfDayPeriod: null, daysRequested: '2.00', status: 'Pending', reason: 'Family commitment', attachment: null, rejectionReason: '', managerRejectionReason: '', relationship: '', deceasedName: '', dateOfDeath: null, childBirthDate: null, childName: '', expectedDueDate: null, institutionName: '', examDates: '', substituteEmployeeId: null, approvalLevelRequired: 2, approvalComment: '', warnings: [], submittedAt: timestamp, createdAt: timestamp, updatedAt: timestamp }
+let submittedLeaveRequest = null
 const delegation = { id: id(34), branchId, approverEmployeeId: managerId, delegateEmployeeId: employeeId, fromDate: '2026-10-10', toDate: '2026-10-20', createdAt: timestamp, updatedAt: timestamp }
 const attendanceSettings = { id: id(40), workingDays: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu'], weekendDays: ['Fri', 'Sat'], defaultHoursPerDay: '8.00', lateGraceMinutes: 10, earlyDepartureGraceMinutes: 10, overtimeRequiresApproval: true, maxDailyOvertimeHours: '2.00', lateDeductionPolicy: 'none', lateDeductionAmount: '0.00', wfhEnabled: true, regularisationMaxDaysPerMonth: 2, regularisationWindowDays: 7, biometricApiEnabled: false, biometricApiKeyConfigured: false, createdAt: timestamp, updatedAt: timestamp }
 const shift = { id: shiftId, name: 'Morning clinic', code: 'MC', shiftType: 'fixed', shiftCategory: 'morning', startTime: '08:00:00', endTime: '17:00:00', splitStartTime: null, splitEndTime: null, breakMinutes: 60, expectedHours: '8.00', lateGraceMinutes: 10, earlyDepartureGraceMinutes: 10, isOvernight: false, minHoursFlexible: null, isActive: true, color: '#6366F1', minStaff: 2, createdAt: timestamp, updatedAt: timestamp }
@@ -58,7 +59,36 @@ const authentication = {
     if (route === '/api/v1/leave/types') return { data: [leaveType], page }
     if (route === '/api/v1/leave/holidays') return { data: [holiday], page }
     if (route === '/api/v1/leave/balances/branch') return { data: [leaveBalance], page }
-    if (route === '/api/v1/leave/requests/calendar/branch') return { data: [leaveRequest], page }
+    if (route === '/api/v1/leave/requests/calendar/branch' && method === 'GET') return { data: [leaveRequest, submittedLeaveRequest].filter(Boolean), page }
+    if (route === '/api/v1/leave/requests/branch' && method === 'POST') {
+      submittedLeaveRequest = {
+        ...leaveRequest,
+        id: id(35),
+        employeeId: body.employeeId,
+        leaveTypeId: body.leaveTypeId,
+        startDate: body.startDate,
+        endDate: body.endDate,
+        isHalfDay: body.isHalfDay,
+        halfDayPeriod: body.halfDayPeriod,
+        daysRequested: '1.00',
+        status: 'Pending',
+        reason: body.reason,
+        relationship: body.relationship ?? '',
+        deceasedName: body.deceasedName ?? '',
+        dateOfDeath: body.dateOfDeath,
+        childBirthDate: body.childBirthDate,
+        childName: body.childName ?? '',
+        expectedDueDate: body.expectedDueDate,
+        institutionName: body.institutionName ?? '',
+        examDates: body.examDates ?? '',
+        substituteEmployeeId: body.substituteEmployeeId,
+        submittedAt: timestamp,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        warnings: [],
+      }
+      return { data: submittedLeaveRequest, status: 201, location: `/api/v1/leave/requests/${submittedLeaveRequest.id}` }
+    }
     if (route === '/api/v1/leave/approvals/branch') return { data: [{ request: leaveRequest, employee: { id: employeeId, employeeNumber: 'E-3', name: 'Alex Morgan', jobTitle: 'Registered nurse', department: 'Clinical' }, leaveType, balance: leaveBalance, canDecide: true, visibleBecause: 'administrator' }], page }
     if (route === '/api/v1/leave/delegations/branch') return { data: [delegation] }
     if (route.includes('/leave/approvals/') && route.endsWith('/decision/branch')) { leaveRequest = { ...leaveRequest, status: body.decision === 'approve' ? 'Approved' : 'Rejected', updatedAt: '2026-10-04T09:00:00.000Z' }; return { data: leaveRequest } }

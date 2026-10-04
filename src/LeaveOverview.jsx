@@ -508,7 +508,9 @@ function RequestTable({
   )
 }
 
-export default function LeaveOverview({ account, authentication, branchId, view = null }) {
+export default function LeaveOverview({
+  account, authentication, branchId, view = null, refreshKey = 0, onChanged = () => {},
+}) {
   const [year, setYear] = useState(currentYear)
   const [state, setState] = useState({ status: 'loading', balances: [], requests: [], message: '' })
   const [uploadState, setUploadState] = useState({})
@@ -521,6 +523,7 @@ export default function LeaveOverview({ account, authentication, branchId, view 
   const activeView = view ?? tab
 
   const read = useCallback(async (signal) => {
+    void refreshKey
     const options = { year, signal }
     const [balances, requests, leaveTypes, employees] = admin
       ? await Promise.all([
@@ -536,7 +539,7 @@ export default function LeaveOverview({ account, authentication, branchId, view 
         Promise.resolve([]),
       ])
     return { balances, requests, leaveTypes, employees }
-  }, [admin, authentication, branchId, year])
+  }, [admin, authentication, branchId, refreshKey, year])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -578,6 +581,7 @@ export default function LeaveOverview({ account, authentication, branchId, view 
           : 'Balances were recalculated from leave requests.',
       })
       setReferenceData({ leaveTypes, employees })
+      onChanged()
     } catch {
       setState((current) => ({ ...current, message: 'Leave balances could not be updated.' }))
     }
@@ -594,6 +598,7 @@ export default function LeaveOverview({ account, authentication, branchId, view 
       setState((current) => ({ ...current, ...refreshed }))
       setReferenceData({ leaveTypes: refreshed.leaveTypes, employees: refreshed.employees })
       setUploadState((current) => ({ ...current, [leaveRequest.id]: 'Upload complete.' }))
+      onChanged()
     } catch {
       setUploadState((current) => ({
         ...current,
@@ -638,6 +643,7 @@ export default function LeaveOverview({ account, authentication, branchId, view 
       }
       await refresh()
       setState((current) => ({ ...current, message: 'Leave request cancelled.' }))
+      onChanged()
     } catch {
       setState((current) => ({ ...current, message: 'The leave request could not be cancelled.' }))
     } finally {
@@ -699,7 +705,7 @@ export default function LeaveOverview({ account, authentication, branchId, view 
               branchId={branchId}
               employees={referenceData.employees}
               leaveTypes={referenceData.leaveTypes}
-              onSubmitted={async () => { await refresh(); setShowRequest(false) }}
+              onSubmitted={async () => { await refresh(); onChanged(); setShowRequest(false) }}
             /></div></PortalDialog>}
           {activeView === 'overview' && <div className="leave-tab-panel leave-dashboard" role="tabpanel">
             <div className="stats-grid module-summary-grid">
