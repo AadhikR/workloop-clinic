@@ -1495,7 +1495,7 @@ async function assertEmployeeApi(page, persona) {
     psql("DELETE FROM departments WHERE id = :'department_id'", {
       department_id: browserDepartmentId,
     })
-    await page.getByRole('button', { name: 'Change branch' }).click()
+    await page.locator('.sidebar-branch').click()
     await page.locator('.branch-chooser').waitFor()
     assert.equal(await page.evaluate(() => sessionStorage.getItem('workloop.branchId')), null)
   } else {
@@ -1801,7 +1801,7 @@ async function assertDepartmentApi(page, persona) {
   await page.getByRole('dialog', { name: 'Delete department', exact: true })
     .getByRole('button', { name: 'Delete department', exact: true }).click()
   await departmentRow.waitFor({ state: 'detached' })
-  await page.getByRole('button', { name: 'Change branch' }).click()
+  await page.locator('.sidebar-branch').click()
   await page.locator('.branch-chooser').waitFor()
   assert.equal(await page.evaluate(() => sessionStorage.getItem('workloop.branchId')), null)
 }
