@@ -7,7 +7,6 @@ import Dashboard from './Dashboards.jsx'
 import EmployeePortal from './EmployeePortal.jsx'
 import ManagerPortal from './ManagerPortal.jsx'
 import NotificationBell from './NotificationBell.jsx'
-import Tasks from './Tasks.jsx'
 import { useCompanyContext } from './companyContextState.js'
 import { administratorRouteGroup } from './administratorRoutes.js'
 import { employeeRouteGroup } from './employeeRoutes.js'
@@ -76,10 +75,25 @@ function NavigationIcon({ name }) {
     Tasks: <><path d="M6 4h12v17H6z" /><path d="m9 9 1.5 1.5L14 7M9 15h5" /></>,
     Training: <><path d="m3 8 9-5 9 5-9 5z" /><path d="M7 11v5c3 2 7 2 10 0v-5" /></>,
   }
-  const isHome = name.toLowerCase().endsWith('home')
+  const aliases = {
+    'Clinical Dashboard': 'Attendance',
+    'Company Settings': 'Organization',
+    Dashboard: 'Home',
+    Departments: 'Organization',
+    Employees: 'People',
+    'Expense Queue': 'Expenses',
+    Home: 'Home',
+    Incidents: 'Records',
+    'Leave Queue': 'Leave',
+    'My Attendance': 'Attendance',
+    'My Leave': 'Leave',
+    'Payroll Module': 'Payroll',
+  }
+  const iconName = aliases[name] ?? name
+  const isHome = iconName === 'Home' || name.toLowerCase().endsWith('home')
   return (
     <svg aria-hidden="true" className="nav-icon" viewBox="0 0 24 24">
-      {isHome ? <><rect x="4" y="4" width="6" height="6" rx="1" /><rect x="14" y="4" width="6" height="6" rx="1" /><rect x="4" y="14" width="6" height="6" rx="1" /><rect x="14" y="14" width="6" height="6" rx="1" /></> : paths[name]}
+      {isHome ? <><rect x="4" y="4" width="6" height="6" rx="1" /><rect x="14" y="4" width="6" height="6" rx="1" /><rect x="4" y="14" width="6" height="6" rx="1" /><rect x="14" y="14" width="6" height="6" rx="1" /></> : paths[iconName] ?? paths.Requests}
     </svg>
   )
 }
@@ -240,6 +254,7 @@ function PortalHome({ account, authentication, navigator, route }) {
               authentication={authentication}
               branchId={branch.id}
               clearBranch={organization.clearBranch}
+              navigator={navigator}
               path={route.path}
             />
           ) : account.role === 'manager' && route.path !== '/manager' ? (
@@ -247,6 +262,7 @@ function PortalHome({ account, authentication, navigator, route }) {
               account={account}
               authentication={authentication}
               branchId={branch.id}
+              navigator={navigator}
               path={route.path}
             />
           ) : account.role === 'employee' ? (
@@ -260,10 +276,6 @@ function PortalHome({ account, authentication, navigator, route }) {
           ) : (
             <div className="portal-columns">
               <Dashboard authentication={authentication} branchId={branch.id} kind={dashboardKind} />
-              {account.role === 'admin' && (
-                <Dashboard authentication={authentication} branchId={branch.id} kind="clinical" />
-              )}
-              <Tasks account={account} authentication={authentication} branchId={branch.id} />
             </div>
           )}
         </div>

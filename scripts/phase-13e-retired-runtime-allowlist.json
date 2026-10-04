@@ -50,7 +50,9 @@
       "kind": "history",
       "labelPath": "docs/history/legacy-feature-list/README.md",
       "paths": [
-        "docs/history/legacy-feature-list/README.md"
+        "docs/history/legacy-feature-list/README.md",
+        "docs/history/legacy-feature-list/SUPABASE_PORTAL_MODULE_FEATURE_CATALOGUE.md",
+        "docs/history/legacy-feature-list/SUPABASE_UI_PARITY_SPECIFICATION.md"
       ]
     },
     {

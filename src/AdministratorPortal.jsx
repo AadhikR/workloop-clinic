@@ -5,6 +5,7 @@ import AttendanceConfiguration from './AttendanceConfiguration.jsx'
 import AttendanceExceptions from './AttendanceExceptions.jsx'
 import AttendanceIngestion from './AttendanceIngestion.jsx'
 import AttendancePeriods from './AttendancePeriods.jsx'
+import Dashboard from './Dashboards.jsx'
 import DepartmentManager from './DepartmentManager.jsx'
 import DevelopmentAssets from './DevelopmentAssets.jsx'
 import EmployeeDirectory from './EmployeeDirectory.jsx'
@@ -16,11 +17,11 @@ import LetterRequests from './LetterRequests.jsx'
 import Offboarding from './Offboarding.jsx'
 import OrganizationSettings from './OrganizationSettings.jsx'
 import Payroll from './Payroll.jsx'
-import Payslips from './Payslips.jsx'
 import RecordsBenefits from './RecordsBenefits.jsx'
 import Reports from './Reports.jsx'
 import RosterDrafts from './RosterDrafts.jsx'
 import ShiftSwapQueue from './ShiftSwapQueue.jsx'
+import Tasks from './Tasks.jsx'
 import WpsNafis from './WpsNafis.jsx'
 import { administratorRouteGroup } from './administratorRoutes.js'
 
@@ -29,6 +30,7 @@ export default function AdministratorPortal({
   authentication,
   branchId,
   clearBranch,
+  navigator,
   path,
 }) {
   const group = administratorRouteGroup(path)
@@ -43,6 +45,23 @@ export default function AdministratorPortal({
           <DepartmentManager authentication={authentication} branchId={branchId} clearBranch={clearBranch} />
         </>
       )}
+      {path === '/admin/clinical-dashboard' && (
+        <Dashboard authentication={authentication} branchId={branchId} kind="clinical" />
+      )}
+      {path === '/admin/company-settings' && (
+        <OrganizationSettings authentication={authentication} />
+      )}
+      {path === '/admin/employees' && (
+        <>
+          <EmployeeDirectory {...shared} clearBranch={clearBranch} />
+          <RecordsBenefits {...shared} />
+          <Offboarding {...shared} />
+        </>
+      )}
+      {path === '/admin/departments' && (
+        <DepartmentManager authentication={authentication} branchId={branchId} clearBranch={clearBranch} />
+      )}
+      {path === '/admin/requests' && <LetterRequests {...shared} />}
       {path === '/admin/people' && (
         <EmployeeDirectory {...shared} clearBranch={clearBranch} />
       )}
@@ -71,12 +90,11 @@ export default function AdministratorPortal({
       {path === '/admin/payroll' && (
         <>
           <Payroll {...shared} />
-          <Expenses {...shared} />
-          <Advances {...shared} />
-          <Payslips account={account} authentication={authentication} />
           <WpsNafis {...shared} />
         </>
       )}
+      {path === '/admin/advances' && <Advances {...shared} />}
+      {path === '/admin/expenses' && <Expenses {...shared} />}
       {path === '/admin/records' && (
         <>
           <RecordsBenefits {...shared} />
@@ -90,8 +108,15 @@ export default function AdministratorPortal({
           <AppraisalsIncidents {...shared} />
         </>
       )}
+      {path === '/admin/assets' && <DevelopmentAssets {...shared} assetsOnly />}
+      {path === '/admin/training' && <DevelopmentAssets {...shared} trainingOnly />}
+      {path === '/admin/appraisals' && <AppraisalsIncidents {...shared} view="appraisals" />}
+      {path === '/admin/incidents' && <AppraisalsIncidents {...shared} view="incidents" />}
       {path === '/admin/reports' && (
         <Reports authentication={authentication} branchId={branchId} />
+      )}
+      {path === '/admin/tasks' && (
+        <Tasks account={account} authentication={authentication} branchId={branchId} navigator={navigator} />
       )}
     </div>
   )

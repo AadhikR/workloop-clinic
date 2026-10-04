@@ -51,7 +51,7 @@ function ExpenseRows({ items, role, busy, onAction }) {
   )
 }
 
-export default function Expenses({ account, authentication, branchId }) {
+export default function Expenses({ account, authentication, branchId, view = 'all' }) {
   const [selfItems, setSelfItems] = useState([])
   const [queueItems, setQueueItems] = useState([])
   const [status, setStatus] = useState('loading')
@@ -68,9 +68,11 @@ export default function Expenses({ account, authentication, branchId }) {
         const result = await readAdminExpenses(authentication, branchId)
         setQueueItems(result.items)
       } else {
-        const self = await readSelfExpenses(authentication)
-        setSelfItems(self.items)
-        if (account.role === 'manager') {
+        if (view !== 'queue') {
+          const self = await readSelfExpenses(authentication)
+          setSelfItems(self.items)
+        }
+        if (account.role === 'manager' && view !== 'self') {
           const queue = await readManagerExpenses(authentication)
           setQueueItems(queue.items)
         }
@@ -79,7 +81,7 @@ export default function Expenses({ account, authentication, branchId }) {
     } catch {
       setStatus('unavailable')
     }
-  }, [account.role, authentication, branchId])
+  }, [account.role, authentication, branchId, view])
 
   useEffect(() => {
     const pending = globalThis.setTimeout(load, 0)
@@ -130,9 +132,9 @@ export default function Expenses({ account, authentication, branchId }) {
 
   return (
     <section className="expenses" aria-labelledby="expenses-title">
-      <h2 id="expenses-title">Expenses</h2>
+      <h2 id="expenses-title">{view === 'queue' ? 'Expense Queue' : 'Expenses'}</h2>
       {message && <p role="status">{message}</p>}
-      {account.role !== 'admin' && (
+      {account.role !== 'admin' && view !== 'queue' && (
         <>
           <form className="expense-form" onSubmit={submit}>
             <h3>Submit an expense claim</h3>
@@ -147,7 +149,7 @@ export default function Expenses({ account, authentication, branchId }) {
           <ExpenseRows items={filter ? selfItems.filter((item) => item.status === filter) : selfItems} role="self" busy={busy} onAction={(kind, claim) => action(kind, claim, 'self')} />
         </>
       )}
-      {account.role === 'manager' && <>
+      {account.role === 'manager' && view !== 'self' && <>
         <h3>Direct-report queue</h3>
         <ExpenseRows items={queueItems} role="manager" busy={busy} onAction={(kind, claim) => action(kind, claim, 'manager')} />
       </>}

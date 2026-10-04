@@ -207,10 +207,15 @@ function Incidents({ authentication, branchId }) {
   </section>
 }
 
-export default function AppraisalsIncidents({ account, authentication, branchId }) {
+export default function AppraisalsIncidents({ account, authentication, branchId, view = 'all' }) {
+  const showAppraisals = view !== 'incidents'
+  const showIncidents = account.role === 'admin' && view !== 'appraisals'
+  const title = showAppraisals && showIncidents
+    ? 'Appraisals and clinical incidents'
+    : showIncidents ? 'Incidents' : 'Appraisals'
   return <section className="records-benefits" aria-labelledby="appraisals-incidents-title">
-    <h2 id="appraisals-incidents-title">{account.role === 'admin' ? 'Appraisals and clinical incidents' : 'Appraisals'}</h2>
-    <Appraisals account={account} authentication={authentication} branchId={branchId} />
-    {account.role === 'admin' && <Incidents authentication={authentication} branchId={branchId} />}
+    <h2 id="appraisals-incidents-title">{title}</h2>
+    {showAppraisals && <Appraisals account={account} authentication={authentication} branchId={branchId} />}
+    {showIncidents && <Incidents authentication={authentication} branchId={branchId} />}
   </section>
 }

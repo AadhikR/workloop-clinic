@@ -337,10 +337,11 @@ function CmeSummary({ authentication }) {
     <p>Target: {summary.targetHours} hours · Achieved: {summary.achievedHours} hours · Gap: {summary.gapHours} hours</p></section>
 }
 
-export default function DevelopmentAssets({ account, authentication, branchId, trainingOnly = false }) {
+export default function DevelopmentAssets({ account, assetsOnly = false, authentication, branchId, trainingOnly = false }) {
+  const title = assetsOnly ? 'Assets' : trainingOnly ? 'Training' : 'Assets and professional development'
   return <section className="records-benefits" aria-labelledby="development-assets-title">
-    <h2 id="development-assets-title">{trainingOnly ? 'Training' : 'Assets and professional development'}</h2>
+    <h2 id="development-assets-title">{title}</h2>
     {!trainingOnly && <AssetWorkspace account={account} authentication={authentication} branchId={branchId} />}
-    <DevelopmentWorkspace account={account} authentication={authentication} branchId={branchId} />
+    {!assetsOnly && <DevelopmentWorkspace account={account} authentication={authentication} branchId={branchId} />}
   </section>
 }

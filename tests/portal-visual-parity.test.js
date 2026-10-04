@@ -17,5 +17,7 @@ test('shares the polished portal layout across administrator, manager, and emplo
   assert.match(css, /\.portal-route \.tabs/)
   assert.match(css, /\.portal-route \.expense-form/)
   assert.match(css, /\.portal-route \.table-wrap/)
+  assert.match(css, /\.portal-route \{[\s\S]*?max-width: none;[\s\S]*?margin: 0;/)
+  assert.match(css, /\.portal\[data-portal-role\] \.page-body \{[\s\S]*?padding: 26px var\(--sidebar-gap\) 48px;/)
   assert.match(css, /data-portal-role='manager'[\s\S]*height: 62px/)
 })

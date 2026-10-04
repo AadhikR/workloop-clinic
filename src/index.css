@@ -2474,12 +2474,12 @@ button.employee-kpi-card:hover {
 }
 
 .portal[data-portal-role='employee'] .page-body {
-  padding: 26px 28px 48px;
+  padding: 26px var(--sidebar-gap) 48px;
 }
 
 .employee-route {
-  max-width: 1480px;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
 }
 
 .employee-route > section,
@@ -3258,15 +3258,15 @@ button.employee-kpi-card:hover:not(:disabled) {
 }
 
 .portal[data-portal-role] .page-body {
-  padding: 26px 28px 48px;
+  padding: 26px var(--sidebar-gap) 48px;
 }
 
 .portal-route {
   display: grid;
   width: 100%;
-  max-width: 1480px;
+  max-width: none;
   gap: 20px;
-  margin: 0 auto;
+  margin: 0;
 }
 
 .portal-route > section,

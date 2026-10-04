@@ -1,3 +1,6 @@
+import { administratorParityRouteGroups } from './administratorRoutes.js'
+import { managerParityRouteGroups } from './managerRoutes.js'
+
 const routeDefinitions = [
   ['P15-ROUTE-001', '/', ['public', 'admin', 'manager', 'employee'], '15B', 'Sign in'],
   ['P15-ROUTE-002', '/oidc/callback', ['public'], '15B', 'Signing in'],
@@ -70,6 +73,12 @@ export function roleHome(role) {
 
 export function roleNavigation(role) {
   roleHome(role)
+  if (role === 'admin') {
+    return Object.freeze(administratorParityRouteGroups.map(({ path, title }) => Object.freeze({ path, title })))
+  }
+  if (role === 'manager') {
+    return Object.freeze(managerParityRouteGroups.map(({ path, title }) => Object.freeze({ path, title })))
+  }
   if (role === 'employee') {
     return Object.freeze(employeeNavigation.map(([path, title]) => Object.freeze({ path, title })))
   }
@@ -82,6 +91,18 @@ export function resolvePortalRoute(path, role) {
   const home = roleHome(role)
   if (path === '/') {
     return Object.freeze({ kind: 'redirect', path: home, title: routes.get(home).title })
+  }
+  const administratorParityRoute = administratorParityRouteGroups.find((route) => route.path === path)
+  const managerParityRoute = managerParityRouteGroups.find((route) => route.path === path)
+  if (administratorParityRoute || managerParityRoute) {
+    const expectedRole = administratorParityRoute ? 'admin' : 'manager'
+    const parityRoute = administratorParityRoute ?? managerParityRoute
+    if (role !== expectedRole) return Object.freeze({ kind: 'forbidden', path, title: 'Access denied' })
+    return Object.freeze({
+      kind: path === home ? 'home' : 'portal',
+      path,
+      title: parityRoute.title,
+    })
   }
   const employeeParityRoute = employeeParityDefinitions.find(([routePath]) => routePath === path)
   if (employeeParityRoute) {

@@ -2,10 +2,10 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
-import { managerRouteGroups } from '../src/managerRoutes.js'
-import { resolvePortalRoute } from '../src/portalRoutes.js'
+import { managerParityRouteGroups, managerRouteGroups } from '../src/managerRoutes.js'
+import { resolvePortalRoute, roleNavigation } from '../src/portalRoutes.js'
 
-const expectedRoutes = [
+const expectedContractRoutes = [
   ['/manager', []],
   ['/manager/team', ['EmployeeDirectory']],
   ['/manager/leave', ['LeaveOverview', 'LeaveApprovals']],
@@ -15,11 +15,30 @@ const expectedRoutes = [
   ['/manager/requests', ['Advances', 'RecordsBenefits', 'LetterRequests']],
 ]
 
-test('assigns every approved manager route to existing manager or self views', () => {
+const expectedRoutes = [
+  ['/manager', ['Dashboard']],
+  ['/manager/leave-queue', ['LeaveApprovals']],
+  ['/manager/expense-queue', ['Expenses']],
+  ['/manager/appraisals', ['AppraisalsIncidents']],
+  ['/manager/leave', ['LeaveOverview']],
+  ['/manager/schedule', ['PersonalSchedule']],
+  ['/manager/attendance', ['PersonalAttendance']],
+  ['/manager/payslips', ['Payslips']],
+  ['/manager/advances', ['Advances']],
+  ['/manager/expenses', ['Expenses']],
+  ['/manager/training', ['DevelopmentAssets']],
+  ['/manager/documents', ['RecordsBenefits']],
+  ['/manager/requests', ['LetterRequests']],
+  ['/manager/profile', ['EmployeeProfile']],
+  ['/manager/tasks', ['Tasks']],
+]
+
+test('assigns every historical manager module to existing manager or self views', () => {
   assert.deepEqual(
-    managerRouteGroups.map(({ path, views }) => [path, views]),
+    managerParityRouteGroups.map(({ path, views }) => [path, views]),
     expectedRoutes,
   )
+  assert.deepEqual(roleNavigation('manager').map(({ path }) => path), expectedRoutes.map(([path]) => path))
 })
 
 test('opens manager routes and keeps administrator and employee routes denied or unavailable', () => {
@@ -55,7 +74,11 @@ test('matches the completed 15D catalogue routes and evidence', async () => {
     '../docs/migration/phase-15/integration-catalogue.json', import.meta.url,
   )))
   const routes = catalogue.routeContracts.filter((route) => route.owner === '15D')
-  assert.deepEqual(routes.map((route) => route.path), expectedRoutes.map(([path]) => path))
+  assert.deepEqual(
+    managerRouteGroups.map(({ path, views }) => [path, views]),
+    expectedContractRoutes,
+  )
+  assert.deepEqual(routes.map((route) => route.path), expectedContractRoutes.map(([path]) => path))
   for (const route of routes) {
     assert.ok(route.evidence?.includes('src/ManagerPortal.jsx'))
     assert.ok(route.evidence?.includes('tests/phase-15d-manager-routes.test.js'))

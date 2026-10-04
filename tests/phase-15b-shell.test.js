@@ -126,8 +126,10 @@ test('accepts only the server-scoped staff branch', () => {
 })
 
 test('wires the shared shell without the architecture storage proof', async () => {
-  const [app, shell, entry] = await Promise.all([
+  const [adminPortal, app, managerPortal, shell, entry] = await Promise.all([
+    readFile(new URL('../src/AdministratorPortal.jsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/App.jsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/ManagerPortal.jsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/PortalShell.jsx', import.meta.url), 'utf8'),
     readFile(new URL('../index.html', import.meta.url), 'utf8'),
   ])
@@ -135,7 +137,8 @@ test('wires the shared shell without the architecture storage proof', async () =
   assert.match(app, /className="skip-link"/)
   assert.match(shell, /aria-current=/)
   assert.match(shell, /<NotificationBell/)
-  assert.match(shell, /<Tasks/)
+  assert.match(adminPortal, /<Tasks/)
+  assert.match(managerPortal, /<Tasks/)
   assert.match(shell, /<Dashboard/)
   assert.match(shell, /ref={headingRef}/)
   assert.match(entry, /history\.replaceState\(null, '', '\/'\)/)

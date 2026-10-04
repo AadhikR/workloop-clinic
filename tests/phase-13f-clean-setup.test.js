@@ -90,7 +90,7 @@ test('pins the reviewed allowlist after adding the exact 13H evidence paths', ()
   const digest = createHash('sha256')
     .update(readFileSync(path.join(repositoryDirectory, 'scripts', 'phase-13e-retired-runtime-allowlist.json')))
     .digest('hex')
-  assert.equal(digest, 'bf7d1b31ea42b5b642140d5ca68c9141318fbd0e17cfbb7e371bbd0d4943338a')
+  assert.equal(digest, 'bbdce475ea0eabd66f94d74f4b6a44c4c2171e975c2a0a9cd9e45d5d37a64651')
 })
 
 test('covers builds, browsers, backend processes, workers, and test helpers', () => {

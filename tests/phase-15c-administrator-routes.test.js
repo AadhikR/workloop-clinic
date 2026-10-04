@@ -2,10 +2,10 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
-import { administratorRouteGroups } from '../src/administratorRoutes.js'
-import { resolvePortalRoute } from '../src/portalRoutes.js'
+import { administratorParityRouteGroups, administratorRouteGroups } from '../src/administratorRoutes.js'
+import { resolvePortalRoute, roleNavigation } from '../src/portalRoutes.js'
 
-const expectedRoutes = [
+const expectedContractRoutes = [
   ['/admin', []],
   ['/admin/organization', ['OrganizationSettings', 'DepartmentManager']],
   ['/admin/people', ['EmployeeDirectory']],
@@ -24,11 +24,33 @@ const expectedRoutes = [
   ['/admin/reports', ['Reports']],
 ]
 
-test('assigns every approved administrator route to its existing views', () => {
+const expectedRoutes = [
+  ['/admin', ['Dashboard']],
+  ['/admin/clinical-dashboard', ['Dashboard']],
+  ['/admin/company-settings', ['OrganizationSettings']],
+  ['/admin/employees', ['EmployeeDirectory', 'RecordsBenefits', 'Offboarding']],
+  ['/admin/departments', ['DepartmentManager']],
+  ['/admin/requests', ['LetterRequests']],
+  ['/admin/payroll', ['Payroll', 'WpsNafis']],
+  ['/admin/advances', ['Advances']],
+  ['/admin/expenses', ['Expenses']],
+  ['/admin/leave', ['LeaveConfiguration', 'LeaveOverview', 'LeaveApprovals']],
+  ['/admin/attendance', ['AttendanceConfiguration', 'AttendanceIngestion', 'AttendanceCalculation', 'AttendanceExceptions', 'AttendancePeriods']],
+  ['/admin/assets', ['DevelopmentAssets']],
+  ['/admin/training', ['DevelopmentAssets']],
+  ['/admin/appraisals', ['AppraisalsIncidents']],
+  ['/admin/roster', ['RosterDrafts', 'ShiftSwapQueue']],
+  ['/admin/incidents', ['AppraisalsIncidents']],
+  ['/admin/reports', ['Reports']],
+  ['/admin/tasks', ['Tasks']],
+]
+
+test('assigns every historical administrator module to its current views', () => {
   assert.deepEqual(
-    administratorRouteGroups.map(({ path, views }) => [path, views]),
+    administratorParityRouteGroups.map(({ path, views }) => [path, views]),
     expectedRoutes,
   )
+  assert.deepEqual(roleNavigation('admin').map(({ path }) => path), expectedRoutes.map(([path]) => path))
 })
 
 test('opens administrator routes while preserving role denial', () => {
@@ -60,7 +82,11 @@ test('matches the completed 15C catalogue routes and evidence', async () => {
     '../docs/migration/phase-15/integration-catalogue.json', import.meta.url,
   )))
   const routes = catalogue.routeContracts.filter((route) => route.owner === '15C')
-  assert.deepEqual(routes.map((route) => route.path), expectedRoutes.map(([path]) => path))
+  assert.deepEqual(
+    administratorRouteGroups.map(({ path, views }) => [path, views]),
+    expectedContractRoutes,
+  )
+  assert.deepEqual(routes.map((route) => route.path), expectedContractRoutes.map(([path]) => path))
   for (const route of routes) {
     assert.ok(route.evidence?.includes('src/AdministratorPortal.jsx'))
     assert.ok(route.evidence?.includes('tests/phase-15c-administrator-routes.test.js'))

@@ -26,6 +26,30 @@ const employeeScreens = {
   requests: '/employee/requests',
 }
 
+const adminScreens = {
+  advances: '/admin/advances',
+  appraisals: '/admin/appraisals',
+  attendanceExceptions: '/admin/attendance',
+  developmentAssets: '/admin/training',
+  employees: '/admin/employees',
+  expenses: '/admin/expenses',
+  leaveApprovals: '/admin/leave',
+  letterRequests: '/admin/requests',
+  offboarding: '/admin/employees',
+  payroll: '/admin/payroll',
+  recordsBenefits: '/admin/employees',
+  shiftSwaps: '/admin/roster',
+}
+
+const managerScreens = {
+  appraisals: '/manager/appraisals',
+  developmentAssets: '/manager/training',
+  expenses: '/manager/expense-queue',
+  leaveApprovals: '/manager/leave-queue',
+}
+
+const taskScreens = { admin: adminScreens, employee: employeeScreens, manager: managerScreens }
+
 export default function Tasks({ account, authentication, branchId, navigator }) {
   const [catalogue, setCatalogue] = useState(null)
   const [status, setStatus] = useState('loading')
@@ -51,6 +75,8 @@ export default function Tasks({ account, authentication, branchId, navigator }) 
   }, [load])
 
   const categories = catalogue?.categories ?? []
+  const taskFallback = `/${account.role}/tasks`
+  const targetFor = (task) => taskScreens[account.role]?.[task.navigation.screen] ?? taskFallback
   return (
     <section className="task-centre" aria-label="Tasks">
       <div className="task-heading">
@@ -92,9 +118,9 @@ export default function Tasks({ account, authentication, branchId, navigator }) 
             <ol>
               {value.items.map((task) => (
                 <li key={task.id} data-urgency={task.urgency}>
-                  <a href={account.role === 'employee' ? employeeScreens[task.navigation.screen] ?? '/employee/tasks' : `#${task.navigation.screen}`} data-task-id={task.id} onClick={account.role === 'employee' && navigator ? (event) => {
+                  <a href={targetFor(task)} data-task-id={task.id} onClick={navigator ? (event) => {
                     event.preventDefault()
-                    navigator.go(employeeScreens[task.navigation.screen] ?? '/employee/tasks')
+                    navigator.go(targetFor(task))
                   } : undefined}>
                     <strong>{task.title}</strong>
                     <span>{task.subtitle}</span>

@@ -35,7 +35,10 @@ The new Part 13H verifier and five focused tests passed. They prove:
 
 The complete Phase 13 focused suite passed 52 tests. The repository guard passed after adding exact
 paths for the review record and verifier. The final allowlist digest is
-`bf7d1b31ea42b5b642140d5ca68c9141318fbd0e17cfbb7e371bbd0d4943338a`.
+`bbdce475ea0eabd66f94d74f4b6a44c4c2171e975c2a0a9cd9e45d5d37a64651`.
+
+The digest changed on 2026-10-04 when the reviewed history allowlist gained the source-verified
+portal feature catalogue and UI parity specification. The runtime boundary did not change.
 
 GitHub Migration foundation run `36316708601` passed classification, backend quality, frontend
 regression, and full-stack smoke on commit `a1c1358fc06442213f555093f3f98cfc8cc46d20`.
