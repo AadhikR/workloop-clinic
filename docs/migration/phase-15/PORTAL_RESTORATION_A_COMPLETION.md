@@ -96,6 +96,18 @@ through the production clients and parsers. Neither is proof of every new Postgr
 GitHub supplies the independently routed full-stack gate. Part F must also prove the new operations
 against the database before deploying the final backend artifacts.
 
+## Independent completion gate
+
+The complete manual GitHub run passed for code commit
+`195fc669a84482652e02d3f514a09e0f3486d4fb`. Frontend regression, backend quality, full-stack
+verification, database history and permission checks, authentication, restart persistence, all-role
+browser journeys, performance, cleanup, and backend log-safety checks passed. The preceding
+performance-only push had skipped backend and full-stack jobs, so it was not used to close this gate.
+The successful complete-run URL travels in B's handoff.
+
+A's assigned implementation and verification gate is complete. The named C, E, and F dependencies
+remain required work. This does not certify complete historical parity or publish the new backend.
+
 ## Preservation and continuation
 
 No live app deployment, real employee record, credential, or provider resource changed. Preserve
@@ -103,8 +115,8 @@ No live app deployment, real employee record, credential, or provider resource c
 `fra1-default`. Autodeploy remains off. The accepted live payroll release remains
 `e42808894b1c1a66c5e42738bbf9fa0cb46c538e` until restoration Part F.
 
-Commit and push this settled part, wait for every required GitHub job, then create restoration
-Part B in the same saved project and local checkout. Its scope is company settings, employee views
+Create restoration Part B after this completion record is synchronized in the same saved project
+and local checkout. Its scope is company settings, employee views
 and the tabbed editor, employee records and lifecycle work, and all-role letter/custom requests.
 The owner already authorized that continuation. Do not implement B in this task or start Phase 16.
 Carry the verified commit and successful workflow URL in the handoff rather than another evidence

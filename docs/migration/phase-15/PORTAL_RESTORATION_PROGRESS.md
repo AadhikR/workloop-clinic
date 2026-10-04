@@ -45,7 +45,7 @@ from the shared stylesheet.
 | Manager | Training | E | Shared A tabs/forms changed. Completion is limited to selected direct reports. Historical team/personal comparison and populated proof pending. |
 | Manager | Documents | B, E | Pending |
 | Manager | Requests | B, E | Pending |
-| Manager | Profile | E | Pending |
+| Manager | Profile | E | A corrected UAE mobile validation in the shared contact editor. Full historical profile comparison remains pending. |
 | Manager | Tasks | D, E | Pending |
 | Employee | Home | E | Pending |
 | Employee | Leave | E | Pending |
@@ -58,7 +58,7 @@ from the shared stylesheet.
 | Employee | Appraisals | E | Shared A result dialog changed. Remains read-only. Historical personal comparison and populated proof pending. |
 | Employee | Documents | B, E | Pending |
 | Employee | Requests | B, E | Pending |
-| Employee | Profile | E | Pending |
+| Employee | Profile | E | A corrected UAE mobile validation in the contact editor. Full historical profile comparison remains pending. |
 | Employee | Tasks | D, E | Pending |
 
 ## Backend additions in A
@@ -98,6 +98,9 @@ The final local gate passed 417 frontend tests, including the production build, 
 tests. Changed frontend files pass lint. Backend lint, formatting, types, and dependency checks
 pass. The populated browser verifier passes after waiting for the navigation pill to settle.
 Shared route accessibility and failed-contact-save recovery checks pass all 46 navigation routes.
+The complete independent gate passed for code commit `195fc669a84482652e02d3f514a09e0f3486d4fb`,
+including database history, permissions, authentication, restart journeys, performance, and cleanup.
+This closes A's assigned gate, not the required C, E, and F dependencies listed above.
 See `PORTAL_RESTORATION_A_COMPLETION.md` for the execution environment and evidence limits.
 
 These tests do not prove every backend transaction against PostgreSQL or every role-specific
