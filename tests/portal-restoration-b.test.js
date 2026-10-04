@@ -55,3 +55,9 @@ test('records and offboarding accept selected employee context', () => {
   assert.ok(source('RecordsBenefits.jsx').includes('selectedEmployeeId'))
   assert.ok(source('Offboarding.jsx').includes('selectedEmployeeId'))
 })
+
+test('historical browser journey targets the restored branch settings form', () => {
+  const text = readFileSync(new URL('../scripts/verify-phase-3g-browser.mjs', import.meta.url), 'utf8')
+  assert.ok(text.includes('form.restoration-settings-sections'))
+  assert.ok(!text.includes("name: 'Selected branch'"))
+})

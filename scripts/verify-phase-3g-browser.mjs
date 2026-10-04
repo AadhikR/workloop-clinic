@@ -1644,18 +1644,15 @@ async function assertOrganizationApi(page, persona) {
       /^[0-9a-f-]{36}$/,
     )
 
-    const selectedBranchForm = page.locator('.settings-form').filter({
-      has: page.getByRole('heading', { name: 'Selected branch' }),
-    })
+    const selectedBranchForm = page.locator('form.restoration-settings-sections')
     await selectedBranchForm.getByRole('button', { name: 'Delete branch' }).click()
     await selectedBranchForm.getByText('Select delete again to confirm.').waitFor()
     await selectedBranchForm.getByRole('button', { name: 'Confirm delete' }).click()
     const guardedDeleteStatus = selectedBranchForm.getByRole('status')
     await page.waitForFunction(
       () => {
-        const text = [...document.querySelectorAll('.settings-form')]
-          .find((form) => form.querySelector('h3')?.textContent === 'Selected branch')
-          ?.querySelector('[role="status"]')?.textContent
+        const text = document.querySelector('form.restoration-settings-sections [role="status"]')
+          ?.textContent
         return Boolean(text) && text !== 'Select delete again to confirm.'
       },
       undefined,
