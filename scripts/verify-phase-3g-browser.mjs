@@ -1457,7 +1457,7 @@ async function assertEmployeeApi(page, persona) {
       employeeId: personas[2].employeeId,
       role: 'employee',
     })
-    await page.getByText('Lifecycle and portal access').click()
+    await page.getByText('Lifecycle and portal access', { exact: true }).click()
     const portalPanel = page.locator('.employee-portal-role')
     await portalPanel.getByText('Current role: employee').waitFor()
     const promotePromise = page.waitForResponse((response) => {
@@ -2196,8 +2196,14 @@ async function assertPhase11BrowserJourney(page, persona) {
     const completed = []
     for (const item of queue) {
       const decided = await decideRequest(authentication, branchId, item, 'complete')
-      const source = await readPrintSource(authentication, branchId, decided)
-      completed.push({ id: decided.id, sourceId: source.requestId, status: decided.status })
+      const source = await capture(() => readPrintSource(authentication, branchId, decided))
+      completed.push({
+        id: decided.id,
+        requestKind: decided.requestKind,
+        sourceError: source.error ?? null,
+        sourceId: source.response?.requestId ?? null,
+        status: decided.status,
+      })
     }
     const before = await readChecklists(authentication, branchId)
     let checklist = await initializeChecklist(authentication, branchId, employeeId)
@@ -2259,9 +2265,13 @@ async function assertPhase11BrowserJourney(page, persona) {
     [...phase11Journey.requestIds].sort(),
     'administrator request queue identities',
   )
-  assert.ok(result.completed.every(({ id, sourceId, status }) => (
-    id === sourceId && status === 'completed'
-  )), 'administrator request completion and print sources')
+  assert.ok(result.completed.every(({ requestKind, sourceError, sourceId, status }) => (
+    requestKind === 'custom'
+      && sourceError?.code === 'operation_not_permitted'
+      && sourceError.status === 403
+      && sourceId === null
+      && status === 'completed'
+  )), 'administrator custom request completion and print-source denial')
 }
 
 async function assertPhase12BrowserJourney(page, persona) {
