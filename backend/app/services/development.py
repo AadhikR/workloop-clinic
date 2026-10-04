@@ -20,6 +20,8 @@ from app.schemas.development import (
     CertificationAdminCreateRequest,
     CertificationResponse,
     CertificationStaffCreateRequest,
+    CertificationUpdateRequest,
+    CmeBranchEmployeeResponse,
     CmeRequirementRequest,
     CmeRequirementResponse,
     CmeSummaryResponse,
@@ -416,6 +418,59 @@ VALUES(:company_id,:branch_id,:employee_id,:certification_name,:issuing_body,
         )
         return CertificationResponse.model_validate(row)
 
+    async def update_certification(
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        certification_id: uuid.UUID,
+        request: CertificationUpdateRequest,
+        *,
+        scope: str,
+    ) -> CertificationResponse:
+        row = await self._certification_row(principal, branch_id, certification_id, lock=True)
+        employee_id = self._row_employee_id(row)
+        effective_scope = self._effective_scope(principal, employee_id, scope)
+        await self._scope_employee(
+            principal, branch_id, employee_id, scope=effective_scope, optional=False
+        )
+        if row["updated_at"] != request.expected_updated_at:
+            raise ServiceExecutionError("state_conflict")
+        if principal.role is not AppRole.ADMIN and row["status"] == "verified":
+            raise ServiceExecutionError("state_conflict")
+        await self.connection.execute(
+            text(
+                "UPDATE public.certifications SET certification_name=:certification_name,"
+                "issuing_body=:issuing_body,certificate_no=:certificate_no,"
+                "issued_date=:issued_date,expiry_date=:expiry_date,notes=:notes,"
+                "status='pending_review',reviewed_at=NULL,reviewed_by_app_user_id=NULL "
+                "WHERE id=:id AND company_id=:company_id AND branch_id=:branch_id"
+            ),
+            {
+                "id": certification_id,
+                "company_id": principal.company_id,
+                "branch_id": branch_id,
+                **request.model_dump(exclude={"expected_updated_at"}, by_alias=False),
+            },
+        )
+        await self._audit(
+            "certification_submitted",
+            "certification",
+            certification_id,
+            [
+                "certification_name",
+                "issuing_body",
+                "certificate_no",
+                "issued_date",
+                "expiry_date",
+                "notes",
+                "status",
+                "reviewed_at",
+                "reviewed_by_app_user_id",
+            ],
+            "Certification edited and resubmitted for review",
+        )
+        return await self.get_certification(principal, branch_id, certification_id, scope=scope)
+
     async def decide_certification(
         self,
         principal: AuthorizationPrincipal,
@@ -610,6 +665,88 @@ VALUES(:company_id,:branch_id,:employee_id,:certification_name,:issuing_body,
         await self.connection.execute(
             text("DELETE FROM public.cme_requirements WHERE id=:id"), {"id": current.id}
         )
+
+    async def branch_cme(
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        year: int,
+        limit: int,
+        after_id: uuid.UUID | None,
+    ) -> list[CmeBranchEmployeeResponse]:
+        if principal.role is not AppRole.ADMIN:
+            raise ServiceExecutionError("operation_not_permitted")
+        rows = (
+            (
+                await self.connection.execute(
+                    text("""
+SELECT employee.id employee_id,employee.name employee_name,employee.department,
+ requirement.id requirement_id,requirement.required_hours,requirement.notes,
+ requirement.created_at,requirement.updated_at,training.achieved,training.in_progress
+FROM public.employees employee
+LEFT JOIN public.cme_requirements requirement
+ ON requirement.employee_id=employee.id AND requirement.company_id=employee.company_id
+ AND requirement.branch_id=employee.branch_id AND requirement.year=:year
+LEFT JOIN LATERAL (
+ SELECT count(*) record_count,
+ COALESCE(sum(record.duration_hours) FILTER (WHERE record.status='completed' AND record.passed
+   AND (record.content_type IS NULL OR public.file_security_scan_allows_download(
+     record.file_security_scan_id,'training_evidence',record.id,record.storage_path,
+     record.content_type,record.size_bytes,record.sha256,:scanner_definition))),0) achieved,
+ COALESCE(sum(record.duration_hours) FILTER (
+   WHERE record.status IN ('planned','in_progress')),0) in_progress
+ FROM public.training_records record
+ WHERE record.employee_id=employee.id AND record.company_id=employee.company_id
+ AND record.branch_id=employee.branch_id AND record.is_cme
+ AND EXTRACT(year FROM record.start_date)=:year
+) training ON true
+WHERE employee.company_id=:company_id AND employee.branch_id=:branch_id
+ AND (requirement.id IS NOT NULL OR training.record_count>0)
+ AND (CAST(:after_id AS uuid) IS NULL OR employee.id>:after_id)
+ORDER BY employee.id ASC LIMIT :limit
+"""),
+                    {
+                        "company_id": principal.company_id,
+                        "branch_id": branch_id,
+                        "year": year,
+                        "limit": limit,
+                        "after_id": after_id,
+                        "scanner_definition": self.scanner_definition,
+                    },
+                )
+            )
+            .mappings()
+            .all()
+        )
+        results: list[CmeBranchEmployeeResponse] = []
+        for row in rows:
+            target = Decimal(row["required_hours"] or 0)
+            achieved = Decimal(row["achieved"])
+            requirement = None
+            if row["requirement_id"] is not None:
+                requirement = CmeRequirementResponse(
+                    id=row["requirement_id"],
+                    employee_id=row["employee_id"],
+                    year=year,
+                    required_hours=target,
+                    notes=row["notes"],
+                    created_at=row["created_at"],
+                    updated_at=row["updated_at"],
+                )
+            results.append(
+                CmeBranchEmployeeResponse(
+                    employee_id=row["employee_id"],
+                    employee_name=row["employee_name"],
+                    department=row["department"],
+                    year=year,
+                    target_hours=target,
+                    achieved_hours=achieved,
+                    gap_hours=max(Decimal(0), target - achieved),
+                    in_progress_hours=row["in_progress"],
+                    requirement=requirement,
+                )
+            )
+        return results
 
     async def self_cme(
         self, principal: AuthorizationPrincipal, branch_id: uuid.UUID, year: int

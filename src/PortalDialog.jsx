@@ -12,7 +12,7 @@ export default function PortalDialog({ children, labelledBy, onClose, drawer = f
     const focusable = () => [...dialog.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href]')].filter((element) => element.checkVisibility())
     focusable()[0]?.focus()
     const handleKey = (event) => {
-      if (event.key === 'Escape') { event.preventDefault(); onCloseRef.current() }
+      if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onCloseRef.current() }
       if (event.key !== 'Tab') return
       const targets = focusable()
       const first = targets[0]

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Awaitable, Callable
+from datetime import date
 from typing import Annotated, cast
 
 from fastapi import APIRouter, Query, Request
@@ -23,6 +24,7 @@ from app.schemas.assets import (
     AssetAssignRequest,
     AssetCreateRequest,
     AssetDeleteRequest,
+    AssetHistoryResponse,
     AssetResponse,
     AssetReturnRequest,
     AssetStatusRequest,
@@ -106,6 +108,7 @@ async def list_assets(
     category: Annotated[str | None, Query(max_length=120)] = None,
     search: Annotated[str | None, Query(max_length=180)] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    cursor: Annotated[uuid.UUID | None, Query()] = None,
 ) -> CollectionResponse[AssetResponse]:
     if asset_status not in {None, "available", "assigned", "under_repair", "retired", "lost"}:
         raise api_error("validation_failed")
@@ -120,10 +123,59 @@ async def list_assets(
         operation=lambda connection: AssetService(connection).list(
             principal,
             selected,
-            AssetListQuery(asset_status, normalized_category, normalized_search, limit),
+            AssetListQuery(asset_status, normalized_category, normalized_search, limit + 1, cursor),
         ),
     )
-    return CollectionResponse(data=items, page=Page(limit=limit, next_cursor=None, has_more=False))
+    has_more = len(items) > limit
+    visible = items[:limit]
+    return CollectionResponse(
+        data=visible,
+        page=Page(
+            limit=limit, next_cursor=str(visible[-1].id) if has_more else None, has_more=has_more
+        ),
+    )
+
+
+@router.get(
+    "/assignments",
+    response_model=CollectionResponse[AssetHistoryResponse],
+    operation_id="list_asset_assignment_history",
+    responses={**success_response_documentation(200, "Branch asset assignment history"), **ERRORS},
+)
+async def list_asset_assignment_history(
+    request: Request,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedReadPrincipal,
+    selected: AdminSelectedBranch,
+    asset_id: Annotated[uuid.UUID | None, Query(alias="assetId")] = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 100,
+    cursor: Annotated[str | None, Query(max_length=64)] = None,
+) -> CollectionResponse[AssetHistoryResponse]:
+    after_date = None
+    after_id = None
+    if cursor is not None:
+        try:
+            raw_date, raw_id = cursor.split(":", 1)
+            after_date = date.fromisoformat(raw_date)
+            after_id = uuid.UUID(raw_id)
+            if raw_date != after_date.isoformat() or raw_id != str(after_id):
+                raise ValueError
+        except ValueError:
+            raise api_error("validation_failed") from None
+    items = await executor(request).execute(
+        claims=claims,
+        principal=principal,
+        selected_admin_branch_id=selected,
+        operation=lambda connection: AssetService(connection).list_history(
+            principal, selected, asset_id, limit + 1, after_date, after_id
+        ),
+    )
+    has_more = len(items) > limit
+    visible = items[:limit]
+    next_cursor = f"{visible[-1].assigned_date.isoformat()}:{visible[-1].id}" if has_more else None
+    return CollectionResponse(
+        data=visible, page=Page(limit=limit, next_cursor=next_cursor, has_more=has_more)
+    )
 
 
 @router.get(

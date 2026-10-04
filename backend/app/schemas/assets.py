@@ -68,6 +68,7 @@ class AssetStatusRequest(StrictRequestSchema):
 
 class AssetAssignRequest(StrictRequestSchema):
     employee_id: uuid.UUID
+    assigned_date: date | None = None
     condition_at_handover: str = Field(default="good", min_length=1, max_length=120)
     notes: str = Field(default="", max_length=1000)
     expected_updated_at: datetime
@@ -79,6 +80,7 @@ class AssetAssignRequest(StrictRequestSchema):
 
 
 class AssetReturnRequest(StrictRequestSchema):
+    return_date: date | None = None
     condition_at_return: str = Field(min_length=1, max_length=120)
     notes: str = Field(default="", max_length=1000)
     expected_updated_at: datetime
@@ -139,3 +141,7 @@ class AssetAssignmentResponse(ApiSchema):
 class DeletedAssetResponse(ApiSchema):
     id: uuid.UUID
     deleted: bool
+
+
+class AssetHistoryResponse(AssetAssignmentResponse):
+    employee_name: str

@@ -82,5 +82,5 @@ Payroll, Advances, and Expenses keep separate routes and separate module headers
 
 - Use the historical DOM hierarchy, visible labels, control order, density, table columns, dialogs, filters, status pills, and responsive transitions when the current API supports the interaction.
 - Keep current FastAPI payloads, optimistic version fields, idempotency keys, protected file delivery, Keycloak session handling, and server-derived role and scope.
-- Omit a historical action when no current endpoint supports it. Do not replace it with local state, a fabricated result, or a revived retired-service call.
+- The October 4 owner authorization requires missing backend operations to be implemented. Track each gap in `PORTAL_RESTORATION_PROGRESS.md` and follow `PORTAL_RESTORATION_EXECUTION.md`. Keep an unsupported action unavailable until its protected server operation exists. Never replace it with local state, a fabricated result, or a revived retired-service call.
 - Keep route-level loading, empty, denied, validation, conflict, and unavailable states visible inside the historical module layout.

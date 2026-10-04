@@ -172,7 +172,7 @@ function PortalHome({ account, authentication, navigator, route }) {
     'Expenses', 'Leave', 'Attendance', 'Reports',
   ])
   const navigation = account.role === 'admin' && !advancedFeatures
-    ? allNavigation.filter((item) => coreAdministratorPages.has(item.title))
+    ? allNavigation.filter((item) => coreAdministratorPages.has(item.title) || item.path === route.path)
     : allNavigation
 
   const toggleSidebar = () => {

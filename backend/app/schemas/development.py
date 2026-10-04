@@ -166,6 +166,10 @@ class CertificationStaffCreateRequest(CertificationFields):
     employee_id: uuid.UUID | None = None
 
 
+class CertificationUpdateRequest(CertificationFields):
+    expected_updated_at: datetime
+
+
 class CertificationDecisionRequest(StrictRequestSchema):
     expected_updated_at: datetime
     reason: str | None = Field(default=None, min_length=1, max_length=500)
@@ -252,6 +256,18 @@ class EvidenceDownloadResponse(ApiSchema):
     @field_serializer("expires_at")
     def serialize_timestamp(self, value: datetime) -> str:
         return value.astimezone(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+class CmeBranchEmployeeResponse(CmeSummaryResponse):
+    employee_id: uuid.UUID
+    employee_name: str
+    department: str
+    in_progress_hours: Decimal
+    requirement: CmeRequirementResponse | None
+
+    @field_serializer("in_progress_hours")
+    def serialize_progress_hours(self, value: Decimal) -> str:
+        return f"{value.quantize(Decimal('0.1'), rounding=ROUND_HALF_UP):.1f}"
 
 
 class DeletedDevelopmentResponse(ApiSchema):

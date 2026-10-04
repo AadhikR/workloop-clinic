@@ -14,6 +14,7 @@ import {
 } from './departmentApi.js'
 import { readAllEmployees } from './employeeApi.js'
 import { HttpClientError } from './http.js'
+import { ConfirmDialog, FilterTabs, FormDialog, PortalTable } from './PortalUi.jsx'
 
 const emptyDepartment = {
   name: '', parentId: null, headEmployeeId: null, color: '#6366f1', description: '', sortOrder: 0,
@@ -54,10 +55,12 @@ function hierarchyRows(departments) {
   return rows
 }
 
-function DepartmentEditor({ departments, employees, selected, onCancel, onSaved, authentication, branchId }) {
+function DepartmentEditor({ departments, employees, selected, onCancel, onSaved, onBusy, authentication, branchId }) {
   const [draft, setDraft] = useState(selected ?? emptyDepartment)
   const [message, setMessage] = useState('')
   const [saving, setSaving] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  useEffect(() => onBusy(saving), [onBusy, saving])
 
   const field = (name) => (event) => setDraft({
     ...draft,
@@ -137,17 +140,20 @@ function DepartmentEditor({ departments, employees, selected, onCancel, onSaved,
       <div className="settings-actions">
         <button type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save department'}</button>
         {selected && <button type="button" className="secondary" onClick={onCancel}>Cancel</button>}
-        {selected && <button type="button" className="danger" disabled={saving} onClick={remove}>Delete</button>}
+        {selected && <button type="button" className="danger" disabled={saving} onClick={() => setConfirmDelete(true)}>Delete</button>}
       </div>
       {message && <p role="status">{message}</p>}
+      <ConfirmDialog title="Delete department" open={confirmDelete} busy={saving} onClose={() => setConfirmDelete(false)} onConfirm={remove} confirmLabel="Delete department">Delete this department? Dependent records may prevent deletion.</ConfirmDialog>
     </form>
   )
 }
 
-function StaffingEditor({ authentication, branchId, departments, rules, selected, onSelect, onSaved }) {
+function StaffingEditor({ authentication, branchId, departments, selected, onSelect, onSaved, onBusy }) {
   const [draft, setDraft] = useState(selected ?? { ...emptyRule, department: departments[0]?.name ?? '' })
   const [message, setMessage] = useState('')
   const [saving, setSaving] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  useEffect(() => onBusy(saving), [onBusy, saving])
 
   const field = (name) => (event) => setDraft({
     ...draft,
@@ -203,15 +209,6 @@ function StaffingEditor({ authentication, branchId, departments, rules, selected
 
   return (
     <div className="staffing-editor">
-      <ul className="staffing-list">
-        {rules.map((rule) => (
-          <li key={rule.id}>
-            <button type="button" className="secondary" onClick={() => onSelect(rule)}>
-              {rule.department}: {rule.shiftCategory}, minimum {rule.minStaff}
-            </button>
-          </li>
-        ))}
-      </ul>
       <form className="settings-form" onSubmit={submit}>
         <h4>{selected ? 'Edit staffing rule' : 'New staffing rule'}</h4>
         <label>Department
@@ -234,9 +231,10 @@ function StaffingEditor({ authentication, branchId, departments, rules, selected
         <div className="settings-actions">
           <button type="submit" disabled={saving || departments.length === 0}>{saving ? 'Saving...' : 'Save rule'}</button>
           {selected && <button type="button" className="secondary" onClick={() => onSelect(null)}>Cancel</button>}
-          {selected && <button type="button" className="danger" disabled={saving} onClick={remove}>Delete</button>}
+          {selected && <button type="button" className="danger" disabled={saving} onClick={() => setConfirmDelete(true)}>Delete</button>}
         </div>
         {message && <p role="status">{message}</p>}
+        <ConfirmDialog title="Delete staffing rule" open={confirmDelete} busy={saving} onClose={() => setConfirmDelete(false)} onConfirm={remove} confirmLabel="Delete rule">Delete this staffing rule?</ConfirmDialog>
       </form>
     </div>
   )
@@ -247,6 +245,13 @@ export default function DepartmentManager({ authentication, branchId, clearBranc
   const [notice, setNotice] = useState('')
   const [selectedDepartment, setSelectedDepartment] = useState(null)
   const [selectedRule, setSelectedRule] = useState(null)
+  const [view, setView] = useState('departments')
+  const [collapsed, setCollapsed] = useState([])
+  const [showDepartment, setShowDepartment] = useState(false)
+  const [showRule, setShowRule] = useState(false)
+  const [editorBusy, setEditorBusy] = useState(false)
+  const [orgSearch, setOrgSearch] = useState('')
+  const [orgDepartment, setOrgDepartment] = useState('')
 
   const load = useCallback(async ({ keepSelection = false, notice: nextNotice = '' } = {}) => {
     try {
@@ -292,20 +297,13 @@ export default function DepartmentManager({ authentication, branchId, clearBranc
   if (state.status === 'error') return <p role="status">Department settings are unavailable.</p>
 
   return (
-    <section className="department-manager" aria-label="Departments and staffing rules">
+    <section className="department-manager restored-module" aria-label="Departments and staffing rules">
       {notice && <p role="status">{notice}</p>}
-      <h3>Departments</h3>
-      <div className="department-layout">
-        <ul className="department-tree">
-          {rows.map(({ department, depth }) => (
-            <li key={department.id} style={{ paddingInlineStart: `${depth * 1.25}rem` }}>
-              <button type="button" className="secondary" onClick={() => setSelectedDepartment(department)}>
-                <span className="department-swatch" style={{ background: department.color }} />
-                {department.name}
-              </button>
-            </li>
-          ))}
-        </ul>
+      <header className="restored-module-header"><h3>Departments</h3><div className="module-actions"><button type="button" className="btn btn-outline" onClick={() => load().catch(() => {})}>Reload</button><button type="button" className="btn btn-primary" onClick={() => { setSelectedDepartment(null); setShowDepartment(true) }}>New Department</button></div></header>
+      <FilterTabs label="Department views" options={[{ value: 'departments', label: 'Departments' }, { value: 'chart', label: 'Organization Chart' }, { value: 'staffing', label: 'Staffing Rules' }]} value={view} onChange={setView} />
+      {view === 'departments' && <PortalTable label="Departments"><thead><tr><th>Department</th><th>Parent</th><th>Head</th><th>Employees</th><th>Actions</th></tr></thead><tbody>{rows.map(({ department, depth }) => <tr key={department.id}><td style={{ paddingInlineStart: `${16 + depth * 18}px` }}><span className="department-swatch" style={{ background: department.color }} />{department.name}<small>{department.description}</small></td><td>{state.departments.find((item) => item.id === department.parentId)?.name ?? 'No parent'}</td><td>{state.employees.find((item) => item.id === department.headEmployeeId)?.name ?? 'No head'}</td><td>{state.employees.filter((item) => item.department === department.name && item.active).length}</td><td><button type="button" className="btn btn-outline btn-sm" onClick={() => { setSelectedDepartment(department); setShowDepartment(true) }}>Edit</button></td></tr>)}{state.departments.length === 0 && <tr><td colSpan={5}><div className="empty-state">No departments yet.</div></td></tr>}</tbody></PortalTable>}
+      {view === 'chart' && <><div className="restored-toolbar"><label>Search organization<input type="search" value={orgSearch} onChange={(event) => setOrgSearch(event.target.value)} placeholder="Search by name or title" /></label><label>Department<select value={orgDepartment} onChange={(event) => setOrgDepartment(event.target.value)}><option value="">All departments</option>{[...new Set(state.employees.map((employee) => employee.department).filter(Boolean))].sort().map((name) => <option key={name}>{name}</option>)}</select></label><button type="button" className="btn btn-outline" onClick={() => setCollapsed([])}>Expand all</button><button type="button" className="btn btn-outline" onClick={() => setCollapsed(state.employees.map((item) => item.id))}>Collapse all</button></div><ReportingChart employees={state.employees} departments={state.departments} search={orgSearch} department={orgDepartment} collapsed={collapsed} onToggle={(id) => setCollapsed((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id])} /></>}
+      <FormDialog title={selectedDepartment ? 'Edit department' : 'New department'} open={showDepartment} onClose={() => { if (!editorBusy) setShowDepartment(false) }}>
         <DepartmentEditor
           key={selectedDepartment ? JSON.stringify(departmentSnapshot(selectedDepartment)) : 'new'}
           authentication={authentication}
@@ -313,11 +311,13 @@ export default function DepartmentManager({ authentication, branchId, clearBranc
           departments={state.departments}
           employees={state.employees}
           selected={selectedDepartment}
-          onCancel={() => setSelectedDepartment(null)}
-          onSaved={load}
+          onBusy={setEditorBusy}
+          onCancel={() => setShowDepartment(false)}
+          onSaved={async (options) => { await load(options); if (options.notice) setShowDepartment(false) }}
         />
-      </div>
-      <h3>Staffing rules</h3>
+      </FormDialog>
+      {view === 'staffing' && <><div className="restored-toolbar"><h4>Staffing rules</h4><button type="button" className="btn btn-primary" disabled={!state.departments.length} onClick={() => { setSelectedRule(null); setShowRule(true) }}>Add Rule</button></div><PortalTable label="Staffing rules"><thead><tr><th>Department</th><th>Shift category</th><th>Minimum staff</th><th>Effective from</th><th>Effective to</th><th>Actions</th></tr></thead><tbody>{state.rules.map((rule) => <tr key={rule.id}><td>{rule.department}</td><td>{rule.shiftCategory}</td><td>{rule.minStaff}</td><td>{rule.effectiveFrom ?? 'Not set'}</td><td>{rule.effectiveTo ?? 'Not set'}</td><td><button type="button" className="btn btn-outline btn-sm" onClick={() => { setSelectedRule(rule); setShowRule(true) }}>Edit</button></td></tr>)}{state.rules.length === 0 && <tr><td colSpan={6}><div className="empty-state">No staffing rules yet.</div></td></tr>}</tbody></PortalTable></>}
+      <FormDialog title={selectedRule ? 'Edit staffing rule' : 'New staffing rule'} open={showRule} onClose={() => { if (!editorBusy) setShowRule(false) }}>
       <StaffingEditor
         key={selectedRule
           ? JSON.stringify(staffingRuleSnapshot(selectedRule))
@@ -325,11 +325,40 @@ export default function DepartmentManager({ authentication, branchId, clearBranc
         authentication={authentication}
         branchId={branchId}
         departments={state.departments}
-        rules={state.rules}
+        onBusy={setEditorBusy}
         selected={selectedRule}
         onSelect={setSelectedRule}
-        onSaved={load}
+        onSaved={async (options) => { await load(options); if (options.notice) setShowRule(false) }}
       />
+      </FormDialog>
     </section>
   )
+}
+
+function ReportingChart({ employees, departments, search, department, collapsed, onToggle }) {
+  const active = employees.filter((employee) => employee.active && employee.employmentStatus !== 'Terminated')
+  const byId = new Map(active.map((employee) => [employee.id, employee]))
+  const matches = (employee) => (!department || employee.department === department)
+    && `${employee.name} ${employee.jobTitle}`.toLowerCase().includes(search.toLowerCase())
+  const visible = new Set()
+  for (const employee of active.filter(matches)) {
+    let current = employee
+    const seen = new Set()
+    while (current && !seen.has(current.id)) {
+      seen.add(current.id); visible.add(current.id)
+      current = byId.get(current.reportingManagerId)
+    }
+  }
+  const visited = new Set()
+  const node = (employee) => {
+    if (visited.has(employee.id) || !visible.has(employee.id)) return null
+    visited.add(employee.id)
+    const children = active.filter((item) => item.reportingManagerId === employee.id && visible.has(item.id))
+    const hidden = collapsed.includes(employee.id) && !search && !department
+    return <li key={employee.id} style={{ borderInlineStartColor: departments.find((item) => item.name === employee.department)?.color ?? '#6366f1' }}><div>{children.length > 0 && <button type="button" className="btn btn-ghost btn-sm" aria-label={`${hidden ? 'Expand' : 'Collapse'} ${employee.name}`} aria-expanded={!hidden} onClick={() => onToggle(employee.id)}>{hidden ? '+' : '−'}</button>}<strong>{employee.name}</strong><small>{employee.jobTitle} · {employee.department || 'No department'}</small></div>{!hidden && children.length > 0 && <ul>{children.map(node)}</ul>}</li>
+  }
+  const roots = active.filter((employee) => !employee.reportingManagerId || !byId.has(employee.reportingManagerId))
+  const rendered = roots.map(node)
+  const unplaced = active.filter((employee) => !visited.has(employee.id) && visible.has(employee.id))
+  return <><ul className="restoration-org-chart">{rendered}</ul>{visible.size === 0 && <div className="empty-state">No employees match this search.</div>}{unplaced.length > 0 && !collapsed.length && <p role="status">Check reporting-manager links for {unplaced.map((employee) => employee.name).join(', ')}.</p>}</>
 }

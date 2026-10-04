@@ -24,6 +24,8 @@ from app.schemas.development import (
     CertificationDecisionRequest,
     CertificationResponse,
     CertificationStaffCreateRequest,
+    CertificationUpdateRequest,
+    CmeBranchEmployeeResponse,
     CmeRequirementRequest,
     CmeRequirementResponse,
     CmeSummaryResponse,
@@ -630,6 +632,45 @@ async def create_direct_report_certification(
     )
 
 
+@certification_router.patch(
+    "/{certification_id}", operation_id="update_certification", responses=ERRORS
+)
+async def update_certification(
+    certification_id: uuid.UUID,
+    request: Request,
+    body: CertificationUpdateRequest,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedWritePrincipal,
+    selected_branch: str | None = Header(default=None, alias="X-Workloop-Branch-ID"),
+) -> JSONResponse:
+    branch_id = _staff_branch(principal, selected_branch)
+    scope = "admin" if principal.role is AppRole.ADMIN else "staff"
+
+    async def mutate(service: DevelopmentService) -> IdempotentResponse:
+        result = await service.update_certification(
+            principal, branch_id, certification_id, body, scope=scope
+        )
+        return IdempotentResponse(
+            200,
+            DataResponse(data=result).model_dump(mode="json", by_alias=True),
+            None,
+            "certification",
+            certification_id,
+        )
+
+    return await _mutation(
+        request=request,
+        claims=claims,
+        principal=principal,
+        branch_id=branch_id,
+        operation_id="update_certification",
+        method="PATCH",
+        route_parameters={"certificationId": str(certification_id)},
+        body=cast(dict[str, object], body.model_dump(mode="json", by_alias=True)),
+        mutate=mutate,
+    )
+
+
 async def _certification_decision(
     *,
     certification_id: uuid.UUID,
@@ -760,6 +801,41 @@ async def delete_certification(
         body=cast(dict[str, object], body.model_dump(mode="json", by_alias=True)),
         mutate=mutate,
         authorize=False,
+    )
+
+
+@cme_router.get(
+    "/summary",
+    response_model=CollectionResponse[CmeBranchEmployeeResponse],
+    operation_id="read_branch_cme_summary",
+    responses=ERRORS,
+)
+async def read_branch_cme_summary(
+    request: Request,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedReadPrincipal,
+    selected: AdminSelectedBranch,
+    year: Annotated[int, Query(ge=1900, le=9999)],
+    limit: Annotated[int, Query(ge=1, le=100)] = 100,
+    cursor: Annotated[uuid.UUID | None, Query()] = None,
+) -> CollectionResponse[CmeBranchEmployeeResponse]:
+    items = await executor(request).execute(
+        claims=claims,
+        principal=principal,
+        selected_admin_branch_id=selected,
+        operation=lambda connection: _service(request, connection).branch_cme(
+            principal, selected, year, limit + 1, cursor
+        ),
+    )
+    has_more = len(items) > limit
+    visible = items[:limit]
+    return CollectionResponse(
+        data=visible,
+        page=Page(
+            limit=limit,
+            has_more=has_more,
+            next_cursor=str(visible[-1].employee_id) if has_more else None,
+        ),
     )
 
 

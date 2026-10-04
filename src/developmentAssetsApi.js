@@ -74,6 +74,16 @@ export async function readSelfAssets(authentication) {
   return collection(await authentication.request('/api/v1/assets/self', { access: 'protected' }), parseAssetAssignment)
 }
 
+export async function readAssetHistory(authentication, branchId, options = {}) {
+  return collection(await authentication.request(`/api/v1/assets/assignments${query(options)}`, {
+    access: 'protected', headers: headers(branchId),
+  }), (value) => {
+    if (typeof value?.employeeName !== 'string') throw new Error('Invalid asset history response')
+    const { employeeName, ...assignment } = value
+    return Object.freeze({ ...parseAssetAssignment(assignment), employeeName })
+  })
+}
+
 export async function saveAsset(authentication, branchId, values, current = null) {
   const response = await authentication.request(current === null ? '/api/v1/assets' : `/api/v1/assets/${current.id}`, {
     access: 'protected', method: current === null ? 'POST' : 'PATCH', headers: headers(branchId, true),
@@ -218,6 +228,36 @@ export async function createCertification(authentication, branchId, role, employ
     json: role === 'admin' || role === 'manager' && employeeId ? { ...values, employeeId } : values,
   })
   return parseCertification(response.data)
+}
+
+export async function updateCertification(authentication, branchId, record, values) {
+  return parseCertification((await authentication.request(`/api/v1/certifications/${record.id}`, {
+    access: 'protected', method: 'PATCH', headers: headers(branchId, true),
+    json: { ...values, expectedUpdatedAt: record.updatedAt },
+  })).data)
+}
+
+export async function readBranchCme(authentication, branchId, year) {
+  const records = []
+  const seen = new Set()
+  let cursor = null
+  do {
+    const response = collection(await authentication.request(`/api/v1/cme/summary${query({ year, limit: 100, cursor })}`, {
+      access: 'protected', headers: headers(branchId),
+    }), (value) => {
+      if (!exact(value, ['employeeId', 'employeeName', 'department', 'year', 'targetHours', 'achievedHours', 'inProgressHours', 'gapHours', 'requirement']) || !uuid.test(value.employeeId)
+        || typeof value.employeeName !== 'string' || typeof value.department !== 'string' || value.year !== year
+        || !['targetHours', 'achievedHours', 'inProgressHours', 'gapHours'].every((key) => /^(?:0|[1-9]\d*)\.\d$/.test(value[key]))) throw new Error('Invalid branch CME summary')
+      const requirement = value.requirement === null ? null : parseCmeRequirement(value.requirement)
+      if (requirement && (requirement.employeeId !== value.employeeId || requirement.year !== year)) throw new Error('Invalid CME requirement scope')
+      return Object.freeze({ ...value, requirement })
+    })
+    records.push(...response.items)
+    cursor = response.page.hasMore ? response.page.nextCursor : null
+    if (response.page.hasMore && (!cursor || seen.has(cursor))) throw new Error('CME pagination is unavailable')
+    seen.add(cursor)
+  } while (cursor)
+  return records.sort((left, right) => left.employeeName.localeCompare(right.employeeName))
 }
 
 export async function decideCertification(authentication, branchId, certification, action, reason = null) {

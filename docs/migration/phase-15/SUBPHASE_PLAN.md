@@ -12,6 +12,11 @@ Phase 15 starts from commit `628aa5b6a75243fd049163b19b46a821904abdb3` on
 `migration/fastapi-keycloak`. GitHub Migration foundation run `37003532541` passed. Alembic has one
 head at `e8a1c3f5b7d9`. The branch was clean and synchronized at the 15A preflight.
 
+On October 4, the owner authorized a complete historical portal restoration, including missing
+backend features. `PORTAL_RESTORATION_EXECUTION.md` controls that continuation in Parts A through F.
+Its bounded backend amendment supersedes the endpoint exclusion below for required historical
+workflows. All data, infrastructure, identity-security, and preserved-resource boundaries remain.
+
 ## Phase boundary
 
 Phase 15 replaces the public architecture-proof page with an integrated Workloop portal. The portal

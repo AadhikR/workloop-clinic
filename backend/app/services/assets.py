@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from datetime import date
 from typing import Any
 
 from sqlalchemy import text
@@ -10,10 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.auth.application_user import AuthorizationPrincipal
 from app.db.audit import append_audit_event
+from app.models.identity import AppRole
 from app.schemas.assets import (
     AssetAssignmentResponse,
     AssetAssignRequest,
     AssetCreateRequest,
+    AssetHistoryResponse,
     AssetResponse,
     AssetReturnRequest,
     AssetUpdateRequest,
@@ -32,6 +35,7 @@ class AssetListQuery:
     category: str | None
     search: str | None
     limit: int
+    after_id: uuid.UUID | None = None
 
 
 class AssetService:
@@ -55,7 +59,8 @@ WHERE company_id=:company_id AND branch_id=:branch_id
   AND (CAST(:category AS text) IS NULL OR category=:category)
   AND (CAST(:search AS text) IS NULL OR name ILIKE '%'||:search||'%'
        OR asset_code ILIKE '%'||:search||'%' OR serial_number ILIKE '%'||:search||'%')
-ORDER BY asset_code ASC,name ASC,id ASC LIMIT :limit
+  AND (CAST(:after_id AS uuid) IS NULL OR id>:after_id)
+ORDER BY id ASC LIMIT :limit
 """
                     ),
                     {
@@ -65,6 +70,7 @@ ORDER BY asset_code ASC,name ASC,id ASC LIMIT :limit
                         "category": query.category,
                         "search": query.search,
                         "limit": query.limit,
+                        "after_id": query.after_id,
                     },
                 )
             )
@@ -228,9 +234,23 @@ UPDATE public.assets SET name=:name,asset_code=:asset_code,category=:category,
         ).scalar_one_or_none()
         if employee is None:
             raise ServiceExecutionError("resource_not_found")
-        assigned_date = (
+        business_date = (
             await self.connection.execute(text("SELECT public.workloop_business_date()"))
         ).scalar_one()
+        assigned_date = request.assigned_date or business_date
+        if assigned_date > business_date:
+            raise ServiceExecutionError("validation_failed")
+        previous_return = (
+            await self.connection.execute(
+                text(
+                    "SELECT max(return_date) FROM public.asset_assignments WHERE asset_id=:id "
+                    "AND company_id=:company_id AND branch_id=:branch_id"
+                ),
+                {"id": asset_id, "company_id": principal.company_id, "branch_id": branch_id},
+            )
+        ).scalar_one_or_none()
+        if previous_return is not None and assigned_date < previous_return:
+            raise ServiceExecutionError("state_conflict")
         try:
             assignment_id = (
                 await self.connection.execute(
@@ -295,9 +315,12 @@ RETURNING id
         ).one_or_none()
         if assignment is None:
             raise ServiceExecutionError("state_conflict")
-        return_date = (
+        business_date = (
             await self.connection.execute(text("SELECT public.workloop_business_date()"))
         ).scalar_one()
+        return_date = request.return_date or business_date
+        if return_date > business_date:
+            raise ServiceExecutionError("validation_failed")
         if return_date < assignment.assigned_date:
             raise ServiceExecutionError("state_conflict")
         await self.connection.execute(
@@ -380,6 +403,53 @@ ORDER BY assignment.assigned_date DESC,assignment.id DESC LIMIT :limit
             .all()
         )
         return [AssetAssignmentResponse.model_validate(row) for row in rows]
+
+    async def list_history(
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        asset_id: uuid.UUID | None,
+        limit: int,
+        after_date: date | None = None,
+        after_id: uuid.UUID | None = None,
+    ) -> list[AssetHistoryResponse]:
+        if principal.role is not AppRole.ADMIN:
+            raise ServiceExecutionError("operation_not_permitted")
+        rows = (
+            (
+                await self.connection.execute(
+                    text(
+                        """
+SELECT assignment.id,assignment.asset_id,assignment.employee_id,employee.name employee_name,
+ asset.name asset_name,asset.asset_code,asset.status,assignment.assigned_date,
+ assignment.return_date,assignment.condition_at_handover,assignment.condition_at_return,
+ assignment.notes,assignment.created_at
+FROM public.asset_assignments assignment
+JOIN public.assets asset ON asset.id=assignment.asset_id
+ AND asset.company_id=assignment.company_id AND asset.branch_id=assignment.branch_id
+JOIN public.employees employee ON employee.id=assignment.employee_id
+ AND employee.company_id=assignment.company_id AND employee.branch_id=assignment.branch_id
+WHERE assignment.company_id=:company_id AND assignment.branch_id=:branch_id
+ AND (CAST(:asset_id AS uuid) IS NULL OR assignment.asset_id=:asset_id)
+ AND (CAST(:after_date AS date) IS NULL
+      OR (assignment.assigned_date,assignment.id)<(:after_date,:after_id))
+ORDER BY assignment.assigned_date DESC,assignment.id DESC LIMIT :limit
+"""
+                    ),
+                    {
+                        "company_id": principal.company_id,
+                        "branch_id": branch_id,
+                        "asset_id": asset_id,
+                        "limit": limit,
+                        "after_date": after_date,
+                        "after_id": after_id,
+                    },
+                )
+            )
+            .mappings()
+            .all()
+        )
+        return [AssetHistoryResponse.model_validate(row) for row in rows]
 
     async def authorize_replay(
         self,
