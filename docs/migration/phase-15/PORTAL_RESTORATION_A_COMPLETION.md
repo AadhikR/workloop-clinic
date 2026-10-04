@@ -21,7 +21,7 @@ confirmation dialog. Payroll's accepted populated review was not redesigned.
 
 ## Local evidence
 
-- Frontend unit gate passed all 416 tests. The suite also built the production graph.
+- Frontend unit gate passed all 417 tests. The suite also built the production graph.
 - Changed frontend and verifier files passed lint. Repository whitespace validation passed.
 - Backend gate passed all 720 tests, lint, formatting, type checks, and dependency checks.
   The suite emitted six existing SQLAlchemy relationship warnings.
@@ -30,6 +30,9 @@ confirmation dialog. Payroll's accepted populated review was not redesigned.
   failed-save retention, and 390-pixel page containment. It saves 15 populated screenshots in
   `evidence/restoration-a`. Screenshots wait for the active sidebar pill to reach the selected item.
 - The schema head remains `e8a1c3f5b7d9`.
+- Shared route checks passed all 46 current navigation routes, control names, contrast, heading
+  focus, reduced motion, page containment at zoom, notification dialog focus, and contact-save
+  failure recovery. These synthetic states do not prove populated historical parity for all modules.
 
 The first frontend gate caught an obsolete source-label assertion. The assertion now checks the
 restored labels, and the complete gate passed on rerun. Browser setup also required permission to
@@ -41,6 +44,18 @@ The adjacent Phase 9F verifier had the same case-sensitive label problem. Both v
 the actual warning and protected-command wiring. Payroll application code did not change. Focused
 checks prove that both verifiers still reject removal of those required connections. The corrected
 commit must pass the independent full-stack gate before B starts.
+
+The rerun reached restart persistence and authentication checks, then the historical browser
+verifier waited for the retired directory wrapper on the employee profile route. It now uses current
+role-specific pages, dialogs, tabs, and dedicated task and approval routes. Actual API projections,
+authorization denials, response codes, versions, and write-result assertions remain in place.
+The next independent run must prove this correction and finish the gate.
+
+The expanded browser check exposed faint sidebar and tab text, inaccessible financial route
+headings, and an overescaped phone pattern that rejected valid UAE numbers. This task corrected
+the shared colors and heading semantics without changing financial layouts. The phone pattern now
+accepts international and local UAE mobile formats and rejects a nonmobile example. The contrast
+check now accounts for alpha and gradient backgrounds. Focus checks accept outline or shadow rings.
 
 The Windows backend virtual environment points to a missing Python installation. Backend quality
 therefore ran under Python 3.12 in the existing `workloop-api:phase7c-test` image, using a disposable

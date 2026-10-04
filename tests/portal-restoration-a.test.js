@@ -4,6 +4,14 @@ import test from 'node:test'
 
 const source = (name) => readFileSync(new URL(`../src/${name}`, import.meta.url), 'utf8')
 
+test('shared controls retain readable colors and financial route headings', () => {
+  const text = source('portal-ui.css')
+  assert.match(text, /sidebar-signout\) \{ color: #94a3b8;/)
+  assert.match(text, /tab-btn\[aria-selected='true'\] \{ color: #1d4ed8;/)
+  assert.match(text, /data-theme='dark'.*aria-selected='true'.*color: #93c5fd;/)
+  assert.match(text, /:has\([^\n]*\.payroll[^\n]*\) > \.portal-header \{ display: block;/)
+})
+
 test('assets retain server commands inside historical register and dialogs', () => {
   const text = source('DevelopmentAssets.jsx')
   for (const label of ['Asset Register', 'Assignment History', 'Under Repair', 'Assign asset', 'Return asset']) assert.ok(text.includes(label), label)

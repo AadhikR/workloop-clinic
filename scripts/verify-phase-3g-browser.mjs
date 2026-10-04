@@ -1026,6 +1026,7 @@ async function submitLeaveThroughForm(page, { admin, date, leaveType, employeeId
   await page.getByRole('heading', {
     name: admin ? 'Branch leave overview' : 'My leave',
   }).waitFor({ timeout: 20_000 })
+  await page.getByRole('button', { name: 'Request Leave', exact: true }).click()
   const form = page.locator('.leave-request-form')
   try {
     await form.waitFor({ timeout: 20_000 })
@@ -1051,6 +1052,7 @@ async function submitLeaveThroughForm(page, { admin, date, leaveType, employeeId
   await form.getByRole('button', { name: 'Submit request' }).click()
   const response = await responsePromise
   assert.equal(response.status(), 201, await response.text())
+  await page.getByRole('dialog').waitFor({ state: 'detached' })
   return (await response.json()).data
 }
 
@@ -1189,10 +1191,11 @@ async function decideApprovalThroughTable(page, { admin, requestId, date, reason
 
 async function assertLeaveApprovalJourney(page, persona) {
   const admin = persona.role === 'admin'
-  await navigatePortal(page, persona, admin ? '/admin/leave' : '/manager/leave')
+  await navigatePortal(page, persona, admin ? '/admin/leave' : '/manager/leave-queue')
   if (admin && await page.locator('.branch-chooser').count()) {
     await page.getByRole('button', { name: 'Phase 3G main', exact: true }).click()
   }
+  if (admin) await page.getByRole('tab', { name: 'Approvals', exact: true }).click()
   await page.getByRole('heading', {
     name: admin ? 'Branch leave decisions' : 'Leave approvals',
   }).waitFor({ timeout: 20_000 })
@@ -1272,7 +1275,8 @@ async function assertEmployeeApi(page, persona) {
   if (persona.role === 'admin' && await page.locator('.branch-chooser').count()) {
     await page.getByRole('button', { name: 'Phase 3G main', exact: true }).click()
   }
-  await page.locator('.employee-directory').waitFor({ timeout: 20_000 })
+  await page.locator(persona.role === 'employee' ? '.employee-profile' : '.employee-directory')
+    .waitFor({ timeout: 20_000 })
   const result = await page.evaluate(async ({ role, branchId, employeeId }) => {
     const { authenticationSession } = await import('/src/authSession.js')
     const session = authenticationSession()
@@ -1341,6 +1345,7 @@ async function assertEmployeeApi(page, persona) {
     await page.getByRole('heading', { name: 'Phase employee' }).waitFor()
 
     stage('admin employee creation')
+    await page.getByRole('button', { name: 'Add Employee', exact: true }).click()
     const employeeForm = page.locator('[data-employee-create-form]')
     await employeeForm.getByLabel('Employee number').fill('E-7F-BROWSER')
     await employeeForm.getByLabel('Name', { exact: true }).fill('Phase 7F browser employee')
@@ -1361,7 +1366,6 @@ async function assertEmployeeApi(page, persona) {
     assert.equal(createBody.data.workEmail, 'phase7f-browser@example.test')
     assert.equal(createBody.data.reportingManagerId, personas[1].employeeId)
     createdRows.employees.push(createBody.data.id)
-    await page.locator('[data-employee-create-status="saved"]').waitFor()
     await page.getByRole('heading', { name: 'Phase 7F browser employee' }).waitFor()
 
     stage('admin ordinary employee edit')
@@ -1379,9 +1383,10 @@ async function assertEmployeeApi(page, persona) {
     assert.equal(editResponse.status(), 200)
     assert.equal(editBody.data.name, 'Phase 7F browser employee edited')
     assert.equal(editBody.data.personalEmail, 'browser-edit@example.test')
-    await page.locator('[data-employee-edit-status="saved"]').waitFor()
+    await page.getByRole('heading', { name: 'Phase 7F browser employee edited' }).waitFor()
 
     stage('admin employee CSV import')
+    await page.getByRole('button', { name: 'Import employees', exact: true }).click()
     const csv = [
       'Emp No,Name,MOL ID,Bank Name,Bank Routing Code,IBAN,Basic Salary,Allowance',
       'E-7F-I-1,Phase 7F imported one,10003048635714,Synthetic Bank,123456789,AE000000000000000000001,5000,250',
@@ -1398,14 +1403,15 @@ async function assertEmployeeApi(page, persona) {
       return request.method() === 'POST'
         && new URL(response.url()).pathname === '/api/v1/employee-imports'
     })
-    await page.getByRole('button', { name: 'Import employees' }).click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Import employees', exact: true }).click()
     const importResponse = await importPromise
     const importBody = await importResponse.json()
     assert.equal(importResponse.status(), 201)
     assert.equal(importBody.data.createdCount, 2)
     assert.deepEqual(importBody.data.rows.map(({ rowNumber }) => rowNumber), [2, 3])
     createdRows.employees.push(...importBody.data.rows.map(({ employeeId }) => employeeId))
-    await page.locator('[data-employee-import-status="saved"]').waitFor()
+    await page.getByRole('dialog').waitFor({ state: 'detached' })
+    await page.getByRole('heading', { name: 'Phase 7F browser employee edited' }).waitFor()
 
     stage('admin employee lifecycle title change')
     const lifecycleForm = page.locator('[data-employee-lifecycle-form]')
@@ -1513,16 +1519,30 @@ async function assertEmployeeApi(page, persona) {
       assert.equal(await page.locator('.direct-reports').count(), 0)
     }
     stage(`${persona.role} self-contact update`)
-    const contactForm = page.locator('[data-employee-self-contact-form]')
     const contactPhone = persona.role === 'manager' ? '+971500000072' : '+971500000073'
-    await contactForm.getByLabel('Phone', { exact: true }).fill(contactPhone)
+    if (persona.role === 'employee') {
+      await page.getByRole('button', { name: 'Edit contact details', exact: true }).click()
+    }
+    const contactForm = page.locator(persona.role === 'employee'
+      ? '.employee-contact-form' : '[data-employee-self-contact-form]')
+    await contactForm.getByLabel(persona.role === 'employee' ? 'UAE phone' : 'Phone', { exact: true }).fill(contactPhone)
+    if (persona.role === 'employee') {
+      await contactForm.getByLabel('Personal email', { exact: true }).fill('phase-3g-contact@example.test')
+      await contactForm.getByLabel('Emergency contact name', { exact: true }).fill('Synthetic contact')
+      await contactForm.getByLabel('Emergency contact phone', { exact: true }).fill('+971500000074')
+    }
     const contactPromise = page.waitForResponse((response) => (
       response.request().method() === 'PATCH'
       && new URL(response.url()).pathname === '/api/v1/employees/self/contact'
     ))
     await contactForm.getByRole('button', { name: 'Save contact details' }).click()
     assert.equal((await contactPromise).status(), 200)
-    await page.locator('[data-employee-self-contact-form]').getByLabel('Phone', { exact: true }).waitFor()
+    if (persona.role === 'employee') {
+      await page.getByText('Contact details saved.', { exact: true }).waitFor()
+      await page.locator('.employee-profile').getByText(contactPhone, { exact: true }).waitFor()
+    } else {
+      await contactForm.getByLabel('Phone', { exact: true }).waitFor()
+    }
   }
 }
 
@@ -1716,6 +1736,7 @@ async function assertDepartmentApi(page, persona) {
     await page.getByRole('button', { name: 'Phase 3G main', exact: true }).click()
   }
   await page.locator('.department-manager').waitFor({ timeout: 20_000 })
+  await page.getByRole('button', { name: 'New Department', exact: true }).click()
   const departmentForm = page.locator('.department-editor')
   await departmentForm.getByLabel('Name').fill('Phase 7E browser department')
   const departmentCreatePromise = page.waitForResponse((response) => {
@@ -1730,12 +1751,17 @@ async function assertDepartmentApi(page, persona) {
   createdRows.departments.push(departmentBody.data.id)
   await page.getByText('Department created.', { exact: true }).waitFor()
 
-  await page.getByRole('button', { name: 'Phase 7E browser department', exact: true }).click()
+  const departmentRow = page.getByRole('region', { name: 'Departments', exact: true })
+    .getByRole('row').filter({ hasText: 'Phase 7E browser department' })
+  await departmentRow.getByRole('button', { name: 'Edit', exact: true }).click()
   await departmentForm.getByLabel('Department head').selectOption(personas[1].employeeId)
   await departmentForm.getByRole('button', { name: 'Save department' }).click()
   await page.getByText('Department saved.', { exact: true }).waitFor()
 
+  await page.getByRole('tab', { name: 'Staffing Rules', exact: true }).click()
+  await page.getByRole('button', { name: 'Add Rule', exact: true }).click()
   const staffingForm = page.locator('.staffing-editor .settings-form')
+  await staffingForm.getByLabel('Department', { exact: true }).selectOption('Phase 7E browser department')
   await staffingForm.getByLabel('Shift category').selectOption('night')
   await staffingForm.getByLabel('Minimum staff').fill('3')
   const staffingCreatePromise = page.waitForResponse((response) => {
@@ -1751,30 +1777,30 @@ async function assertDepartmentApi(page, persona) {
   createdRows.staffingRules.push(staffingBody.data.id)
   await page.getByText('Staffing rule created.', { exact: true }).waitFor()
 
-  await page.getByRole('button', {
-    name: 'Phase 7E browser department: night, minimum 3',
-  }).click()
+  const staffingRow = page.getByRole('region', { name: 'Staffing rules', exact: true })
+    .getByRole('row').filter({ hasText: 'Phase 7E browser department' })
+  await staffingRow.getByRole('cell', { name: '3', exact: true }).waitFor()
+  await staffingRow.getByRole('button', { name: 'Edit', exact: true }).click()
   await staffingForm.getByLabel('Minimum staff').fill('4')
   await staffingForm.getByRole('button', { name: 'Save rule' }).click()
   await page.getByText('Staffing rule saved.', { exact: true }).waitFor()
-  await page.getByRole('button', {
-    name: 'Phase 7E browser department: night, minimum 4',
-  }).click()
+  await staffingRow.getByRole('cell', { name: '4', exact: true }).waitFor()
+  await staffingRow.getByRole('button', { name: 'Edit', exact: true }).click()
   await staffingForm.getByRole('button', { name: 'Delete' }).click()
-  await page.getByRole('button', {
-    name: 'Phase 7E browser department: night, minimum 4',
-  }).waitFor({ state: 'detached' })
+  await page.getByRole('dialog', { name: 'Delete staffing rule', exact: true })
+    .getByRole('button', { name: 'Delete rule', exact: true }).click()
+  await staffingRow.waitFor({ state: 'detached' })
 
-  await page.getByRole('button', { name: 'Phase 7E browser department', exact: true }).click()
+  await page.getByRole('tab', { name: 'Departments', exact: true }).click()
+  await departmentRow.getByRole('button', { name: 'Edit', exact: true }).click()
   await departmentForm.getByLabel('Department head').selectOption('')
   await departmentForm.getByRole('button', { name: 'Save department' }).click()
   await page.getByText('Department saved.', { exact: true }).waitFor()
-  await page.getByRole('button', { name: 'Phase 7E browser department', exact: true }).click()
+  await departmentRow.getByRole('button', { name: 'Edit', exact: true }).click()
   await departmentForm.getByRole('button', { name: 'Delete' }).click()
-  await page.getByRole('button', {
-    name: 'Phase 7E browser department',
-    exact: true,
-  }).waitFor({ state: 'detached' })
+  await page.getByRole('dialog', { name: 'Delete department', exact: true })
+    .getByRole('button', { name: 'Delete department', exact: true }).click()
+  await departmentRow.waitFor({ state: 'detached' })
   await page.getByRole('button', { name: 'Change branch' }).click()
   await page.locator('.branch-chooser').waitFor()
   assert.equal(await page.evaluate(() => sessionStorage.getItem('workloop.branchId')), null)
@@ -2045,7 +2071,7 @@ async function assertPhase10BrowserJourney(page, persona) {
 async function assertPhase11BrowserJourney(page, persona) {
   stage(`${persona.role} Phase 11 records and offboarding journey`)
   const recordsRoute = persona.role === 'admin' ? '/admin/records'
-    : persona.role === 'manager' ? '/manager/requests' : '/employee/records'
+    : persona.role === 'manager' ? '/manager/documents' : '/employee/records'
   const developmentRoute = persona.role === 'admin' ? '/admin/development'
     : persona.role === 'manager' ? '/manager/development' : '/employee/development'
   const requestsRoute = persona.role === 'admin' ? '/admin/records'
@@ -2054,7 +2080,9 @@ async function assertPhase11BrowserJourney(page, persona) {
   if (persona.role === 'admin' && (await page.locator('.branch-chooser').count())) {
     await page.getByRole('button', { name: 'Phase 3G main', exact: true }).click()
   }
-  await page.getByRole('heading', { name: 'Records and benefits', exact: true }).waitFor({ timeout: 20_000 })
+  await page.getByRole('heading', {
+    level: 2, name: persona.role === 'manager' ? 'Documents' : 'Records and benefits', exact: true,
+  }).waitFor({ timeout: 20_000 })
   if (persona.role === 'admin') {
     await page.getByRole('heading', { name: 'Offboarding and final settlement' }).waitFor()
   }
@@ -2231,18 +2259,22 @@ async function assertPhase11BrowserJourney(page, persona) {
 
 async function assertPhase12BrowserJourney(page, persona) {
   stage(`${persona.role} Phase 12 notification, task, dashboard, report, and output journey`)
-  await navigatePortal(page, persona, homeRoute(persona.role))
-  await page.getByRole('heading', { name: 'Tasks', exact: true }).waitFor({ timeout: 20_000 })
+  await navigatePortal(page, persona, `/${persona.role}/tasks`)
+  await page.locator('.task-centre').getByRole('heading', { name: 'Tasks', exact: true }).waitFor({ timeout: 20_000 })
   await page.getByRole('button', { name: /^Notifications/ }).click()
   await page.getByRole('heading', { name: 'Notifications', exact: true }).waitFor()
   await page.getByRole('button', { name: /^Notifications/ }).click()
+  await navigatePortal(page, persona, homeRoute(persona.role))
   if (persona.role === 'admin') {
-    await page.getByRole('heading', { name: 'Administrator dashboard', exact: true }).waitFor()
-    await page.getByRole('heading', { name: 'Clinical dashboard', exact: true }).waitFor()
+    await page.getByRole('heading', { level: 3, name: 'Administrator dashboard', exact: true }).waitFor()
+    await navigatePortal(page, persona, '/admin/clinical-dashboard')
+    await page.getByRole('heading', { level: 3, name: 'Clinical dashboard', exact: true }).waitFor()
     await navigatePortal(page, persona, '/admin/reports')
     await page.getByRole('heading', { level: 3, name: 'Reports', exact: true }).waitFor()
+  } else if (persona.role === 'manager') {
+    await page.getByRole('heading', { level: 3, name: 'My dashboard', exact: true }).waitFor()
   } else {
-    await page.getByRole('heading', { name: 'My dashboard', exact: true }).waitFor()
+    await page.locator('.employee-home #employee-home-title').waitFor()
   }
 
   const outputTrace = []

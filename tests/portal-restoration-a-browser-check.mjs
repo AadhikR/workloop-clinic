@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { mkdir } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { chromium } from '@playwright/test'
 import { createServer } from 'vite'
 
@@ -30,7 +30,16 @@ const snapshot = async (name) => {
     return Math.abs(pillBox.top - activeBox.top) < 1 && Math.abs(pillBox.height - activeBox.height) < 1
   })
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `${name} overflows the viewport`)
-  await page.screenshot({ path: path.join(evidence, `${name}.png`), fullPage: true })
+  const pixels = await page.screenshot({ fullPage: true })
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await writeFile(path.join(evidence, `${name}.png`), pixels)
+      break
+    } catch (error) {
+      if (attempt >= 5 || !['UNKNOWN', 'EBUSY', 'EPERM'].includes(error.code)) throw error
+      await new Promise((resolve) => setTimeout(resolve, 200))
+    }
+  }
 }
 try {
   await mount('assets')

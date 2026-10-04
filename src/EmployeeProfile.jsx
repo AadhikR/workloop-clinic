@@ -73,9 +73,9 @@ export default function EmployeeProfile({ authentication, onSignOut }) {
         <h3>Edit contact details</h3>
         <div className="employee-form-grid">
           <label>Personal email<input type="email" required value={form.personalEmail} onChange={(event) => setForm({ ...form, personalEmail: event.target.value })} /></label>
-          <label>UAE phone<input type="tel" required pattern="(?:\\+971|0)5[0-9]{8}" placeholder="+971501234567" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} /></label>
+          <label>UAE phone<input type="tel" required pattern="(?:[+]971|0)5[0-9]{8}" placeholder="+971501234567" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} /></label>
           <label>Emergency contact name<input required maxLength="180" value={form.emergencyContactName} onChange={(event) => setForm({ ...form, emergencyContactName: event.target.value })} /></label>
-          <label>Emergency contact phone<input type="tel" required pattern="(?:\\+971|0)5[0-9]{8}" value={form.emergencyContactPhone} onChange={(event) => setForm({ ...form, emergencyContactPhone: event.target.value })} /></label>
+          <label>Emergency contact phone<input type="tel" required pattern="(?:[+]971|0)5[0-9]{8}" value={form.emergencyContactPhone} onChange={(event) => setForm({ ...form, emergencyContactPhone: event.target.value })} /></label>
         </div>
         <button type="submit" disabled={status === 'saving'}>{status === 'saving' ? 'Saving...' : 'Save contact details'}</button>
       </form>}
