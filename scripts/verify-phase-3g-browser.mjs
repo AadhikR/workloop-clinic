@@ -1125,7 +1125,8 @@ async function assertLeaveSubmissionJourney(page, persona) {
   if (readiness.some(({ ok }) => !ok)) {
     throw new Error(`${persona.role} leave readiness failed: ${JSON.stringify(readiness)}`)
   }
-  const date = admin ? '2026-10-05' : '2026-10-04'
+  const date = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dubai' })
+    .format(new Date(Date.now() + 2 * 86400000))
   const leaveType = admin ? 'Browser auto approval' : 'Browser proof'
   stage(`${persona.role} leave request submission`)
   const submitted = await submitLeaveThroughForm(page, {
@@ -1484,6 +1485,8 @@ async function assertEmployeeApi(page, persona) {
     assert.equal(demoteResponse.status(), 200)
     assert.equal((await demoteResponse.json()).data.role, 'employee')
     await portalPanel.getByText('Current role: employee').waitFor()
+    await page.getByRole('button', { name: 'Close employee profile' }).click()
+    await page.getByRole('dialog').waitFor({ state: 'detached' })
 
     stage('admin employee mutation cleanup')
     psql("DELETE FROM idempotency_records WHERE company_id = :'company_id'", {
@@ -2167,6 +2170,11 @@ async function assertPhase11BrowserJourney(page, persona) {
         subject: `Browser ${role} request`,
         details: `Phase 11H ${role} browser boundary proof.`,
       })
+      await submitRequest(authentication, {
+        requestKind: 'letter',
+        letterType: 'employment_confirmation',
+        purpose: 'Protected browser output proof',
+      })
       const ownRequests = await readOwnRequests(authentication)
       return {
         assetCount: assets.items.length,
@@ -2198,7 +2206,7 @@ async function assertPhase11BrowserJourney(page, persona) {
     const incidents = await readIncidents(authentication, branchId)
     const queue = await readRequestQueue(authentication, branchId, { status: 'pending' })
     const completed = []
-    for (const item of queue) {
+    for (const item of queue.filter((item) => item.requestKind === 'custom')) {
       const decided = await decideRequest(authentication, branchId, item, 'complete')
       const source = await capture(() => readPrintSource(authentication, branchId, decided))
       completed.push({
@@ -2283,17 +2291,17 @@ async function assertPhase12BrowserJourney(page, persona) {
   await navigatePortal(page, persona, `/${persona.role}/tasks`)
   await page.locator('.task-centre').getByRole('heading', { name: 'Tasks', exact: true }).waitFor({ timeout: 20_000 })
   await page.getByRole('button', { name: /^Notifications/ }).click()
-  await page.getByRole('heading', { name: 'Notifications', exact: true }).waitFor()
-  await page.getByRole('button', { name: /^Notifications/ }).click()
+  await page.getByRole('heading', { name: 'Notification inbox', exact: true }).waitFor()
+  await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click()
   await navigatePortal(page, persona, homeRoute(persona.role))
   if (persona.role === 'admin') {
-    await page.getByRole('heading', { level: 3, name: 'Administrator dashboard', exact: true }).waitFor()
+    await page.getByRole('heading', { level: 2, name: 'Dashboard', exact: true }).waitFor()
     await navigatePortal(page, persona, '/admin/clinical-dashboard')
-    await page.getByRole('heading', { level: 3, name: 'Clinical dashboard', exact: true }).waitFor()
+    await page.getByRole('heading', { level: 2, name: 'Clinical dashboard', exact: true }).waitFor()
     await navigatePortal(page, persona, '/admin/reports')
-    await page.getByRole('heading', { level: 3, name: 'Reports', exact: true }).waitFor()
+    await page.getByRole('heading', { level: 2, name: 'Reports', exact: true }).waitFor()
   } else if (persona.role === 'manager') {
-    await page.getByRole('heading', { level: 3, name: 'My dashboard', exact: true }).waitFor()
+    await page.getByRole('heading', { level: 2, name: 'My dashboard', exact: true }).waitFor()
   } else {
     await page.locator('.employee-home #employee-home-title').waitFor()
   }
@@ -2317,6 +2325,7 @@ async function assertPhase12BrowserJourney(page, persona) {
     const { readNotifications, readUnreadCount } = await import('/src/notificationApi.js')
     const { readTasks } = await import('/src/taskApi.js')
     const { readDashboard } = await import('/src/dashboardApi.js')
+    const { decideRequest, readRequestQueue } = await import('/src/letterRequestsApi.js')
     const { downloadReportCsv, readReport } = await import('/src/reportApi.js')
     const { previewSif, downloadSif } = await import('/src/wpsNafisApi.js')
     const {
@@ -2376,13 +2385,21 @@ async function assertPhase12BrowserJourney(page, persona) {
     const payslipZip = await downloadPayslipsZip(authentication, branchId, payrollRunId)
     const sifPreview = await previewSif(authentication, branchId, payrollRunId)
     const sif = await downloadSif(authentication, branchId, payrollRunId)
-    const letter = await downloadRequestLetterPdf(authentication, branchId, requestIds[0])
+    const pendingLetters = await readRequestQueue(authentication, branchId, { status: 'pending' })
+    const pendingLetter = pendingLetters.find((item) => item.requestKind === 'letter')
+    if (!pendingLetter) throw new Error('Standard letter output fixture is missing')
+    const completedLetter = await decideRequest(authentication, branchId, pendingLetter, 'complete')
+    const letter = await downloadRequestLetterPdf(authentication, branchId, completedLetter.id)
+    const customLetterDenial = await capture(() => downloadRequestLetterPdf(
+      authentication, branchId, requestIds[0],
+    ))
     const crossBranchPayslip = await capture(() => downloadPayslipPdf(
       authentication, alternateBranchId, payslipId,
     ))
     return {
       categoryCount: tasks.categories.length,
       clinicalCardCount: clinical.cards.length,
+      customLetterDenial: customLetterDenial.error,
       crossBranchPayslip: crossBranchPayslip.error,
       dashboardCardCount: dashboard.cards.length,
       failedCategoryCount: tasks.categories.filter((item) => item.status === 'failed').length,
@@ -2435,6 +2452,7 @@ async function assertPhase12BrowserJourney(page, persona) {
   }
   assert.equal(result.dashboardCardCount, 5, 'administrator dashboard cards')
   assert.equal(result.clinicalCardCount, 6, 'clinical dashboard cards')
+  assert.deepEqual(result.customLetterDenial, { code: 'operation_not_permitted', status: 403 })
   assert.equal(result.reportId, 'headcount')
   assert.equal(result.reportRowCount, 2, 'headcount report rows')
   assert.ok(result.sifRecordCount >= 2, 'SIF preview records')

@@ -1,3 +1,5 @@
+import Dialog from './PortalDialog.jsx'
+import { readFinancialCollection } from './financialCollections.js'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import {
@@ -33,8 +35,8 @@ function AdvanceDialog({ admin, busy, employees, initial = emptyPlan, onClose, o
   const [employeeId, setEmployeeId] = useState('')
   const [plan, setPlan] = useState(initial)
   return (
-    <div className="modal-overlay" role="presentation">
-      <form className="modal" role="dialog" aria-modal="true" aria-labelledby="advance-dialog-title" onSubmit={(event) => {
+    <Dialog labelledBy="advance-dialog-title" onClose={() => { if (!busy) onClose() }}>
+      <form onSubmit={(event) => {
         event.preventDefault()
         onSubmit({ ...plan, employeeId })
       }}>
@@ -50,7 +52,7 @@ function AdvanceDialog({ admin, busy, employees, initial = emptyPlan, onClose, o
         </div>
         <div className="modal-footer"><button type="button" className="btn btn-outline" onClick={onClose}>Cancel</button><button type="submit" className="btn btn-primary" disabled={busy}>{busy ? 'Submitting...' : admin ? 'Create Advance' : 'Submit Request'}</button></div>
       </form>
-    </div>
+    </Dialog>
   )
 }
 
@@ -61,8 +63,8 @@ function AdvanceActionDialog({ advance, busy, kind, onClose, onSubmit }) {
   const [period, setPeriod] = useState(advance.repaymentStartPeriod)
   const labels = { reject: 'Reject Advance', repay: 'Record Repayment', schedule: 'Edit Repayment Schedule', settle: 'Settle Advance', withdraw: 'Withdraw Request' }
   return (
-    <div className="modal-overlay" role="presentation">
-      <form className="modal advance-action-dialog" role="dialog" aria-modal="true" aria-labelledby="advance-action-title" onSubmit={(event) => {
+    <Dialog labelledBy="advance-action-title" onClose={() => { if (!busy) onClose() }}>
+      <form onSubmit={(event) => {
         event.preventDefault()
         onSubmit({ amount, count: Number(count), period, reason: reason.trim() })
       }}>
@@ -77,7 +79,7 @@ function AdvanceActionDialog({ advance, busy, kind, onClose, onSubmit }) {
         </div>
         <div className="modal-footer"><button type="button" className="btn btn-outline" onClick={onClose}>Cancel</button><button type="submit" className={['reject', 'withdraw'].includes(kind) ? 'btn btn-danger' : 'btn btn-primary'} disabled={busy}>{busy ? 'Saving...' : labels[kind]}</button></div>
       </form>
-    </div>
+    </Dialog>
   )
 }
 
@@ -128,11 +130,11 @@ export default function Advances({ account, authentication, branchId }) {
     setStatus('loading')
     try {
       if (admin) {
-        const [advances, staff] = await Promise.all([readAdminAdvances(authentication, branchId), readAllEmployees(authentication, branchId, { sort: 'name' })])
+        const [advances, staff] = await Promise.all([readFinancialCollection((options) => readAdminAdvances(authentication, branchId, options)), readAllEmployees(authentication, branchId, { sort: 'name' })])
         setItems(advances.items)
         setEmployees(staff.filter((employee) => employee.active))
       } else {
-        const advances = await readSelfAdvances(authentication)
+        const advances = await readFinancialCollection((options) => readSelfAdvances(authentication, options))
         setItems(advances.items)
       }
       setStatus('ready')

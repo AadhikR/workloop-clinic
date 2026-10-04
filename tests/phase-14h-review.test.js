@@ -23,7 +23,7 @@ test('traces every Phase 14 inventory item and golden case exactly once', () => 
   assert.deepEqual(report.errors, [])
   assert.equal(report.inventory, 57)
   assert.equal(report.goldenCases, 38)
-  assert.deepEqual(report.alembicHeads, ['e8a1c3f5b7d9'])
+  assert.deepEqual(report.alembicHeads, ['f1a3c5e7b9d2'])
 })
 
 test('rejects trace omissions, duplicates, owner drift, and missing evidence', () => {

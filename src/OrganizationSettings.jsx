@@ -12,6 +12,7 @@ import {
   updateCompany,
 } from './organizationApi.js'
 import { AdminInsurance } from './RecordsBenefits.jsx'
+import PayrollRoutingDialog from './PayrollRoutingDialog.jsx'
 
 const logoLimit = 64 * 1024
 
@@ -87,6 +88,7 @@ function BranchForm({ authentication }) {
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [logoMessage, setLogoMessage] = useState('')
+  const [routingOpen, setRoutingOpen] = useState(false)
   const logoInput = useRef(null)
 
   const field = (name) => (event) => setDraft({
@@ -102,7 +104,6 @@ function BranchForm({ authentication }) {
       const branch = await updateBranch(authentication, draft.id, {
         name: draft.name,
         molEmployerId: draft.molEmployerId,
-        defaultBankRoutingCode: draft.defaultBankRoutingCode,
         address: draft.address,
         contactEmail: draft.contactEmail,
         defaultSalaryDay: draft.defaultSalaryDay === '' ? null : Number(draft.defaultSalaryDay),
@@ -162,7 +163,7 @@ function BranchForm({ authentication }) {
   }
 
   return (
-    <form className="settings-form restoration-settings-sections" onSubmit={submit}>
+    <div><form className="settings-form restoration-settings-sections" onSubmit={submit}>
       <section className="card"><div className="card-header"><h3>Branch details</h3></div><div className="card-body employee-form-grid">
         <label>Branch or entity label<input value={draft.name} onChange={field('name')} required /></label>
         <label>MOL employer ID<input value={draft.molEmployerId} onChange={field('molEmployerId')} /></label>
@@ -170,7 +171,7 @@ function BranchForm({ authentication }) {
         <label className="full-row">Address<textarea value={draft.address} onChange={field('address')} /></label>
       </div></section>
       <section className="card"><div className="card-header"><h3>Payroll settings</h3></div><div className="card-body employee-form-grid">
-        <label>Default bank routing code<input value={draft.defaultBankRoutingCode} onChange={field('defaultBankRoutingCode')} /></label>
+        <label>Default bank routing code<input value={organization.selectedBranch.defaultBankRoutingCode} readOnly /><button type="button" className="secondary" onClick={() => setRoutingOpen(true)}>Change payroll routing code</button></label>
         <label>Default salary payment day<input type="number" min="1" max="31" value={draft.defaultSalaryDay ?? ''} onChange={field('defaultSalaryDay')} /></label>
         <div className="company-logo-field full-row"><span>Company logo for payslips and letters</span>{draft.logoUrl && <img src={draft.logoUrl} alt="Company logo preview" />}
           <input ref={logoInput} className="sr-only" aria-label="Logo file" type="file" accept="image/png,image/jpeg,image/webp" onChange={chooseLogo} />
@@ -188,7 +189,7 @@ function BranchForm({ authentication }) {
         <button type="button" className="danger" disabled={saving} onClick={remove}>{confirmDelete ? 'Confirm delete' : 'Delete branch'}</button>
         {message && <p role="status">{message}</p>}
       </div>
-    </form>
+    </form>{routingOpen && <PayrollRoutingDialog authentication={authentication} branchId={draft.id} onClose={() => setRoutingOpen(false)} onSaved={(result) => { organization.replaceBranch(result.branch); setDraft((current) => ({ ...current, defaultBankRoutingCode: result.branch.defaultBankRoutingCode, updatedAt: result.branch.updatedAt })); setMessage(`Routing code saved for ${result.changedRuns.length} draft runs.`) }} />}</div>
   )
 }
 

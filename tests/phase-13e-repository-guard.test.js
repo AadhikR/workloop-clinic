@@ -224,6 +224,6 @@ test('accounts for every inspected file and keeps the Alembic head fixed', () =>
   }
   assert.deepEqual(
     [...revisions].filter((revision) => !predecessors.has(revision)).sort(),
-    ['e8a1c3f5b7d9'],
+    ['f1a3c5e7b9d2'],
   )
 })

@@ -211,9 +211,10 @@ export async function createComplianceOverride(authentication, branchId, payroll
   return item
 }
 
-export async function readNafisSnapshots(authentication, branchId, period) {
+export async function readNafisSnapshots(authentication, branchId, period, pagination = {}) {
   if (period && !periodPattern.test(period)) throw new TypeError('Invalid Nafis period')
-  const suffix = period ? `?period=${encodeURIComponent(period)}` : ''
+  const query = new URLSearchParams({ ...(period ? { period } : {}), ...pagination })
+  const suffix = query.size ? `?${query}` : ''
   const response = await authentication.request(`/api/v1/nafis-snapshots${suffix}`, {
     access: 'protected', headers: headers(branchId),
   })

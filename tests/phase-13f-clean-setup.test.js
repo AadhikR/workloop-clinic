@@ -123,5 +123,5 @@ test('closes the Part 13F catalogue boundary and keeps one schema head', () => {
   assert.ok(closure.evidence.includes('scripts/verify-phase-13f-clean-setup.mjs'))
   assert.ok(closure.evidence.includes('scripts/phase-13f-network-guard.mjs'))
   assert.ok(closure.evidence.includes('docs/migration/phase-13/PART_13F_COMPLETION.md'))
-  assert.deepEqual(alembicHeads(), ['e8a1c3f5b7d9'])
+  assert.deepEqual(alembicHeads(), ['f1a3c5e7b9d2'])
 })

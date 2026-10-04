@@ -370,6 +370,8 @@ class OrganizationService:
     ) -> BranchAdminResponse:
         if principal.role is not AppRole.ADMIN or principal.branch_id is not None:
             raise ServiceExecutionError("operation_not_permitted")
+        if "default_bank_routing_code" in request.model_fields_set:
+            raise ServiceExecutionError("operation_not_permitted")
         try:
             row = await self._repository.update_branch(
                 company_id=principal.company_id,

@@ -78,6 +78,7 @@ from app.report_api import router as report_router
 from app.roster_api import router as roster_router
 from app.roster_publication_api import publication_router as roster_publication_router
 from app.roster_publication_api import schedule_router as roster_schedule_router
+from app.routing_api import router as routing_router
 from app.sample_api import get_current_account, get_public_status
 from app.services.employees import EmployeeCursorCodec
 from app.services.execution import AuthorizedServiceExecutor
@@ -263,6 +264,7 @@ def create_app(
         rate_limiter=resolved_rate_limiter,
     )
     application.include_router(organization_router)
+    application.include_router(routing_router)
     application.include_router(employee_router)
     application.include_router(employee_document_router)
     application.include_router(employment_contract_router)

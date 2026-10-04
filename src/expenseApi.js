@@ -225,3 +225,12 @@ export async function downloadExpenseReceipt(authentication, receiptId, branchId
   ) throw new Error('Invalid expense receipt response')
   return response.data
 }
+
+export async function downloadClaimReceipt(authentication, claimId, branchId = null) {
+  if (!uuidPattern.test(claimId)) throw new TypeError('Invalid expense claim ID')
+  const response = await authentication.request(`/api/v1/expenses/${claimId}/receipt-download`, {
+    access: 'protected', method: 'POST', headers: branchId === null ? undefined : branchHeaders(branchId),
+  })
+  if (!exactKeys(response.data, ['url', 'expiresAt']) || typeof response.data.url !== 'string' || !timestampPattern.test(response.data.expiresAt)) throw new Error('Invalid expense receipt response')
+  return response.data
+}

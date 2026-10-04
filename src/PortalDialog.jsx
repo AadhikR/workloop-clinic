@@ -12,18 +12,20 @@ export default function PortalDialog({ children, labelledBy, onClose, drawer = f
     const focusable = () => [...dialog.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href]')].filter((element) => element.checkVisibility())
     focusable()[0]?.focus()
     const handleKey = (event) => {
+      if ([...document.querySelectorAll('[role="dialog"]')].at(-1) !== dialog) return
       if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onCloseRef.current() }
       if (event.key !== 'Tab') return
       const targets = focusable()
       const first = targets[0]
       const last = targets.at(-1)
       if (!first) { event.preventDefault(); return }
+      if (!dialog.contains(document.activeElement)) { event.preventDefault(); first.focus(); return }
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus() }
       if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
     }
-    dialog.addEventListener('keydown', handleKey)
+    document.addEventListener('keydown', handleKey)
     return () => {
-      dialog.removeEventListener('keydown', handleKey)
+      document.removeEventListener('keydown', handleKey)
       document.body.style.overflow = previousOverflow
       if (previousFocus?.isConnected) previousFocus.focus()
     }

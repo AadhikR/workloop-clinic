@@ -521,6 +521,9 @@ jobs:
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env PYTHONPATH=/phase13f:/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-12e-database.py
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env-from-file ./backend/.env.migration --env-from-file ./backend/.env.api --env PYTHONPATH=/phase13f:/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-12f-database.py
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env-from-file ./backend/.env.migration --env-from-file ./backend/.env.api --env PYTHONPATH=/phase13f:/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-phase-12g-database.py
+      - name: Verify restored payroll routing transaction
+        if: needs.changes.outputs.database_deep == 'true'
+        run: docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env RESTORATION_D_DISPOSABLE=true --env PYTHONPATH=/phase13f:/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-restoration-d-database.py
       - name: Verify service health
         run: |
           curl --fail --silent --show-error http://127.0.0.1:8000/health | jq --exit-status '.status == "ok" and .database == "ok"'

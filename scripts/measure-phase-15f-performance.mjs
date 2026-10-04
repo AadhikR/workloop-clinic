@@ -67,20 +67,26 @@ async function mount(page, role, route) {
 async function measureBrowser(browser) {
   const routeSamples = []
   const formSamples = []
+  const warmTransfers = []
 
   for (const [role, routes] of Object.entries(roleRoutes)) {
     const page = await browser.newPage()
     await mount(page, role, routes[0])
-    for (const route of [...routes.slice(1), ...routes.slice(1)]) {
+    for (const [index, route] of [...routes.slice(1), ...routes.slice(1)].entries()) {
       const link = page.locator(`a[href="${route}"]`)
+      await page.evaluate(() => performance.clearResourceTimings())
       const started = await page.evaluate(() => performance.now())
       await link.click()
-      await page.waitForFunction((pathName) => (
-        location.pathname === pathName
-        && document.activeElement?.tagName === 'H1'
-      ), route)
+      try {
+        await page.waitForFunction((pathName) => (
+          location.pathname === pathName
+          && document.activeElement?.tagName === 'H1'
+        ), route)
+      } catch (error) { throw new Error(`${role} ${route} route focus failed: ${await page.locator(':focus').evaluate((node) => node.tagName)}`, { cause: error }) }
+      await page.waitForFunction(() => ![...document.querySelectorAll('[role="status"]')].some((node) => node.textContent === 'Loading work area...'))
       const ended = await page.evaluate(() => performance.now())
       routeSamples.push(ended - started)
+      if (index >= routes.length - 1) warmTransfers.push(await page.evaluate(() => performance.getEntriesByType('resource').reduce((total, entry) => total + entry.transferSize, 0)))
     }
     await page.close()
   }
@@ -97,7 +103,7 @@ async function measureBrowser(browser) {
     await page.close()
   }
 
-  return { formSamples, routeSamples }
+  return { formSamples, routeSamples, warmTransfers }
 }
 
 async function measureApi() {
@@ -129,11 +135,6 @@ const initialCompressedTransferBytes = initialFiles.reduce((total, file) => tota
 const largestRouteBundleCompressedBytes = Math.max(
   ...chunks.map((chunk) => compressedBytes(path.join(root, 'dist', 'assets', chunk))),
 )
-const laterRouteFiles = chunks.filter((chunk) => !initialAssetNames.includes(`assets/${chunk}`))
-const laterRouteTransferBytes = laterRouteFiles.reduce(
-  (total, chunk) => total + compressedBytes(path.join(root, 'dist', 'assets', chunk)),
-  0,
-)
 
 const server = await createServer({
   configFile,
@@ -155,7 +156,7 @@ const apiSamples = await measureApi()
 
 const measured = {
   initialCompressedTransferBytes,
-  laterRouteTransferBytes,
+  laterRouteTransferBytes: browserMeasurements.warmTransfers.reduce((total, value) => total + value, 0),
   largestRouteBundleCompressedBytes,
   routeChangeP95Ms: Number(p95(browserMeasurements.routeSamples).toFixed(2)),
   formFeedbackP95Ms: Number(p95(browserMeasurements.formSamples).toFixed(2)),
@@ -176,7 +177,7 @@ const report = {
   budgets: phase15FBudgets,
   measurements: {
     initialCompressedTransferBytes: { value: measured.initialCompressedTransferBytes, sampleCount: 1, percentile: 'total', cacheState: 'cold-build' },
-    laterRouteTransferBytes: { value: measured.laterRouteTransferBytes, sampleCount: Object.values(roleRoutes).reduce((total, routes) => total + routes.length, 0), percentile: 'total', cacheState: 'warm-route' },
+    laterRouteTransferBytes: { value: measured.laterRouteTransferBytes, sampleCount: browserMeasurements.warmTransfers.length, percentile: 'total', cacheState: 'warm-route' },
     largestRouteBundleCompressedBytes: { value: measured.largestRouteBundleCompressedBytes, sampleCount: chunks.length + styles.length, percentile: 'maximum', cacheState: 'cold-build' },
     routeChangeP95Ms: { value: measured.routeChangeP95Ms, sampleCount: browserMeasurements.routeSamples.length, percentile: 'p95', cacheState: 'warm-application' },
     formFeedbackP95Ms: { value: measured.formFeedbackP95Ms, sampleCount: browserMeasurements.formSamples.length, percentile: 'p95', cacheState: 'warm-application' },

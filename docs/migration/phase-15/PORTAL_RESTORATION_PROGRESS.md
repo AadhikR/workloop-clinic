@@ -14,15 +14,15 @@ from the shared stylesheet.
 
 | Portal | Module | Assigned part | Comparison and current result |
 | --- | --- | --- | --- |
-| Admin | Dashboard | D | Pending |
-| Admin | Clinical dashboard | D | Pending |
-| Admin | Company settings | B, D, F | B restores grouped employer, payroll, jurisdiction, module, insurance-policy, and WPS reference areas. It adds validated logo upload, preview, replacement, and removal, while keeping biometric integration excluded. D and F own the atomic routing-code cascade in B-01. |
+| Admin | Dashboard | D | D restores the setup checklist, scoped server cards and warning links, Emiratization compliance, and paged payroll cost tables and charts. |
+| Admin | Clinical dashboard | D, F | D restores scoped credential cards, staffing compliance, and document expiry tables. Card details show confirmed counts and work-area links. F must restore employee drill-downs through D-01. |
+| Admin | Company settings | B, D, F | B restores grouped employer, payroll, jurisdiction, module, insurance-policy, and WPS reference areas. It adds validated logo upload, preview, replacement, and removal, while keeping biometric integration excluded. D implements and proves the atomic routing-code cascade in B-01. F must publish its backend and migration before final promotion. |
 | Admin | Employees | B, C, F | B restores active, expiry, and terminated summaries; the employee table; a broad tabbed modal; job history; lifecycle controls; and selected-employee documents, insurance, contracts, offboarding, and settlement access. A new idempotent profile command saves ordinary, title, department, manager, and salary changes in one transaction. C adds the current effective default shift and versioned replacement to Job and contract. F owns the large-branch expiry reader and database proof in B-03 and B-04. |
 | Admin | Departments | A, C, F | A restores separate department, hierarchy, and staffing views with named hierarchy, employee search, expand/collapse, and guarded dialogs. C now reads the selected branch and hides staffing navigation and controls unless that branch enables staffing rules. F checks card density and row-level delete placement. |
 | Admin | Requests | B, F | B restores Pending, Completed, Rejected, and All filters across letter and custom requests. Printable source and PDF controls now appear only for completed standard letters. F owns populated database and rendered-output proof in B-04. |
-| Admin | Payroll | D, F | Accepted populated review is preserved. D compares remaining output and compliance areas. |
-| Admin | Advances | D | Pending |
-| Admin | Expenses | D | Pending |
+| Admin | Payroll | D, F | D preserves the accepted salary review and adds atomic routing change and complete run traversal. WPS and Nafis retain confirmed state and inputs on failure. SIF previews separate employee and control records and download server bytes. F owns final live promotion. |
+| Admin | Advances | D, F | D restores shared request and decision dialogs and complete collection traversal. F owns protected historical cancellation in D-02. |
+| Admin | Expenses | D, F | D restores shared request and decision dialogs, complete collection traversal, and protected attached-receipt viewing. F owns recoverable historical removal in D-02. |
 | Admin | Leave | C | C restores Overview, Requests, Calendar, Balances, and Settings work areas around the current scoped clients. Request decisions, policy, holidays, balance work, and delegations remain server-authoritative. |
 | Admin | Attendance | C | C restores Dashboard, Manual Entry, Records, Absences, Overtime, Corrections, Periods, and Settings work areas. Biometric mapping and import controls remain excluded. |
 | Admin | Assets | A, F | Old register/history tabs and custody forms replaced by an inline editor with identifier prompts. A restores summaries, register columns, named assign/return dialogs, history, status filters, and confirmations. New server history and dated custody support added. Actor labels and self-history pagination remain in F. |
@@ -30,8 +30,8 @@ from the shared stylesheet.
 | Admin | Appraisals | A, F | Old Cycles/Reviews tables and review dialog replaced by stacked cycles and rating prompts. A restores those views, cycle selection, review summaries, section detail and rating dialogs, calibration, confirmation, and closed-cycle read-only controls. Admin section rating and retained review removal need an authority amendment. Department/job metadata and final dialog layout remain. |
 | Admin | Roster | C | C restores Shift Templates, Monthly Roster, and Swap Requests. The monthly grid keeps validation, exact-version publication, actual-hours, overtime, and swap operations on current clients. |
 | Admin | Incidents | A, F | Old summaries, filters, nine-column register, people/time fields, and report dialog replaced by a permanent form and terse actions. A restores these UI areas and investigation/corrective-action dialogs. Historical deletion has no current audited server operation. Retained removal and final edit layout remain in F. |
-| Admin | Reports | D | Pending |
-| Admin | Tasks | D | Pending |
+| Admin | Reports | D | D restores family selection, named supported filters, 13 report tables and charts, authoritative totals, pagination, and protected CSV/PDF output with retained failure state. |
+| Admin | Tasks | D | D restores grouped, collapsible server task cards, urgency, manual and timed refresh, and role-correct links. Notifications page the inbox and confirm read writes before updating. |
 | Manager | Home | E | Pending |
 | Manager | Leave queue | E | Pending |
 | Manager | Expense queue | E | Pending |
@@ -46,7 +46,7 @@ from the shared stylesheet.
 | Manager | Documents | B, E | B keeps document and insurance components in selected employee context. E still owns the complete manager-specific historical comparison and direct-report restrictions. |
 | Manager | Requests | B, E | B fixes own completed-letter output for managers and prevents custom requests from entering the standard-letter renderer. E still owns the complete manager workspace comparison. |
 | Manager | Profile | E | A corrected UAE mobile validation in the shared contact editor. Full historical profile comparison remains pending. |
-| Manager | Tasks | D, E | Pending |
+| Manager | Tasks | D, E | D proves grouped tasks, manager queue links, and notification read/failure behavior. E owns the complete personal workspace comparison. |
 | Employee | Home | E | Pending |
 | Employee | Leave | E | Pending |
 | Employee | Schedule | E | Pending |
@@ -59,7 +59,7 @@ from the shared stylesheet.
 | Employee | Documents | B, E | B preserves the shared protected-file components and selected-record integration. E still owns the personal documents and insurance layout comparison. |
 | Employee | Requests | B, E | B restores the shared letter/custom request split and limits output to completed standard letters. E still owns the complete personal workspace comparison. |
 | Employee | Profile | E | A corrected UAE mobile validation in the contact editor. Full historical profile comparison remains pending. |
-| Employee | Tasks | D, E | Pending |
+| Employee | Tasks | D, E | D proves personal grouped tasks, links, and notification read/failure behavior. E owns the complete personal workspace comparison. |
 
 ## Backend additions in A
 
@@ -91,11 +91,25 @@ from the shared stylesheet.
 | A-06 | F | C binds the staffing tab to the selected branch's `enableStaffingRules` setting and proves enabled and disabled browser states. F must repeat this with final populated roster coverage and publication evidence. |
 | A-07 | F | Final visual comparison must check department card/table choice, staffing delete action placement, appraisal employee department/job metadata and complete review editor, CME contributing-record detail and top action placement, incident retained-edit layout, and every dark/mobile/failure state. |
 | A-08 | F | Backend changes are not deployed by a frontend rebuild. Publish reviewed backend artifacts through the existing provider procedure before promoting the final UI. Keep accepted payroll release `e42808894b1c1a66c5e42738bbf9fa0cb46c538e` live until Part F. |
-| B-01 | D, F | Restore the historical routing-code cascade as one idempotent server command, not a branch update followed by client fan-out. Lock the branch and every affected draft payroll run, verify the branch version and each draft source/version, update the branch default and only draft runs in the selected branch, reject approved or paid runs, append allowlisted audit events, and return the changed run identifiers and versions. D integrates it with payroll. F proves concurrency, rollback, audit, and denial behavior against PostgreSQL. |
+| B-01 | D, F | Restore the historical routing-code cascade as one idempotent server command, not a branch update followed by client fan-out. Lock the branch and every affected draft payroll run, verify the branch version and each draft source/version, update the branch default and only draft runs in the selected branch, reject approved or paid runs, append allowlisted audit events, and return the changed run identifiers and versions. D integrates it with payroll. D proves concurrency, rollback, audit, replay, and denial behavior against disposable PostgreSQL. F must apply revision `f1a3c5e7b9d2` and publish the backend before final promotion. |
 | B-02 | F | C shows the effective default shift in Job and contract and replaces it through `POST /api/v1/shift-assignments` with the freshly read assignment identifier and version. C did not add unassignment: the current model has no branch default to fall back to, so clearing would leave an ambiguous schedule. F verifies the final editor and roster interaction. |
 | B-03 | F | The restored expiry summary combines fixed employee dates with uploaded document expiry records through current scoped readers. Add a paged or aggregate admin-selected-branch expiry projection before certifying large-branch parity, so the summary does not require one document request per employee. The result must expose employee identity, source type, expiry date, and status without document numbers, storage paths, hashes, or signed URLs. |
 | B-04 | F | Run the composite profile command, custom-request output denial, manager self-letter output, logo update, and selected-employee child readers against the disposable PostgreSQL and object-storage environment. Prove one-transaction rollback, stale versions, manager cycles, audit rows, replay, branch denial, protected output, and browser failure retention. Publish the reviewed backend artifact only in F. |
 | B-05 | F | Final visual comparison must cover populated employer settings, logo states, every employee modal tab, fixed and uploaded expiry warnings, long job histories, empty and populated child tabs, offboarding and settlement states, all request filters, dark mode, mobile scrolling, keyboard focus, and failed saves. |
+
+## Backend additions in D
+
+| Operation | Implemented contract |
+| --- | --- |
+| `GET/POST /api/v1/branches/{branchId}/payroll-routing` | Active human administrator, exact selected branch, complete draft set, branch and draft versions, source digests, branch and draft locks, one transaction, required idempotency key, allowlisted audit, and exact replay. Revision `f1a3c5e7b9d2` grants runtime execution only. Ordinary branch PATCH denies routing changes. |
+| `POST /api/v1/expenses/{claimId}/receipt-download` | Authorize the claim in current self, direct-report, or selected-branch scope, locate its attachment, then reuse existing receipt ownership, scan, object hash, and signed-download checks. No storage data enters the claim projection. |
+
+## D dependencies assigned to F
+
+| ID | Owner | Dependency and required result |
+| --- | --- | --- |
+| D-01 | F | Clinical card counts use scan-aware documents and verified certifications. The broader document expiry report does not have the same eligibility rules or certification rows. Add a paged selected-branch employee projection for each clinical card, with sanitized employee identity, credential type, expiry, and status. Match the card predicate, preserve tenant/branch scope, and exclude storage identifiers and protected evidence. Reuse B-03 and A-04 shared read work. Replace count-only expansion with the historical employee drill-down and prove count/detail agreement. |
+| D-02 | F | Current expense DELETE supports only pending, manager-rejected, or rejected claims outside payroll. Historical removal from the broader register and administrator advance cancellation need protected retained operations. Extend A-03 retained removal across financial workflows, with scoped authorization, expected versions, idempotency, audit, recoverable archival where appropriate, and atomic cancellation rules. Preserve receipts, repayment history, generated payroll, paid claims, and protected ledgers. Define which pending or unpaid states can be removed or cancelled. Do not restore unaudited hard deletion or local success. |
 
 ## A verification
 
@@ -165,3 +179,21 @@ Its global cleanup assertion requires an otherwise empty database, so it was not
 against the preserved populated development volume. Its fixed synthetic identifiers were cleaned;
 the isolated Part C fixture supplies the affected-route proof. The independent GitHub result will
 be recorded in `PORTAL_RESTORATION_C_COMPLETION.md` after the code commit passes.
+
+## D verification
+
+The local gate passed 434 frontend tests and the production build, 732 backend tests, frontend and
+backend lint, backend formatting, whole-tree types, and dependency checks. Seven focused backend
+tests and four focused frontend tests cover the new contracts. Disposable PostgreSQL proof covers
+the atomic routing operation, concurrent locks, stale sets and versions, approvals, rollback,
+replay, audit, scope, and role denial. The complete affected historical chain and deep database
+checks pass, including D's exact predecessor rollback.
+
+The isolated stack proves persisted catalogue, signing keys, storage and scans across restart,
+real role sign-in journeys, and synthetic cleanup. The D browser fixture exercises every current
+report type, financial dialogs and output, receipt failures, routing retry, role-aware tasks,
+notification failures, keyboard use, and 390-pixel containment. Fifteen screenshots and the
+performance record are in `evidence/restoration-d`. Shared route and recovery checks pass all
+46 views. Performance limits remain unchanged after deferred administrator module loading.
+See `PORTAL_RESTORATION_D_COMPLETION.md` for measurements, environment, and evidence limits.
+D does not certify D-01, D-02, or the other F dependencies, and does not deploy.

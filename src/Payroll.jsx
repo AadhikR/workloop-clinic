@@ -1,5 +1,7 @@
+import { readFinancialCollection } from './financialCollections.js'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Dialog from './PortalDialog.jsx'
+import PayrollRoutingDialog from './PayrollRoutingDialog.jsx'
 
 import {
   approvePayrollRun,
@@ -270,12 +272,13 @@ export default function Payroll({ account, authentication, branchId }) {
   const [showValidation, setShowValidation] = useState(false)
   const [detailEmployeeId, setDetailEmployeeId] = useState(null)
   const [confirmBack, setConfirmBack] = useState(false)
+  const [routingOpen, setRoutingOpen] = useState(false)
 
   const load = useCallback(async () => {
     if (account.role !== 'admin') return
     setStatus('loading')
     try {
-      const result = await readPayrollRuns(authentication, branchId)
+      const result = await readFinancialCollection((options) => readPayrollRuns(authentication, branchId, options))
       setRuns(result.items)
       setStatus('ready')
     } catch {
@@ -441,7 +444,7 @@ export default function Payroll({ account, authentication, branchId }) {
     <section className="payroll payroll-list" aria-labelledby="payroll-title">
       <div className="module-toolbar payroll-toolbar">
         <div><h2 id="payroll-title">Payroll Runs</h2><p>Build salary drafts, complete approval, and issue payroll output.</p></div>
-        <div className="module-actions">
+        <div className="module-actions"><button type="button" className="btn btn-outline" disabled={busy} onClick={() => setRoutingOpen(true)}>Routing settings</button>
           {latest && <button type="button" className="btn btn-outline" disabled={busy} onClick={() => setPlanDialog('repeat')}>▣ Repeat Last Payroll</button>}
           <button type="button" className="btn btn-primary" disabled={busy} onClick={() => setPlanDialog('new')}>＋ New Payroll Run</button>
         </div>
@@ -456,6 +459,7 @@ export default function Payroll({ account, authentication, branchId }) {
         <div className="card-header"><h3 id="payroll-history-title">▤ Payroll History</h3></div>
         {status === 'loading' ? <div className="module-loading" role="status">Loading payroll runs...</div> : status === 'unavailable' ? <div className="alert alert-danger">Payroll runs are unavailable.</div> : <PayrollHistory busy={busy} runs={runs} onDelete={setDeleteTarget} onOpen={open} />}
       </section>
+      {routingOpen && <PayrollRoutingDialog authentication={authentication} branchId={branchId} onClose={() => setRoutingOpen(false)} onSaved={async () => { await load(); setMessage('Routing code saved.') }} />}
       {planDialog && <PayrollPlanDialog activeEmployeeCount={latest?.employeeCount ?? null} busy={busy} initial={emptyPlan} mode={planDialog} onClose={() => setPlanDialog(null)} onSubmit={submitPlan} />}
       {deleteTarget && <Dialog labelledBy="delete-payroll-title" onClose={() => setDeleteTarget(null)}><div className="modal-header"><h3 id="delete-payroll-title">Delete Payroll Draft</h3><button type="button" className="btn btn-ghost btn-icon" aria-label="Close" onClick={() => setDeleteTarget(null)}>×</button></div><div className="modal-body"><p>Delete the {periodLabel(deleteTarget.period)} payroll draft? This cannot be undone.</p></div><div className="modal-footer"><button type="button" className="btn btn-outline" onClick={() => setDeleteTarget(null)}>Cancel</button><button type="button" className="btn btn-danger" disabled={busy} onClick={() => runAction(async () => { await deletePayrollRun(authentication, branchId, deleteTarget); return null }, 'Payroll draft deleted.').then((succeeded) => { if (succeeded) setDeleteTarget(null) })}>Delete Draft</button></div></Dialog>}
     </section>

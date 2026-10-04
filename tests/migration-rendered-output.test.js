@@ -56,7 +56,7 @@ test('print opens the authorized PDF bytes and revokes the viewer URL later', ()
       createObjectURL(blob) { events.push(['create', blob.type]); return 'blob:pdf' },
       revokeObjectURL(url) { events.push(['revoke', url]) },
     },
-    open(url, target, features) { events.push(['open', url, target, features]); return {} },
+    open(url, target) { events.push(['open', url, target]); return { location: { replace(value) { events.push(['navigate', value]) } } } },
     setTimeout(callback, delay) { events.push(['timeout', delay]); callback() },
   }
   openPdf(
@@ -65,7 +65,8 @@ test('print opens the authorized PDF bytes and revokes the viewer URL later', ()
   )
   assert.deepEqual(events, [
     ['create', 'application/pdf'],
-    ['open', 'blob:pdf', '_blank', 'noopener,noreferrer'],
+    ['open', 'about:blank', '_blank'],
+    ['navigate', 'blob:pdf'],
     ['timeout', 60_000],
     ['revoke', 'blob:pdf'],
   ])

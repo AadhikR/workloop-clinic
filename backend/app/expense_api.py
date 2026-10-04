@@ -10,6 +10,7 @@ from typing import Annotated, Literal, cast
 
 from fastapi import APIRouter, Header, Query, Request, Response, status
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.auth.application_user import AuthorizationPrincipal
@@ -692,6 +693,56 @@ async def upload_receipt(
     )
     response.headers["Location"] = f"/api/v1/expenses/receipts/{data.id}"
     return DataResponse(data=data)
+
+
+@router.post(
+    "/{claim_id}/receipt-download",
+    response_model=DataResponse[ReceiptDownloadResponse],
+    operation_id="download_claim_receipt",
+    responses=ERRORS,
+)
+async def download_claim_receipt(
+    claim_id: uuid.UUID,
+    request: Request,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedWritePrincipal,
+    raw_branch: str | None = Header(None, alias="X-Workloop-Branch-ID"),
+) -> DataResponse[ReceiptDownloadResponse]:
+    branch_id = _branch(principal, raw_branch)
+
+    async def locate(connection: AsyncConnection) -> uuid.UUID:
+        receipt_id = await connection.scalar(
+            text(
+                "SELECT receipt.id FROM public.expense_receipts receipt "
+                "JOIN public.expense_claims claim ON claim.id=receipt.expense_claim_id "
+                "AND claim.company_id=receipt.company_id AND claim.branch_id=receipt.branch_id "
+                "AND claim.employee_id=receipt.employee_id "
+                "JOIN public.employees employee ON employee.id=claim.employee_id "
+                "AND employee.company_id=claim.company_id AND employee.branch_id=claim.branch_id "
+                "WHERE claim.id=:claim AND claim.company_id=:company AND claim.branch_id=:branch "
+                "AND receipt.status='attached' AND (:admin OR claim.employee_id=:employee "
+                "OR (:manager AND employee.reporting_manager_id=:employee))"
+            ),
+            {
+                "claim": claim_id,
+                "company": principal.company_id,
+                "branch": branch_id,
+                "admin": principal.role is AppRole.ADMIN,
+                "manager": principal.role is AppRole.MANAGER,
+                "employee": principal.employee_id,
+            },
+        )
+        if receipt_id is None:
+            raise ServiceExecutionError("resource_not_found")
+        return cast(uuid.UUID, receipt_id)
+
+    receipt_id = await _executor(request).execute(
+        claims=claims,
+        principal=principal,
+        selected_admin_branch_id=branch_id if principal.role is AppRole.ADMIN else None,
+        operation=locate,
+    )
+    return await download_receipt(receipt_id, request, claims, principal, raw_branch)
 
 
 @router.post(

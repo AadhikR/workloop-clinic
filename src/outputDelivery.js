@@ -24,10 +24,12 @@ export function openPdf(output, browser = globalThis) {
     || typeof browser.open !== 'function'
   ) throw new TypeError('Invalid PDF output')
   const url = browser.URL.createObjectURL(new browser.Blob([output.bytes], { type: output.contentType }))
-  const viewer = browser.open(url, '_blank', 'noopener,noreferrer')
+  const viewer = browser.open('about:blank', '_blank')
   if (!viewer) {
     browser.URL.revokeObjectURL(url)
     throw new Error('PDF viewer was blocked')
   }
+  viewer.opener = null
+  viewer.location.replace(url)
   browser.setTimeout(() => browser.URL.revokeObjectURL(url), 60_000)
 }

@@ -12,14 +12,20 @@ import LeaveManager from './LeaveManager.jsx'
 import LetterRequests from './LetterRequests.jsx'
 import ModuleWorkspace from './ModuleWorkspace.jsx'
 import Offboarding from './Offboarding.jsx'
-import OrganizationSettings from './OrganizationSettings.jsx'
-import Payroll from './Payroll.jsx'
+import DeferredModule from './DeferredModule.jsx'
 import RecordsBenefits from './RecordsBenefits.jsx'
-import Reports from './Reports.jsx'
 import RosterManager from './RosterManager.jsx'
 import Tasks from './Tasks.jsx'
-import WpsNafis from './WpsNafis.jsx'
 import { administratorRouteGroup } from './administratorRoutes.js'
+
+const loadSettings = () => import('./OrganizationSettings.jsx')
+const loadReports = () => import('./Reports.jsx')
+const loadCompliance = () => import('./WpsNafis.jsx')
+const loadPayroll = () => import('./Payroll.jsx')
+const OrganizationSettings = (props) => <DeferredModule load={loadSettings} {...props} />
+const Reports = (props) => <DeferredModule load={loadReports} {...props} />
+const WpsNafis = (props) => <DeferredModule load={loadCompliance} {...props} />
+const Payroll = (props) => <DeferredModule load={loadPayroll} {...props} />
 
 function PayrollWorkspace({ shared }) {
   const [view, setView] = useState('runs')

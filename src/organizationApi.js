@@ -80,7 +80,7 @@ const adminBranchKeys = [
   'enableStaffingRules', 'enableBiometricImport', 'createdAt', 'updatedAt',
 ]
 
-function parseBranch(data) {
+export function parseBranch(data) {
   const admin = hasExactKeys(data, adminBranchKeys)
   if (
     !admin && !hasExactKeys(data, safeBranchKeys)

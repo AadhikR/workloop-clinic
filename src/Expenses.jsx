@@ -1,3 +1,5 @@
+import { readFinancialCollection } from './financialCollections.js'
+import Dialog from './PortalDialog.jsx'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import {
@@ -5,6 +7,7 @@ import {
   adminRejectExpense,
   createExpense,
   deleteExpense,
+  downloadClaimReceipt,
   managerApproveExpense,
   managerRejectExpense,
   readAdminExpenses,
@@ -44,8 +47,8 @@ function ExpenseFormDialog({ busy, onClose, onSubmit }) {
   const [form, setForm] = useState(emptyForm)
   const [receipt, setReceipt] = useState(null)
   return (
-    <div className="modal-overlay" role="presentation">
-      <form className="modal" role="dialog" aria-modal="true" aria-labelledby="expense-form-title" onSubmit={(event) => { event.preventDefault(); onSubmit(form, receipt) }}>
+    <Dialog labelledBy="expense-form-title" onClose={() => { if (!busy) onClose() }}>
+      <form onSubmit={(event) => { event.preventDefault(); onSubmit(form, receipt) }}>
         <div className="modal-header"><h3 id="expense-form-title">New Expense Claim</h3><button type="button" className="btn btn-ghost btn-icon" aria-label="Close" onClick={onClose}>×</button></div>
         <div className="modal-body">
           <div className="form-grid form-grid-2">
@@ -58,7 +61,7 @@ function ExpenseFormDialog({ busy, onClose, onSubmit }) {
         </div>
         <div className="modal-footer"><button type="button" className="btn btn-outline" onClick={onClose}>Cancel</button><button type="submit" className="btn btn-primary" disabled={busy}>{busy ? 'Submitting...' : 'Submit Claim'}</button></div>
       </form>
-    </div>
+    </Dialog>
   )
 }
 
@@ -67,20 +70,20 @@ function DecisionDialog({ busy, claim, kind, onClose, onSubmit }) {
   const needsReason = kind === 'reject' || kind === 'override'
   const title = kind === 'delete' ? 'Delete Expense Claim' : kind === 'approve' ? 'Approve Expense Claim' : 'Reject Expense Claim'
   return (
-    <div className="modal-overlay" role="presentation">
-      <form className="modal expense-decision-dialog" role="dialog" aria-modal="true" aria-labelledby="expense-decision-title" onSubmit={(event) => { event.preventDefault(); onSubmit(reason.trim()) }}>
+    <Dialog labelledBy="expense-decision-title" onClose={() => { if (!busy) onClose() }}>
+      <form onSubmit={(event) => { event.preventDefault(); onSubmit(reason.trim()) }}>
         <div className="modal-header"><h3 id="expense-decision-title">{title}</h3><button type="button" className="btn btn-ghost btn-icon" aria-label="Close" onClick={onClose}>×</button></div>
         <div className="modal-body"><p><strong>{claim.employeeName ?? categoryLabels[claim.category] ?? claim.category}</strong><br />AED {money(claim.amount)} · {claim.description}</p>{needsReason && <div className="form-group"><label htmlFor="expense-decision-reason">Reason *</label><textarea id="expense-decision-reason" required maxLength="500" value={reason} onChange={(event) => setReason(event.target.value)} /></div>}{kind === 'delete' && <div className="alert alert-warning">Delete this claim? This cannot be undone.</div>}</div>
         <div className="modal-footer"><button type="button" className="btn btn-outline" onClick={onClose}>Cancel</button><button type="submit" className={['delete', 'reject'].includes(kind) ? 'btn btn-danger' : 'btn btn-primary'} disabled={busy}>{busy ? 'Saving...' : title}</button></div>
       </form>
-    </div>
+    </Dialog>
   )
 }
 
 function ExpenseTable({ busy, items, role, onAction }) {
   if (items.length === 0) return <div className="empty-state"><span aria-hidden="true" className="empty-state-icon">▧</span><h3>No expense claims found</h3><p>Claims matching this view will appear here.</p></div>
   return (
-    <div className="table-wrap expense-table-wrap"><table className="expense-table"><thead><tr>{role !== 'self' && <th>Employee</th>}<th>Category</th><th>Amount</th><th>Date</th><th>Description</th><th>Receipt</th><th>Status</th><th>Actions</th></tr></thead><tbody>{items.map((claim) => <tr key={claim.id}>{role !== 'self' && <td><strong>{claim.employeeName}</strong></td>}<td>{categoryLabels[claim.category] ?? claim.category}</td><td className="font-bold">AED {money(claim.amount)}</td><td>{claim.expenseDate}</td><td className="expense-description-cell">{claim.description}</td><td>{claim.hasReceipt ? <span className="badge badge-blue">Attached</span> : <span className="text-muted">None</span>}</td><td><span className={statusBadge(claim.status)}>{statusLabel(claim.status)}</span>{claim.rejectionReason && <small className="text-danger">{claim.rejectionReason}</small>}{claim.payrollPeriod && <small>Payroll {claim.payrollPeriod}</small>}</td><td><div className="row-actions">{role === 'manager' && claim.canDecide && <><button type="button" className="btn btn-success btn-icon btn-sm" aria-label="Approve" disabled={busy} onClick={() => onAction('approve', claim)}>✓</button><button type="button" className="btn btn-danger btn-icon btn-sm" aria-label="Reject" disabled={busy} onClick={() => onAction('reject', claim)}>×</button></>}{role === 'admin' && claim.canDecide && <><button type="button" className="btn btn-success btn-icon btn-sm" aria-label="Approve" disabled={busy} onClick={() => onAction(claim.status === 'manager_rejected' ? 'override' : 'approve', claim)}>✓</button>{['pending', 'manager_approved'].includes(claim.status) && <button type="button" className="btn btn-danger btn-icon btn-sm" aria-label="Reject" disabled={busy} onClick={() => onAction('reject', claim)}>×</button>}</>}{(role === 'self' || role === 'admin') && ['pending', 'manager_rejected', 'rejected'].includes(claim.status) && !claim.payrollPeriod && <button type="button" className="btn btn-ghost btn-sm text-danger" disabled={busy} onClick={() => onAction('delete', claim)}>Delete</button>}</div></td></tr>)}</tbody></table></div>
+    <div className="table-wrap expense-table-wrap"><table className="expense-table"><thead><tr>{role !== 'self' && <th>Employee</th>}<th>Category</th><th>Amount</th><th>Date</th><th>Description</th><th>Receipt</th><th>Status</th><th>Actions</th></tr></thead><tbody>{items.map((claim) => <tr key={claim.id}>{role !== 'self' && <td><strong>{claim.employeeName}</strong></td>}<td>{categoryLabels[claim.category] ?? claim.category}</td><td className="font-bold">AED {money(claim.amount)}</td><td>{claim.expenseDate}</td><td className="expense-description-cell">{claim.description}</td><td>{claim.hasReceipt ? <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => onAction('receipt', claim)}>View receipt</button> : <span className="text-muted">None</span>}</td><td><span className={statusBadge(claim.status)}>{statusLabel(claim.status)}</span>{claim.rejectionReason && <small className="text-danger">{claim.rejectionReason}</small>}{claim.payrollPeriod && <small>Payroll {claim.payrollPeriod}</small>}</td><td><div className="row-actions">{role === 'manager' && claim.canDecide && <><button type="button" className="btn btn-success btn-icon btn-sm" aria-label="Approve" disabled={busy} onClick={() => onAction('approve', claim)}>✓</button><button type="button" className="btn btn-danger btn-icon btn-sm" aria-label="Reject" disabled={busy} onClick={() => onAction('reject', claim)}>×</button></>}{role === 'admin' && claim.canDecide && <><button type="button" className="btn btn-success btn-icon btn-sm" aria-label="Approve" disabled={busy} onClick={() => onAction(claim.status === 'manager_rejected' ? 'override' : 'approve', claim)}>✓</button>{['pending', 'manager_approved'].includes(claim.status) && <button type="button" className="btn btn-danger btn-icon btn-sm" aria-label="Reject" disabled={busy} onClick={() => onAction('reject', claim)}>×</button>}</>}{(role === 'self' || role === 'admin') && ['pending', 'manager_rejected', 'rejected'].includes(claim.status) && !claim.payrollPeriod && <button type="button" className="btn btn-ghost btn-sm text-danger" disabled={busy} onClick={() => onAction('delete', claim)}>Delete</button>}</div></td></tr>)}</tbody></table></div>
   )
 }
 
@@ -105,11 +108,11 @@ export default function Expenses({ account, authentication, branchId, view = 'al
     setStatus('loading')
     try {
       if (account.role === 'admin') {
-        const result = await readAdminExpenses(authentication, branchId)
+        const result = await readFinancialCollection((options) => readAdminExpenses(authentication, branchId, options))
         setQueueItems(result.items)
       } else {
-        if (view !== 'queue') setSelfItems((await readSelfExpenses(authentication)).items)
-        if (account.role === 'manager' && view !== 'self') setQueueItems((await readManagerExpenses(authentication)).items)
+        if (view !== 'queue') setSelfItems((await readFinancialCollection((options) => readSelfExpenses(authentication, options))).items)
+        if (account.role === 'manager' && view !== 'self') setQueueItems((await readFinancialCollection((options) => readManagerExpenses(authentication, options))).items)
       }
       setStatus('ready')
     } catch {
@@ -161,7 +164,15 @@ export default function Expenses({ account, authentication, branchId, view = 'al
     approved: queueItems.filter((claim) => claim.status === 'approved').reduce((sum, claim) => sum + Number(claim.amount), 0),
     paid: queueItems.filter((claim) => claim.status === 'paid').reduce((sum, claim) => sum + Number(claim.amount), 0),
   }), [queueItems])
-  const onAction = (kind, claim) => setDecision({ kind, claim })
+  const onAction = async (kind, claim) => {
+    if (kind !== 'receipt') { setDecision({ kind, claim }); return }
+    setBusy(true)
+    try {
+      const signed = await downloadClaimReceipt(authentication, claim.id, account.role === 'admin' ? branchId : null)
+      globalThis.open(signed.url, '_blank', 'noopener,noreferrer')
+    } catch (error) { setMessage(error.message || 'The receipt is unavailable.') }
+    finally { setBusy(false) }
+  }
   const groupedSelf = Object.groupBy ? Object.groupBy(selfItems, (claim) => claim.status) : selfItems.reduce((groups, claim) => ({ ...groups, [claim.status]: [...(groups[claim.status] ?? []), claim] }), {})
 
   return (

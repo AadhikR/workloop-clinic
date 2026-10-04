@@ -171,7 +171,7 @@ try {
   assert.equal(await toggle.evaluate((element) => element === document.activeElement), true)
   const leaveLink = keyboardPage.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Leave', exact: true })
   await leaveLink.click()
-  const approvals = keyboardPage.getByRole('tab', { name: 'Approvals', exact: true })
+  const approvals = keyboardPage.getByRole('tab', { name: 'Requests', exact: true })
   await approvals.click()
   await keyboardPage.getByRole('heading', { level: 2, name: 'Branch leave decisions', exact: true }).waitFor()
   await leaveLink.click()

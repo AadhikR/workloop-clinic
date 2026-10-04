@@ -36,7 +36,7 @@ from sqlalchemy.engine import URL
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
-EXPECTED_HEAD = "e8a1c3f5b7d9"
+EXPECTED_HEAD = "f1a3c5e7b9d2"
 ADMIN_SUBJECT = "hr.admin@horizon.test"
 STAFF_SUBJECT = "ravi.employee@horizon.test"
 CURSOR_CODEC = EmployeeCursorCodec(b"8" * 32)
