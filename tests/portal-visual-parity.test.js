@@ -22,5 +22,6 @@ test('shares the historical retained-source layout across administrator, manager
   assert.match(css, /Exact historical portal parity[\s\S]*?\.portal-route \.tab-btn[\s\S]*?padding: 10px 18px;/)
   assert.match(css, /Exact historical portal parity[\s\S]*?\.portal-route th \{[\s\S]*?font-size: 11\.5px;/)
   assert.match(css, /Exact historical portal parity[\s\S]*?\.portal-route input,[\s\S]*?padding: 9px 13px;/)
+  assert.match(css, /Exact historical portal parity[\s\S]*?\.portal\[data-portal-role\] \.portal-navigation\.sidebar-nav \{[\s\S]*?scrollbar-width: none;/)
   assert.match(css, /data-portal-role='manager'[\s\S]*height: 62px/)
 })

@@ -4189,6 +4189,12 @@ button.employee-kpi-card:hover:not(:disabled) {
 
 .portal[data-portal-role] .portal-navigation.sidebar-nav {
   padding: 12px 10px;
+  scrollbar-width: none;
+}
+
+.portal[data-portal-role] .portal-navigation.sidebar-nav::-webkit-scrollbar,
+.portal[data-portal-role] .main-content::-webkit-scrollbar {
+  display: none;
 }
 
 .portal[data-portal-role] .nav-entry {
@@ -4282,6 +4288,7 @@ button.employee-kpi-card:hover:not(:disabled) {
 
 .portal[data-portal-role] .main-content {
   margin-left: calc(var(--sidebar-w) + var(--sidebar-gap) * 2);
+  scrollbar-width: none;
   transition: margin-left 280ms ease;
 }
 
