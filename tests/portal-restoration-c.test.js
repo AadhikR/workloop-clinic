@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
 const source = (name) => readFileSync(new URL(`../src/${name}`, import.meta.url), 'utf8')
+const repositorySource = (name) => readFileSync(new URL(`../${name}`, import.meta.url), 'utf8')
 
 test('leave administration restores the historical work areas around current clients', () => {
   const text = source('LeaveManager.jsx')
@@ -58,4 +59,10 @@ test('administrator routes use restored domain workspaces', () => {
   for (const component of ['LeaveManager', 'AttendanceManager', 'RosterManager']) {
     assert.ok(text.includes(component), component)
   }
+})
+
+test('the shared browser journey follows the restored leave tabs', () => {
+  const text = repositorySource('scripts/verify-phase-3g-browser.mjs')
+  assert.match(text, /cancelLeaveThroughTable[\s\S]*name: 'Requests'/)
+  assert.match(text, /administrator leave delegation creation[\s\S]*name: 'Settings'/)
 })

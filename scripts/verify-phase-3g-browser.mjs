@@ -1058,6 +1058,7 @@ async function submitLeaveThroughForm(page, { admin, date, leaveType, employeeId
 }
 
 async function cancelLeaveThroughTable(page, { admin, requestId, date }) {
+  if (admin) await page.getByRole('tab', { name: 'Requests', exact: true }).click()
   const row = page.locator('.leave-request-table tbody tr').filter({
     has: page.locator(`time[datetime="${date}"]`),
   })
