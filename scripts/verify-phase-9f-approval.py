@@ -46,9 +46,9 @@ def main() -> None:
     )
     frontend = require(
         "src/Payroll.jsx",
-        "Submit for approval",
-        "Generate payroll",
-        "Approval history",
+        "submitPayrollRun(authentication, branchId, selected)",
+        "generatePayrollRun(authentication, branchId, selected)",
+        "readPayrollApprovalHistory(authentication, branchId,",
     )
     employee = require("src/Payslips.jsx", "My payslips", "readSelfPayslips")
     if "supabase" in (frontend + employee).lower():

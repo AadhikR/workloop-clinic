@@ -35,6 +35,13 @@ The first frontend gate caught an obsolete source-label assertion. The assertion
 restored labels, and the complete gate passed on rerun. Browser setup also required permission to
 launch the locally installed test browser. That setup failure did not submit a product write.
 
+The first GitHub run passed frontend regression and backend quality, but its full-stack job stopped
+at the old Phase 9E payroll label assertion. The accepted payroll code no longer has that heading.
+The adjacent Phase 9F verifier had the same case-sensitive label problem. Both verifiers now check
+the actual warning and protected-command wiring. Payroll application code did not change. Focused
+checks prove that both verifiers still reject removal of those required connections. The corrected
+commit must pass the independent full-stack gate before B starts.
+
 The Windows backend virtual environment points to a missing Python installation. Backend quality
 therefore ran under Python 3.12 in the existing `workloop-api:phase7c-test` image, using a disposable
 container and the pinned development dependencies. Type checking used Linux dependencies rather

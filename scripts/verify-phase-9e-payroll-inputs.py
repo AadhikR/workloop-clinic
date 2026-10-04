@@ -54,7 +54,10 @@ def main() -> None:
     frontend = require(
         "src/Payroll.jsx",
         "Automatic payroll inputs refreshed.",
-        "Source warnings",
+        "run.blockingErrors",
+        "run.sourceWarnings",
+        "payrollIssues(selected, entries)",
+        "Payroll needs review",
         "sourceExplanations",
     )
     if "supabase" in frontend.lower():
