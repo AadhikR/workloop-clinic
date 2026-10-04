@@ -15,11 +15,12 @@ test('restores the historical Workloop shell and visual tokens', async () => {
     'sidebar',
     'sidebar-logo',
     'sidebar-nav',
-    'main-content',
     'page-header',
     'page-body',
     'welcome-banner',
   ]) assert.match(shell, new RegExp(`className="[^"]*${marker}`))
+
+  assert.match(shell, /className=\{`main-content\$\{sidebarCollapsed/)
 
   for (const token of [
     '--primary: #2563eb',
@@ -37,6 +38,14 @@ test('restores the historical Workloop shell and visual tokens', async () => {
   assert.match(css, /@media \(max-width: 48rem\)/)
   assert.match(shell, /aria-label="Primary"/)
   assert.match(shell, /aria-current=/)
+  assert.match(shell, /sidebarStorageKey/)
+  assert.match(shell, /className="nav-pill"/)
+  assert.match(shell, /className="nav-divider"/)
+  assert.match(shell, /className=\{`sidebar\$\{sidebarCollapsed/)
+  assert.match(shell, /className=\{`main-content\$\{sidebarCollapsed/)
+  assert.match(css, /--sidebar-w-collapsed: 64px/)
+  assert.match(css, /\.portal\[data-portal-role\] \.nav-pill/)
+  assert.match(css, /\.portal\[data-portal-role\] \.sidebar\.collapsed/)
 })
 
 test('keeps role routing and session actions inside the restored shell', async () => {

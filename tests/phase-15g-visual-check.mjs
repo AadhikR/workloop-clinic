@@ -16,10 +16,12 @@ async function mount(page, role, route) {
     const modules = {
       admin: '/tests/phase-15c-harness.jsx',
       employee: '/tests/phase-15e-harness.jsx',
+      manager: '/tests/phase-15d-harness.jsx',
     }
     const exports = {
       admin: 'mountPhase15CAdministrator',
       employee: 'mountPhase15EEmployee',
+      manager: 'mountPhase15DManager',
     }
     const harness = await import(modules[accountRole])
     harness[exports[accountRole]]({ path: pathName })
@@ -37,15 +39,21 @@ const browser = await chromium.launch({ headless: true })
 
 try {
   const desktop = await browser.newPage({ viewport: { width: 1880, height: 900 } })
-  await mount(desktop, 'admin', '/admin')
+  await mount(desktop, 'admin', '/admin/payroll')
   const desktopLayout = await desktop.evaluate(() => {
     const style = (selector) => getComputedStyle(document.querySelector(selector))
     const rect = (selector) => document.querySelector(selector).getBoundingClientRect()
     return {
-      activeBackground: style('.nav-item[aria-current="page"]').backgroundImage,
+      buttonPadding: style('.portal-route button').padding,
       bodyBackground: style('body').backgroundColor,
-      cardRadius: style('.card').borderRadius,
+      cardRadius: style('.portal-route > section').borderRadius,
+      headingSize: style('.portal-route > section > h2').fontSize,
       headerTop: rect('.page-header').top,
+      panelLeft: rect('.portal-route > section').left,
+      panelRight: rect('.portal-route > section').right,
+      pillBackground: style('.nav-pill').backgroundImage,
+      headerLeft: rect('.page-header').left,
+      headerRight: rect('.page-header').right,
       sidebarBackground: style('.sidebar').backgroundColor,
       sidebarLeft: rect('.sidebar').left,
       sidebarWidth: rect('.sidebar').width,
@@ -57,9 +65,23 @@ try {
   assert.equal(desktopLayout.sidebarBackground, 'rgb(8, 18, 46)')
   assert.equal(desktopLayout.bodyBackground, 'rgb(238, 242, 247)')
   assert.equal(desktopLayout.cardRadius, '22px')
-  assert.match(desktopLayout.activeBackground, /linear-gradient/)
+  assert.equal(desktopLayout.headingSize, '20px')
+  assert.equal(desktopLayout.buttonPadding, '8px 16px')
+  assert.ok(Math.abs(desktopLayout.headerLeft - desktopLayout.panelLeft) <= 1)
+  assert.ok(Math.abs(desktopLayout.headerRight - desktopLayout.panelRight) <= 1)
+  assert.match(desktopLayout.pillBackground, /linear-gradient/)
   await desktop.screenshot({ path: path.join(evidenceDirectory, 'phase15g-restored-desktop.png') })
   await desktop.close()
+
+  const manager = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+  await mount(manager, 'manager', '/manager/expenses')
+  const managerLayout = await manager.evaluate(() => ({
+    panelRadius: getComputedStyle(document.querySelector('.portal-route > section')).borderRadius,
+    sidebarWidth: document.querySelector('.sidebar').getBoundingClientRect().width,
+  }))
+  assert.equal(managerLayout.sidebarWidth, 228)
+  assert.equal(managerLayout.panelRadius, '22px')
+  await manager.close()
 
   const mobile = await browser.newPage({ viewport: { width: 390, height: 844 } })
   await mount(mobile, 'employee', '/employee/records')
@@ -71,7 +93,7 @@ try {
   }))
   assert.equal(mobileLayout.marginLeft, '0px')
   assert.ok(mobileLayout.overflow <= 1, `mobile layout overflows by ${mobileLayout.overflow}px`)
-  assert.equal(mobileLayout.sidebarPosition, 'relative')
+  assert.equal(mobileLayout.sidebarPosition, 'fixed')
   assert.equal(mobileLayout.visibleNavigation, true)
   await mobile.screenshot({ path: path.join(evidenceDirectory, 'phase15g-restored-mobile.png'), fullPage: true })
   await mobile.close()

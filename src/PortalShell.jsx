@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import AdministratorPortal from './AdministratorPortal.jsx'
 import BranchChooser from './BranchChooser.jsx'
@@ -141,10 +141,55 @@ function ProtectedRouteState({ account, authentication, kind, navigator, title }
 function PortalHome({ account, authentication, navigator, route }) {
   const organization = useCompanyContext()
   const headingRef = useRef(null)
+  const navigationRef = useRef(null)
+  const navigation = roleNavigation(account.role)
+  const sidebarStorageKey = `workloop-${account.role}-sidebar-collapsed`
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return window.localStorage.getItem(sidebarStorageKey) === 'true'
+    } catch {
+      return false
+    }
+  })
+  const [navigationPill, setNavigationPill] = useState({ height: 36, top: 0 })
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed((collapsed) => {
+      const next = !collapsed
+      try {
+        window.localStorage.setItem(sidebarStorageKey, String(next))
+      } catch {
+        // The shell still works when browser storage is unavailable.
+      }
+      return next
+    })
+  }
+
+  const measureNavigationPill = useCallback(() => {
+    const navigationElement = navigationRef.current
+    const activeItem = navigationElement?.querySelector('[aria-current="page"]')
+    if (!navigationElement || !activeItem) return
+    const navigationBox = navigationElement.getBoundingClientRect()
+    const activeBox = activeItem.getBoundingClientRect()
+    setNavigationPill({
+      height: activeBox.height,
+      top: activeBox.top - navigationBox.top + navigationElement.scrollTop,
+    })
+  }, [])
+
   useEffect(
     () => focusRouteHeading(headingRef.current),
     [organization.status, route.path],
   )
+  useLayoutEffect(measureNavigationPill, [measureNavigationPill, navigation.length, route.path, sidebarCollapsed])
+  useEffect(() => {
+    const timer = window.setTimeout(measureNavigationPill, 300)
+    window.addEventListener('resize', measureNavigationPill)
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener('resize', measureNavigationPill)
+    }
+  }, [measureNavigationPill, navigation.length, route.path, sidebarCollapsed])
 
   if (organization.status === 'loading') {
     return <RouteState detail="Loading your company and branch context." kind="loading" title="Loading workspace" />
@@ -166,7 +211,6 @@ function PortalHome({ account, authentication, navigator, route }) {
 
   const branch = organization.selectedBranch
   const organizationName = organization.company?.name ?? organization.employer?.companyName
-  const navigation = roleNavigation(account.role)
   const dashboardKind = account.role === 'admin' ? 'admin' : 'self'
   const administratorGroup = account.role === 'admin' ? administratorRouteGroup(route.path) : null
   const employeeGroup = account.role === 'employee' ? employeeRouteGroup(route.path) : null
@@ -177,11 +221,19 @@ function PortalHome({ account, authentication, navigator, route }) {
     ?? 'Your common work items are ready. Role-specific sections will open as their portal routes are completed.'
   return (
     <div className="portal app-layout" data-portal-role={account.role} data-route-state="ready">
-      <aside className="sidebar">
+      <aside className={`sidebar${sidebarCollapsed ? ' collapsed' : ''}`}>
         <div className="sidebar-logo">
           <div className="sidebar-brand-row">
             <p className="sidebar-brand">Workloop</p>
-            <span aria-hidden="true" className="sidebar-mark">W</span>
+            <button
+              type="button"
+              className="sidebar-collapse-btn"
+              onClick={toggleSidebar}
+              title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              <span aria-hidden="true">{sidebarCollapsed ? '›' : '‹'}</span>
+            </button>
           </div>
           {account.role === 'admin' ? (
             <button
@@ -201,19 +253,26 @@ function PortalHome({ account, authentication, navigator, route }) {
             </div>
           )}
         </div>
-        <nav className="portal-navigation sidebar-nav" aria-label="Primary">
+        <nav ref={navigationRef} className="portal-navigation sidebar-nav" aria-label="Primary">
           <p className="nav-section-label">Navigation</p>
+          <span
+            aria-hidden="true"
+            className="nav-pill"
+            style={{ height: navigationPill.height, transform: `translateY(${navigationPill.top}px)` }}
+          />
           {navigation.map((item) => (
-            <PortalLink
-              className="nav-item"
-              current={item.path === route.path}
-              key={item.path}
-              navigator={navigator}
-              path={item.path}
-            >
-              <NavigationIcon name={item.title} />
-              <span>{item.title}</span>
-            </PortalLink>
+            <div className="nav-entry" key={item.path}>
+              {item.title === 'Tasks' && <span aria-hidden="true" className="nav-divider" />}
+              <PortalLink
+                className="nav-item"
+                current={item.path === route.path}
+                navigator={navigator}
+                path={item.path}
+              >
+                <NavigationIcon name={item.title} />
+                <span className="nav-item-label">{item.title}</span>
+              </PortalLink>
+            </div>
           ))}
         </nav>
         <div className="sidebar-footer">
@@ -227,11 +286,11 @@ function PortalHome({ account, authentication, navigator, route }) {
           </div>
           <button type="button" className="sidebar-signout" onClick={() => authentication.logout()}>
             <span aria-hidden="true">↪</span>
-            Sign out
+            <span className="sidebar-signout-label">Sign out</span>
           </button>
         </div>
       </aside>
-      <div className="main-content">
+      <div className={`main-content${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
         <header className="page-header portal-header">
           <div>
             <h1 ref={headingRef} tabIndex="-1">{route.title}</h1>
