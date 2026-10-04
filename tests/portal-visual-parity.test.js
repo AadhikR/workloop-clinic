@@ -25,3 +25,92 @@ test('shares the historical retained-source layout across administrator, manager
   assert.match(css, /Exact historical portal parity[\s\S]*?\.portal\[data-portal-role\] \.portal-navigation\.sidebar-nav \{[\s\S]*?scrollbar-width: none;/)
   assert.match(css, /data-portal-role='manager'[\s\S]*height: 62px/)
 })
+
+test('pins every restored portal module to a current route and API client', async () => {
+  const inventory = await readFile(new URL('../docs/migration/phase-15/PORTAL_UI_RESTORATION_INVENTORY.md', import.meta.url), 'utf8')
+
+  assert.match(inventory, /a3b72a22924d1b56b5603ee8e0069ddecee65f43/)
+  for (const route of [
+    '/admin/payroll', '/admin/advances', '/admin/expenses', '/admin/leave',
+    '/admin/attendance', '/admin/roster', '/admin/assets', '/admin/training',
+    '/admin/appraisals', '/admin/incidents', '/admin/reports', '/admin/tasks',
+    '/manager/leave-queue', '/manager/expense-queue', '/manager/appraisals',
+    '/manager/schedule', '/manager/attendance', '/manager/payslips', '/manager/advances',
+    '/manager/expenses', '/manager/training', '/manager/documents', '/manager/requests',
+    '/manager/profile', '/manager/tasks', '/employee/leave', '/employee/schedule',
+    '/employee/attendance', '/employee/payslips', '/employee/advances', '/employee/expenses',
+    '/employee/training', '/employee/appraisals', '/employee/documents', '/employee/requests',
+    '/employee/profile', '/employee/tasks',
+  ]) assert.ok(inventory.includes(`\`${route}\``), `missing restoration inventory route ${route}`)
+
+  for (const client of [
+    'payrollApi.js', 'advanceApi.js', 'expenseApi.js', 'leaveRequestApi.js',
+    'attendanceExceptionsApi.js', 'rosterApi.js', 'developmentAssetsApi.js',
+    'appraisalsIncidentsApi.js', 'recordsBenefitsApi.js', 'letterRequestsApi.js',
+    'reportApi.js', 'taskApi.js',
+  ]) assert.ok(inventory.includes(`\`${client}\``), `missing restoration inventory client ${client}`)
+})
+
+test('restores the historical payroll workspace against FastAPI actions', async () => {
+  const payroll = await readFile(new URL('../src/Payroll.jsx', import.meta.url), 'utf8')
+
+  for (const marker of [
+    'Payroll Runs', 'Repeat Last Payroll', 'New Payroll Run', 'Payroll History',
+    'Payroll Run Details', 'Employee Salary Entries', 'Add allowance', 'Add deduction',
+    'Submit for Approval', 'Approval History', 'Download Payslips',
+  ]) assert.ok(payroll.includes(marker), `missing payroll structure: ${marker}`)
+  assert.match(payroll, /readPayrollRuns/)
+  assert.match(payroll, /createPayrollRun/)
+  assert.match(payroll, /savePayrollEntries/)
+  assert.match(payroll, /submitPayrollRun/)
+  assert.match(payroll, /generatePayrollRun/)
+  assert.match(payroll, /className="payroll-table table-wrap"/)
+  assert.match(payroll, /className="modal-overlay"/)
+})
+
+test('keeps advances and expenses as separate role-specific modules', async () => {
+  const [advances, expenses] = await Promise.all([
+    readFile(new URL('../src/Advances.jsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/Expenses.jsx', import.meta.url), 'utf8'),
+  ])
+
+  for (const marker of ['Pending Requests', 'Active Advances', 'Total Outstanding', 'All Advances', 'Repayment Schedule']) {
+    assert.ok(advances.includes(marker), `missing advances structure: ${marker}`)
+  }
+  for (const marker of ['Pending Claims', 'Approved (Unpaid)', 'Total Paid', 'New Expense Claim', 'Expense Queue']) {
+    assert.ok(expenses.includes(marker), `missing expenses structure: ${marker}`)
+  }
+  assert.doesNotMatch(advances, /Payroll Runs/)
+  assert.doesNotMatch(expenses, /Salary Advances/)
+  assert.match(advances, /readAdminAdvances/)
+  assert.match(advances, /readSelfAdvances/)
+  assert.match(expenses, /readAdminExpenses/)
+  assert.match(expenses, /readManagerExpenses/)
+  assert.match(expenses, /readSelfExpenses/)
+})
+
+test('retains each non-financial historical module instead of a generic placeholder', async () => {
+  const expectations = new Map([
+    ['EmployeeDirectory.jsx', ['Employee directory', 'Employee profile', 'Import employees']],
+    ['DepartmentManager.jsx', ['Departments', 'Staffing rules']],
+    ['LetterRequests.jsx', ['Letter and custom requests', 'Completed request source']],
+    ['LeaveConfiguration.jsx', ['Leave configuration', 'Leave types', 'Public holidays']],
+    ['LeaveOverview.jsx', ['Submit leave request', 'Request history', 'Request calendar']],
+    ['LeaveApprovals.jsx', ['Approval delegations', 'Leave approvals']],
+    ['AttendanceConfiguration.jsx', ['Branch rules', 'Effective shift assignment']],
+    ['AttendanceIngestion.jsx', ['Manual clock event', 'Biometric mapping', 'Recent raw events']],
+    ['AttendanceExceptions.jsx', ['Pending corrections', 'Unresolved absences', 'Recent audit']],
+    ['RosterDrafts.jsx', ['Roster drafts', 'Publication gates', 'Publication']],
+    ['DevelopmentAssets.jsx', ['Asset inventory', 'Training, certifications, and CME']],
+    ['AppraisalsIncidents.jsx', ['Appraisal cycles', 'Clinical incidents']],
+    ['RecordsBenefits.jsx', ['Employee documents', 'Insurance administration', 'Employment contracts']],
+    ['Offboarding.jsx', ['Offboarding and final settlement', 'Settlement preview']],
+    ['Reports.jsx', ['Reports']],
+    ['Tasks.jsx', ['Tasks']],
+  ])
+
+  for (const [file, markers] of expectations) {
+    const source = await readFile(new URL(`../src/${file}`, import.meta.url), 'utf8')
+    for (const marker of markers) assert.ok(source.includes(marker), `${file} is missing ${marker}`)
+  }
+})

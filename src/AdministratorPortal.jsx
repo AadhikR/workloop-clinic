@@ -1,3 +1,5 @@
+import { useState } from 'react'
+
 import Advances from './Advances.jsx'
 import AppraisalsIncidents from './AppraisalsIncidents.jsx'
 import AttendanceCalculation from './AttendanceCalculation.jsx'
@@ -24,6 +26,19 @@ import ShiftSwapQueue from './ShiftSwapQueue.jsx'
 import Tasks from './Tasks.jsx'
 import WpsNafis from './WpsNafis.jsx'
 import { administratorRouteGroup } from './administratorRoutes.js'
+
+function PayrollWorkspace({ shared }) {
+  const [view, setView] = useState('runs')
+  return (
+    <div className="financial-workspace" data-financial-workspace="payroll">
+      <div className="tabs module-subnav" role="tablist" aria-label="Payroll module views">
+        <button type="button" className={`tab-btn${view === 'runs' ? ' active' : ''}`} role="tab" aria-selected={view === 'runs'} onClick={() => setView('runs')}>Payroll Runs</button>
+        <button type="button" className={`tab-btn${view === 'compliance' ? ' active' : ''}`} role="tab" aria-selected={view === 'compliance'} onClick={() => setView('compliance')}>WPS &amp; Nafis</button>
+      </div>
+      {view === 'runs' ? <Payroll {...shared} /> : <WpsNafis {...shared} />}
+    </div>
+  )
+}
 
 export default function AdministratorPortal({
   account,
@@ -88,10 +103,7 @@ export default function AdministratorPortal({
         </>
       )}
       {path === '/admin/payroll' && (
-        <>
-          <Payroll {...shared} />
-          <WpsNafis {...shared} />
-        </>
+        <PayrollWorkspace shared={shared} />
       )}
       {path === '/admin/advances' && <Advances {...shared} />}
       {path === '/admin/expenses' && <Expenses {...shared} />}

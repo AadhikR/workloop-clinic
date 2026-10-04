@@ -1837,6 +1837,822 @@ textarea:focus-visible {
   }
 }
 
+/* Historical module structures restored against the current API clients. */
+.sidebar-preferences {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 7px;
+}
+
+.sidebar-preference {
+  display: grid;
+  width: 100%;
+  min-height: 34px;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border: 1px solid rgba(56, 189, 248, 0.1);
+  border-radius: 8px;
+  background: transparent;
+  box-shadow: none;
+  color: rgba(148, 163, 184, 0.74);
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.sidebar-preference:hover {
+  border-color: rgba(56, 189, 248, 0.2);
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: none;
+  color: rgba(255, 255, 255, 0.9);
+  transform: none;
+}
+
+.sidebar-switch {
+  display: flex;
+  width: 31px;
+  height: 18px;
+  align-items: center;
+  padding: 2px;
+  border-radius: 99px;
+  background: #334155;
+  transition: background 160ms ease;
+}
+
+.sidebar-switch > span {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(8, 18, 46, 0.35);
+  transition: transform 160ms ease;
+}
+
+.sidebar-switch.on {
+  background: #2563eb;
+}
+
+.sidebar-switch.on > span {
+  transform: translateX(13px);
+}
+
+.portal[data-portal-role] .sidebar.collapsed .sidebar-preference {
+  display: flex;
+  justify-content: center;
+  padding: 7px 0;
+}
+
+.portal[data-portal-role] .sidebar.collapsed .sidebar-preference-label,
+.portal[data-portal-role] .sidebar.collapsed .sidebar-switch {
+  display: none;
+}
+
+.portal[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+.portal[data-theme='dark'] .main-content {
+  background: #111827;
+  background-image:
+    radial-gradient(ellipse 70% 55% at 10% 35%, rgba(37, 99, 235, 0.11) 0%, transparent 65%),
+    radial-gradient(ellipse 60% 45% at 90% 15%, rgba(6, 182, 212, 0.08) 0%, transparent 65%);
+}
+
+.portal[data-theme='dark'] .page-header,
+.portal[data-theme='dark'] .portal-route > section,
+.portal[data-theme='dark'] .portal-route > .records-benefits,
+.portal[data-theme='dark'] .portal-route > .task-centre,
+.portal[data-theme='dark'] .portal-route .card,
+.portal[data-theme='dark'] .portal-route .employee-panel,
+.portal[data-theme='dark'] .portal-route table,
+.portal[data-theme='dark'] .portal-route tbody tr {
+  border-color: rgba(148, 163, 184, 0.2);
+  background: #172033;
+  color: #e5e7eb;
+}
+
+.portal[data-theme='dark'] .portal-route h2,
+.portal[data-theme='dark'] .portal-route h3,
+.portal[data-theme='dark'] .portal-route h4,
+.portal[data-theme='dark'] .page-header h1,
+.portal[data-theme='dark'] .portal-route td {
+  color: #e5e7eb;
+}
+
+.portal[data-theme='dark'] .portal-route input,
+.portal[data-theme='dark'] .portal-route select,
+.portal[data-theme='dark'] .portal-route textarea {
+  border-color: #475569;
+  background: #111827;
+  color: #f8fafc;
+}
+
+.portal[data-route-path='/admin/payroll'] > .main-content > .page-header,
+.portal[data-route-path='/admin/advances'] > .main-content > .page-header,
+.portal[data-route-path='/admin/expenses'] > .main-content > .page-header {
+  display: none;
+}
+
+.portal[data-route-path='/admin/payroll'] > .main-content > .page-body,
+.portal[data-route-path='/admin/advances'] > .main-content > .page-body,
+.portal[data-route-path='/admin/expenses'] > .main-content > .page-body {
+  padding-top: 12px;
+}
+
+.portal-route > .payroll,
+.portal-route > .advances-module,
+.portal-route > .expenses-module {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.module-toolbar,
+.payroll-detail-toolbar {
+  display: flex;
+  min-height: 64px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 10px 22px;
+  border: 1px solid rgba(100, 116, 139, 0.14);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: var(--portal-shadow);
+}
+
+.module-toolbar h2,
+.payroll-detail-heading h2 {
+  margin: 0;
+  color: var(--gray-900);
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -0.3px;
+}
+
+.module-toolbar p,
+.payroll-detail-heading p {
+  margin: 2px 0 0;
+  color: var(--gray-500);
+  font-size: 12px;
+}
+
+.module-toolbar + .alert,
+.payroll-detail-toolbar + .alert {
+  margin-top: 16px;
+}
+
+.form-span {
+  grid-column: 1 / -1;
+}
+
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.text-right {
+  text-align: right !important;
+}
+
+.font-bold {
+  font-weight: 700 !important;
+}
+
+.text-primary {
+  color: var(--primary) !important;
+}
+
+.text-success {
+  color: var(--success) !important;
+}
+
+.text-warning {
+  color: var(--warning) !important;
+}
+
+.text-danger {
+  color: var(--danger) !important;
+}
+
+.text-muted {
+  color: var(--gray-500) !important;
+}
+
+.text-sm {
+  font-size: 12px !important;
+}
+
+.modal-overlay {
+  position: fixed;
+  z-index: 220;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(8, 18, 46, 0.5);
+}
+
+.modal {
+  display: flex;
+  width: min(600px, 100%);
+  max-height: 90vh;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(100, 116, 139, 0.18);
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.18), 0 6px 20px rgba(15, 23, 42, 0.08);
+}
+
+.modal > form {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.modal-header,
+.modal-footer {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.modal-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(100, 116, 139, 0.1);
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.modal-body {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 22px 24px;
+}
+
+.modal-footer {
+  justify-content: flex-end;
+  padding: 16px 24px;
+  border-top: 1px solid rgba(100, 116, 139, 0.1);
+}
+
+.payroll-list-stats,
+.advance-stats,
+.expense-stats,
+.payroll-summary-grid {
+  margin: 20px 0 24px;
+}
+
+.payroll-list-stats,
+.advance-stats,
+.expense-stats {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.payroll-history-card,
+.advances-table-card,
+.expense-queue-card,
+.payroll-run-details,
+.payroll-entries-card,
+.payroll-approval-history {
+  overflow: hidden;
+  padding: 0 !important;
+}
+
+.payroll-history-card > .card-header,
+.advances-table-card > .card-header,
+.payroll-run-details > .card-header,
+.payroll-entries-card > .card-header,
+.payroll-approval-history > .card-header {
+  margin: 0;
+}
+
+.payroll-history-table,
+.expense-queue-card .table-wrap,
+.advances-table-card > .table-wrap {
+  border: 0;
+  border-radius: 0;
+}
+
+.payroll-history-row {
+  cursor: pointer;
+}
+
+.empty-state-icon {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--gray-300);
+  font-size: 36px;
+}
+
+.payroll-plan-grid {
+  margin-bottom: 16px;
+}
+
+.payroll-plan-note {
+  margin-top: 16px;
+}
+
+.payroll-detail-toolbar {
+  align-items: center;
+}
+
+.payroll-detail-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.payroll-detail-heading .payroll-back {
+  min-height: 32px;
+  padding: 5px 8px;
+}
+
+.payroll-detail-toolbar .payroll-actions {
+  justify-content: flex-end;
+}
+
+.payroll-detail-toolbar .payroll-actions .btn {
+  min-height: 34px;
+  padding: 7px 11px;
+  font-size: 12px;
+}
+
+.payroll-reason {
+  margin-top: 16px;
+  padding: 14px 18px;
+  border: 1px solid var(--portal-border);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.payroll-reason label {
+  display: grid;
+  gap: 6px;
+}
+
+.payroll-run-details {
+  margin-top: 20px !important;
+}
+
+.payroll-meta-grid {
+  padding: 18px;
+}
+
+.payroll-summary-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.payroll-grand-total .stat-value {
+  color: var(--primary);
+}
+
+.payroll-entries-card {
+  margin-top: 16px !important;
+}
+
+.payroll-entries-header p {
+  margin: 3px 0 0;
+  color: var(--gray-500);
+  font-size: 11px;
+}
+
+.payroll-table {
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+
+.payroll-table table {
+  min-width: 1480px;
+}
+
+.payroll-table th,
+.payroll-table td {
+  padding-right: 9px;
+  padding-left: 9px;
+}
+
+.payroll-table input:not([type='checkbox']) {
+  min-width: 78px;
+  height: 32px;
+  min-height: 32px;
+  padding: 5px 8px;
+}
+
+.payroll-table td small,
+.expense-table td small,
+.advances-table-card td small {
+  display: block;
+  margin-top: 3px;
+  color: var(--gray-500);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.payroll-table .deduction-value,
+.expense-table .text-danger {
+  color: var(--danger);
+}
+
+.payroll-table .final-allowance {
+  background: rgba(37, 99, 235, 0.1);
+  color: #1d4ed8;
+  font-weight: 700;
+}
+
+.payroll-table tfoot th,
+.payroll-table tfoot td {
+  border-top: 1px solid var(--gray-200);
+  border-bottom: 0;
+  background: var(--gray-50);
+  font-weight: 700;
+}
+
+.payroll-table tr.excluded td {
+  opacity: 0.42;
+}
+
+.adjustment-cell {
+  min-width: 115px;
+}
+
+.payroll-inline-action {
+  min-height: auto !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-bottom: 1px dotted currentColor !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--primary) !important;
+  font-size: 11px !important;
+}
+
+.danger-link {
+  color: var(--danger) !important;
+}
+
+.adjustment-chip {
+  display: block !important;
+  min-height: auto !important;
+  margin-top: 4px;
+  padding: 2px 5px !important;
+  border: 1px solid rgba(37, 99, 235, 0.18) !important;
+  border-radius: 6px !important;
+  background: rgba(37, 99, 235, 0.08) !important;
+  box-shadow: none !important;
+  color: #1d4ed8 !important;
+  font-size: 9px !important;
+  white-space: normal;
+}
+
+.adjustment-chip.deduction {
+  border-color: rgba(220, 38, 38, 0.18) !important;
+  background: rgba(220, 38, 38, 0.07) !important;
+  color: #b91c1c !important;
+}
+
+.payroll-approval-history {
+  margin-top: 16px !important;
+}
+
+.payroll-approval-history ol {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 18px 18px 18px 38px;
+}
+
+.payroll-approval-history time {
+  display: block;
+  color: var(--gray-500);
+  font-size: 10px;
+}
+
+.advances-card-header {
+  align-items: center;
+}
+
+.advance-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.advance-detail-row > td {
+  padding: 16px 20px !important;
+  background: var(--gray-50);
+}
+
+.advance-progress-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.advance-progress-summary > div {
+  padding: 10px 12px;
+  border: 1px solid var(--gray-200);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.advance-progress-summary span,
+.advance-progress-summary strong {
+  display: block;
+}
+
+.advance-progress-summary span {
+  color: var(--gray-500);
+  font-size: 10px;
+}
+
+.advance-schedule-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.advance-schedule-grid > div {
+  padding: 9px 10px;
+  border: 1px solid var(--gray-200);
+  border-radius: 9px;
+  background: #fff;
+}
+
+.advance-schedule-grid > div.paid {
+  border-color: rgba(22, 163, 74, 0.25);
+  background: var(--success-light);
+}
+
+.advance-schedule-grid > div.due,
+.advance-schedule-grid > div.partial {
+  border-color: rgba(217, 119, 6, 0.25);
+  background: var(--warning-light);
+}
+
+.advance-schedule-grid span,
+.advance-schedule-grid strong,
+.advance-schedule-grid small {
+  display: block;
+}
+
+.advance-schedule-grid span,
+.advance-schedule-grid small {
+  color: var(--gray-500);
+  font-size: 10px;
+}
+
+.advance-repayments {
+  margin-top: 12px;
+}
+
+.self-advance-summary,
+.self-expense-summary {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 16px 0;
+  padding: 16px 18px;
+  border: 1px solid #bfdbfe;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%);
+  box-shadow: var(--shadow-xs);
+}
+
+.self-advance-summary > span,
+.self-expense-summary > span {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.self-advance-summary small,
+.self-advance-summary strong,
+.self-advance-summary p,
+.self-expense-summary small,
+.self-expense-summary strong,
+.self-expense-summary p {
+  display: block;
+  margin: 0;
+}
+
+.self-advance-summary strong,
+.self-expense-summary strong {
+  margin-top: 2px;
+  color: var(--primary);
+  font-size: 22px;
+}
+
+.self-advance-summary p,
+.self-expense-summary p {
+  color: var(--gray-500);
+  font-size: 11px;
+}
+
+.self-advance-section,
+.self-expense-section {
+  margin: 0 0 12px !important;
+}
+
+.self-advance-row,
+.self-expense-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.self-advance-row:last-child,
+.self-expense-row:last-child {
+  border-bottom: 0;
+}
+
+.self-advance-row p,
+.self-expense-row p {
+  margin: 3px 0;
+  color: var(--gray-500);
+  font-size: 12px;
+}
+
+.self-advance-row small,
+.self-expense-row small,
+.self-expense-row span {
+  display: block;
+  margin-top: 3px;
+  color: var(--gray-400);
+  font-size: 10px;
+}
+
+.self-advance-meta,
+.self-expense-row > div:last-child {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+  text-align: right;
+}
+
+.advance-progress {
+  width: 150px;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 9px;
+  background: var(--gray-100);
+}
+
+.advance-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+}
+
+.expense-tabs {
+  margin: 18px 0 0 !important;
+  padding: 0 18px !important;
+  border: 1px solid var(--portal-border) !important;
+  border-bottom: 0 !important;
+  border-radius: 16px 16px 0 0;
+  background: #fff;
+}
+
+.expense-queue-card {
+  margin-top: 0 !important;
+  border-radius: 0 0 16px 16px !important;
+}
+
+.expense-description-cell {
+  min-width: 180px;
+  max-width: 280px;
+}
+
+.panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.panel-heading h3 {
+  margin: 0 !important;
+}
+
+@media (max-width: 72rem) {
+  .payroll-detail-toolbar,
+  .module-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .payroll-detail-toolbar .payroll-actions,
+  .module-toolbar .module-actions {
+    justify-content: flex-start;
+  }
+
+  .payroll-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 48rem) {
+  .sidebar-preferences {
+    display: none;
+  }
+
+  .module-toolbar,
+  .payroll-detail-toolbar {
+    min-height: 0;
+    padding: 16px 18px;
+    border-radius: 16px;
+  }
+
+  .module-toolbar .module-actions,
+  .payroll-detail-toolbar .payroll-actions {
+    display: grid;
+    width: 100%;
+    grid-template-columns: 1fr;
+  }
+
+  .module-toolbar .module-actions .btn,
+  .payroll-detail-toolbar .payroll-actions .btn {
+    width: 100%;
+  }
+
+  .payroll-detail-heading {
+    flex-wrap: wrap;
+  }
+
+  .payroll-list-stats,
+  .advance-stats,
+  .expense-stats,
+  .payroll-summary-grid,
+  .advance-progress-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .modal {
+    width: 100%;
+    max-height: 94vh;
+    border-radius: 22px 22px 0 0;
+  }
+
+  .modal-body .form-grid-2,
+  .modal-body .form-grid-3 {
+    grid-template-columns: 1fr;
+  }
+
+  .self-advance-row,
+  .self-expense-row {
+    flex-direction: column;
+  }
+
+  .self-advance-meta,
+  .self-expense-row > div:last-child {
+    width: 100%;
+    justify-items: start;
+    text-align: left;
+  }
+
+  .advance-progress {
+    width: 100%;
+  }
+
+  .advances-card-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
 @media (max-width: 28rem) {
   .portal-navigation.sidebar-nav .nav-item span {
     display: none;
@@ -4872,5 +5688,101 @@ button.employee-kpi-card:hover:not(:disabled) {
   .portal[data-portal-role='manager'] .page-body,
   .portal[data-portal-role='employee'] .page-body {
     padding-bottom: 82px;
+  }
+}
+
+/* Module-specific rules come last so shared portal defaults cannot flatten them. */
+.portal-route .payroll-history-card,
+.portal-route .advances-table-card,
+.portal-route .payroll-run-details,
+.portal-route .payroll-entries-card,
+.portal-route .payroll-approval-history {
+  border-radius: 22px;
+}
+
+.portal-route .payroll-history-card > .card-header,
+.portal-route .advances-table-card > .card-header,
+.portal-route .payroll-run-details > .card-header,
+.portal-route .payroll-entries-card > .card-header,
+.portal-route .payroll-approval-history > .card-header {
+  margin: 0;
+}
+
+.portal-route .payroll-table table {
+  min-width: 1480px;
+}
+
+.portal-route .payroll-table .final-allowance {
+  background: rgba(37, 99, 235, 0.1);
+  color: #1d4ed8;
+}
+
+.portal-route .payroll-list-stats,
+.portal-route .advance-stats,
+.portal-route .expense-stats,
+.portal-route .payroll-summary-grid {
+  display: grid;
+}
+
+.portal-route .payroll-list-stats,
+.portal-route .advance-stats,
+.portal-route .expense-stats {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.portal-route .payroll-summary-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.portal-route .payroll-inline-action,
+.portal-route .adjustment-chip {
+  min-height: auto;
+  box-shadow: none;
+}
+
+.financial-workspace {
+  display: grid;
+  gap: 12px;
+}
+
+.portal-route .module-subnav {
+  display: flex;
+  width: max-content;
+  max-width: 100%;
+  gap: 4px;
+  margin: 0;
+  padding: 4px;
+  overflow-x: auto;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+}
+
+.portal-route .module-subnav .tab-btn {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 7px 13px;
+  border: 0;
+  border-radius: 9px;
+  box-shadow: none;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+@media (max-width: 48rem) {
+  .portal-route .payroll-history-card,
+  .portal-route .advances-table-card,
+  .portal-route .payroll-run-details,
+  .portal-route .payroll-entries-card,
+  .portal-route .payroll-approval-history {
+    border-radius: 18px;
+  }
+
+  .portal-route .payroll-list-stats,
+  .portal-route .advance-stats,
+  .portal-route .expense-stats,
+  .portal-route .payroll-summary-grid {
+    grid-template-columns: 1fr;
   }
 }

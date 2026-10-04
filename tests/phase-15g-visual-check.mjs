@@ -44,29 +44,34 @@ try {
     const style = (selector) => getComputedStyle(document.querySelector(selector))
     const rect = (selector) => document.querySelector(selector).getBoundingClientRect()
     return {
-      buttonPadding: style('.portal-route button').padding,
+      buttonPadding: style('.module-toolbar button').padding,
       bodyBackground: style('body').backgroundColor,
-      cardRadius: style('.portal-route > section').borderRadius,
-      headingSize: style('.portal-route > section > h2').fontSize,
-      headerTop: rect('.page-header').top,
-      panelLeft: rect('.portal-route > section').left,
-      panelRight: rect('.portal-route > section').right,
+      cardRadius: style('.payroll-history-card').borderRadius,
+      headingSize: style('.module-toolbar h2').fontSize,
+      headerTop: rect('.module-toolbar').top,
+      firstStatTop: rect('.payroll-list-stats .stat-card:first-child').top,
+      secondStatTop: rect('.payroll-list-stats .stat-card:nth-child(2)').top,
+      panelLeft: rect('.payroll-history-card').left,
+      panelRight: rect('.payroll-history-card').right,
       pillBackground: style('.nav-pill').backgroundImage,
-      headerLeft: rect('.page-header').left,
-      headerRight: rect('.page-header').right,
+      headerLeft: rect('.module-toolbar').left,
+      headerRight: rect('.module-toolbar').right,
       sidebarBackground: style('.sidebar').backgroundColor,
       sidebarLeft: rect('.sidebar').left,
       sidebarWidth: rect('.sidebar').width,
+      wpsVisibleByDefault: document.querySelector('#wps-nafis-title') !== null,
     }
   })
   assert.equal(desktopLayout.sidebarWidth, 240)
   assert.equal(desktopLayout.sidebarLeft, 12)
-  assert.equal(desktopLayout.headerTop, 12)
+  assert.ok(desktopLayout.headerTop > 12)
   assert.equal(desktopLayout.sidebarBackground, 'rgb(8, 18, 46)')
   assert.equal(desktopLayout.bodyBackground, 'rgb(238, 242, 247)')
   assert.equal(desktopLayout.cardRadius, '22px')
-  assert.equal(desktopLayout.headingSize, '20px')
+  assert.equal(desktopLayout.headingSize, '18px')
   assert.equal(desktopLayout.buttonPadding, '8px 16px')
+  assert.equal(desktopLayout.firstStatTop, desktopLayout.secondStatTop)
+  assert.equal(desktopLayout.wpsVisibleByDefault, false)
   assert.ok(Math.abs(desktopLayout.headerLeft - desktopLayout.panelLeft) <= 1)
   assert.ok(Math.abs(desktopLayout.headerRight - desktopLayout.panelRight) <= 1)
   assert.match(desktopLayout.pillBackground, /linear-gradient/)

@@ -142,7 +142,7 @@ function PortalHome({ account, authentication, navigator, route }) {
   const organization = useCompanyContext()
   const headingRef = useRef(null)
   const navigationRef = useRef(null)
-  const navigation = roleNavigation(account.role)
+  const allNavigation = roleNavigation(account.role)
   const sidebarStorageKey = `workloop-${account.role}-sidebar-collapsed`
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
@@ -152,6 +152,27 @@ function PortalHome({ account, authentication, navigator, route }) {
     }
   })
   const [navigationPill, setNavigationPill] = useState({ height: 36, top: 0 })
+  const [darkMode, setDarkMode] = useState(() => {
+    try {
+      return window.localStorage.getItem('workloop-dark-mode') === 'true'
+    } catch {
+      return false
+    }
+  })
+  const [advancedFeatures, setAdvancedFeatures] = useState(() => {
+    try {
+      return window.localStorage.getItem('workloop-advanced-features') === 'true'
+    } catch {
+      return false
+    }
+  })
+  const coreAdministratorPages = new Set([
+    'Dashboard', 'Company Settings', 'Employees', 'Payroll Module', 'Advances',
+    'Expenses', 'Leave', 'Attendance', 'Reports',
+  ])
+  const navigation = account.role === 'admin' && !advancedFeatures
+    ? allNavigation.filter((item) => coreAdministratorPages.has(item.title))
+    : allNavigation
 
   const toggleSidebar = () => {
     setSidebarCollapsed((collapsed) => {
@@ -160,6 +181,18 @@ function PortalHome({ account, authentication, navigator, route }) {
         window.localStorage.setItem(sidebarStorageKey, String(next))
       } catch {
         // The shell still works when browser storage is unavailable.
+      }
+      return next
+    })
+  }
+
+  const togglePreference = (name, setter) => {
+    setter((current) => {
+      const next = !current
+      try {
+        window.localStorage.setItem(name, String(next))
+      } catch {
+        // The control remains usable when browser storage is unavailable.
       }
       return next
     })
@@ -220,7 +253,14 @@ function PortalHome({ account, authentication, navigator, route }) {
     ?? managerGroup?.description
     ?? 'Your common work items are ready. Role-specific sections will open as their portal routes are completed.'
   return (
-    <div className="portal app-layout" data-portal-role={account.role} data-route-state="ready">
+    <div
+      className="portal app-layout"
+      data-advanced-features={advancedFeatures ? 'true' : 'false'}
+      data-portal-role={account.role}
+      data-route-path={route.path}
+      data-route-state="ready"
+      data-theme={darkMode ? 'dark' : 'light'}
+    >
       <aside className={`sidebar${sidebarCollapsed ? ' collapsed' : ''}`}>
         <div className="sidebar-logo">
           <div className="sidebar-brand-row">
@@ -284,6 +324,30 @@ function PortalHome({ account, authentication, navigator, route }) {
             </span>
             <NotificationBell account={account} authentication={authentication} branchId={branch.id} />
           </div>
+          {account.role === 'admin' && (
+            <div className="sidebar-preferences" aria-label="Display preferences">
+              <button
+                type="button"
+                className="sidebar-preference"
+                aria-pressed={darkMode}
+                onClick={() => togglePreference('workloop-dark-mode', setDarkMode)}
+              >
+                <span aria-hidden="true">☾</span>
+                <span className="sidebar-preference-label">Dark mode</span>
+                <span aria-hidden="true" className={`sidebar-switch${darkMode ? ' on' : ''}`}><span /></span>
+              </button>
+              <button
+                type="button"
+                className="sidebar-preference"
+                aria-pressed={advancedFeatures}
+                onClick={() => togglePreference('workloop-advanced-features', setAdvancedFeatures)}
+              >
+                <span aria-hidden="true">☷</span>
+                <span className="sidebar-preference-label">Advanced features</span>
+                <span aria-hidden="true" className={`sidebar-switch${advancedFeatures ? ' on' : ''}`}><span /></span>
+              </button>
+            </div>
+          )}
           <button type="button" className="sidebar-signout" onClick={() => authentication.logout()}>
             <span aria-hidden="true">↪</span>
             <span className="sidebar-signout-label">Sign out</span>
