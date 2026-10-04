@@ -2,19 +2,13 @@ import { useState } from 'react'
 
 import Advances from './Advances.jsx'
 import AppraisalsIncidents from './AppraisalsIncidents.jsx'
-import AttendanceCalculation from './AttendanceCalculation.jsx'
-import AttendanceConfiguration from './AttendanceConfiguration.jsx'
-import AttendanceExceptions from './AttendanceExceptions.jsx'
-import AttendanceIngestion from './AttendanceIngestion.jsx'
-import AttendancePeriods from './AttendancePeriods.jsx'
+import AttendanceManager from './AttendanceManager.jsx'
 import Dashboard from './Dashboards.jsx'
 import DepartmentManager from './DepartmentManager.jsx'
 import DevelopmentAssets from './DevelopmentAssets.jsx'
 import EmployeeDirectory from './EmployeeDirectory.jsx'
 import Expenses from './Expenses.jsx'
-import LeaveApprovals from './LeaveApprovals.jsx'
-import LeaveConfiguration from './LeaveConfiguration.jsx'
-import LeaveOverview from './LeaveOverview.jsx'
+import LeaveManager from './LeaveManager.jsx'
 import LetterRequests from './LetterRequests.jsx'
 import ModuleWorkspace from './ModuleWorkspace.jsx'
 import Offboarding from './Offboarding.jsx'
@@ -22,8 +16,7 @@ import OrganizationSettings from './OrganizationSettings.jsx'
 import Payroll from './Payroll.jsx'
 import RecordsBenefits from './RecordsBenefits.jsx'
 import Reports from './Reports.jsx'
-import RosterDrafts from './RosterDrafts.jsx'
-import ShiftSwapQueue from './ShiftSwapQueue.jsx'
+import RosterManager from './RosterManager.jsx'
 import Tasks from './Tasks.jsx'
 import WpsNafis from './WpsNafis.jsx'
 import { administratorRouteGroup } from './administratorRoutes.js'
@@ -82,26 +75,13 @@ export default function AdministratorPortal({
         <EmployeeDirectory {...shared} clearBranch={clearBranch} />
       )}
       {path === '/admin/leave' && (
-        <ModuleWorkspace label="Leave module views" views={[
-          { id: 'overview', label: 'Overview', content: <LeaveOverview {...shared} /> },
-          { id: 'approvals', label: 'Approvals', content: <LeaveApprovals {...shared} /> },
-          { id: 'settings', label: 'Settings', content: <LeaveConfiguration authentication={authentication} branchId={branchId} /> },
-        ]} />
+        <LeaveManager {...shared} />
       )}
       {path === '/admin/attendance' && (
-        <ModuleWorkspace label="Attendance module views" views={[
-          { id: 'records', label: 'Records', content: <AttendanceCalculation authentication={authentication} branchId={branchId} /> },
-          { id: 'entry', label: 'Manual Entry', content: <AttendanceIngestion authentication={authentication} branchId={branchId} /> },
-          { id: 'corrections', label: 'Corrections & Absences', content: <AttendanceExceptions authentication={authentication} branchId={branchId} /> },
-          { id: 'periods', label: 'Periods', content: <AttendancePeriods authentication={authentication} branchId={branchId} /> },
-          { id: 'settings', label: 'Settings', content: <AttendanceConfiguration authentication={authentication} branchId={branchId} /> },
-        ]} />
+        <AttendanceManager {...shared} />
       )}
       {path === '/admin/roster' && (
-        <ModuleWorkspace label="Roster module views" views={[
-          { id: 'roster', label: 'Roster', content: <RosterDrafts authentication={authentication} branchId={branchId} /> },
-          { id: 'swaps', label: 'Shift Swaps', content: <ShiftSwapQueue {...shared} /> },
-        ]} />
+        <RosterManager {...shared} />
       )}
       {path === '/admin/payroll' && (
         <PayrollWorkspace shared={shared} />

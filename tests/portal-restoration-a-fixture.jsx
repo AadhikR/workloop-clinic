@@ -66,6 +66,7 @@ const fixture = {
     if (method !== 'GET' && window.__restorationFailNext) { window.__restorationFailNext = false; throw new Error('Synthetic rejected write') }
     if (route === '/api/v1/company') return { data: { id: id(1), name: 'Synthetic clinic', sector: 'Healthcare', nafisQuotaPercent: '2.00', enableNafis: true, createdAt: timestamp, updatedAt: timestamp } }
     if (route === '/api/v1/branches') return { data: [branch], page }
+    if (route === `/api/v1/branches/${branchId}`) return { data: branch }
     if (route === '/api/v1/employees') return { data: employees, page }
     if (route === '/api/v1/departments') {
       if (method === 'POST') { const added = { id: id(12), ...body, createdAt: timestamp }; departments.push(added); return { data: added } }

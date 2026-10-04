@@ -34,6 +34,8 @@ const listEmployee = (employee) => {
 const company = { id: id(1), name: 'Synthetic clinic', sector: 'Healthcare', nafisQuotaPercent: '2.00', enableNafis: true, createdAt: timestamp, updatedAt: timestamp }
 let branch = { id: branchId, name: 'Dubai clinic', address: 'Synthetic address', contactEmail: 'clinic@example.test', workLocationType: 'mainland', freeZoneName: '', logoUrl: '', molEmployerId: '1234567890123', defaultBankRoutingCode: '123456789', defaultSalaryDay: 28, enableStaffingRules: true, enableBiometricImport: false, createdAt: timestamp, updatedAt: timestamp }
 const policy = { id: id(20), insurerName: 'Example Health', policyNumber: 'POL-1', tierName: 'Gold', annualPremium: '4500.00', renewalDate: '2027-01-01', brokerName: 'Example Broker', brokerContact: 'broker@example.test', notes: '', createdAt: timestamp, updatedAt: timestamp }
+const shiftTemplate = { id: id(60), name: 'Morning clinic', code: 'MC', shiftType: 'fixed', shiftCategory: 'morning', startTime: '08:00:00', endTime: '17:00:00', splitStartTime: null, splitEndTime: null, breakMinutes: 60, expectedHours: '8.00', lateGraceMinutes: 10, earlyDepartureGraceMinutes: 10, isOvernight: false, minHoursFlexible: null, isActive: true, color: '#6366F1', minStaff: 2, createdAt: timestamp, updatedAt: timestamp }
+let shiftAssignment = { id: id(61), employeeId: id(3), shiftId: shiftTemplate.id, effectiveFrom: '2026-01-01', effectiveTo: null, createdAt: timestamp, updatedAt: timestamp }
 const documentRecord = { id: id(21), employeeId: id(3), documentType: 'Emirates ID', status: 'verified', rejectionReason: null, fileName: 'emirates-id.pdf', sizeBytes: 1200, contentType: 'application/pdf', expiryDate: '2026-10-31', notes: '', reviewerName: 'Admin User', uploadedAt: timestamp, reviewedAt: timestamp, updatedAt: timestamp }
 const dependant = { id: id(22), employeeId: id(3), name: 'Jamie Morgan', relationship: 'Child', dateOfBirth: '2018-01-01', cardNumber: 'CARD-2', createdAt: timestamp, updatedAt: timestamp }
 const contract = { id: id(23), employeeId: id(3), contractType: 'Limited', startDate: '2025-01-01', endDate: '2027-01-01', action: 'new', notes: '', actorName: 'Admin User', createdAt: timestamp }
@@ -59,6 +61,14 @@ const authentication = {
     if (route === `/api/v1/branches/${branchId}`) { Object.assign(branch, body, { updatedAt: '2026-10-02T09:00:00.000Z' }); delete branch.expectedUpdatedAt; return { data: structuredClone(branch) } }
     if (route === '/api/v1/idempotency-recovery-namespaces') return { data: { current: 'restoration-b', accepted: ['restoration-b'] } }
     if (route === '/api/v1/departments') return { data: [{ id: id(10), name: 'Clinical', parentId: null, headEmployeeId: id(4), color: '#6366f1', description: 'Clinical care', sortOrder: 0, createdAt: timestamp }], page }
+    if (route === '/api/v1/shifts') return { data: [shiftTemplate], page }
+    if (route === '/api/v1/shift-assignments') {
+      if (method === 'POST') {
+        shiftAssignment = { ...shiftAssignment, id: id(62), shiftId: body.shiftId, effectiveFrom: body.effectiveFrom, updatedAt: '2026-10-02T09:00:00.000Z' }
+        return { data: structuredClone(shiftAssignment), status: 201, location: `/api/v1/shift-assignments/${shiftAssignment.id}` }
+      }
+      return { data: [structuredClone(shiftAssignment)], page }
+    }
     if (route === '/api/v1/employees') return { data: employees.map(listEmployee), page }
     if (route === '/api/v1/employee-job-history') return { data: [], page }
     if (/^\/api\/v1\/employees\/[0-9a-f-]+$/.test(route)) return { data: structuredClone(employees.find((item) => route.endsWith(item.id))) }

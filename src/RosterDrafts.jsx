@@ -17,6 +17,7 @@ import {
 } from './rosterApi.js'
 import { downloadRoster } from './outputApi.js'
 import { saveDownload } from './outputDelivery.js'
+import { FormDialog } from './PortalUi.jsx'
 
 function currentPeriod() { return new Date().toISOString().slice(0, 7) }
 function monthEnd(period) { return new Date(`${period}-01T00:00:00Z`).toISOString().slice(0, 8) + new Date(Number(period.slice(0, 4)), Number(period.slice(5, 7)), 0).getDate() }
@@ -34,6 +35,7 @@ export default function RosterDrafts({ authentication, branchId }) {
   const [employeeFilter, setEmployeeFilter] = useState('')
   const [draft, setDraft] = useState(empty)
   const [editing, setEditing] = useState(null)
+  const [showEditor, setShowEditor] = useState(false)
   const [message, setMessage] = useState('')
 
   const departments = useMemo(() => [...new Set(employees.map((item) => item.department).filter(Boolean))].sort(), [employees])
@@ -70,12 +72,12 @@ export default function RosterDrafts({ authentication, branchId }) {
     try {
       if (editing) await replaceRosterDraft(authentication, branchId, period, editing.id, { ...draft, expectedVersion: editing.version }, { idempotencyKey: crypto.randomUUID() })
       else await createRosterDraft(authentication, branchId, period, draft, { idempotencyKey: crypto.randomUUID() })
-      setDraft(empty); setEditing(null); await load(); setMessage('Roster draft saved.')
+      setDraft(empty); setEditing(null); setShowEditor(false); await load(); setMessage('Roster draft saved.')
     } catch { setMessage('Nothing changed. Check leave, employee, shift, duplicate-date, or stale-version conflicts.') }
   }
 
   const remove = async (item) => {
-    try { await deleteRosterDraft(authentication, branchId, period, item, { idempotencyKey: crypto.randomUUID() }); await load(); setMessage('Roster draft deleted.') }
+    try { await deleteRosterDraft(authentication, branchId, period, item, { idempotencyKey: crypto.randomUUID() }); await load(); setShowEditor(false); setEditing(null); setDraft(empty); setMessage('Roster draft deleted.') }
     catch { setMessage('This draft is published, retained by a workflow, or has changed.') }
   }
 
@@ -114,9 +116,26 @@ export default function RosterDrafts({ authentication, branchId }) {
     } catch { setMessage('Overtime is not ready. Record actual hours first and resolve attendance overlap.') }
   }
 
+  const daysInMonth = new Date(Number(period.slice(0, 4)), Number(period.slice(5, 7)), 0).getDate()
+  const days = Array.from({ length: daysInMonth }, (_, index) => index + 1)
+  const visibleEmployees = employees.filter((item) => (
+    item.active
+    && ['active', 'probation'].includes(item.employmentStatus)
+    && (!department || item.department === department)
+    && (!employeeFilter || item.id === employeeFilter)
+  ))
+  const byEmployeeDate = new Map(assignments.map((item) => [`${item.employeeId}:${item.date}`, item]))
+  const openCell = (employee, day) => {
+    const date = `${period}-${String(day).padStart(2, '0')}`
+    const current = byEmployeeDate.get(`${employee.id}:${date}`) ?? null
+    setEditing(current)
+    setDraft(current ? { employeeId: current.employeeId, shiftId: current.shiftId, date: current.date, plannedHours: current.plannedHours, notes: current.notes } : { employeeId: employee.id, shiftId: shifts[0]?.id ?? '', date, plannedHours: shifts[0]?.expectedHours ?? '8.00', notes: '' })
+    setShowEditor(true)
+  }
+
   return (
     <section className="roster-drafts" aria-labelledby="roster-drafts-title">
-      <h2 id="roster-drafts-title">Roster drafts</h2>
+      <h2 id="roster-drafts-title">Monthly roster</h2>
       <p>Build a selected-branch month, clear its publication gates, publish an immutable version, and record actual-hours evidence separately.</p>
       <div className="roster-filters">
         <label>Month<input type="month" value={period} onChange={(event) => setPeriod(event.target.value)} /></label>
@@ -124,18 +143,21 @@ export default function RosterDrafts({ authentication, branchId }) {
         <label>Employee<select value={employeeFilter} onChange={(event) => setEmployeeFilter(event.target.value)}><option value="">All employees</option>{employees.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
       </div>
       <button type="button" className="secondary" onClick={async () => saveDownload(await downloadRoster(authentication, branchId, period))}>Download published roster CSV</button>
-      <form onSubmit={save} className="roster-editor">
+      <div className="stats-grid module-summary-grid"><div className="stat-card"><div className="stat-label">Employees</div><div className="stat-value">{visibleEmployees.length}</div><div className="stat-sub">in this grid</div></div><div className="stat-card"><div className="stat-label">Assignments</div><div className="stat-value">{assignments.length}</div><div className="stat-sub">for {period}</div></div><div className="stat-card"><div className="stat-label">Unpublished</div><div className="stat-value">{assignments.filter((item) => !item.published).length}</div><div className="stat-sub">draft changes</div></div><div className="stat-card"><div className="stat-label">Publication</div><div className="stat-value roster-publication-state">{publication?.status ?? 'draft'}</div><div className="stat-sub">{validation?.ready ? 'checks pass' : 'review checks'}</div></div></div>
+      <div className="roster-month-grid" role="region" aria-label="Monthly roster grid" tabIndex="0"><table><thead><tr><th className="roster-employee-column">Employee</th>{days.map((day) => <th key={day}><span>{day}</span><small>{new Date(`${period}-${String(day).padStart(2, '0')}T00:00:00Z`).toLocaleDateString('en-AE', { weekday: 'short', timeZone: 'UTC' })}</small></th>)}</tr></thead><tbody>{visibleEmployees.map((employee) => <tr key={employee.id}><th className="roster-employee-column" scope="row">{employee.name}<small>{employee.department || 'No department'}</small></th>{days.map((day) => { const date = `${period}-${String(day).padStart(2, '0')}`; const item = byEmployeeDate.get(`${employee.id}:${date}`); return <td key={date}><button type="button" className={`roster-cell${item ? ` shift-${item.shiftCategory}` : ' empty'}`} aria-label={`${employee.name}, ${date}${item ? `, ${item.shiftName}` : ', unassigned'}`} disabled={item?.published} onClick={() => openCell(employee, day)}>{item ? <><strong>{item.shiftCode ?? item.shiftName}</strong><small>{item.plannedHours}h</small></> : <span>+</span>}</button></td> })}</tr>)}{visibleEmployees.length === 0 && <tr><td colSpan={days.length + 1}><div className="empty-state">No active employees match these filters.</div></td></tr>}</tbody></table></div>
+      <FormDialog title={editing ? 'Edit roster assignment' : 'Add roster assignment'} open={showEditor} onClose={() => { setShowEditor(false); setEditing(null); setDraft(empty) }}>
+      <form onSubmit={save} className="roster-editor roster-dialog-form">
         <select aria-label="Roster employee" required value={draft.employeeId} onChange={(event) => setDraft({ ...draft, employeeId: event.target.value })}><option value="">Employee</option>{employees.filter((item) => item.active && ['active', 'probation'].includes(item.employmentStatus)).map((item) => <option key={item.id} value={item.id}>{item.name} — {item.department}</option>)}</select>
         <select aria-label="Roster shift" required value={draft.shiftId} onChange={(event) => setDraft({ ...draft, shiftId: event.target.value })}><option value="">Shift</option>{shifts.map((item) => <option key={item.id} value={item.id}>{item.code ?? item.name} — {item.name}</option>)}</select>
         <input aria-label="Roster date" required type="date" min={`${period}-01`} max={monthEnd(period)} value={draft.date} onChange={(event) => setDraft({ ...draft, date: event.target.value })} />
         <input aria-label="Planned hours" required type="number" min="0.25" max="24" step="0.25" value={draft.plannedHours} onChange={(event) => setDraft({ ...draft, plannedHours: event.target.value })} />
         <input aria-label="Roster notes" maxLength="500" value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} />
         <button type="submit">{editing ? 'Replace draft' : 'Add draft'}</button>
-        {editing && <button type="button" className="secondary" onClick={() => { setEditing(null); setDraft(empty) }}>Cancel</button>}
+        <button type="button" className="secondary" onClick={() => { setShowEditor(false); setEditing(null); setDraft(empty) }}>Cancel</button>
+        {editing && <button type="button" className="danger" disabled={editing.published} onClick={() => remove(editing)}>Delete draft</button>}
       </form>
-      <ul className="roster-list">
-        {assignments.map((item) => <li key={item.id}><span><strong>{item.date} — {item.employeeName}</strong><small>{item.shiftCode ?? item.shiftName}, {item.plannedHours} hours · {item.department}{item.leaveConflict ? ' · Leave conflict' : ''}</small></span><span><button type="button" disabled={item.published} onClick={() => { setEditing(item); setDraft({ employeeId: item.employeeId, shiftId: item.shiftId, date: item.date, plannedHours: item.plannedHours, notes: item.notes }) }}>Edit</button><button type="button" className="secondary" disabled={item.published} onClick={() => remove(item)}>Delete</button>{item.published && <><button type="button" onClick={() => actualHours(item)}>Actual hours</button><button type="button" className="secondary" onClick={() => approveOvertime(item)}>Approve overtime</button></>}</span></li>)}
-      </ul>
+      </FormDialog>
+      {assignments.some((item) => item.published) && <section className="roster-post-publication"><h3>Published assignment evidence</h3><ul className="roster-list">{assignments.filter((item) => item.published).map((item) => <li key={item.id}><span><strong>{item.date} — {item.employeeName}</strong><small>{item.shiftCode ?? item.shiftName}, {item.plannedHours} hours</small></span><span><button type="button" onClick={() => actualHours(item)}>Actual hours</button><button type="button" className="secondary" onClick={() => approveOvertime(item)}>Approve overtime</button></span></li>)}</ul></section>}
       {validation && <section className="roster-gates"><h3>Publication gates</h3>{validation.leaveConflicts.map((item) => <p key={`${item.rosterAssignmentId}-${item.leaveRequestId}`}>{item.employeeName} has {item.leaveStatus.toLowerCase()} leave on {item.date}. {item.overridden ? <strong>Override recorded</strong> : <button type="button" onClick={() => override(item)}>Record override</button>}</p>)}{validation.staffingViolations === null ? <p>Staffing enforcement is disabled for this branch.</p> : validation.staffingViolations.map((item) => <p key={item.violationDigest}>{item.date}: {item.department} {item.shiftCategory} needs {item.required}; {item.assigned} assigned. {item.overridden ? <strong>Override recorded</strong> : <button type="button" onClick={() => override(item)}>Record override</button>}</p>)}<p><strong>{validation.ready ? 'All current gates pass.' : 'The roster is not ready for publication.'}</strong></p></section>}
       <section className="roster-publication"><h3>Publication</h3><p>{publication?.status === 'published' ? `Version ${publication.version} · ${publication.recordCount} assignments · ${publication.sourceVersion}` : 'This month is still a draft.'}</p><button type="button" disabled={!validation?.ready || publicationAssignments.length === 0 || publication?.status === 'published'} onClick={publish}>Publish exact roster</button></section>
       {message && <p role="status">{message}</p>}

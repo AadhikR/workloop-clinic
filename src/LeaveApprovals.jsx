@@ -124,7 +124,7 @@ function Queue({ items, ...props }) {
   )
 }
 
-function Delegations({ authentication, branchId }) {
+export function Delegations({ authentication, branchId }) {
   const [rows, setRows] = useState([])
   const [employees, setEmployees] = useState([])
   const [form, setForm] = useState(emptyDelegation)
@@ -252,7 +252,7 @@ function Delegations({ authentication, branchId }) {
   )
 }
 
-export default function LeaveApprovals({ account, authentication, branchId }) {
+export default function LeaveApprovals({ account, authentication, branchId, queueOnly = false, delegationsOnly = false }) {
   const admin = account.role === 'admin'
   const [state, setState] = useState({ status: 'loading', items: [], message: '' })
 
@@ -277,10 +277,10 @@ export default function LeaveApprovals({ account, authentication, branchId }) {
   }, [refresh])
 
   return (
-    <section className="leave-approvals" aria-labelledby="leave-approvals-title">
-      <h2 id="leave-approvals-title">{admin ? 'Branch leave decisions' : 'Leave approvals'}</h2>
+    <section className="leave-approvals" aria-labelledby={delegationsOnly ? 'leave-delegations-title' : 'leave-approvals-title'}>
+      {!delegationsOnly && <h2 id="leave-approvals-title">{admin ? 'Branch leave decisions' : 'Leave approvals'}</h2>}
       {state.message && <p role="status">{state.message}</p>}
-      {state.status === 'loading' ? <p>Loading approval queue...</p> : (
+      {!delegationsOnly && (state.status === 'loading' ? <p>Loading approval queue...</p> : (
         <Queue
           items={state.items}
           admin={admin}
@@ -288,8 +288,8 @@ export default function LeaveApprovals({ account, authentication, branchId }) {
           branchId={branchId}
           onChanged={refresh}
         />
-      )}
-      {admin && <Delegations authentication={authentication} branchId={branchId} />}
+      ))}
+      {admin && !queueOnly && <Delegations authentication={authentication} branchId={branchId} />}
     </section>
   )
 }

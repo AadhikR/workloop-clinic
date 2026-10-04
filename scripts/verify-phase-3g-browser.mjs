@@ -1205,12 +1205,13 @@ async function assertLeaveApprovalJourney(page, persona) {
   if (admin && await page.locator('.branch-chooser').count()) {
     await page.getByRole('button', { name: 'Phase 3G main', exact: true }).click()
   }
-  if (admin) await page.getByRole('tab', { name: 'Approvals', exact: true }).click()
+  if (admin) await page.getByRole('tab', { name: 'Requests', exact: true }).click()
   await page.getByRole('heading', {
     name: admin ? 'Branch leave decisions' : 'Leave approvals',
   }).waitFor({ timeout: 20_000 })
   if (admin) {
     stage('administrator leave delegation creation')
+    await page.getByRole('tab', { name: 'Settings', exact: true }).click()
     const form = page.locator('.employee-form-grid').filter({
       has: page.getByRole('button', { name: 'Create delegation' }),
     })
@@ -1234,6 +1235,8 @@ async function assertLeaveApprovalJourney(page, persona) {
       ),
       '1',
     )
+    await page.getByRole('tab', { name: 'Requests', exact: true }).click()
+    await page.getByRole('heading', { name: 'Branch leave decisions' }).waitFor({ timeout: 20_000 })
   }
 
   const requestId = admin ? browserAdminApprovalRequestId : browserManagerApprovalRequestId

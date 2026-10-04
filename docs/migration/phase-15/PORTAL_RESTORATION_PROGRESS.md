@@ -17,18 +17,18 @@ from the shared stylesheet.
 | Admin | Dashboard | D | Pending |
 | Admin | Clinical dashboard | D | Pending |
 | Admin | Company settings | B, D, F | B restores grouped employer, payroll, jurisdiction, module, insurance-policy, and WPS reference areas. It adds validated logo upload, preview, replacement, and removal, while keeping biometric integration excluded. D and F own the atomic routing-code cascade in B-01. |
-| Admin | Employees | B, C, F | B restores active, expiry, and terminated summaries; the employee table; a broad tabbed modal; job history; lifecycle controls; and selected-employee documents, insurance, contracts, offboarding, and settlement access. A new idempotent profile command saves ordinary, title, department, manager, and salary changes in one transaction. C owns the current default-shift dependency in B-02. F owns the large-branch expiry reader and database proof in B-03 and B-04. |
-| Admin | Departments | A, C, F | Old department register, reporting-manager chart, and staffing views replaced by simultaneous editors. A restores separate views, named hierarchy, employee search, expand/collapse, and guarded dialogs. C must bind staffing visibility to the branch setting. F checks card density and row-level delete placement. |
+| Admin | Employees | B, C, F | B restores active, expiry, and terminated summaries; the employee table; a broad tabbed modal; job history; lifecycle controls; and selected-employee documents, insurance, contracts, offboarding, and settlement access. A new idempotent profile command saves ordinary, title, department, manager, and salary changes in one transaction. C adds the current effective default shift and versioned replacement to Job and contract. F owns the large-branch expiry reader and database proof in B-03 and B-04. |
+| Admin | Departments | A, C, F | A restores separate department, hierarchy, and staffing views with named hierarchy, employee search, expand/collapse, and guarded dialogs. C now reads the selected branch and hides staffing navigation and controls unless that branch enables staffing rules. F checks card density and row-level delete placement. |
 | Admin | Requests | B, F | B restores Pending, Completed, Rejected, and All filters across letter and custom requests. Printable source and PDF controls now appear only for completed standard letters. F owns populated database and rendered-output proof in B-04. |
 | Admin | Payroll | D, F | Accepted populated review is preserved. D compares remaining output and compliance areas. |
 | Admin | Advances | D | Pending |
 | Admin | Expenses | D | Pending |
-| Admin | Leave | C | Pending |
-| Admin | Attendance | C | Pending |
+| Admin | Leave | C | C restores Overview, Requests, Calendar, Balances, and Settings work areas around the current scoped clients. Request decisions, policy, holidays, balance work, and delegations remain server-authoritative. |
+| Admin | Attendance | C | C restores Dashboard, Manual Entry, Records, Absences, Overtime, Corrections, Periods, and Settings work areas. Biometric mapping and import controls remain excluded. |
 | Admin | Assets | A, F | Old register/history tabs and custody forms replaced by an inline editor with identifier prompts. A restores summaries, register columns, named assign/return dialogs, history, status filters, and confirmations. New server history and dated custody support added. Actor labels and self-history pagination remain in F. |
 | Admin | Training | A, E, F | Old Training/Certifications/CME work areas replaced by simultaneous forms requiring a selected employee. A restores tabs, per-tab summaries, employee selection inside creation dialogs, completion/rejection dialogs, certification edit, and branch CME tracking. Status transitions, complete collection pagination, and contributing CME records remain. |
 | Admin | Appraisals | A, F | Old Cycles/Reviews tables and review dialog replaced by stacked cycles and rating prompts. A restores those views, cycle selection, review summaries, section detail and rating dialogs, calibration, confirmation, and closed-cycle read-only controls. Admin section rating and retained review removal need an authority amendment. Department/job metadata and final dialog layout remain. |
-| Admin | Roster | C | Pending |
+| Admin | Roster | C | C restores Shift Templates, Monthly Roster, and Swap Requests. The monthly grid keeps validation, exact-version publication, actual-hours, overtime, and swap operations on current clients. |
 | Admin | Incidents | A, F | Old summaries, filters, nine-column register, people/time fields, and report dialog replaced by a permanent form and terse actions. A restores these UI areas and investigation/corrective-action dialogs. Historical deletion has no current audited server operation. Retained removal and final edit layout remain in F. |
 | Admin | Reports | D | Pending |
 | Admin | Tasks | D | Pending |
@@ -88,11 +88,11 @@ from the shared stylesheet.
 | A-03 | F | Appraisal and incident removal lacks the required current operation and retained authority. Implement recoverable archival/removal with audit, versions, idempotent replay, and tenant/branch scope. Preserve closed records. Do not revive historical unaudited hard deletion. |
 | A-04 | F | Training, certification, appraisal, incident, and self-asset collections still cap results. Complete server pagination and client traversal across these shared read families before certifying totals or large-population parity. A's new history, inventory, and branch CME readers already page. |
 | A-05 | F | Asset history needs a readable assigned-by label. Resolve it through an approved application identity projection, not a UUID presented as a person's name. Do not expose identity-provider subjects or private profiles. |
-| A-06 | C, F | Department staffing tab must respect the branch's enable setting. Prove enabled and disabled states alongside roster coverage/publication. |
+| A-06 | F | C binds the staffing tab to the selected branch's `enableStaffingRules` setting and proves enabled and disabled browser states. F must repeat this with final populated roster coverage and publication evidence. |
 | A-07 | F | Final visual comparison must check department card/table choice, staffing delete action placement, appraisal employee department/job metadata and complete review editor, CME contributing-record detail and top action placement, incident retained-edit layout, and every dark/mobile/failure state. |
 | A-08 | F | Backend changes are not deployed by a frontend rebuild. Publish reviewed backend artifacts through the existing provider procedure before promoting the final UI. Keep accepted payroll release `e42808894b1c1a66c5e42738bbf9fa0cb46c538e` live until Part F. |
 | B-01 | D, F | Restore the historical routing-code cascade as one idempotent server command, not a branch update followed by client fan-out. Lock the branch and every affected draft payroll run, verify the branch version and each draft source/version, update the branch default and only draft runs in the selected branch, reject approved or paid runs, append allowlisted audit events, and return the changed run identifiers and versions. D integrates it with payroll. F proves concurrency, rollback, audit, and denial behavior against PostgreSQL. |
-| B-02 | C, F | Show the effective default shift in the employee Job and contract tab. C must read the current effective assignment and use `POST /api/v1/shift-assignments` for versioned changes. Add an idempotent effective-dated unassignment command if clearing the historical field remains required; it must lock the current assignment, require its identifier and version, retain prior schedule history, and append audit. F verifies the final editor and roster interaction. |
+| B-02 | F | C shows the effective default shift in Job and contract and replaces it through `POST /api/v1/shift-assignments` with the freshly read assignment identifier and version. C did not add unassignment: the current model has no branch default to fall back to, so clearing would leave an ambiguous schedule. F verifies the final editor and roster interaction. |
 | B-03 | F | The restored expiry summary combines fixed employee dates with uploaded document expiry records through current scoped readers. Add a paged or aggregate admin-selected-branch expiry projection before certifying large-branch parity, so the summary does not require one document request per employee. The result must expose employee identity, source type, expiry date, and status without document numbers, storage paths, hashes, or signed URLs. |
 | B-04 | F | Run the composite profile command, custom-request output denial, manager self-letter output, logo update, and selected-employee child readers against the disposable PostgreSQL and object-storage environment. Prove one-transaction rollback, stale versions, manager cycles, audit rows, replay, branch denial, protected output, and browser failure retention. Publish the reviewed backend artifact only in F. |
 | B-05 | F | Final visual comparison must cover populated employer settings, logo states, every employee modal tab, fixed and uploaded expiry warnings, long job histories, empty and populated child tabs, offboarding and settlement states, all request filters, dark mode, mobile scrolling, keyboard focus, and failed saves. |
@@ -144,3 +144,23 @@ a populated production benchmark. The schema head remains `e8a1c3f5b7d9`.
 These checks close B's local gate. They do not close B-01 through B-05 or publish the backend.
 The independent GitHub gate and its commit binding are recorded in
 `PORTAL_RESTORATION_B_COMPLETION.md` after the code commit passes.
+
+## C verification
+
+The final local gate passed 429 frontend tests and the production build. Every changed source and
+verifier file passes lint, and repository whitespace validation passes. The schema head remains
+`e8a1c3f5b7d9`. A focused backend boundary run passed 99 leave, attendance, roster, shift-swap,
+and department tests with the six existing SQLAlchemy relationship warnings.
+
+Six focused source tests cover the restored work areas, removal of biometric controls, effective
+shift concurrency fields, staffing visibility, and administrator route wiring. The Part C browser
+fixture covers keyboard tab navigation; leave requests, settings, and delegations; failed manual
+attendance writes; overtime; monthly roster edits, validation, publication, and swaps; both
+staffing states; effective-shift failure retention and retry; and 390-pixel containment. Nine
+desktop and mobile screenshots are in `evidence/restoration-c`.
+
+The older full-stack browser verifier was updated to use the restored Requests and Settings tabs.
+Its global cleanup assertion requires an otherwise empty database, so it was not accepted as a gate
+against the preserved populated development volume. Its fixed synthetic identifiers were cleaned;
+the isolated Part C fixture supplies the affected-route proof. The independent GitHub result will
+be recorded in `PORTAL_RESTORATION_C_COMPLETION.md` after the code commit passes.

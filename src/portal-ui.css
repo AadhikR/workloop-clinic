@@ -210,3 +210,155 @@
 @media (prefers-reduced-motion: reduce) {
   .portal[data-portal-role] * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+.restored-domain-workspace > .employee-module-toolbar {
+  margin-bottom: 18px;
+}
+
+.restored-domain-workspace .module-view-tabs {
+  margin-bottom: 18px;
+}
+
+.module-workspace,
+.module-view-panel,
+.restored-domain-workspace {
+  min-width: 0;
+}
+
+.module-view-panel[hidden] {
+  display: none !important;
+}
+
+.restored-domain-workspace .module-view-panel > section > h2:first-child,
+.restored-domain-workspace .module-view-panel > section > header:first-child h2 {
+  font-size: 1.1rem;
+}
+
+.roster-month-grid {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin-top: 18px;
+  overflow: auto;
+  border: 1px solid var(--gray-200);
+  border-radius: 10px;
+  background: var(--white);
+  max-height: 68vh;
+}
+
+.roster-month-grid table {
+  min-width: max(100%, 2180px);
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.roster-month-grid th,
+.roster-month-grid td {
+  width: 62px;
+  min-width: 62px;
+  padding: 4px;
+  text-align: center;
+  border-right: 1px solid var(--gray-100);
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.roster-month-grid thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--gray-50);
+}
+
+.roster-month-grid th small,
+.roster-cell small {
+  display: block;
+  margin-top: 2px;
+  color: var(--gray-500);
+  font-size: 0.65rem;
+  font-weight: 500;
+}
+
+.roster-month-grid .roster-employee-column {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  width: 190px;
+  min-width: 190px;
+  padding: 8px 10px;
+  text-align: left;
+  background: var(--white);
+}
+
+.roster-month-grid thead .roster-employee-column {
+  z-index: 4;
+  background: var(--gray-50);
+}
+
+.roster-cell {
+  width: 100%;
+  min-height: 48px;
+  padding: 4px;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.roster-cell.empty {
+  border-color: transparent;
+  background: transparent;
+  color: var(--gray-400);
+}
+
+.roster-cell.shift-night {
+  border-color: #c4b5fd;
+  background: #f5f3ff;
+  color: #6d28d9;
+}
+
+.roster-cell.shift-afternoon,
+.roster-cell.shift-split {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.roster-cell:disabled {
+  cursor: default;
+  opacity: 0.78;
+}
+
+.roster-dialog-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.roster-publication-state {
+  font-size: 1.25rem;
+  text-transform: capitalize;
+}
+
+[data-theme='dark'] .roster-month-grid,
+[data-theme='dark'] .roster-month-grid .roster-employee-column {
+  background: #111827;
+}
+
+[data-theme='dark'] .roster-month-grid thead th,
+[data-theme='dark'] .roster-month-grid thead .roster-employee-column {
+  background: #1f2937;
+}
+
+@media (max-width: 640px) {
+  .roster-month-grid {
+    max-width: calc(100vw - 32px);
+  }
+
+  .roster-month-grid .roster-employee-column {
+    width: 140px;
+    min-width: 140px;
+  }
+
+  .roster-dialog-form {
+    grid-template-columns: 1fr;
+  }
+}

@@ -29,8 +29,7 @@ function messageFor(error) {
   return error.message
 }
 
-export default function AttendanceConfiguration({ authentication, branchId }) {
-  const [settings, setSettings] = useState(null)
+export default function AttendanceConfiguration({ authentication, branchId, view = 'all' }) {
   const [settingsDraft, setSettingsDraft] = useState(null)
   const [shifts, setShifts] = useState([])
   const [employees, setEmployees] = useState([])
@@ -48,7 +47,6 @@ export default function AttendanceConfiguration({ authentication, branchId }) {
     ])
       .then(([nextSettings, nextShifts, nextEmployees]) => {
         if (controller.signal.aborted) return
-        setSettings(nextSettings)
         setSettingsDraft({ ...nextSettings })
         setShifts(nextShifts.data)
         setEmployees(nextEmployees)
@@ -63,7 +61,7 @@ export default function AttendanceConfiguration({ authentication, branchId }) {
     event.preventDefault(); setMessage('')
     try {
       const result = await updateAttendanceSettings(authentication, branchId, settingsDraft, { idempotencyKey: crypto.randomUUID() })
-      setSettings(result.data); setSettingsDraft({ ...result.data })
+      setSettingsDraft({ ...result.data })
       setMessage(result.replayed ? 'The existing settings result was recovered.' : 'Attendance settings saved.')
     } catch (error) { setMessage(messageFor(error)) }
   }
@@ -106,12 +104,6 @@ export default function AttendanceConfiguration({ authentication, branchId }) {
 
   if (!settingsDraft) return <section className="attendance-configuration"><h2>Attendance configuration</h2><p>Loading configuration...</p></section>
   const setting = (name) => (event) => setSettingsDraft({ ...settingsDraft, [name]: event.target.type === 'checkbox' ? event.target.checked : event.target.value })
-  const biometricKey = (event) => {
-    const next = { ...settingsDraft }
-    if (event.target.value) next.biometricApiKey = event.target.value
-    else delete next.biometricApiKey
-    setSettingsDraft(next)
-  }
   const shiftField = (name) => (event) => setShiftDraft({ ...shiftDraft, [name]: event.target.type === 'number' ? Number(event.target.value) : event.target.value })
   const shiftType = (event) => {
     const type = event.target.value
@@ -126,8 +118,8 @@ export default function AttendanceConfiguration({ authentication, branchId }) {
 
   return (
     <section className="attendance-configuration" aria-labelledby="attendance-configuration-title">
-      <h2 id="attendance-configuration-title">Attendance configuration</h2>
-      <form className="settings-form" onSubmit={saveSettings}>
+      <h2 id="attendance-configuration-title">{view === 'shifts' ? 'Shift templates' : 'Attendance configuration'}</h2>
+      {view !== 'shifts' && <form className="settings-form" onSubmit={saveSettings}>
         <h3>Branch rules</h3>
         <fieldset><legend>Weekend days</legend>{dayNames.map((day) => <label className="checkbox" key={day}><input type="checkbox" checked={settingsDraft.weekendDays.includes(day)} onChange={() => toggleWeekend(day)} /> {day}</label>)}</fieldset>
         <label>Default hours<input value={settingsDraft.defaultHoursPerDay} onChange={setting('defaultHoursPerDay')} inputMode="decimal" required /></label>
@@ -140,12 +132,10 @@ export default function AttendanceConfiguration({ authentication, branchId }) {
         <label>Regularisation window days<input type="number" min="0" max="365" value={settingsDraft.regularisationWindowDays} onChange={setting('regularisationWindowDays')} /></label>
         <label className="checkbox"><input type="checkbox" checked={settingsDraft.overtimeRequiresApproval} onChange={setting('overtimeRequiresApproval')} /> Require overtime approval</label>
         <label className="checkbox"><input type="checkbox" checked={settingsDraft.wfhEnabled} onChange={setting('wfhEnabled')} /> Enable work from home</label>
-        <label className="checkbox"><input type="checkbox" checked={settingsDraft.biometricApiEnabled} onChange={setting('biometricApiEnabled')} /> Enable biometric API</label>
-        <label>Biometric API key<input type="password" autoComplete="new-password" value={settingsDraft.biometricApiKey ?? ''} onChange={biometricKey} placeholder={settings.biometricApiKeyConfigured ? 'Configured; leave blank to preserve' : 'Not configured'} /></label>
         <button type="submit">Save attendance settings</button>
-      </form>
+      </form>}
 
-      <form className="settings-form" onSubmit={saveShift}>
+      {view !== 'rules' && <><form className="settings-form shift-template-editor" onSubmit={saveShift}>
         <h3>{editingShift ? 'Edit shift' : 'Create shift'}</h3>
         <label>Name<input value={shiftDraft.name} onChange={shiftField('name')} required /></label>
         <label>Code<input value={shiftDraft.code ?? ''} onChange={shiftField('code')} maxLength="12" /></label>
@@ -166,14 +156,15 @@ export default function AttendanceConfiguration({ authentication, branchId }) {
         {editingShift && <button type="button" className="secondary" onClick={() => { setEditingShift(null); setShiftDraft(emptyShift) }}>Cancel edit</button>}
       </form>
       <ul className="shift-list">{shifts.map((shift) => <li key={shift.id}><span>{shift.name} ({shift.code ?? 'no code'}) — {shift.isActive ? 'active' : 'inactive'}</span><button type="button" className="secondary" onClick={() => { setEditingShift(shift); setShiftDraft(Object.fromEntries(Object.keys(emptyShift).map((key) => [key, shift[key]]))) }}>Edit</button>{shift.isActive && <button type="button" className="danger" onClick={() => disableShift(shift)}>Deactivate</button>}</li>)}</ul>
+      </>}
 
-      <form className="settings-form" onSubmit={saveAssignment}>
+      {view === 'all' && <form className="settings-form" onSubmit={saveAssignment}>
         <h3>Effective shift assignment</h3>
-        <label>Employee<select value={assignment.employeeId} onChange={(event) => setAssignment({ ...assignment, employeeId: event.target.value })} required><option value="">Select employee</option>{employees.filter((employee) => employee.active).map((employee) => <option key={employee.id} value={employee.id}>{employee.employeeNo} — {employee.name}</option>)}</select></label>
+        <label>Employee<select value={assignment.employeeId} onChange={(event) => setAssignment({ ...assignment, employeeId: event.target.value })} required><option value="">Select employee</option>{employees.filter((employee) => employee.active).map((employee) => <option key={employee.id} value={employee.id}>{employee.empNo} — {employee.name}</option>)}</select></label>
         <label>Shift<select value={assignment.shiftId} onChange={(event) => setAssignment({ ...assignment, shiftId: event.target.value })} required><option value="">Select shift</option>{shifts.filter((shift) => shift.isActive).map((shift) => <option key={shift.id} value={shift.id}>{shift.name}</option>)}</select></label>
         <label>Effective from<input type="date" value={assignment.effectiveFrom} onChange={(event) => setAssignment({ ...assignment, effectiveFrom: event.target.value })} required /></label>
         <button type="submit">Assign shift</button>
-      </form>
+      </form>}
       {message && <p role="status">{message}</p>}
     </section>
   )

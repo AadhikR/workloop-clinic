@@ -29,6 +29,7 @@ import { readAllDepartments } from './departmentApi.js'
 import { downloadEmployees, downloadEmployeeTemplate } from './outputApi.js'
 import { saveDownload } from './outputDelivery.js'
 import { readEmployeeDocuments } from './recordsBenefitsApi.js'
+import { assignShift, readShiftAssignments, readShifts } from './attendanceConfigurationApi.js'
 
 function useLoad(load, dependencies) {
   const [state, setState] = useState({ status: 'loading' })
@@ -201,6 +202,52 @@ function profileInputs(form, change, definitions) {
   /></label>)
 }
 
+function EffectiveShiftEditor({ authentication, branchId, employee }) {
+  const [state, setState] = useState({ status: 'loading', shifts: [], current: null, shiftId: '', effectiveFrom: new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' }), message: '' })
+
+  useEffect(() => {
+    const controller = new AbortController()
+    const effectiveOn = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' })
+    Promise.all([
+      readShifts(authentication, branchId, { limit: 100, signal: controller.signal }),
+      readShiftAssignments(authentication, branchId, { employeeId: employee.id, effectiveOn, limit: 1, signal: controller.signal }),
+    ]).then(([shiftResult, assignmentResult]) => {
+      if (controller.signal.aborted) return
+      const current = assignmentResult.data[0] ?? null
+      setState((value) => ({ ...value, status: 'ready', shifts: shiftResult.data, current, shiftId: current?.shiftId ?? '', message: '' }))
+    }).catch(() => {
+      if (!controller.signal.aborted) setState((value) => ({ ...value, status: 'error', message: 'The effective shift is unavailable.' }))
+    })
+    return () => controller.abort()
+  }, [authentication, branchId, employee.id])
+
+  const save = async () => {
+    if (!state.shiftId || !state.effectiveFrom) return
+    setState((value) => ({ ...value, status: 'saving', message: '' }))
+    try {
+      const assignmentResult = await readShiftAssignments(authentication, branchId, {
+        employeeId: employee.id,
+        effectiveOn: state.effectiveFrom,
+        limit: 1,
+      })
+      const expected = assignmentResult.data[0] ?? null
+      const saved = await assignShift(authentication, branchId, {
+        employeeId: employee.id,
+        shiftId: state.shiftId,
+        effectiveFrom: state.effectiveFrom,
+        expectedCurrentAssignmentId: expected?.id ?? null,
+        expectedCurrentAssignmentUpdatedAt: expected?.updatedAt ?? null,
+      }, { idempotencyKey: crypto.randomUUID() })
+      setState((value) => ({ ...value, status: 'ready', current: saved, shiftId: saved.shiftId, message: 'Effective default shift saved.' }))
+    } catch {
+      setState((value) => ({ ...value, status: 'error', message: 'The shift was not changed because the current assignment is stale or conflicts with retained history.' }))
+    }
+  }
+
+  const currentShift = state.shifts.find((shift) => shift.id === state.current?.shiftId)
+  return <section className="effective-shift-editor" aria-labelledby="effective-shift-title"><h5 id="effective-shift-title">Effective default shift</h5>{state.status === 'loading' ? <p>Loading effective shift...</p> : <div className="employee-form-grid"><label>Current shift<input readOnly value={currentShift ? `${currentShift.name}${currentShift.code ? ` (${currentShift.code})` : ''}` : 'No effective shift'} /></label><label>Shift<select value={state.shiftId} onChange={(event) => setState((value) => ({ ...value, shiftId: event.target.value }))} required><option value="">Select shift</option>{state.shifts.filter((shift) => shift.isActive || shift.id === state.current?.shiftId).map((shift) => <option key={shift.id} value={shift.id}>{shift.name}{shift.code ? ` (${shift.code})` : ''}</option>)}</select></label><label>Effective from<input type="date" value={state.effectiveFrom} onChange={(event) => setState((value) => ({ ...value, effectiveFrom: event.target.value }))} required /></label><div className="settings-actions"><button type="button" onClick={save} disabled={state.status === 'saving' || !state.shiftId || !state.effectiveFrom}>{state.status === 'saving' ? 'Saving...' : 'Save effective shift'}</button></div></div>}<p className="hint">Changes preserve earlier schedule history. An existing assignment cannot be cleared from this editor.</p>{state.message && <p role="status">{state.message}</p>}</section>
+}
+
 function EmployeeEditor({ account, authentication, branchId, employee, employees, departments, history, onSaved }) {
   const [form, setForm] = useState(() => editorState(employee))
   const [activeTab, setActiveTab] = useState('personal')
@@ -263,6 +310,7 @@ function EmployeeEditor({ account, authentication, branchId, employee, employees
             <label>Employment status<input readOnly value={employee.employmentStatus.replaceAll('_', ' ')} /></label>
             <label>Probation end date<input readOnly value={employee.probationEndDate ?? ''} /></label>
           </div>
+          <EffectiveShiftEditor authentication={authentication} branchId={branchId} employee={employee} />
           <section aria-labelledby="job-history-title"><h5 id="job-history-title">Job history</h5>{history.length ? <ul>{history.map((entry) => <li key={entry.id}>{entry.changeType.replaceAll('_', ' ')}: {entry.oldValue} to {entry.newValue}. {entry.reason}</li>)}</ul> : <p>No recorded changes.</p>}</section>
         </>}
         {activeTab === 'salary' && <div className="employee-form-grid">

@@ -508,16 +508,17 @@ function RequestTable({
   )
 }
 
-export default function LeaveOverview({ account, authentication, branchId }) {
+export default function LeaveOverview({ account, authentication, branchId, view = null }) {
   const [year, setYear] = useState(currentYear)
   const [state, setState] = useState({ status: 'loading', balances: [], requests: [], message: '' })
   const [uploadState, setUploadState] = useState({})
   const [referenceData, setReferenceData] = useState({ leaveTypes: [], employees: [] })
   const [cancellingId, setCancellingId] = useState(null)
-  const [tab, setTab] = useState('requests')
+  const [tab, setTab] = useState(view ?? 'requests')
   const [showRequest, setShowRequest] = useState(false)
   const [calendarMonth, setCalendarMonth] = useState(() => new Date().toISOString().slice(0, 7))
   const admin = account.role === 'admin'
+  const activeView = view ?? tab
 
   const read = useCallback(async (signal) => {
     const options = { year, signal }
@@ -644,6 +645,18 @@ export default function LeaveOverview({ account, authentication, branchId }) {
     }
   }
 
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' })
+  const onLeaveToday = state.requests.filter((request) => (
+    request.status === 'Approved' && request.startDate <= today && request.endDate >= today
+  ))
+  const pendingRequests = state.requests.filter((request) => (
+    request.status === 'Pending' || request.status === 'ManagerApproved'
+  ))
+  const employeeName = (employeeId) => (
+    referenceData.employees.find((employee) => employee.id === employeeId)?.name
+    ?? 'Employee unavailable'
+  )
+
   return (
     <section className="leave-overview" aria-labelledby="leave-overview-title">
       <header className="employee-module-toolbar leave-toolbar">
@@ -679,7 +692,7 @@ export default function LeaveOverview({ account, authentication, branchId }) {
       {state.status === 'error' && <p className="feedback danger">Try refreshing after the leave service is available.</p>}
       {state.status === 'ready' && (
         <>
-          <div className="tabs" role="tablist" aria-label="Leave views">{[['requests', 'Requests'], ['balances', 'Balances'], ['calendar', 'Calendar']].map(([id, label]) => <button type="button" role="tab" aria-selected={tab === id} className={`tab-btn${tab === id ? ' active' : ''}`} key={id} onClick={() => setTab(id)}>{label}</button>)}</div>
+          {!view && <div className="tabs" role="tablist" aria-label="Leave views">{[['requests', 'Requests'], ['balances', 'Balances'], ['calendar', 'Calendar']].map(([id, label]) => <button type="button" role="tab" aria-selected={tab === id} className={`tab-btn${tab === id ? ' active' : ''}`} key={id} onClick={() => setTab(id)}>{label}</button>)}</div>}
           {showRequest && <PortalDialog labelledBy="leave-request-dialog-title" onClose={() => setShowRequest(false)}><div className="modal-header"><h3 id="leave-request-dialog-title">Request Leave</h3><button type="button" className="btn btn-ghost btn-icon" aria-label="Close leave request" onClick={() => setShowRequest(false)}>×</button></div><div className="modal-body"><LeaveRequestForm
               admin={admin}
               authentication={authentication}
@@ -688,7 +701,17 @@ export default function LeaveOverview({ account, authentication, branchId }) {
               leaveTypes={referenceData.leaveTypes}
               onSubmitted={async () => { await refresh(); setShowRequest(false) }}
             /></div></PortalDialog>}
-          {tab === 'requests' && <div className="leave-tab-panel" role="tabpanel">
+          {activeView === 'overview' && <div className="leave-tab-panel leave-dashboard" role="tabpanel">
+            <div className="stats-grid module-summary-grid">
+              <div className="stat-card"><div className="stat-label">On leave today</div><div className="stat-value">{onLeaveToday.length}</div><div className="stat-sub">approved absences</div></div>
+              <div className="stat-card"><div className="stat-label">Pending approvals</div><div className="stat-value">{pendingRequests.length}</div><div className="stat-sub">awaiting a decision</div></div>
+              <div className="stat-card"><div className="stat-label">Leave types</div><div className="stat-value">{referenceData.leaveTypes.length}</div><div className="stat-sub">available in this branch</div></div>
+              <div className="stat-card"><div className="stat-label">Balance records</div><div className="stat-value">{state.balances.length}</div><div className="stat-sub">for {year}</div></div>
+            </div>
+            <section className="employee-panel"><div className="panel-heading"><h3>On leave today</h3></div>{onLeaveToday.length === 0 ? <div className="empty-state">No approved leave today.</div> : <div className="table-wrap"><table><thead><tr><th>Employee</th><th>Dates</th><th>Days</th><th>Status</th></tr></thead><tbody>{onLeaveToday.map((request) => <tr key={request.id}><td>{employeeName(request.employeeId)}</td><td>{request.startDate} to {request.endDate}</td><td>{request.daysRequested}</td><td>{request.status}</td></tr>)}</tbody></table></div>}</section>
+            <section className="employee-panel"><div className="panel-heading"><h3>Pending approvals</h3></div>{pendingRequests.length === 0 ? <div className="empty-state">No leave requests await a decision.</div> : <div className="table-wrap"><table><thead><tr><th>Employee</th><th>Dates</th><th>Days</th><th>Status</th></tr></thead><tbody>{pendingRequests.slice(0, 5).map((request) => <tr key={request.id}><td>{employeeName(request.employeeId)}</td><td>{request.startDate} to {request.endDate}</td><td>{request.daysRequested}</td><td>{request.status}</td></tr>)}</tbody></table></div>}</section>
+          </div>}
+          {activeView === 'requests' && <div className="leave-tab-panel" role="tabpanel">
             <section className="employee-panel leave-history-panel" aria-labelledby="leave-history-title">
               <div className="panel-heading">
                 <div>
@@ -708,8 +731,8 @@ export default function LeaveOverview({ account, authentication, branchId }) {
               />
             </section>
           </div>}
-          {tab === 'balances' && <section className="employee-panel leave-tab-panel" role="tabpanel"><div className="panel-heading"><h3>Balances</h3></div>{admin ? <BalanceTable balances={state.balances} employees={referenceData.employees} leaveTypes={referenceData.leaveTypes} /> : <EmployeeBalanceCards balances={state.balances} leaveTypes={referenceData.leaveTypes} />}</section>}
-          {tab === 'calendar' && <section className="employee-panel leave-tab-panel leave-calendar-panel" role="tabpanel"><div className="panel-heading"><h3>Request calendar</h3></div><LeaveCalendar month={calendarMonth} onMonthChange={setCalendarMonth} requests={state.requests} /></section>}
+          {activeView === 'balances' && <section className="employee-panel leave-tab-panel" role="tabpanel"><div className="panel-heading"><h3>Balances</h3></div>{admin ? <BalanceTable balances={state.balances} employees={referenceData.employees} leaveTypes={referenceData.leaveTypes} /> : <EmployeeBalanceCards balances={state.balances} leaveTypes={referenceData.leaveTypes} />}</section>}
+          {activeView === 'calendar' && <section className="employee-panel leave-tab-panel leave-calendar-panel" role="tabpanel"><div className="panel-heading"><h3>Request calendar</h3></div><LeaveCalendar month={calendarMonth} onMonthChange={setCalendarMonth} requests={state.requests} /></section>}
         </>
       )}
     </section>

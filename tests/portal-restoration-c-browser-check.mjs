@@ -1,0 +1,104 @@
+import assert from 'node:assert/strict'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { mkdir } from 'node:fs/promises'
+import { chromium } from '@playwright/test'
+import { createServer } from 'vite'
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const evidence = path.join(root, 'docs/migration/phase-15/evidence/restoration-c')
+const server = await createServer({ configFile: path.join(root, 'vite.config.js'), envFile: false, server: { host: '127.0.0.1', port: 5185, strictPort: true } })
+await server.listen()
+const browser = await chromium.launch({ headless: true })
+await mkdir(evidence, { recursive: true })
+const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
+const mount = async (module, extra = '') => {
+  await page.goto(`http://127.0.0.1:5185/tests/portal-restoration-c.html?module=${module}${extra}`)
+  await page.locator('main').waitFor()
+}
+
+try {
+  await mount('leave')
+  await page.getByRole('heading', { name: 'Leave Management' }).waitFor()
+  await page.getByText('Pending approvals').first().waitFor()
+  await page.getByRole('tab', { name: 'Overview' }).focus()
+  await page.keyboard.press('ArrowRight')
+  assert.equal(await page.getByRole('tab', { name: 'Requests' }).getAttribute('aria-selected'), 'true')
+  await page.getByRole('heading', { name: 'Branch leave decisions' }).waitFor()
+  await page.getByRole('heading', { name: 'Request history' }).waitFor()
+  await page.getByRole('tab', { name: 'Settings' }).click()
+  await page.getByRole('heading', { name: 'Public holidays' }).waitFor()
+  await page.getByRole('heading', { name: 'Approval delegations' }).waitFor()
+  await page.screenshot({ path: path.join(evidence, 'leave-desktop.png'), fullPage: true })
+
+  await mount('attendance')
+  await page.getByRole('heading', { name: 'Attendance summary' }).waitFor()
+  await page.getByRole('tab', { name: 'Manual Entry' }).click()
+  await page.getByLabel('Employee').selectOption('c3000000-0000-4000-8000-000000000003')
+  await page.getByLabel('Dubai time').fill('2026-10-04T10:00')
+  await page.getByLabel('Reason').fill('Verified manual correction')
+  await page.evaluate(() => { window.__restorationFailNext = true })
+  await page.getByRole('button', { name: 'Record event' }).click()
+  await page.getByText('Synthetic rejected write').waitFor()
+  assert.equal(await page.getByLabel('Reason').inputValue(), 'Verified manual correction')
+  await page.getByRole('button', { name: 'Record event' }).click()
+  await page.getByText('Manual clock event recorded.').waitFor()
+  await page.getByRole('tab', { name: 'Overtime' }).click()
+  await page.getByText('0.50 hours, AED 25.00').waitFor()
+  await page.screenshot({ path: path.join(evidence, 'attendance-desktop.png'), fullPage: true })
+
+  await mount('roster')
+  await page.getByRole('heading', { name: 'Shift templates' }).waitFor()
+  await page.getByRole('tab', { name: 'Monthly Roster' }).click()
+  const grid = page.getByRole('region', { name: 'Monthly roster grid' })
+  await grid.waitFor()
+  await grid.getByRole('button', { name: /Sam Taylor, 2026-10-01, unassigned/ }).click()
+  await page.getByRole('heading', { name: 'Add roster assignment' }).waitFor()
+  await page.evaluate(() => { window.__restorationFailNext = true })
+  await page.getByRole('button', { name: 'Add draft' }).click()
+  await page.getByText('Nothing changed. Check leave, employee, shift, duplicate-date, or stale-version conflicts.').waitFor()
+  await page.getByRole('heading', { name: 'Add roster assignment' }).waitFor()
+  await page.getByRole('button', { name: 'Add draft' }).click()
+  await page.getByText('Roster draft saved.').waitFor()
+  await page.getByRole('button', { name: 'Publish exact roster' }).click()
+  await page.getByText('Roster published. Employees can now see their schedules.').waitFor()
+  await page.screenshot({ path: path.join(evidence, 'roster-desktop.png'), fullPage: true })
+
+  await mount('departments')
+  assert.equal(await page.getByRole('tab', { name: 'Staffing Rules' }).count(), 1)
+  await page.getByRole('tab', { name: 'Staffing Rules' }).click()
+  await page.getByRole('region', { name: 'Staffing rules', exact: true }).waitFor()
+  await page.screenshot({ path: path.join(evidence, 'staffing-enabled-desktop.png'), fullPage: true })
+  await mount('departments', '&staffing=off')
+  assert.equal(await page.getByRole('tab', { name: 'Staffing Rules' }).count(), 0)
+  await page.screenshot({ path: path.join(evidence, 'staffing-disabled-desktop.png'), fullPage: true })
+
+  await page.goto('http://127.0.0.1:5185/tests/portal-restoration-b.html?module=employees')
+  await page.getByRole('button', { name: 'Alex Morgan' }).click()
+  await page.getByRole('tab', { name: 'Job and contract' }).click()
+  await page.getByRole('heading', { name: 'Effective default shift' }).waitFor()
+  assert.equal(await page.getByLabel('Current shift').inputValue(), 'Morning clinic (MC)')
+  await page.getByLabel('Effective from').fill('2026-10-06')
+  await page.evaluate(() => { window.__restorationFailNext = true })
+  await page.getByRole('button', { name: 'Save effective shift' }).click()
+  await page.getByText('The shift was not changed because the current assignment is stale or conflicts with retained history.').waitFor()
+  assert.equal(await page.getByLabel('Effective from').inputValue(), '2026-10-06')
+  await page.getByRole('button', { name: 'Save effective shift' }).click()
+  await page.getByText('Effective default shift saved.').waitFor()
+  const shiftWrite = await page.evaluate(() => window.__restorationRequests.filter((item) => item.path === '/api/v1/shift-assignments' && item.options.method === 'POST').at(-1))
+  assert.equal(shiftWrite.options.json.expectedCurrentAssignmentId, 'b2000000-0000-4000-8000-000000000061')
+  assert.equal(shiftWrite.options.json.expectedCurrentAssignmentUpdatedAt, '2026-10-02T08:00:00.000Z')
+  await page.screenshot({ path: path.join(evidence, 'employee-shift-desktop.png'), fullPage: true })
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  for (const module of ['leave', 'attendance', 'roster']) {
+    await mount(module)
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `${module} overflows`)
+    await page.screenshot({ path: path.join(evidence, `${module}-mobile.png`), fullPage: true })
+  }
+  console.log('Portal restoration C populated checks passed.')
+} finally {
+  await page.close()
+  await browser.close()
+  await server.close()
+}
