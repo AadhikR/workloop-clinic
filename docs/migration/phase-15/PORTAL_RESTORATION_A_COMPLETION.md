@@ -73,6 +73,13 @@ creation step used an exact label match that included option text in the label l
 now uses the unique Department label inside that form. The populated fixture also checks creation,
 the selected department and shift, minimum staffing, branch scope, and the rendered new rule.
 
+All three role journeys then passed. The performance verifier still used retired navigation links
+and the old inline contact form. It now measures all 46 current navigation routes and the current
+contact editor, with unchanged budgets. Local measurements passed with 221,994 compressed initial
+bytes, a 203,159-byte largest bundle, 146.60 ms route-change p95, and 87.60 ms form-feedback p95.
+Browser timing uses synthetic responses. The read-only local health endpoint measured 9.61 ms p95;
+that is not a populated business-query or production-network benchmark.
+
 The expanded browser check exposed faint sidebar and tab text, inaccessible financial route
 headings, and an overescaped phone pattern that rejected valid UAE numbers. This task corrected
 the shared colors and heading semantics without changing financial layouts. The phone pattern now

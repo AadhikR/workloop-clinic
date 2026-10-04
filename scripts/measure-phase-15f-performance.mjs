@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url'
 
 import { chromium } from '@playwright/test'
 import { createServer } from 'vite'
+import { roleNavigation } from '../src/portalRoutes.js'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const configFile = path.join(root, 'vite.config.js')
@@ -23,20 +24,9 @@ export const phase15FBudgets = Object.freeze({
   representativeApiP95Ms: 500,
 })
 
-const roleRoutes = {
-  admin: [
-    '/admin', '/admin/organization', '/admin/people', '/admin/leave', '/admin/attendance',
-    '/admin/roster', '/admin/payroll', '/admin/records', '/admin/development', '/admin/reports',
-  ],
-  manager: [
-    '/manager', '/manager/team', '/manager/leave', '/manager/time', '/manager/expenses',
-    '/manager/development', '/manager/requests',
-  ],
-  employee: [
-    '/employee', '/employee/profile', '/employee/leave', '/employee/time', '/employee/pay',
-    '/employee/records', '/employee/development', '/employee/requests',
-  ],
-}
+const roleRoutes = Object.fromEntries(['admin', 'manager', 'employee'].map((role) => [
+  role, roleNavigation(role).map(({ path }) => path),
+]))
 
 function p95(values) {
   const sorted = [...values].sort((left, right) => left - right)
@@ -59,6 +49,7 @@ function buildProduction() {
 async function mount(page, role, route) {
   await page.goto(baseUrl)
   await page.evaluate(async ({ role: accountRole, route: pathName }) => {
+    localStorage.setItem('workloop-advanced-features', 'true')
     if (accountRole === 'admin') {
       const { mountPhase15CAdministrator } = await import('/tests/phase-15c-harness.jsx')
       mountPhase15CAdministrator({ path: pathName })
@@ -97,9 +88,10 @@ async function measureBrowser(browser) {
   for (let index = 0; index < 10; index += 1) {
     const page = await browser.newPage()
     await mount(page, 'employee', '/employee/profile')
+    await page.getByRole('button', { name: 'Edit contact details', exact: true }).click()
     const started = await page.evaluate(() => performance.now())
     await page.getByRole('button', { name: 'Save contact details' }).click()
-    await page.locator('[data-employee-self-contact-status="error"]').waitFor()
+    await page.getByRole('alert').filter({ hasText: 'Contact details could not be saved.' }).waitFor()
     const ended = await page.evaluate(() => performance.now())
     formSamples.push(ended - started)
     await page.close()
@@ -184,7 +176,7 @@ const report = {
   budgets: phase15FBudgets,
   measurements: {
     initialCompressedTransferBytes: { value: measured.initialCompressedTransferBytes, sampleCount: 1, percentile: 'total', cacheState: 'cold-build' },
-    laterRouteTransferBytes: { value: measured.laterRouteTransferBytes, sampleCount: 25, percentile: 'total', cacheState: 'warm-route' },
+    laterRouteTransferBytes: { value: measured.laterRouteTransferBytes, sampleCount: Object.values(roleRoutes).reduce((total, routes) => total + routes.length, 0), percentile: 'total', cacheState: 'warm-route' },
     largestRouteBundleCompressedBytes: { value: measured.largestRouteBundleCompressedBytes, sampleCount: chunks.length + styles.length, percentile: 'maximum', cacheState: 'cold-build' },
     routeChangeP95Ms: { value: measured.routeChangeP95Ms, sampleCount: browserMeasurements.routeSamples.length, percentile: 'p95', cacheState: 'warm-application' },
     formFeedbackP95Ms: { value: measured.formFeedbackP95Ms, sampleCount: browserMeasurements.formSamples.length, percentile: 'p95', cacheState: 'warm-application' },
