@@ -1023,6 +1023,7 @@ async function assertLeaveAttachmentJourney(page) {
 }
 
 async function submitLeaveThroughForm(page, { admin, date, leaveType, employeeId = null }) {
+  if (admin) await page.getByRole('tab', { name: 'Overview', exact: true }).click()
   await page.getByRole('heading', {
     name: admin ? 'Branch leave overview' : 'My leave',
   }).waitFor({ timeout: 20_000 })

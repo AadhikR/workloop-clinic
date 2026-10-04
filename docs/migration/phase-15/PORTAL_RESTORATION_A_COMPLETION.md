@@ -63,6 +63,11 @@ dates, and accepts the expected confirmation dialog. A focused production-compon
 the confirmed cancellation route, empty command body, idempotency key, and rendered Cancelled state.
 The full-stack test still checks the audit and attachment cleanup in PostgreSQL and object storage.
 
+Both staff journeys then passed. The admin journey reached submission with the Approvals tab still
+selected after same-page navigation. The request step now explicitly selects Overview. The local
+browser check proves that same-page navigation preserves the selected tab and that Overview restores
+the request workspace. No application change was needed for this correction.
+
 The expanded browser check exposed faint sidebar and tab text, inaccessible financial route
 headings, and an overescaped phone pattern that rejected valid UAE numbers. This task corrected
 the shared colors and heading semantics without changing financial layouts. The phone pattern now
