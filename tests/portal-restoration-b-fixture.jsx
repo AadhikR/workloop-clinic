@@ -56,7 +56,7 @@ const authentication = {
     if (method !== 'GET' && window.__restorationFailNext) { window.__restorationFailNext = false; throw new Error('Synthetic rejected write') }
     if (route === '/api/v1/company') { if (method === 'PATCH') Object.assign(company, body); delete company.expectedUpdatedAt; return { data: structuredClone(company) } }
     if (route === '/api/v1/branches') return { data: [structuredClone(branch)], page }
-    if (route === `/api/v1/branches/${branchId}`) { Object.assign(branch, body); delete branch.expectedUpdatedAt; return { data: structuredClone(branch) } }
+    if (route === `/api/v1/branches/${branchId}`) { Object.assign(branch, body, { updatedAt: '2026-10-02T09:00:00.000Z' }); delete branch.expectedUpdatedAt; return { data: structuredClone(branch) } }
     if (route === '/api/v1/idempotency-recovery-namespaces') return { data: { current: 'restoration-b', accepted: ['restoration-b'] } }
     if (route === '/api/v1/departments') return { data: [{ id: id(10), name: 'Clinical', parentId: null, headEmployeeId: id(4), color: '#6366f1', description: 'Clinical care', sortOrder: 0, createdAt: timestamp }], page }
     if (route === '/api/v1/employees') return { data: employees.map(listEmployee), page }

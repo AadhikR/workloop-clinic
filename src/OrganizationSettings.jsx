@@ -314,8 +314,8 @@ export default function OrganizationSettings({ authentication }) {
   return (
     <section className="organization-settings" aria-labelledby="organization-settings-title">
       <h2 id="organization-settings-title">Organization settings</h2>
-      <CompanyForm key={organization.company.updatedAt} authentication={authentication} />
-      <BranchForm key={`${organization.selectedBranch.id}-${organization.selectedBranch.updatedAt}`} authentication={authentication} />
+      <CompanyForm key={organization.company.id} authentication={authentication} />
+      <BranchForm key={organization.selectedBranch.id} authentication={authentication} />
       <section className="card" aria-label="Medical insurance policies"><AdminInsurance authentication={authentication} branchId={organization.selectedBranch.id} policiesOnly /></section>
       <section className="card"><div className="card-header"><h3>WPS and SIF file reference</h3></div></section>
       <CreateBranchForm authentication={authentication} />
