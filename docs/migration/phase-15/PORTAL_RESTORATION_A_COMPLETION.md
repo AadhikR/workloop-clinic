@@ -68,6 +68,11 @@ selected after same-page navigation. The request step now explicitly selects Ove
 browser check proves that same-page navigation preserves the selected tab and that Overview restores
 the request workspace. No application change was needed for this correction.
 
+The admin run then passed leave, employee mutations, records, reports, and outputs. Its staffing
+creation step used an exact label match that included option text in the label lookup. The selector
+now uses the unique Department label inside that form. The populated fixture also checks creation,
+the selected department and shift, minimum staffing, branch scope, and the rendered new rule.
+
 The expanded browser check exposed faint sidebar and tab text, inaccessible financial route
 headings, and an overescaped phone pattern that rejected valid UAE numbers. This task corrected
 the shared colors and heading semantics without changing financial layouts. The phone pattern now

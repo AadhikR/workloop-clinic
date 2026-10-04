@@ -71,7 +71,14 @@ const fixture = {
       if (method === 'POST') { const added = { id: id(12), ...body, createdAt: timestamp }; departments.push(added); return { data: added } }
       return { data: departments, page }
     }
-    if (route === '/api/v1/department-staffing-rules') return { data: rules, page }
+    if (route === '/api/v1/department-staffing-rules') {
+      if (method === 'POST') {
+        const added = { id: id(13), ...body }
+        rules.push(added)
+        return { data: added, status: 201, location: `/api/v1/department-staffing-rules/${added.id}` }
+      }
+      return { data: rules, page }
+    }
     if (route.startsWith('/api/v1/department-staffing-rules/')) { Object.assign(rules[0], body); delete rules[0].expected; return { data: rules[0] } }
     if (route === '/api/v1/assets/assignments') return { data: [{ ...assignment, employeeName: employees[0].name }], page }
     if (route === '/api/v1/assets') {

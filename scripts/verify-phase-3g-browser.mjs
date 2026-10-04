@@ -1771,7 +1771,7 @@ async function assertDepartmentApi(page, persona) {
   await page.getByRole('tab', { name: 'Staffing Rules', exact: true }).click()
   await page.getByRole('button', { name: 'Add Rule', exact: true }).click()
   const staffingForm = page.locator('.staffing-editor .settings-form')
-  await staffingForm.getByLabel('Department', { exact: true }).selectOption('Phase 7E browser department')
+  await staffingForm.getByLabel('Department').selectOption('Phase 7E browser department')
   await staffingForm.getByLabel('Shift category').selectOption('night')
   await staffingForm.getByLabel('Minimum staff').fill('3')
   const staffingCreatePromise = page.waitForResponse((response) => {
