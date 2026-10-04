@@ -57,6 +57,12 @@ because clinical incidents are admin-only. The journey now visits dedicated staf
 appraisal pages and checks their role-specific headings. The 46-route local check verifies those
 headings too. This verifier correction still requires a successful independent run.
 
+The next browser run passed development and stopped at a leave row selector that expected spaces
+between adjacent date elements. Cancellation now targets the table's date elements, checks both
+dates, and accepts the expected confirmation dialog. A focused production-component fixture checks
+the confirmed cancellation route, empty command body, idempotency key, and rendered Cancelled state.
+The full-stack test still checks the audit and attachment cleanup in PostgreSQL and object storage.
+
 The expanded browser check exposed faint sidebar and tab text, inaccessible financial route
 headings, and an overescaped phone pattern that rejected valid UAE numbers. This task corrected
 the shared colors and heading semantics without changing financial layouts. The phone pattern now

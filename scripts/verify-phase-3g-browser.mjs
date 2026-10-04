@@ -1057,14 +1057,23 @@ async function submitLeaveThroughForm(page, { admin, date, leaveType, employeeId
 }
 
 async function cancelLeaveThroughTable(page, { admin, requestId, date }) {
-  const row = page.locator('tr', { hasText: `${date} to ${date}` })
+  const row = page.locator('.leave-request-table tbody tr').filter({
+    has: page.locator(`time[datetime="${date}"]`),
+  })
   await row.waitFor({ timeout: 20_000 })
+  assert.equal(await row.count(), 1)
+  assert.deepEqual(await row.locator('time').evaluateAll((elements) => elements.map((element) => element.dateTime)), [date, date])
   const responsePromise = page.waitForResponse((response) => {
     const request = response.request()
     return request.method() === 'POST'
       && new URL(response.url()).pathname === `/api/v1/leave/requests/${requestId}/cancel/${
         admin ? 'branch' : 'self'
       }`
+  })
+  page.once('dialog', async (dialog) => {
+    assert.equal(dialog.type(), 'confirm')
+    assert.equal(dialog.message(), 'Cancel this pending leave request?')
+    await dialog.accept()
   })
   await row.getByRole('button', { name: 'Cancel' }).click()
   const response = await responsePromise

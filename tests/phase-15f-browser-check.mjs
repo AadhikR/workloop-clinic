@@ -190,6 +190,57 @@ try {
   assert.equal(await recoveryPage.evaluate(() => document.activeElement?.tagName), 'H1')
   await recoveryContext.close()
 
+  const leavePage = await browser.newPage()
+  await leavePage.goto(baseUrl)
+  await leavePage.evaluate(async () => {
+    const reactModule = await import('/node_modules/.vite/deps/react.js')
+    const createElement = reactModule.createElement ?? reactModule.default.createElement
+    const rootModule = await import('/node_modules/.vite/deps/react-dom_client.js')
+    const createRoot = rootModule.createRoot ?? rootModule.default.createRoot
+    const { default: LeaveOverview } = await import('/src/LeaveOverview.jsx')
+    const request = {
+      id: 'b2000000-0000-4000-8000-000000000005', branchId: 'b2000000-0000-4000-8000-000000000002',
+      employeeId: 'b2000000-0000-4000-8000-000000000003', leaveTypeId: 'b2000000-0000-4000-8000-000000000006',
+      startDate: '2026-09-21', endDate: '2026-09-21', isHalfDay: false, halfDayPeriod: null,
+      daysRequested: '1.00', status: 'Pending', reason: 'Synthetic leave', attachment: null,
+      rejectionReason: '', managerRejectionReason: '', relationship: '', deceasedName: '',
+      dateOfDeath: null, childBirthDate: null, childName: '', expectedDueDate: null,
+      institutionName: '', examDates: '', substituteEmployeeId: null, approvalLevelRequired: 1,
+      approvalComment: '', warnings: [], submittedAt: '2026-09-15T08:00:00.000Z',
+      createdAt: '2026-09-15T08:00:00.000Z', updatedAt: '2026-09-15T08:00:00.000Z',
+    }
+    const authentication = { request: async (path, options) => {
+      if (path.endsWith('/cancel/self')) {
+        window.__leaveCancellation = { path, options }
+        request.status = 'Cancelled'
+        return { data: { ...request } }
+      }
+      const data = path.startsWith('/api/v1/leave/requests/calendar/self') ? [{ ...request }] : []
+      return { data, page: { limit: 100, nextCursor: null, hasMore: false } }
+    } }
+    const container = document.createElement('div')
+    document.body.append(container)
+    createRoot(container).render(createElement(LeaveOverview, { account: { role: 'employee' }, authentication }))
+  })
+  const leaveRow = leavePage.locator('.leave-request-table tbody tr').filter({
+    has: leavePage.locator('time[datetime="2026-09-21"]'),
+  })
+  await leaveRow.waitFor()
+  assert.equal(await leaveRow.count(), 1)
+  assert.deepEqual(await leaveRow.locator('time').evaluateAll((elements) => elements.map((element) => element.dateTime)), ['2026-09-21', '2026-09-21'])
+  leavePage.once('dialog', async (dialog) => {
+    assert.equal(dialog.type(), 'confirm')
+    assert.equal(dialog.message(), 'Cancel this pending leave request?')
+    await dialog.accept()
+  })
+  await leaveRow.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await leaveRow.getByText('Cancelled', { exact: true }).waitFor()
+  const cancellation = await leavePage.evaluate(() => window.__leaveCancellation)
+  assert.equal(cancellation.path, '/api/v1/leave/requests/b2000000-0000-4000-8000-000000000005/cancel/self')
+  assert.deepEqual(cancellation.options.json, {})
+  assert.ok(cancellation.options.headers['Idempotency-Key'])
+  await leavePage.close()
+
   process.stdout.write(`Phase 15F route accessibility and recovery check passed for ${routeGroups.length} route groups.\n`)
 } finally {
   await browser.close()
