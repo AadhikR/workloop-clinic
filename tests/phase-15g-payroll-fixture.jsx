@@ -25,7 +25,7 @@ export function mountPayrollReview({ blocked = true } = {}) {
   mountPhase15CAdministrator({
     path: '/admin/payroll',
     responses: {
-      '/api/v1/payroll-runs': { data: [run], page: { limit: 50, nextCursor: null, hasMore: false } },
+      '/api/v1/payroll-runs?limit=100': { data: [run], page: { limit: 100, nextCursor: null, hasMore: false } },
       [`/api/v1/payroll-runs/${run.id}`]: { data: detail },
       [`/api/v1/payroll-runs/${run.id}/approval-history`]: { data: [] },
       [`/api/v1/payroll-runs/${run.id}/entries`]: { data: detail },

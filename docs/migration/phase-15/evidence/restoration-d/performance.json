@@ -16,7 +16,7 @@
   },
   "measurements": {
     "initialCompressedTransferBytes": {
-      "value": 219486,
+      "value": 219469,
       "sampleCount": 1,
       "percentile": "total",
       "cacheState": "cold-build"
@@ -28,25 +28,25 @@
       "cacheState": "warm-route"
     },
     "largestRouteBundleCompressedBytes": {
-      "value": 196074,
+      "value": 196056,
       "sampleCount": 8,
       "percentile": "maximum",
       "cacheState": "cold-build"
     },
     "routeChangeP95Ms": {
-      "value": 110.4,
+      "value": 94.7,
       "sampleCount": 86,
       "percentile": "p95",
       "cacheState": "warm-application"
     },
     "formFeedbackP95Ms": {
-      "value": 63.6,
+      "value": 56.6,
       "sampleCount": 10,
       "percentile": "p95",
       "cacheState": "warm-application"
     },
     "representativeApiP95Ms": {
-      "value": 11.09,
+      "value": 7.7,
       "sampleCount": 25,
       "percentile": "p95",
       "cacheState": "no-store"

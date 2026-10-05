@@ -27,6 +27,7 @@ async function mount(page, role, route) {
     harness[exports[accountRole]]({ path: pathName })
   }, { accountRole: role, pathName: route })
   await page.locator('[data-route-state="ready"]').waitFor()
+  if (route === '/admin/payroll') await page.locator('.payroll-history-card').waitFor()
 }
 
 const server = await createServer({
@@ -200,8 +201,12 @@ try {
   await leaveReview.getByRole('tab', { name: 'Settings', exact: true }).click()
   await leaveReview.locator('section[aria-label="Leave configuration"]').waitFor()
   await leaveReview.getByRole('tab', { name: 'Overview', exact: true }).click()
-  assert.ok(await leaveReview.getByRole('grid').isVisible())
+  assert.equal(await leaveReview.getByRole('tab', { name: 'Overview', exact: true }).getAttribute('aria-selected'), 'true')
+  assert.equal(await leaveReview.getByRole('grid').isVisible(), false)
   assert.equal(await leaveReview.locator('section[aria-label="Leave configuration"]').isVisible(), false)
+  await leaveReview.getByRole('tab', { name: 'Calendar', exact: true }).click()
+  assert.ok(await leaveReview.getByRole('grid').isVisible())
+  await leaveReview.getByRole('tab', { name: 'Overview', exact: true }).click()
   await leaveReview.screenshot({ path: path.join(evidenceDirectory, 'phase15g-leave-workspace.png') })
   await leaveReview.close()
 

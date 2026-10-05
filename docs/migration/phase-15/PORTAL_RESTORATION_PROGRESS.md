@@ -192,8 +192,10 @@ checks pass, including D's exact predecessor rollback.
 The isolated stack proves persisted catalogue, signing keys, storage and scans across restart,
 real role sign-in journeys, and synthetic cleanup. The D browser fixture exercises every current
 report type, financial dialogs and output, receipt failures, routing retry, role-aware tasks,
-notification failures, keyboard use, and 390-pixel containment. Fifteen screenshots and the
-performance record are in `evidence/restoration-d`. Shared route and recovery checks pass all
-46 views. Performance limits remain unchanged after deferred administrator module loading.
+notification failures, keyboard use, and 390-pixel containment. Fifteen D fixture screenshots and
+the performance record are in `evidence/restoration-d`. Six additional shared visual captures prove
+populated payroll edits and mobile scrolling through the actual deferred route, leave tab
+separation, and staff shell layout. Shared route and recovery checks pass all 46 views. Performance
+limits remain unchanged after deferred administrator module loading.
 See `PORTAL_RESTORATION_D_COMPLETION.md` for measurements, environment, and evidence limits.
 D does not certify D-01, D-02, or the other F dependencies, and does not deploy.

@@ -80,12 +80,19 @@ before promoting the final frontend.
   protected receipts, routing retry, SIF failure and download, keyboard use, and 390-pixel
   containment. Fifteen desktop and dark mobile screenshots are in `evidence/restoration-d`.
 - Shared navigation and recovery checks pass all 46 views.
+- The shared visual regression passes populated payroll edits, approval guards, breakdowns,
+  mobile table scrolling, leave tab separation, and staff shell layout. Six captures have the
+  `shared-` prefix in `evidence/restoration-d`. The deferred loader returns the module directly
+  so its wrapper cannot widen mobile cards. The visual fixture waits for the loaded payroll
+  module and uses the current paged payroll request.
 
-The performance fixture records 219,486 compressed initial bytes, zero warm-route transfer bytes,
-a 196,074-byte largest bundle, 110.4 ms route-change p95, 63.6 ms form-feedback p95, and 11.09 ms
+The performance fixture records 219,469 compressed initial bytes, zero warm-route transfer bytes,
+a 196,056-byte largest bundle, 94.7 ms route-change p95, 56.6 ms form-feedback p95, and 7.7 ms
 read-only health p95. Administrator payroll, reports, settings, and WPS load on demand. Limits remain
 unchanged. The warm-route metric now measures browser resource transfer after routes have loaded,
 instead of summing cold chunks on disk. These local fixture timings are not production benchmarks.
+The final health measurement used the preserved local API's read-only health endpoint after the
+isolated stack had been removed.
 
 The browser fixtures prove production parsers and interactions with synthetic replies. They do not
 certify every live dataset or close the shared dependencies listed in the progress record. The

@@ -10,5 +10,5 @@ export default function DeferredModule({ load, ...props }) {
   if (state?.load !== load) return <p role="status">Loading work area...</p>
   if (state.error) return <div role="alert"><p>This work area could not be loaded.</p><button type="button" onClick={() => location.reload()}>Reload page</button></div>
   const View = state.component
-  return <div data-deferred-state="ready"><View {...props} /></div>
+  return <View {...props} />
 }
