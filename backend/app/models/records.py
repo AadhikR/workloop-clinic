@@ -1115,6 +1115,8 @@ class Appraisal(Base):
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
 
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
 
 class AppraisalSection(Base):
     __tablename__ = "appraisal_sections"
@@ -1295,6 +1297,8 @@ class IncidentReport(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
+
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class LetterRequest(Base):

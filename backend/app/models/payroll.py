@@ -594,6 +594,8 @@ class ExpenseClaim(Base):
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
 
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
 
 class ExpenseReceipt(Base):
     __tablename__ = "expense_receipts"

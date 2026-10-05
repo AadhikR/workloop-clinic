@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import uuid
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
@@ -11,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.auth.application_user import AuthorizationPrincipal
 from app.db.audit import append_audit_event
+from app.http.versions import same_instant
 from app.models.identity import AppRole
 from app.schemas.appraisals import (
     AppraisalCalibrationRequest,
@@ -18,6 +20,7 @@ from app.schemas.appraisals import (
     AppraisalCycleResponse,
     AppraisalCycleUpdateRequest,
     AppraisalGenerationResponse,
+    AppraisalManagerReviewRequest,
     AppraisalResponse,
     AppraisalReviewRequest,
     AppraisalSectionRatingRequest,
@@ -30,7 +33,8 @@ id,name,review_from,review_to,status,closed_by_app_user_id,closed_at,created_at,
 """
 APPRAISAL_COLUMNS = """
 a.id,a.cycle_id,c.name cycle_name,c.status cycle_status,c.review_from,c.review_to,a.employee_id,
-e.name employee_name,a.template_version,a.overall_rating,a.status,
+e.name employee_name,e.department employee_department,e.job_title employee_job_title,
+a.template_version,a.overall_rating,a.status,
 COALESCE(a.reviewer_comments,'') reviewer_comments,
 COALESCE(a.development_plan,'') development_plan,a.reviewed_at,
 a.reviewed_by_app_user_id,a.created_at,a.updated_at
@@ -58,6 +62,7 @@ def calculate_weighted_rating(sections: list[tuple[Decimal, Decimal]]) -> Decima
 @dataclass(frozen=True, slots=True)
 class AppraisalCycleListQuery:
     limit: int
+    after_id: uuid.UUID | None = None
 
 
 class AppraisalService:
@@ -76,12 +81,14 @@ class AppraisalService:
                     text(
                         f"SELECT {CYCLE_COLUMNS} FROM public.appraisal_cycles "
                         "WHERE company_id=:company_id AND branch_id=:branch_id "
-                        "ORDER BY review_from DESC,id DESC LIMIT :limit"
+                        "AND (CAST(:after_id AS uuid) IS NULL OR id>:after_id) "
+                        "ORDER BY id ASC LIMIT :limit"
                     ),
                     {
                         "company_id": principal.company_id,
                         "branch_id": branch_id,
                         "limit": query.limit,
+                        "after_id": query.after_id,
                     },
                 )
             )
@@ -151,7 +158,9 @@ class AppraisalService:
         request: AppraisalCycleUpdateRequest,
     ) -> AppraisalCycleResponse:
         current = await self._lock_cycle(principal, branch_id, cycle_id)
-        if current.status != "draft" or current.updated_at != request.expected_updated_at:
+        if current.status != "draft" or not same_instant(
+            current.updated_at, request.expected_updated_at
+        ):
             raise ServiceExecutionError("state_conflict")
         try:
             await self.connection.execute(
@@ -183,7 +192,7 @@ class AppraisalService:
         expected_updated_at: object,
     ) -> AppraisalCycleResponse:
         current = await self._lock_cycle(principal, branch_id, cycle_id)
-        if current.status != "draft" or current.updated_at != expected_updated_at:
+        if current.status != "draft" or not same_instant(current.updated_at, expected_updated_at):
             raise ServiceExecutionError("state_conflict")
         await self.connection.execute(
             text("UPDATE public.appraisal_cycles SET status='active' WHERE id=:id"),
@@ -207,7 +216,7 @@ class AppraisalService:
         expected_updated_at: object,
     ) -> AppraisalGenerationResponse:
         current = await self._lock_cycle(principal, branch_id, cycle_id)
-        if current.status != "active" or current.updated_at != expected_updated_at:
+        if current.status != "active" or not same_instant(current.updated_at, expected_updated_at):
             raise ServiceExecutionError("state_conflict")
         before = (
             await self.connection.execute(
@@ -275,14 +284,14 @@ ON CONFLICT (appraisal_id,section_name) DO NOTHING
         expected_updated_at: object,
     ) -> AppraisalCycleResponse:
         current = await self._lock_cycle(principal, branch_id, cycle_id)
-        if current.status != "active" or current.updated_at != expected_updated_at:
+        if current.status != "active" or not same_instant(current.updated_at, expected_updated_at):
             raise ServiceExecutionError("state_conflict")
         counts = (
             await self.connection.execute(
                 text(
                     "SELECT count(*) total,count(*) FILTER "
                     "(WHERE status IN ('reviewed','calibrated')) done "
-                    "FROM public.appraisals WHERE cycle_id=:cycle_id"
+                    "FROM public.appraisals WHERE cycle_id=:cycle_id AND archived_at IS NULL"
                 ),
                 {"cycle_id": cycle_id},
             )
@@ -314,7 +323,7 @@ ON CONFLICT (appraisal_id,section_name) DO NOTHING
         expected_updated_at: object,
     ) -> None:
         current = await self._lock_cycle(principal, branch_id, cycle_id)
-        if current.status != "draft" or current.updated_at != expected_updated_at:
+        if current.status != "draft" or not same_instant(current.updated_at, expected_updated_at):
             raise ServiceExecutionError("state_conflict")
         used = (
             await self.connection.execute(
@@ -341,6 +350,7 @@ ON CONFLICT (appraisal_id,section_name) DO NOTHING
         *,
         scope: str,
         limit: int,
+        after_id: uuid.UUID | None = None,
     ) -> list[AppraisalResponse]:
         if principal.employee_id is None:
             raise ServiceExecutionError("operation_not_permitted")
@@ -358,14 +368,16 @@ ON CONFLICT (appraisal_id,section_name) DO NOTHING
                         "JOIN public.appraisal_cycles c ON c.id=a.cycle_id "
                         "JOIN public.employees e ON e.id=a.employee_id "
                         "WHERE a.company_id=:company_id AND a.branch_id=:branch_id AND "
-                        f"{predicate} "
-                        "ORDER BY c.review_from DESC,a.id DESC LIMIT :limit"
+                        f"{predicate} AND a.archived_at IS NULL "
+                        "AND (CAST(:after_id AS uuid) IS NULL OR a.id>:after_id) "
+                        "ORDER BY a.id ASC LIMIT :limit"
                     ),
                     {
                         "company_id": principal.company_id,
                         "branch_id": branch_id,
                         "employee_id": principal.employee_id,
                         "limit": limit,
+                        "after_id": after_id,
                     },
                 )
             )
@@ -384,53 +396,48 @@ ON CONFLICT (appraisal_id,section_name) DO NOTHING
     ) -> AppraisalResponse:
         if principal.role is not AppRole.MANAGER or principal.employee_id is None:
             raise ServiceExecutionError("operation_not_permitted")
-        appraisal = await self._lock_appraisal(principal, branch_id, appraisal_id)
-        if appraisal.status != "pending" or appraisal.updated_at != request.expected_updated_at:
-            raise ServiceExecutionError("state_conflict")
-        allowed = (
-            await self.connection.execute(
-                text("SELECT public.lock_development_direct_report(:employee_id)"),
-                {"employee_id": appraisal.employee_id},
-            )
-        ).scalar_one()
-        if not allowed:
-            raise ServiceExecutionError("resource_not_found")
-        section = (
+        result = (
             await self.connection.execute(
                 text(
-                    "SELECT id FROM public.appraisal_sections WHERE id=:id "
-                    "AND appraisal_id=:appraisal_id AND company_id=:company_id "
-                    "AND branch_id=:branch_id FOR UPDATE"
+                    "SELECT public.set_manager_appraisal_section_rating("
+                    ":id,:section,:expected,:rating,:comments)"
                 ),
                 {
-                    "id": section_id,
-                    "appraisal_id": appraisal_id,
-                    "company_id": principal.company_id,
-                    "branch_id": branch_id,
+                    "id": appraisal_id,
+                    "section": section_id,
+                    "expected": request.expected_updated_at,
+                    "rating": request.rating,
+                    "comments": request.comments,
                 },
             )
-        ).scalar_one_or_none()
-        if section is None:
-            raise ServiceExecutionError("resource_not_found")
-        await self.connection.execute(
-            text(
-                "UPDATE public.appraisal_sections SET rating=:rating,comments=:comments "
-                "WHERE id=:id"
-            ),
-            {"id": section_id, "rating": request.rating, "comments": request.comments},
+        ).scalar_one()
+        if result != "ok":
+            raise ServiceExecutionError(str(result))
+        return await self.get_appraisal(principal, branch_id, appraisal_id)
+
+    async def submit_manager_review(
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        appraisal_id: uuid.UUID,
+        request: AppraisalManagerReviewRequest,
+    ) -> AppraisalResponse:
+        if principal.role is not AppRole.MANAGER or principal.employee_id is None:
+            raise ServiceExecutionError("operation_not_permitted")
+        sections = json.dumps(
+            [item.model_dump(mode="json", by_alias=True) for item in request.sections]
         )
-        await self.connection.execute(
-            text("UPDATE public.appraisals SET updated_at=statement_timestamp() WHERE id=:id"),
-            {"id": appraisal_id},
-        )
-        await self._audit(
-            "appraisal_section_rated",
-            "appraisal",
-            appraisal_id,
-            ["section.rating", "section.comments", "updated_at"],
-            "Appraisal section rated",
-            {"section_id": str(section_id)},
-        )
+        result = (
+            await self.connection.execute(
+                text(
+                    "SELECT public.submit_manager_appraisal_review("
+                    ":id,:expected,CAST(:sections AS jsonb))"
+                ),
+                {"id": appraisal_id, "expected": request.expected_updated_at, "sections": sections},
+            )
+        ).scalar_one()
+        if result != "ok":
+            raise ServiceExecutionError(str(result))
         return await self.get_appraisal(principal, branch_id, appraisal_id)
 
     async def review(
@@ -441,7 +448,9 @@ ON CONFLICT (appraisal_id,section_name) DO NOTHING
         request: AppraisalReviewRequest,
     ) -> AppraisalResponse:
         appraisal = await self._lock_appraisal(principal, branch_id, appraisal_id)
-        if appraisal.status != "pending" or appraisal.updated_at != request.expected_updated_at:
+        if appraisal.status != "pending" or not same_instant(
+            appraisal.updated_at, request.expected_updated_at
+        ):
             raise ServiceExecutionError("state_conflict")
         sections = (
             (
@@ -502,7 +511,9 @@ ON CONFLICT (appraisal_id,section_name) DO NOTHING
         request: AppraisalCalibrationRequest,
     ) -> AppraisalResponse:
         appraisal = await self._lock_appraisal(principal, branch_id, appraisal_id)
-        if appraisal.status != "reviewed" or appraisal.updated_at != request.expected_updated_at:
+        if appraisal.status != "reviewed" or not same_instant(
+            appraisal.updated_at, request.expected_updated_at
+        ):
             raise ServiceExecutionError("state_conflict")
         await self.connection.execute(
             text(
@@ -535,7 +546,8 @@ ON CONFLICT (appraisal_id,section_name) DO NOTHING
                         f"SELECT {APPRAISAL_COLUMNS} FROM public.appraisals a "
                         "JOIN public.appraisal_cycles c ON c.id=a.cycle_id "
                         "JOIN public.employees e ON e.id=a.employee_id "
-                        "WHERE a.id=:id AND a.company_id=:company_id AND a.branch_id=:branch_id"
+                        "WHERE a.id=:id AND a.company_id=:company_id AND a.branch_id=:branch_id "
+                        "AND a.archived_at IS NULL"
                     ),
                     {
                         "id": appraisal_id,
@@ -605,7 +617,7 @@ ON CONFLICT (appraisal_id,section_name) DO NOTHING
                         "JOIN public.appraisal_cycles c ON c.id=a.cycle_id "
                         "JOIN public.employees e ON e.id=a.employee_id "
                         "WHERE a.cycle_id=:cycle_id AND a.company_id=:company_id "
-                        "AND a.branch_id=:branch_id ORDER BY e.name,a.id"
+                        "AND a.branch_id=:branch_id AND a.archived_at IS NULL ORDER BY e.name,a.id"
                     ),
                     {
                         "cycle_id": row["id"],
@@ -643,8 +655,11 @@ ON CONFLICT (appraisal_id,section_name) DO NOTHING
         row = (
             await self.connection.execute(
                 text(
-                    "SELECT id,employee_id,status,updated_at FROM public.appraisals WHERE id=:id "
-                    "AND company_id=:company_id AND branch_id=:branch_id FOR UPDATE"
+                    "SELECT a.id,a.employee_id,a.status,a.updated_at FROM public.appraisals a "
+                    "JOIN public.appraisal_cycles c ON c.id=a.cycle_id "
+                    "AND c.company_id=a.company_id AND c.branch_id=a.branch_id "
+                    "WHERE a.id=:id AND a.company_id=:company_id AND a.branch_id=:branch_id "
+                    "AND a.archived_at IS NULL AND c.status='active' FOR UPDATE OF a,c"
                 ),
                 {"id": appraisal_id, "company_id": principal.company_id, "branch_id": branch_id},
             )

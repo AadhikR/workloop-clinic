@@ -9,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.auth.application_user import AuthorizationPrincipal
 from app.db.audit import append_audit_event
+from app.http.versions import same_instant
+from app.models.identity import AppRole
 from app.schemas.insurance import (
     CoverageReplaceRequest,
     EmployeeCoverageResponse,
@@ -200,7 +202,7 @@ VALUES(:company_id,:branch_id,:insurer_name,:policy_number,:tier_name,:annual_pr
         request: InsurancePolicyUpdateRequest,
     ) -> InsurancePolicyResponse:
         current = await self._lock_policy(principal, branch_id, policy_id)
-        if current.updated_at != request.expected_updated_at:
+        if not same_instant(current.updated_at, request.expected_updated_at):
             raise ServiceExecutionError("state_conflict")
         values = request.model_dump(exclude={"expected_updated_at"}, by_alias=False)
         await self.connection.execute(
@@ -231,7 +233,7 @@ WHERE id=:id
         expected_updated_at: datetime,
     ) -> None:
         current = await self._lock_policy(principal, branch_id, policy_id)
-        if current.updated_at != expected_updated_at:
+        if not same_instant(current.updated_at, expected_updated_at):
             raise ServiceExecutionError("state_conflict")
         linked = (
             await self.connection.execute(
@@ -299,7 +301,8 @@ WHERE id=:id
             )
         ).one_or_none()
         if (current is None and request.expected_updated_at is not None) or (
-            current is not None and current.updated_at != request.expected_updated_at
+            current is not None
+            and not same_instant(current.updated_at, request.expected_updated_at)
         ):
             raise ServiceExecutionError("state_conflict")
         if current is None:
@@ -359,6 +362,7 @@ SELECT coverage.id,coverage.employee_id,coverage.policy_id,coverage.member_id,
  policy.insurer_name,coverage.created_at,coverage.updated_at
 FROM public.employee_insurance coverage
 JOIN public.insurance_policies policy ON policy.id=coverage.policy_id
+ AND policy.company_id=coverage.company_id AND policy.branch_id=coverage.branch_id
 WHERE coverage.company_id=:company_id AND coverage.branch_id=:branch_id
  AND coverage.employee_id=:employee_id
 """
@@ -376,6 +380,33 @@ WHERE coverage.company_id=:company_id AND coverage.branch_id=:branch_id
         if row is None:
             raise ServiceExecutionError("resource_not_found")
         return EmployeeCoverageResponse.model_validate(row)
+
+    async def read_coverage(
+        self, principal: AuthorizationPrincipal, branch_id: uuid.UUID, employee_id: uuid.UUID
+    ) -> EmployeeCoverageResponse | None:
+        if principal.role is not AppRole.ADMIN:
+            raise ServiceExecutionError("operation_not_permitted")
+        exists = (
+            await self.connection.execute(
+                text(
+                    "SELECT 1 FROM public.employees WHERE id=:employee_id "
+                    "AND company_id=:company_id AND branch_id=:branch_id"
+                ),
+                {
+                    "employee_id": employee_id,
+                    "company_id": principal.company_id,
+                    "branch_id": branch_id,
+                },
+            )
+        ).scalar_one_or_none()
+        if exists is None:
+            raise ServiceExecutionError("resource_not_found")
+        try:
+            return await self.get_coverage(principal, branch_id, employee_id)
+        except ServiceExecutionError as error:
+            if error.code == "resource_not_found":
+                return None
+            raise
 
     async def self_coverage(self, principal: AuthorizationPrincipal) -> SelfInsuranceResponse:
         if principal.employee_id is None or principal.branch_id is None:
@@ -551,7 +582,7 @@ WHERE id=:id AND company_id=:company_id AND branch_id=:branch_id
         request: InsuranceDependantUpdateRequest,
     ) -> InsuranceDependantResponse:
         row = await self._lock_dependant(principal, branch_id, dependant_id)
-        if row.updated_at != request.expected_updated_at:
+        if not same_instant(row.updated_at, request.expected_updated_at):
             raise ServiceExecutionError("state_conflict")
         values = request.model_dump(exclude={"expected_updated_at"}, by_alias=False)
         await self.connection.execute(
@@ -580,7 +611,7 @@ UPDATE public.insurance_dependants SET name=:name,relationship=:relationship,
         expected_updated_at: datetime,
     ) -> None:
         row = await self._lock_dependant(principal, branch_id, dependant_id)
-        if row.updated_at != expected_updated_at:
+        if not same_instant(row.updated_at, expected_updated_at):
             raise ServiceExecutionError("state_conflict")
         await self._audit(
             "insurance_dependant_deleted",

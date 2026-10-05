@@ -1,13 +1,15 @@
+import { readCollectionPages } from './collectionPages.js'
+
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 const instant = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
 const date = /^\d{4}-\d{2}-\d{2}$/
 const money = /^(?:0|[1-9]\d{0,9})\.\d{2}$/
 
-function headers(branchId, idempotent = false) {
+function headers(branchId, idempotent = false, key) {
   if (branchId !== null && !uuid.test(branchId)) throw new TypeError('Invalid branch ID')
   return {
     ...(branchId === null ? {} : { 'X-Workloop-Branch-ID': branchId }),
-    ...(idempotent ? { 'Idempotency-Key': crypto.randomUUID() } : {}),
+    ...(idempotent ? { 'Idempotency-Key': key ?? crypto.randomUUID() } : {}),
   }
 }
 
@@ -91,19 +93,19 @@ export async function uploadEmployeeDocument(authentication, branchId, values, f
   return parseEmployeeDocument(response.data)
 }
 
-async function documentDecision(authentication, branchId, document, action, reason = null) {
+async function documentDecision(authentication, branchId, document, action, reason = null, key) {
   const response = await authentication.request(`/api/v1/employee-documents/${document.id}/${action}`, {
-    access: 'protected', method: 'POST', headers: headers(branchId, true),
+    access: 'protected', method: 'POST', headers: headers(branchId, true, key),
     json: { expectedUpdatedAt: document.updatedAt, reason },
   })
   return parseEmployeeDocument(response.data)
 }
 
-export const verifyEmployeeDocument = (authentication, branchId, document) => (
-  documentDecision(authentication, branchId, document, 'verify')
+export const verifyEmployeeDocument = (authentication, branchId, document, key) => (
+  documentDecision(authentication, branchId, document, 'verify', null, key)
 )
-export const rejectEmployeeDocument = (authentication, branchId, document, reason) => (
-  documentDecision(authentication, branchId, document, 'reject', reason)
+export const rejectEmployeeDocument = (authentication, branchId, document, reason, key) => (
+  documentDecision(authentication, branchId, document, 'reject', reason, key)
 )
 
 export async function downloadEmployeeDocument(authentication, branchId, documentId) {
@@ -116,9 +118,9 @@ export async function downloadEmployeeDocument(authentication, branchId, documen
   return response.data
 }
 
-export async function deleteEmployeeDocument(authentication, branchId, document) {
+export async function deleteEmployeeDocument(authentication, branchId, document, key) {
   const response = await authentication.request(`/api/v1/employee-documents/${document.id}`, {
-    access: 'protected', method: 'DELETE', headers: headers(branchId, true),
+    access: 'protected', method: 'DELETE', headers: headers(branchId, true, key),
     json: { expectedUpdatedAt: document.updatedAt },
   })
   if (!exact(response?.data, ['id', 'cleanupPending']) || response.data.id !== document.id) {
@@ -145,27 +147,39 @@ export async function readInsurancePolicies(authentication, branchId, options = 
   }), parseInsurancePolicy)
 }
 
-export async function saveInsurancePolicy(authentication, branchId, values, current = null) {
+export function readAllInsurancePolicies(authentication, branchId) {
+  return readCollectionPages((cursor) => readInsurancePolicies(authentication, branchId, { limit: 100, cursor }))
+}
+
+export async function saveInsurancePolicy(authentication, branchId, values, current = null, key) {
   const path = current === null ? '/api/v1/insurance/policies' : `/api/v1/insurance/policies/${current.id}`
   const response = await authentication.request(path, {
-    access: 'protected', method: current === null ? 'POST' : 'PATCH', headers: headers(branchId, true),
+    access: 'protected', method: current === null ? 'POST' : 'PATCH', headers: headers(branchId, true, key),
     json: current === null ? values : { ...values, expectedUpdatedAt: current.updatedAt },
   })
   return parseInsurancePolicy(response.data)
 }
 
-export function deleteInsurancePolicy(authentication, branchId, policy) {
+export function deleteInsurancePolicy(authentication, branchId, policy, key) {
   return authentication.request(`/api/v1/insurance/policies/${policy.id}`, {
-    access: 'protected', method: 'DELETE', headers: headers(branchId, true),
+    access: 'protected', method: 'DELETE', headers: headers(branchId, true, key),
     json: { expectedUpdatedAt: policy.updatedAt },
   })
 }
 
-export async function replaceEmployeeCoverage(authentication, branchId, employeeId, values) {
+export async function replaceEmployeeCoverage(authentication, branchId, employeeId, values, key) {
   const response = await authentication.request(`/api/v1/insurance/employees/${employeeId}/coverage`, {
-    access: 'protected', method: 'PUT', headers: headers(branchId, true), json: values,
+    access: 'protected', method: 'PUT', headers: headers(branchId, true, key), json: values,
   })
   return parseEmployeeCoverage(response.data)
+}
+
+export async function readEmployeeCoverage(authentication, branchId, employeeId) {
+  if (!uuid.test(employeeId)) throw new TypeError('Invalid employee ID')
+  const response = await authentication.request(`/api/v1/insurance/employees/${employeeId}/coverage`, {
+    access: 'protected', headers: headers(branchId),
+  })
+  return response.data === null ? null : parseEmployeeCoverage(response.data)
 }
 
 const coverageKeys = [
@@ -217,24 +231,24 @@ export function parseInsuranceDependant(value) {
   return Object.freeze(value)
 }
 
-export async function createInsuranceDependant(authentication, branchId, employeeId, values) {
+export async function createInsuranceDependant(authentication, branchId, employeeId, values, key) {
   const response = await authentication.request(`/api/v1/insurance/employees/${employeeId}/dependants`, {
-    access: 'protected', method: 'POST', headers: headers(branchId, true), json: values,
+    access: 'protected', method: 'POST', headers: headers(branchId, true, key), json: values,
   })
   return parseInsuranceDependant(response.data)
 }
 
-export async function updateInsuranceDependant(authentication, branchId, dependant, values) {
+export async function updateInsuranceDependant(authentication, branchId, dependant, values, key) {
   const response = await authentication.request(`/api/v1/insurance/dependants/${dependant.id}`, {
-    access: 'protected', method: 'PATCH', headers: headers(branchId, true),
+    access: 'protected', method: 'PATCH', headers: headers(branchId, true, key),
     json: { ...values, expectedUpdatedAt: dependant.updatedAt },
   })
   return parseInsuranceDependant(response.data)
 }
 
-export function deleteInsuranceDependant(authentication, branchId, dependant) {
+export function deleteInsuranceDependant(authentication, branchId, dependant, key) {
   return authentication.request(`/api/v1/insurance/dependants/${dependant.id}`, {
-    access: 'protected', method: 'DELETE', headers: headers(branchId, true),
+    access: 'protected', method: 'DELETE', headers: headers(branchId, true, key),
     json: { expectedUpdatedAt: dependant.updatedAt },
   })
 }
@@ -264,12 +278,31 @@ export function parseEmployeeContract(value) {
   return Object.freeze(value)
 }
 
-export async function recordEmployeeContract(authentication, branchId, employeeId, action, values) {
+export async function readCurrentEmployeeContract(authentication, branchId, employeeId) {
+  if (!uuid.test(employeeId)) throw new TypeError('Invalid employee ID')
+  const response = await authentication.request(`/api/v1/employees/${employeeId}/contracts/current`, {
+    access: 'protected', headers: headers(branchId),
+  })
+  const value = response?.data
+  if (!exact(value, ['employeeUpdatedAt', 'currentContractType', 'currentContractEndDate', 'latestContractEventId'])
+    || !instant.test(value.employeeUpdatedAt) || !['Limited', 'Unlimited'].includes(value.currentContractType)
+    || value.currentContractEndDate !== null && !date.test(value.currentContractEndDate)
+    || value.latestContractEventId !== null && !uuid.test(value.latestContractEventId)) {
+    throw new Error('Invalid current contract response')
+  }
+  return Object.freeze(value)
+}
+
+export async function readAllEmployeeContracts(authentication, branchId, employeeId) {
+  return readCollectionPages((cursor) => readEmployeeContracts(authentication, branchId, employeeId, { limit: 100, cursor }))
+}
+
+export async function recordEmployeeContract(authentication, branchId, employeeId, action, values, key) {
   if (!['new', 'renew', 'convert', 'not-renewed'].includes(action)) {
     throw new TypeError('Invalid contract action')
   }
   const response = await authentication.request(`/api/v1/employees/${employeeId}/contracts/${action}`, {
-    access: 'protected', method: 'POST', headers: headers(branchId, true), json: values,
+    access: 'protected', method: 'POST', headers: headers(branchId, true, key), json: values,
   })
   return parseEmployeeContract(response.data)
 }

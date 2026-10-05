@@ -59,6 +59,8 @@ from app.organization_api import router as organization_router
 from app.output_api import router as output_router
 from app.payroll_api import payslip_router
 from app.payroll_api import router as payroll_router
+from app.portal_projection_api import router as portal_projection_router
+from app.portal_retained_api import router as portal_retained_router
 from app.rendered_output_api import (
     offboarding_router as rendered_offboarding_router,
 )
@@ -265,6 +267,8 @@ def create_app(
     )
     application.include_router(organization_router)
     application.include_router(routing_router)
+    application.include_router(portal_projection_router)
+    application.include_router(portal_retained_router)
     application.include_router(employee_router)
     application.include_router(employee_document_router)
     application.include_router(employment_contract_router)

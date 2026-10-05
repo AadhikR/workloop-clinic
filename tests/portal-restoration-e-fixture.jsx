@@ -78,8 +78,10 @@ training = { ...training, resultVerified: true, isCme: false }
 let appraisal = { id: id(41), cycleId: id(40), cycleName: 'H2 2026', reviewFrom: '2026-07-01', reviewTo: '2026-12-31',
   employeeId: employeeId, employeeName: employee.name, templateVersion: 'clinic-v1', cycleStatus: 'active', overallRating: null,
   status: 'pending', reviewerComments: '', developmentPlan: '', reviewedAt: null, reviewedByAppUserId: null,
-  createdAt: timestamp, updatedAt: timestamp, sections: [{ id: id(42), sectionName: 'Clinical competence',
-    weight: '100.00', rating: '4.0', comments: 'Strong progress', sortOrder: 0, updatedAt: timestamp }] }
+  employeeDepartment: 'Clinical', employeeJobTitle: 'Nurse',
+  createdAt: timestamp, updatedAt: timestamp, sections: [
+    ['Clinical Competency', '2.00'], ['Patient Care Quality', '2.00'], ['Communication and Teamwork', '1.50'], ['Punctuality and Attendance', '1.00'], ['Professional Development', '1.00'],
+  ].map(([sectionName, weight], index) => ({ id: id(42 + index), sectionName, weight, rating: '4.0', comments: 'Strong progress', sortOrder: (index + 1) * 10, updatedAt: timestamp })) }
 const leaveSettings = { id: id(30), branchId, leaveYearType: 'calendar', weekendDefinition: 'fri-sat', carryForwardEnabled: true, carryForwardMaxDays: 15, approvalChain: '2-level', ramadanActive: false, ramadanStart: null, ramadanEnd: null, createdAt: timestamp, updatedAt: timestamp }
 const leaveType = { id: id(31), branchId, code: 'ANNUAL', name: 'Annual Leave', color: '#2563eb', isPaid: true, isUnlimited: false, requiresApproval: true, requiresAttachment: false, requiresReason: true, minNoticeDays: 7, annualEntitlementDays: '30.00', accrualType: 'monthly', dayCountType: 'calendar', autoApprove: false, carryForwardAllowed: true, carryForwardMaxDays: 15, genderRestriction: null, minServiceMonths: 0, oncePerCareer: false, notDeductedFromAnnual: false, affectsPayroll: true, lawReference: 'UAE Labour Law Article 29', isActive: true, sortOrder: 1, probationEligible: true, createdAt: timestamp, updatedAt: timestamp }
 const holiday = { id: id(32), branchId, date: '2026-12-02', name: 'National Day', type: 'federal', year: 2026, createdAt: timestamp }
@@ -123,7 +125,7 @@ const authentication = {
     if (route === '/api/v1/notifications') return response({ items: [notification], nextCursor: null, asOf: timestamp, sourceVersion: digest })
     if (route.endsWith('/read-all')) { notification.readAt = nextTimestamp; return response({ changedCount: 1, unreadCount: 0, asOf: nextTimestamp }) }
     if (route.endsWith('/read')) { notification.readAt = nextTimestamp; return response(notification) }
-    if (route === '/api/v1/dashboards/self') return response({ asOf: timestamp, businessDate: '2026-10-05', sourceVersion: digest, cards: [['employmentStatus', 'Employment', 'active', 'status', 'profile'], ['leaveBalance', 'Annual leave available', '26.00', 'days', 'leave'], ['latestPayslip', 'Latest payslip', '9250.00', 'AED', 'payslips'], ['todayAttendance', 'Today attendance', 'LATE', 'status', 'attendance'], ['assignedAssets', 'Assigned assets', 1, 'assets', 'developmentAssets'], ['todayShift', 'Today shift', 'Morning clinic', 'shift', 'schedule']].map(([code, label, value, unit, target]) => ({ code, label, value, unit, severity: 'info', comparison: null, drillDown: { code, target } })) })
+    if (route === '/api/v1/dashboards/self') return response({ asOf: timestamp, businessDate: '2026-10-05', sourceVersion: digest, cards: [['employmentStatus', 'Employment', 'active', 'status', 'profile'], ['leaveBalance', 'Annual leave available', '26.00', 'days', 'leave'], ['latestPayslip', 'Latest payslip', '9250.00', 'AED', 'payslips'], ['todayAttendance', 'Today attendance', 'LATE', 'status', 'attendance'], ['assignedAssets', 'Assigned assets', 1, 'assets', 'developmentAssets'], ['todayShift', 'Today shift', 'Morning clinic', 'shift', 'schedule']].map(([code, label, value, unit, target]) => ({ code, label, value, unit, severity: 'info', comparison: code === 'latestPayslip' ? { label: 'Payroll period', value: '2026-09', unit: 'period' } : null, drillDown: { code, target } })) })
     if (route === '/api/v1/assets/self') return response([{ id: id(95), assetId: id(96), employeeId, assetName: 'Clinic laptop', assetCode: 'IT-001', status: 'assigned', assignedDate: '2026-09-01', returnDate: null, conditionAtHandover: 'good', conditionAtReturn: null, notes: '', createdAt: timestamp }])
     if (route === '/api/v1/leave/settings') return response(leaveSettings)
     if (route === '/api/v1/leave/types') return response([leaveType])
@@ -133,6 +135,7 @@ const authentication = {
     if (route === '/api/v1/leave/requests/self') { leaveRequest = { ...leaveRequest, ...body, id: id(97), daysRequested: '2.00', updatedAt: nextTimestamp }; delete leaveRequest.expectedUpdatedAt; return response(leaveRequest) }
     if (route.endsWith('/cancel') && route.includes('/leave/requests/')) { leaveRequest.status = 'Cancelled'; return response(leaveRequest) }
     if (route === '/api/v1/leave/approvals/queue') return response(leaveRequest.status === 'Pending' ? [{ request: { ...leaveRequest, employeeId: report.id }, employee: { id: report.id, employeeNumber: report.empNo, name: report.name, jobTitle: report.jobTitle, department: report.department }, leaveType, balance: { ...leaveBalance, employeeId: report.id }, canDecide: true, visibleBecause: 'directReport' }] : [])
+    if (route === '/api/v1/leave/approvals/recent') return response([{ id: id(110), requestId: id(111), employeeId: report.id, employeeName: report.name, leaveType: 'Annual Leave', startDate: '2026-09-20', endDate: '2026-09-21', action: 'manager_approved', reason: 'Coverage confirmed', actorName: 'You', actionAt: timestamp }])
     if (route.includes('/leave/approvals/') && route.endsWith('/decision')) { leaveRequest.status = body.decision === 'reject' ? 'ManagerRejected' : 'ManagerApproved'; return response(leaveRequest) }
     if (route.endsWith('/audit')) return response([])
     if (route === '/api/v1/attendance/me/today') return response({ record: { ...attendanceRecord, employeeId }, rawEventFallback: 'none', rawEvents: [] })
@@ -148,6 +151,7 @@ const authentication = {
     if (route === `/api/v1/payslips/self/${payslip.id}`) return response(payslip)
     if (options.responseType === 'bytes') return { bytes: new TextEncoder().encode('%PDF-1.4\nSynthetic protected output\n%%EOF'), contentType: 'application/pdf', filename: 'synthetic.pdf' }
     if (route === '/api/v1/advances/self' && method === 'GET') return response([personalAdvance(advance), personalAdvance({ ...advance, id: id(100), status: 'active' })])
+    if (route.endsWith('/self-progress')) return { summary: { advanceId: id(100), amount: advance.amount, totalPaid: '0.00', outstandingBalance: advance.outstandingBalance, status: 'active', updatedAt: advance.updatedAt, sourceVersion: digest, schedule: ['2026-10', '2026-11'].map((period) => ({ period, scheduledAmount: '500.00', paidAmount: '0.00', remainingAmount: '500.00', status: period === '2026-10' ? 'due' : 'upcoming' })) }, data: [], page }
     if (route === '/api/v1/advances/self' && method === 'POST') { advance = { ...advance, ...body, employeeId, updatedAt: nextTimestamp }; return response(personalAdvance(advance)) }
     if (route.includes('/advances/') && route.endsWith('/withdraw')) { advance = { ...advance, status: 'cancelled', updatedAt: nextTimestamp }; return response(personalAdvance(advance)) }
     if (route === '/api/v1/expenses/self' && method === 'GET') return response([personalExpense(claim)])
@@ -160,6 +164,7 @@ const authentication = {
     if (route.endsWith('/certifications/self') || route.endsWith('/certifications/direct-reports')) { const target = route.endsWith('/direct-reports') ? report.id : employeeId; if (method === 'POST') { const fields = { ...body }; delete fields.employeeId; certification = { ...certification, ...fields, employeeId: target, updatedAt: nextTimestamp } } return response(method === 'GET' ? [{ ...certification, employeeId: target }] : certification) }
     if (route.endsWith('/cme/self')) return response({ year: 2026, targetHours: '25.0', achievedHours: '8.0', gapHours: '17.0' })
     if (route.endsWith('/appraisals/self') || route.endsWith('/appraisals/direct-reports')) return response([{ ...appraisal, employeeId: route.endsWith('/direct-reports') ? report.id : employeeId, employeeName: route.endsWith('/direct-reports') ? report.name : employee.name }])
+    if (route.endsWith('/manager-review')) { appraisal = { ...appraisal, status: 'reviewed', overallRating: '4.0', reviewedAt: nextTimestamp, updatedAt: nextTimestamp, sections: appraisal.sections.map((section) => ({ ...section, ...body.sections.find((item) => item.id === section.id), updatedAt: nextTimestamp })) }; return response(appraisal) }
     if (route.includes('/appraisals/') && route.includes('/sections/') && method === 'PUT') { appraisal = { ...appraisal, updatedAt: nextTimestamp, sections: appraisal.sections.map((item) => ({ ...item, rating: body.rating, comments: body.comments, updatedAt: nextTimestamp })) }; return response(appraisal) }
     if (route === '/api/v1/employee-documents/self') return response([{ ...documentRecord, employeeId }])
     if (route === '/api/v1/employee-documents/submissions') return response({ id: id(105), submissionToken: 'synthetic-token', expiresAt: nextTimestamp })
@@ -173,6 +178,7 @@ const authentication = {
     throw new Error(`Unhandled synthetic route ${method} ${path}`)
   },
 }
-window.history.replaceState(null, '', `/${role}${query.get('module') === 'home' || !query.get('module') ? '' : '/' + query.get('module')}`)
+export const restorationFixture = { account, authentication, branchId, branch }
+if (!query.has('fixtureOnly')) window.history.replaceState(null, '', `/${role}${query.get('module') === 'home' || !query.get('module') ? '' : '/' + query.get('module')}`)
 localStorage.setItem('workloop-dark-mode', query.get('dark') === 'true' ? 'true' : 'false')
-createRoot(document.getElementById('root')).render(<PortalShell account={account} authentication={authentication} />)
+if (!query.has('fixtureOnly')) createRoot(document.getElementById('root')).render(<PortalShell account={account} authentication={authentication} />)

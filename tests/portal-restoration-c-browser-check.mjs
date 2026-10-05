@@ -6,7 +6,7 @@ import { chromium } from '@playwright/test'
 import { createServer } from 'vite'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const evidence = path.join(root, 'docs/migration/phase-15/evidence/restoration-c')
+const evidence = process.env.PORTAL_RESTORATION_EVIDENCE_DIR ? path.resolve(process.env.PORTAL_RESTORATION_EVIDENCE_DIR) : path.join(root, 'docs/migration/phase-15/evidence/restoration-c')
 const server = await createServer({ configFile: path.join(root, 'vite.config.js'), envFile: false, server: { host: '127.0.0.1', port: 5185, strictPort: true } })
 await server.listen()
 const browser = await chromium.launch({ headless: true })

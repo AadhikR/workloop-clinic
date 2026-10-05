@@ -29,10 +29,10 @@ test('development areas use scoped tabs and dialog forms', () => {
   assert.ok(text.includes('showCertificationForm'))
 })
 
-test('departments expose historical views and modal editing', () => {
+test('departments expose historical views and inline editing', () => {
   const text = source('DepartmentManager.jsx')
   for (const name of ['Organization Chart', 'Staffing Rules', 'Expand all', 'Collapse all', 'New Department']) assert.ok(text.includes(name), name)
-  assert.ok(text.includes('FormDialog'))
+  assert.ok(text.includes('InlineEditor'))
 })
 
 test('appraisals and incidents keep action forms inside dialogs', () => {

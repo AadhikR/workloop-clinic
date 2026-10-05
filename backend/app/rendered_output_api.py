@@ -72,7 +72,7 @@ def _branch(request: Request, principal: AuthorizationPrincipal) -> uuid.UUID:
     raise ServiceExecutionError("operation_not_permitted")
 
 
-async def _deliver(
+async def deliver_rendered_output(
     *,
     request: Request,
     claims: VerifiedAccessToken,
@@ -136,7 +136,7 @@ async def download_report_pdf(
         output = await render_bounded(principal.app_user_id, lambda: render_report_pdf(report))
         return output, "report_pdf_exported", "report", branch_id
 
-    return await _deliver(
+    return await deliver_rendered_output(
         request=request,
         claims=claims,
         principal=principal,
@@ -171,7 +171,7 @@ async def download_self_payslip_pdf(
         output = await render_bounded(principal.app_user_id, lambda: render_payslip_pdf(source))
         return output, "payslip_pdf_exported", "payslip", payslip_id
 
-    return await _deliver(
+    return await deliver_rendered_output(
         request=request,
         claims=claims,
         principal=principal,
@@ -204,7 +204,7 @@ async def download_administrator_payslip_pdf(
         output = await render_bounded(principal.app_user_id, lambda: render_payslip_pdf(source))
         return output, "payslip_pdf_exported", "payslip", payslip_id
 
-    return await _deliver(
+    return await deliver_rendered_output(
         request=request,
         claims=claims,
         principal=principal,
@@ -237,7 +237,7 @@ async def download_payslip_zip(
         )
         return output, "payslip_zip_exported", "payroll_run", run_id
 
-    return await _deliver(
+    return await deliver_rendered_output(
         request=request,
         claims=claims,
         principal=principal,
@@ -270,7 +270,7 @@ async def download_completed_request_letter_pdf(
         )
         return output, "letter_pdf_exported", "letter_request", request_id
 
-    return await _deliver(
+    return await deliver_rendered_output(
         request=request,
         claims=claims,
         principal=principal,
@@ -312,7 +312,7 @@ async def download_offboarding_letter_pdf(
             checklist_id,
         )
 
-    return await _deliver(
+    return await deliver_rendered_output(
         request=request,
         claims=claims,
         principal=principal,
@@ -351,7 +351,7 @@ async def download_final_settlement_pdf(
             uuid.UUID(str(source["id"])),
         )
 
-    return await _deliver(
+    return await deliver_rendered_output(
         request=request,
         claims=claims,
         principal=principal,

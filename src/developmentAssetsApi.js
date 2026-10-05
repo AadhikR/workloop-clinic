@@ -1,3 +1,5 @@
+import { readCollectionPages } from './collectionPages.js'
+
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 const instant = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
 const date = /^\d{4}-\d{2}-\d{2}$/
@@ -71,7 +73,11 @@ export async function readAssets(authentication, branchId, options = {}) {
 }
 
 export async function readSelfAssets(authentication) {
-  return collection(await authentication.request('/api/v1/assets/self', { access: 'protected' }), parseAssetAssignment)
+  const items = await readCollectionPages(async (cursor) => collection(await authentication.request(
+    `/api/v1/assets/self${query({ limit: 100, cursor })}`, { access: 'protected' },
+  ), parseAssetAssignment))
+  items.sort((a, b) => b.assignedDate.localeCompare(a.assignedDate) || b.id.localeCompare(a.id))
+  return { items, page: { limit: 100, nextCursor: null, hasMore: false } }
 }
 
 export async function readAssetHistory(authentication, branchId, options = {}) {
@@ -79,8 +85,9 @@ export async function readAssetHistory(authentication, branchId, options = {}) {
     access: 'protected', headers: headers(branchId),
   }), (value) => {
     if (typeof value?.employeeName !== 'string') throw new Error('Invalid asset history response')
-    const { employeeName, ...assignment } = value
-    return Object.freeze({ ...parseAssetAssignment(assignment), employeeName })
+    const { employeeName, assignedByName = 'Unknown actor', ...assignment } = value
+    if (typeof assignedByName !== 'string') throw new Error('Invalid assigned-by label')
+    return Object.freeze({ ...parseAssetAssignment(assignment), employeeName, assignedByName })
   })
 }
 
@@ -160,19 +167,23 @@ export function parseCertification(value) {
   return Object.freeze(value)
 }
 
-function scopedPath(resource, role, employeeId = null) {
-  if (role === 'admin') return `/api/v1/${resource}${query({ employeeId })}`
-  if (role === 'manager' && employeeId) return `/api/v1/${resource}/direct-reports${query({ employeeId })}`
-  return `/api/v1/${resource}/self`
+function scopedPath(resource, role, employeeId = null, options = {}) {
+  if (role === 'admin') return `/api/v1/${resource}${query({ employeeId, ...options })}`
+  if (role === 'manager' && employeeId) return `/api/v1/${resource}/direct-reports${query({ employeeId, ...options })}`
+  return `/api/v1/${resource}/self${query(options)}`
 }
 
 export async function readTraining(authentication, branchId, role, employeeId = null) {
-  return collection(await authentication.request(scopedPath('training-records', role, employeeId), {
-    access: 'protected', headers: headers(role === 'admin' ? branchId : null),
-  }), parseTraining)
+  const items = await readCollectionPages(async (cursor) => collection(await authentication.request(
+    scopedPath('training-records', role, employeeId, { limit: 100, cursor }), {
+      access: 'protected', headers: headers(role === 'admin' ? branchId : null),
+    },
+  ), parseTraining))
+  items.sort((a, b) => (b.startDate ?? '').localeCompare(a.startDate ?? '') || b.id.localeCompare(a.id))
+  return { items, page: { limit: 100, nextCursor: null, hasMore: false } }
 }
 
-export async function createTraining(authentication, branchId, role, employeeId, values) {
+export async function createTraining(authentication, branchId, role, employeeId, values, { idempotencyKey } = {}) {
   const path = role === 'admin' ? '/api/v1/training-records'
     : role === 'manager' && employeeId ? '/api/v1/training-records/direct-reports'
       : '/api/v1/training-records/self'
@@ -186,25 +197,25 @@ export async function createTraining(authentication, branchId, role, employeeId,
     notes: values.notes,
   }
   const response = await authentication.request(path, {
-    access: 'protected', method: 'POST', headers: headers(role === 'admin' ? branchId : null, true),
+    access: 'protected', method: 'POST', headers: headers(role === 'admin' ? branchId : null, true, idempotencyKey),
     json: role === 'admin' ? { ...values, employeeId }
       : role === 'manager' && employeeId ? { ...staffValues, employeeId } : staffValues,
   })
   return parseTraining(response.data)
 }
 
-export async function updateTraining(authentication, branchId, role, record, values) {
+export async function updateTraining(authentication, branchId, role, record, values, { idempotencyKey } = {}) {
   const staffValues = Object.fromEntries(['trainingTitle', 'trainingType', 'provider', 'startDate', 'endDate', 'durationHours', 'notes'].map((key) => [key, values[key]]))
   const response = await authentication.request(`/api/v1/training-records/${record.id}`, {
-    access: 'protected', method: 'PATCH', headers: headers(role === 'admin' ? branchId : null, true),
+    access: 'protected', method: 'PATCH', headers: headers(role === 'admin' ? branchId : null, true, idempotencyKey),
     json: { ...(role === 'admin' ? values : staffValues), expectedUpdatedAt: record.updatedAt },
   })
   return parseTraining(response.data)
 }
 
-export async function completeTraining(authentication, branchId, record, values) {
+export async function completeTraining(authentication, branchId, record, values, { idempotencyKey } = {}) {
   return parseTraining((await authentication.request(`/api/v1/training-records/${record.id}/complete`, {
-    access: 'protected', method: 'POST', headers: headers(branchId, true),
+    access: 'protected', method: 'POST', headers: headers(branchId, true, idempotencyKey),
     json: { ...values, expectedUpdatedAt: record.updatedAt },
   })).data)
 }
@@ -225,43 +236,43 @@ export async function transitionTraining(authentication, branchId, record, comma
   })).data)
 }
 
-export function deleteTraining(authentication, branchId, record) {
+export function deleteTraining(authentication, branchId, record, { idempotencyKey } = {}) {
   return authentication.request(`/api/v1/training-records/${record.id}`, {
-    access: 'protected', method: 'DELETE', headers: headers(branchId, true),
+    access: 'protected', method: 'DELETE', headers: headers(branchId, true, idempotencyKey),
     json: { expectedUpdatedAt: record.updatedAt },
   })
 }
 
 export async function readCertifications(authentication, branchId, role, employeeId = null) {
-  return collection(await authentication.request(scopedPath('certifications', role, employeeId), {
-    access: 'protected', headers: headers(role === 'admin' ? branchId : null),
-  }), parseCertification)
+  const items = await readCollectionPages(async (cursor) => collection(await authentication.request(
+    scopedPath('certifications', role, employeeId, { limit: 100, cursor }), {
+      access: 'protected', headers: headers(role === 'admin' ? branchId : null),
+    },
+  ), parseCertification))
+  items.sort((a, b) => (a.expiryDate ?? '9999').localeCompare(b.expiryDate ?? '9999') || a.certificationName.localeCompare(b.certificationName) || a.id.localeCompare(b.id))
+  return { items, page: { limit: 100, nextCursor: null, hasMore: false } }
 }
 
-export async function createCertification(authentication, branchId, role, employeeId, values) {
+export async function createCertification(authentication, branchId, role, employeeId, values, { idempotencyKey } = {}) {
   const path = role === 'admin' ? '/api/v1/certifications'
     : role === 'manager' && employeeId ? '/api/v1/certifications/direct-reports'
       : '/api/v1/certifications/self'
   const response = await authentication.request(path, {
-    access: 'protected', method: 'POST', headers: headers(role === 'admin' ? branchId : null, true),
+    access: 'protected', method: 'POST', headers: headers(role === 'admin' ? branchId : null, true, idempotencyKey),
     json: role === 'admin' || role === 'manager' && employeeId ? { ...values, employeeId } : values,
   })
   return parseCertification(response.data)
 }
 
-export async function updateCertification(authentication, branchId, record, values) {
+export async function updateCertification(authentication, branchId, record, values, { idempotencyKey } = {}) {
   return parseCertification((await authentication.request(`/api/v1/certifications/${record.id}`, {
-    access: 'protected', method: 'PATCH', headers: headers(branchId, true),
+    access: 'protected', method: 'PATCH', headers: headers(branchId, true, idempotencyKey),
     json: { ...values, expectedUpdatedAt: record.updatedAt },
   })).data)
 }
 
 export async function readBranchCme(authentication, branchId, year) {
-  const records = []
-  const seen = new Set()
-  let cursor = null
-  do {
-    const response = collection(await authentication.request(`/api/v1/cme/summary${query({ year, limit: 100, cursor })}`, {
+  const records = await readCollectionPages(async (cursor) => collection(await authentication.request(`/api/v1/cme/summary${query({ year, limit: 100, cursor })}`, {
       access: 'protected', headers: headers(branchId),
     }), (value) => {
       if (!exact(value, ['employeeId', 'employeeName', 'department', 'year', 'targetHours', 'achievedHours', 'inProgressHours', 'gapHours', 'requirement']) || !uuid.test(value.employeeId)
@@ -270,13 +281,16 @@ export async function readBranchCme(authentication, branchId, year) {
       const requirement = value.requirement === null ? null : parseCmeRequirement(value.requirement)
       if (requirement && (requirement.employeeId !== value.employeeId || requirement.year !== year)) throw new Error('Invalid CME requirement scope')
       return Object.freeze({ ...value, requirement })
-    })
-    records.push(...response.items)
-    cursor = response.page.hasMore ? response.page.nextCursor : null
-    if (response.page.hasMore && (!cursor || seen.has(cursor))) throw new Error('CME pagination is unavailable')
-    seen.add(cursor)
-  } while (cursor)
+    }), (item) => item.employeeId)
   return records.sort((left, right) => left.employeeName.localeCompare(right.employeeName))
+}
+
+export async function readCmeContributions(authentication, branchId, employeeId, year) {
+  return readCollectionPages(async (cursor) => collection(await authentication.request(
+    `/api/v1/cme/contributions${query({ employeeId, year, limit: 100, cursor })}`, {
+      access: 'protected', headers: headers(branchId),
+    },
+  ), parseTraining))
 }
 
 export async function decideCertification(authentication, branchId, certification, action, reason = null) {
@@ -287,9 +301,9 @@ export async function decideCertification(authentication, branchId, certificatio
   return parseCertification(response.data)
 }
 
-export function deleteCertification(authentication, branchId, certification) {
+export function deleteCertification(authentication, branchId, certification, { idempotencyKey } = {}) {
   return authentication.request(`/api/v1/certifications/${certification.id}`, {
-    access: 'protected', method: 'DELETE', headers: headers(branchId, true),
+    access: 'protected', method: 'DELETE', headers: headers(branchId, true, idempotencyKey),
     json: { expectedUpdatedAt: certification.updatedAt },
   })
 }

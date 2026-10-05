@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { readAllEmployees, readDirectReports } from './employeeApi.js'
+import { readAllEmployees, readAllDirectReports } from './employeeApi.js'
 
 export default function EmployeePicker({ authentication, branchId, value, onChange, role = 'admin', required = false, label = 'Employee', emptyLabel = 'Choose employee' }) {
   const [state, setState] = useState({ status: 'loading', employees: [] })
@@ -9,7 +9,7 @@ export default function EmployeePicker({ authentication, branchId, value, onChan
   useEffect(() => {
     const controller = new AbortController()
     const pending = role === 'manager'
-      ? readDirectReports(authentication, { signal: controller.signal }).then((result) => result.data)
+      ? readAllDirectReports(authentication, { signal: controller.signal })
       : readAllEmployees(authentication, branchId, { signal: controller.signal, sort: 'name' })
     pending.then((items) => {
       if (controller.signal.aborted) return

@@ -16,7 +16,8 @@ from app.auth.dependencies import (
     VerifiedAccessToken,
 )
 from app.http.errors import error_response_documentation, success_response_documentation
-from app.http.schemas import CollectionResponse, DataResponse, Page
+from app.http.pagination import uuid_page
+from app.http.schemas import CollectionResponse, DataResponse
 from app.models.identity import AppRole
 from app.phase11c_support import executor, idempotent_mutation
 from app.schemas.appraisals import (
@@ -25,6 +26,7 @@ from app.schemas.appraisals import (
     AppraisalCycleResponse,
     AppraisalCycleUpdateRequest,
     AppraisalGenerationResponse,
+    AppraisalManagerReviewRequest,
     AppraisalResponse,
     AppraisalReviewRequest,
     AppraisalSectionRatingRequest,
@@ -110,16 +112,17 @@ async def list_appraisal_cycles(
     principal: AuthenticatedReadPrincipal,
     selected: AdminSelectedBranch,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    cursor: Annotated[uuid.UUID | None, Query()] = None,
 ) -> CollectionResponse[AppraisalCycleResponse]:
     items = await executor(request).execute(
         claims=claims,
         principal=principal,
         selected_admin_branch_id=selected,
         operation=lambda connection: AppraisalService(connection).list_cycles(
-            principal, selected, AppraisalCycleListQuery(limit)
+            principal, selected, AppraisalCycleListQuery(limit + 1, cursor)
         ),
     )
-    return CollectionResponse(data=items, page=Page(limit=limit, next_cursor=None, has_more=False))
+    return uuid_page(items, limit)
 
 
 @cycle_router.post("", operation_id="create_appraisal_cycle", responses=ERRORS)
@@ -339,6 +342,7 @@ async def _staff_list(
     principal: AuthorizationPrincipal,
     scope: str,
     limit: int,
+    cursor: uuid.UUID | None = None,
 ) -> CollectionResponse[AppraisalResponse]:
     if principal.branch_id is None:
         raise ServiceExecutionError("operation_not_permitted")
@@ -347,10 +351,10 @@ async def _staff_list(
         claims=claims,
         principal=principal,
         operation=lambda connection: AppraisalService(connection).list_appraisals(
-            principal, branch_id, scope=scope, limit=limit
+            principal, branch_id, scope=scope, limit=limit + 1, after_id=cursor
         ),
     )
-    return CollectionResponse(data=items, page=Page(limit=limit, next_cursor=None, has_more=False))
+    return uuid_page(items, limit)
 
 
 @appraisal_router.get("/self", operation_id="list_self_appraisals", responses=ERRORS)
@@ -359,9 +363,15 @@ async def list_self_appraisals(
     claims: VerifiedAccessToken,
     principal: AuthenticatedReadPrincipal,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    cursor: Annotated[uuid.UUID | None, Query()] = None,
 ) -> CollectionResponse[AppraisalResponse]:
     return await _staff_list(
-        request=request, claims=claims, principal=principal, scope="self", limit=limit
+        request=request,
+        claims=claims,
+        principal=principal,
+        scope="self",
+        limit=limit,
+        cursor=cursor,
     )
 
 
@@ -373,9 +383,15 @@ async def list_direct_report_appraisals(
     claims: VerifiedAccessToken,
     principal: AuthenticatedReadPrincipal,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    cursor: Annotated[uuid.UUID | None, Query()] = None,
 ) -> CollectionResponse[AppraisalResponse]:
     return await _staff_list(
-        request=request, claims=claims, principal=principal, scope="direct_report", limit=limit
+        request=request,
+        claims=claims,
+        principal=principal,
+        scope="direct_report",
+        limit=limit,
+        cursor=cursor,
     )
 
 
@@ -414,6 +430,46 @@ async def rate_appraisal_section(
         operation_id="rate_appraisal_section",
         method="PUT",
         route_parameters={"appraisalId": str(appraisal_id), "sectionId": str(section_id)},
+        body=cast(dict[str, object], body.model_dump(mode="json", by_alias=True)),
+        mutate=mutate,
+        selected_admin_branch_id=None,
+    )
+
+
+@appraisal_router.post(
+    "/{appraisal_id}/manager-review",
+    operation_id="submit_manager_appraisal_review",
+    responses=ERRORS,
+)
+async def submit_manager_appraisal_review(
+    appraisal_id: uuid.UUID,
+    request: Request,
+    body: AppraisalManagerReviewRequest,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedWritePrincipal,
+) -> JSONResponse:
+    if principal.branch_id is None or principal.role is not AppRole.MANAGER:
+        raise ServiceExecutionError("operation_not_permitted")
+    branch_id = principal.branch_id
+
+    async def mutate(service: AppraisalService) -> IdempotentResponse:
+        result = await service.submit_manager_review(principal, branch_id, appraisal_id, body)
+        return IdempotentResponse(
+            200,
+            DataResponse(data=result).model_dump(mode="json", by_alias=True),
+            None,
+            "appraisal",
+            appraisal_id,
+        )
+
+    return await _mutation(
+        request=request,
+        claims=claims,
+        principal=principal,
+        branch_id=branch_id,
+        operation_id="submit_manager_appraisal_review",
+        method="POST",
+        route_parameters={"appraisalId": str(appraisal_id)},
         body=cast(dict[str, object], body.model_dump(mode="json", by_alias=True)),
         mutate=mutate,
         selected_admin_branch_id=None,

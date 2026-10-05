@@ -2,15 +2,18 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.auth.application_user import AuthorizationPrincipal
 from app.db.audit import append_audit_event
+from app.http.versions import same_instant
+from app.models.identity import AppRole
 from app.schemas.employment_contract import (
     ContractCommandRequest,
+    ContractCurrentResponse,
     ContractNotRenewedRequest,
     EmployeeContractResponse,
 )
@@ -30,6 +33,86 @@ class EmploymentContractListQuery:
 class EmploymentContractService:
     def __init__(self, connection: AsyncConnection) -> None:
         self.connection = connection
+
+    async def print_source(
+        self, principal: AuthorizationPrincipal, branch_id: uuid.UUID, employee_id: uuid.UUID
+    ) -> dict[str, Any]:
+        if principal.role is not AppRole.ADMIN:
+            raise ServiceExecutionError("operation_not_permitted")
+        source = (
+            (
+                await self.connection.execute(
+                    text("""
+SELECT employee.id,employee.emp_no,employee.name,employee.job_title,employee.department,
+ employee.employment_start_date,employee.contract_type,employee.contract_end_date,employee.updated_at,
+ employee.basic_salary,employee.housing_allowance,employee.transport_allowance,
+ employee.other_allowances,company.name company_name,branch.name branch_name
+FROM public.employees employee
+JOIN public.branches branch ON branch.id=employee.branch_id
+ AND branch.company_id=employee.company_id
+JOIN public.companies company ON company.id=employee.company_id
+WHERE employee.id=:id AND employee.company_id=:company_id AND employee.branch_id=:branch_id
+"""),
+                    {"id": employee_id, "company_id": principal.company_id, "branch_id": branch_id},
+                )
+            )
+            .mappings()
+            .one_or_none()
+        )
+        if source is None:
+            raise ServiceExecutionError("resource_not_found")
+        return {
+            "employeeId": str(source["id"]),
+            "employeeNumber": source["emp_no"],
+            "employeeName": source["name"],
+            "jobTitle": source["job_title"],
+            "department": source["department"],
+            "startDate": str(source["employment_start_date"] or ""),
+            "contractType": source["contract_type"],
+            "endDate": str(source["contract_end_date"] or ""),
+            "companyName": source["company_name"],
+            "branchName": source["branch_name"],
+            "basicSalary": str(source["basic_salary"]),
+            "totalPackage": str(
+                sum(
+                    source[key]
+                    for key in (
+                        "basic_salary",
+                        "housing_allowance",
+                        "transport_allowance",
+                        "other_allowances",
+                    )
+                )
+            ),
+            "updatedAt": source["updated_at"].isoformat(),
+        }
+
+    async def current(
+        self, principal: AuthorizationPrincipal, branch_id: uuid.UUID, employee_id: uuid.UUID
+    ) -> ContractCurrentResponse:
+        if principal.role is not AppRole.ADMIN:
+            raise ServiceExecutionError("operation_not_permitted")
+        employee = await self._employee(principal, branch_id, employee_id, lock=False)
+        latest_id = (
+            await self.connection.execute(
+                text(
+                    "SELECT id FROM public.employee_contracts "
+                    "WHERE employee_id=:employee_id AND company_id=:company_id "
+                    "AND branch_id=:branch_id ORDER BY created_at DESC,id DESC LIMIT 1"
+                ),
+                {
+                    "employee_id": employee_id,
+                    "company_id": principal.company_id,
+                    "branch_id": branch_id,
+                },
+            )
+        ).scalar_one_or_none()
+        return ContractCurrentResponse(
+            employee_updated_at=employee.updated_at,
+            current_contract_type=employee.contract_type,
+            current_contract_end_date=employee.contract_end_date,
+            latest_contract_event_id=latest_id,
+        )
 
     async def list(
         self,
@@ -170,7 +253,7 @@ ORDER BY created_at DESC,id DESC LIMIT 1
         ).one_or_none()
         expected = request.expected
         if (
-            employee.updated_at != expected.employee_updated_at
+            not same_instant(employee.updated_at, expected.employee_updated_at)
             or employee.contract_type != expected.current_contract_type
             or employee.contract_end_date != expected.current_contract_end_date
             or (latest.id if latest is not None else None) != expected.latest_contract_event_id

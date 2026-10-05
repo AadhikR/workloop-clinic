@@ -10,6 +10,9 @@ historical parity. The remaining work below is required before Part F can close 
 "Pending" means the assigned part has not yet compared that view. No other view inherits a pass
 from the shared stylesheet.
 
+The A through E tables below retain their part-time findings. The F closure record at the end
+gives the current result for those dependencies. A08 remains open until delivered release proof.
+
 ## Module-by-module comparison
 
 | Portal | Module | Assigned part | Comparison and current result |
@@ -258,3 +261,37 @@ predecessor rollback, restart persistence, real three-role journeys, all 46 shar
 payroll layout checks, unchanged performance limits, and exact synthetic cleanup.
 Evidence is in `evidence/restoration-e`. `PORTAL_RESTORATION_E_COMPLETION.md` records counts,
 measurements, environment, and limits. E does not deploy or certify the required F dependencies.
+
+## F closure record
+
+All 46 historical views pass the final route-state audit in
+`evidence/restoration-f/routes/route-audit.json`. It contains 506 captures. Updated A through E
+interaction proofs and the F actions proof cover the changed populated controls and retained
+failure state. Synthetic browser fixtures prove presentation and payload behavior. PostgreSQL,
+the isolated full-stack gate, GitHub, and delivered release checks supply the separate server proof.
+
+| Dependency | Current implementation and evidence |
+| --- | --- |
+| A-02 | F adds protected administrator section rating and atomic five-section review. Database proof covers role and cycle denial, versions, concurrent locks, audit rollback, and replay. A interaction proof covers a failed complete review and identical retry. |
+| A-03 | F archives eligible pending appraisals, open incidents, and unpaid pending or rejected expenses. It retains source rows and receipts. F actions prove conflict, failed restoration, and identical retries. Database proof covers archive markers, scope, audit, and replay. |
+| A-04 | Stable UUID cursors and complete client traversal cover training, certifications, appraisals, incidents, self assets, directory, and report selectors. Tests reject duplicate rows, broken cursors, failed later pages, and changed source versions. Database proof traverses 101 additional training, certification, and incident rows. |
+| A-05 | Asset history uses approved actor labels. Administrator and unavailable labels are explicit, and private identity-provider values remain excluded. |
+| A-06 | Clinical workforce detail uses the same verified, scan-aware credentials and published roster membership as its counts. All nine groups have matching paged detail. The A browser proof retains enabled and disabled staffing behavior. |
+| A-07 | F restores inline staffing and personal forms, five-section appraisal metadata and review, CME contributors, retained incident controls, and administrator dashboard ordering. The route audit covers desktop, both mobile themes, loading, empty, denied, and unavailable states. Focused interactions cover conflict and failed writes. |
+| A-08 | Open pending matching backend and migration promotion before frontend promotion, followed by live synthetic acceptance. The accepted payroll frontend remains live. |
+| B-01 | D routing command and exact rollback pass in F's historical database gate. Provider publication remains with A-08. |
+| B-02 | C effective shift replacement and roster interactions pass the updated C browser proof. Clearing remains unavailable because the model has no fallback schedule. |
+| B-03 | F adds complete selected-branch expiry traversal. Fixed dates use 60 days, uploaded clinical documents use 90 days. The response excludes private numbers, object paths, hashes, and signed URLs. |
+| B-04 | F PostgreSQL proof covers composite profile rollback, stale versions, manager cycles, audit replay, branch logo rollback, authoritative coverage and contract snapshots, contract PDF audit, and staff or foreign-scope denial. E covers own standard letters and payslips and custom-output denial. Object storage proof remains part of the final stack gate. |
+| B-05 | Updated B interactions cover typed policy, dependant and contract editors, document rejection and removal dialogs, logo and profile saves, selected-employee context, child tabs, requests, failed retry retention, keyboard use, and mobile containment. |
+| D-01 | F adds sanitized, paged credential and workforce details with count/detail agreement. F actions prove both credential drill-downs and all nine workforce groups. |
+| D-02 | F adds versioned retained expense archival and pending advance cancellation. Active or paid advances retain repayment authority. Database and browser proofs cover replay, conflict, scope, audit rollback, and confirmed post-cancellation state. |
+| E-01 | F reads the actor's recent leave decisions over 90 days through current report or delegation scope. Reassignment and expired delegation remove visibility. History includes safe names, action, time, and reason. |
+| E-02 | F exposes owner-only installment and payment progress without reviewer or payroll-run identifiers. Complete collections retain one source version and agree with authoritative scheduled, paid, and remaining totals. |
+| E-03 | Both staff homes restore today's status, two summary cards, optional fixed-date warnings, assets, and recent leave. Updated E interactions cover inline training, status filters, complete manager review, personal outputs, retained failures, and dark mobile layouts. |
+
+F's settled backend gate passed 763 tests, lint, formatting, types, and dependency checks. Its
+frontend gate passed 449 tests, the production build, changed-file lint, and repository guards.
+The fresh isolated database gate passes the complete affected historical chain and deep authority
+checks. Final restart, real three-role journeys, shared browser acceptance, populated payroll and
+leave layouts, safe logs, and exact synthetic cleanup pass. GitHub and live promotion remain pending.

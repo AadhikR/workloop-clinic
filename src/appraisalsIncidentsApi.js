@@ -1,3 +1,5 @@
+import { readCollectionPages } from './collectionPages.js'
+
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 const instant = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
 const date = /^\d{4}-\d{2}-\d{2}$/
@@ -32,6 +34,16 @@ function collection(response, parser) {
   return response.data.map(parser)
 }
 
+
+async function paged(authentication, path, branchId, parser, filters = {}) {
+  return readCollectionPages(async (cursor) => {
+    const response = await authentication.request(`${path}${query({ ...filters, limit: 100, cursor })}`, {
+      access: 'protected', headers: headers(branchId),
+    })
+    return { items: collection(response, parser), page: response.page }
+  })
+}
+
 const sectionKeys = [
   'id', 'sectionName', 'weight', 'rating', 'comments', 'sortOrder', 'updatedAt',
 ]
@@ -51,7 +63,10 @@ const appraisalKeys = [
 ]
 
 export function parseAppraisal(value) {
-  const keys = value && Object.hasOwn(value, 'cycleStatus') ? [...appraisalKeys, 'cycleStatus'] : appraisalKeys
+  const keys = [...appraisalKeys, ...['cycleStatus', 'employeeDepartment', 'employeeJobTitle']
+    .filter((key) => value && Object.hasOwn(value, key))]
+  if (['employeeDepartment', 'employeeJobTitle'].some((key) => Object.hasOwn(value ?? {}, key)
+    && typeof value[key] !== 'string')) throw new Error('Invalid appraisal metadata')
   if (!exact(value, keys) || value.cycleStatus != null && !['draft', 'active', 'closed'].includes(value.cycleStatus) || !uuid.test(value.id) || !uuid.test(value.cycleId)
     || !uuid.test(value.employeeId) || !date.test(value.reviewFrom) || !date.test(value.reviewTo)
     || value.overallRating !== null && !rating.test(value.overallRating)
@@ -78,9 +93,8 @@ export function parseAppraisalCycle(value) {
 }
 
 export async function readAppraisalCycles(authentication, branchId) {
-  return collection(await authentication.request('/api/v1/appraisal-cycles', {
-    access: 'protected', headers: headers(branchId),
-  }), parseAppraisalCycle)
+  return (await paged(authentication, '/api/v1/appraisal-cycles', branchId, parseAppraisalCycle))
+    .sort((a, b) => b.reviewFrom.localeCompare(a.reviewFrom) || b.id.localeCompare(a.id))
 }
 
 export async function saveAppraisalCycle(authentication, branchId, values, current = null) {
@@ -110,9 +124,8 @@ export function deleteAppraisalCycle(authentication, branchId, cycle) {
 
 export async function readAppraisals(authentication, role) {
   const scope = role === 'manager' ? 'direct-reports' : 'self'
-  return collection(await authentication.request(`/api/v1/appraisals/${scope}`, {
-    access: 'protected',
-  }), parseAppraisal)
+  return (await paged(authentication, `/api/v1/appraisals/${scope}`, null, parseAppraisal))
+    .sort((a, b) => b.reviewFrom.localeCompare(a.reviewFrom) || b.id.localeCompare(a.id))
 }
 
 export async function rateAppraisalSection(authentication, appraisal, section, values) {
@@ -126,6 +139,30 @@ export async function rateAppraisalSection(authentication, appraisal, section, v
 export async function reviewAppraisal(authentication, branchId, appraisal, values) {
   const response = await authentication.request(`/api/v1/appraisals/${appraisal.id}/review`, {
     access: 'protected', method: 'POST', headers: headers(branchId, true),
+    json: { ...values, expectedUpdatedAt: appraisal.updatedAt },
+  })
+  return parseAppraisal(response.data)
+}
+
+export async function saveAdminAppraisalReview(authentication, branchId, appraisal, values, key = crypto.randomUUID()) {
+  const response = await authentication.request(`/api/v1/appraisals/${appraisal.id}/admin-review`, {
+    access: 'protected', method: 'POST', headers: { ...headers(branchId), 'Idempotency-Key': key },
+    json: { ...values, expectedUpdatedAt: appraisal.updatedAt },
+  })
+  return parseAppraisal(response.data)
+}
+
+export async function submitManagerAppraisalReview(authentication, appraisal, sections, key = crypto.randomUUID()) {
+  const response = await authentication.request(`/api/v1/appraisals/${appraisal.id}/manager-review`, {
+    access: 'protected', method: 'POST', headers: { 'Idempotency-Key': key },
+    json: { sections, expectedUpdatedAt: appraisal.updatedAt },
+  })
+  return parseAppraisal(response.data)
+}
+
+export async function rateAdminAppraisalSection(authentication, branchId, appraisal, section, values, key = crypto.randomUUID()) {
+  const response = await authentication.request(`/api/v1/appraisals/${appraisal.id}/sections/${section.id}/admin-rating`, {
+    access: 'protected', method: 'PUT', headers: { ...headers(branchId), 'Idempotency-Key': key },
     json: { ...values, expectedUpdatedAt: appraisal.updatedAt },
   })
   return parseAppraisal(response.data)
@@ -158,9 +195,9 @@ export function parseIncident(value) {
 }
 
 export async function readIncidents(authentication, branchId, filters = {}) {
-  return collection(await authentication.request(`/api/v1/clinical-incidents${query(filters)}`, {
-    access: 'protected', headers: headers(branchId),
-  }), parseIncident)
+  return (await paged(authentication, '/api/v1/clinical-incidents', branchId, parseIncident, filters))
+    .sort((a, b) => b.incidentDate.localeCompare(a.incidentDate)
+      || (b.incidentTime ?? '').localeCompare(a.incidentTime ?? '') || b.id.localeCompare(a.id))
 }
 
 export async function saveIncident(authentication, branchId, values, current = null) {

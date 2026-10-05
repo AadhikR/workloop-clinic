@@ -17,6 +17,7 @@ from app.auth.dependencies import (
     VerifiedAccessToken,
 )
 from app.http.errors import api_error, error_response_documentation, success_response_documentation
+from app.http.pagination import uuid_page
 from app.http.schemas import CollectionResponse, DataResponse, Page
 from app.phase11c_support import executor, idempotent_mutation
 from app.schemas.assets import (
@@ -189,6 +190,7 @@ async def list_self_assets(
     claims: VerifiedAccessToken,
     principal: AuthenticatedReadPrincipal,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    cursor: Annotated[uuid.UUID | None, Query()] = None,
 ) -> CollectionResponse[AssetAssignmentResponse]:
     if principal.branch_id is None:
         raise api_error("operation_not_permitted")
@@ -197,10 +199,10 @@ async def list_self_assets(
         claims=claims,
         principal=principal,
         operation=lambda connection: AssetService(connection).list_self(
-            principal, branch_id, limit
+            principal, branch_id, limit + 1, cursor
         ),
     )
-    return CollectionResponse(data=items, page=Page(limit=limit, next_cursor=None, has_more=False))
+    return uuid_page(items, limit)
 
 
 @router.post("", operation_id="create_asset", responses=ERRORS)

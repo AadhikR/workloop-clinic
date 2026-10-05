@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 
 import { readAllEmployees } from './employeeApi.js'
 import { HttpClientError } from './http.js'
+import { readCollectionPages } from './collectionPages.js'
 import {
   assignShift,
   createShift,
@@ -37,25 +38,32 @@ export default function AttendanceConfiguration({ authentication, branchId, view
   const [editingShift, setEditingShift] = useState(null)
   const [assignment, setAssignment] = useState({ employeeId: '', shiftId: '', effectiveFrom: '' })
   const [message, setMessage] = useState('')
+  const [source, setSource] = useState({ status: 'loading' })
+  const [revision, setRevision] = useState(0)
+  const sourceKey = `${branchId}:${revision}`
 
   useEffect(() => {
     const controller = new AbortController()
     Promise.all([
       readAttendanceSettings(authentication, branchId, { signal: controller.signal }),
-      readShifts(authentication, branchId, { limit: 100, signal: controller.signal }),
+      readCollectionPages(async (cursor) => {
+        const result = await readShifts(authentication, branchId, { limit: 100, signal: controller.signal, ...(cursor ? { cursor } : {}) })
+        return { items: result.data, page: result.page }
+      }),
       readAllEmployees(authentication, branchId, { signal: controller.signal }),
     ])
       .then(([nextSettings, nextShifts, nextEmployees]) => {
         if (controller.signal.aborted) return
         setSettingsDraft({ ...nextSettings })
-        setShifts(nextShifts.data)
+        setShifts(nextShifts)
         setEmployees(nextEmployees)
+        setSource({ key: sourceKey, status: 'ready' })
       })
       .catch((error) => {
-        if (!controller.signal.aborted) setMessage(messageFor(error))
+        if (!controller.signal.aborted) { setMessage(messageFor(error)); setSource({ key: sourceKey, status: 'error' }) }
       })
     return () => controller.abort()
-  }, [authentication, branchId])
+  }, [authentication, branchId, sourceKey])
 
   const saveSettings = async (event) => {
     event.preventDefault(); setMessage('')
@@ -102,7 +110,8 @@ export default function AttendanceConfiguration({ authentication, branchId, view
     } catch (error) { setMessage(messageFor(error)) }
   }
 
-  if (!settingsDraft) return <section className="attendance-configuration"><h2>Attendance configuration</h2><p>Loading configuration...</p></section>
+  const status = source.key === sourceKey ? source.status : 'loading'
+  if (status !== 'ready') return <section className="attendance-configuration"><h2>Attendance configuration</h2>{status === 'error' ? <p role="alert">Attendance configuration is unavailable. <button type="button" onClick={() => setRevision(revision + 1)}>Retry configuration</button></p> : <p role="status">Loading configuration...</p>}</section>
   const setting = (name) => (event) => setSettingsDraft({ ...settingsDraft, [name]: event.target.type === 'checkbox' ? event.target.checked : event.target.value })
   const shiftField = (name) => (event) => setShiftDraft({ ...shiftDraft, [name]: event.target.type === 'number' ? Number(event.target.value) : event.target.value })
   const shiftType = (event) => {

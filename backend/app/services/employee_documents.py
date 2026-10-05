@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.auth.application_user import AuthorizationPrincipal
 from app.db.audit import append_audit_event
+from app.http.versions import same_instant
 from app.models.identity import AppRole
 from app.schemas.employee_document import (
     EmployeeDocumentResponse,
@@ -500,7 +501,10 @@ WHERE id=:id AND company_id=:company_id AND branch_id=:branch_id
         ).one_or_none()
         if row is None:
             raise ServiceExecutionError("resource_not_found")
-        if row.updated_at != expected_updated_at or row.status != "pending_verification":
+        if (
+            not same_instant(row.updated_at, expected_updated_at)
+            or row.status != "pending_verification"
+        ):
             raise ServiceExecutionError("state_conflict")
         if not verify and not reason:
             raise ServiceExecutionError("validation_failed")
@@ -597,7 +601,7 @@ WHERE id=:id AND company_id=:company_id AND branch_id=:branch_id
             raise ServiceExecutionError("resource_not_found")
         if row.status not in {"pending_verification", "rejected"}:
             raise ServiceExecutionError("operation_not_permitted")
-        if row.updated_at != expected_updated_at:
+        if not same_instant(row.updated_at, expected_updated_at):
             raise ServiceExecutionError("state_conflict")
         operation_id = (
             await self.connection.execute(

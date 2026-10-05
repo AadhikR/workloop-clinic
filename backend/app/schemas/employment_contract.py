@@ -38,6 +38,17 @@ class ContractCommandRequest(StrictRequestSchema):
         return self
 
 
+class ContractCurrentResponse(ApiSchema):
+    employee_updated_at: datetime
+    current_contract_type: Literal["Limited", "Unlimited"]
+    current_contract_end_date: date | None
+    latest_contract_event_id: uuid.UUID | None
+
+    @field_serializer("employee_updated_at")
+    def serialize_timestamp(self, value: datetime) -> str:
+        return value.astimezone(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
 class ContractNotRenewedRequest(StrictRequestSchema):
     notes: str = Field(default="", max_length=1000)
     expected: ContractExpectedSnapshot

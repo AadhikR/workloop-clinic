@@ -6,6 +6,8 @@ from typing import Literal
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+from app.repositories.clinical_credentials import CLINICAL_CREDENTIALS
+
 DashboardKind = Literal["admin", "clinical", "self"]
 
 ADMIN_SNAPSHOT = text(
@@ -88,7 +90,7 @@ FROM snapshot CROSS JOIN active_staff CROSS JOIN payroll CROSS JOIN expiry LEFT 
 )
 
 CLINICAL_SNAPSHOT = text(
-    """
+    f"""
 WITH snapshot AS (
   SELECT statement_timestamp() AS as_of,public.workloop_business_date() AS business_date
 ), active_staff AS (
@@ -96,23 +98,7 @@ WITH snapshot AS (
   WHERE company_id=:company_id AND branch_id=:branch_id AND active
     AND employment_status IN ('Active','Probation','On Leave')
 ), eligible_credentials AS (
-  SELECT document.id,document.expiry_date
-  FROM public.employee_documents document
-  WHERE document.company_id=:company_id AND document.branch_id=:branch_id
-    AND document.document_type=ANY(:clinical_types) AND document.status='verified'
-    AND document.content_type IS NOT NULL AND document.cleanup_requested_at IS NULL
-    AND public.file_security_scan_allows_download(
-      document.file_security_scan_id,'employee_document',document.id,document.storage_path,
-      document.content_type,document.file_size,document.sha256,:scanner_definition)
-  UNION ALL
-  SELECT certification.id,certification.expiry_date
-  FROM public.certifications certification
-  WHERE certification.company_id=:company_id AND certification.branch_id=:branch_id
-    AND certification.status='verified' AND certification.content_type IS NOT NULL
-    AND public.file_security_scan_allows_download(
-      certification.file_security_scan_id,'certification_evidence',certification.id,
-      certification.storage_path,certification.content_type,certification.size_bytes,
-      certification.sha256,:scanner_definition)
+{CLINICAL_CREDENTIALS}
 ), credential_counts AS (
   SELECT count(*) FILTER (WHERE expiry_date IS NULL OR
       expiry_date>(SELECT business_date FROM snapshot)+90)::integer AS valid_count,

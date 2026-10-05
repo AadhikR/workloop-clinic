@@ -14,7 +14,10 @@ import {
   reviewAppraisal,
   saveAppraisalCycle,
   saveIncident,
+  saveAdminAppraisalReview,
+  submitManagerAppraisalReview,
 } from './appraisalsIncidentsApi.js'
+import RetainedRecords, { RetainedRemoval } from './RetainedRecords.jsx'
 
 const emptyCycle = { name: '', reviewFrom: '', reviewTo: '' }
 const emptyIncident = {
@@ -27,6 +30,39 @@ function Message({ children }) {
   return children ? <p role="status" aria-live="polite">{children}</p> : null
 }
 
+function AdminAppraisalEditor({ appraisal, authentication, branchId, run, onSaved }) {
+  const [sections, setSections] = useState(appraisal.sections.map((section) => ({
+    id: section.id, rating: section.rating ?? '', comments: section.comments,
+  })))
+  const [reviewerComments, setReviewerComments] = useState(appraisal.reviewerComments)
+  const [developmentPlan, setDevelopmentPlan] = useState(appraisal.developmentPlan)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [retry, setRetry] = useState(null)
+  return <form className="restoration-form appraisal-review-editor" onSubmit={async (event) => {
+    event.preventDefault()
+    const values = { sections, reviewerComments, developmentPlan }
+    const payload = JSON.stringify(values)
+    const attempt = retry?.payload === payload ? retry : { payload, key: crypto.randomUUID() }
+    setRetry(attempt); setBusy(true); setError('')
+    try {
+      const saved = await run(() => saveAdminAppraisalReview(authentication, branchId, appraisal, values, attempt.key), 'Appraisal reviewed.')
+      if (saved) await onSaved()
+      else setError('The review could not be saved. Your entries have been kept.')
+    } finally { setBusy(false) }
+  }}>
+    <p>{sections.filter((section) => section.rating !== '').length} / {sections.length} sections rated</p>
+    {appraisal.sections.map((section, index) => <fieldset className="appraisal-section-editor" key={section.id} disabled={busy}><legend>{section.sectionName} · Weight ×{section.weight}</legend>
+      <label>Rating<input required type="number" min="1" max="5" step="0.1" value={sections[index].rating} onChange={(event) => setSections((current) => current.map((item, position) => position === index ? { ...item, rating: event.target.value === '' ? '' : Number(event.target.value).toFixed(1) } : item))} /></label>
+      <label>Section comments<textarea maxLength={10000} rows={2} value={sections[index].comments} onChange={(event) => setSections((current) => current.map((item, position) => position === index ? { ...item, comments: event.target.value } : item))} /></label>
+    </fieldset>)}
+    <label>Reviewer comments<textarea disabled={busy} rows={3} maxLength={10000} value={reviewerComments} onChange={(event) => setReviewerComments(event.target.value)} /></label>
+    <label>Development plan<textarea disabled={busy} rows={3} maxLength={10000} value={developmentPlan} onChange={(event) => setDevelopmentPlan(event.target.value)} /></label>
+    {error && <p role="alert">{error}</p>}
+    <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? 'Saving...' : 'Save Review'}</button>
+  </form>
+}
+
 function AppraisalRows({ appraisals, account, authentication, branchId, reload, run, readOnly = false }) {
   const [action, setAction] = useState(null)
   const [selectedId, setSelectedId] = useState(null)
@@ -36,17 +72,18 @@ function AppraisalRows({ appraisals, account, authentication, branchId, reload, 
     setAction({ kind, appraisal, section })
   }
   const selected = appraisals.find((item) => item.id === selectedId)
+  const editingReview = selected && !readOnly && account.role === 'admin' && selected.status === 'pending' && selected.cycleStatus === 'active'
   if (appraisals.length === 0) return <div className="empty-state"><h3>No appraisals</h3><p>No appraisal results are available.</p></div>
-  return <><PortalTable label="Appraisal reviews"><thead><tr><th>{account.role === 'employee' ? 'Cycle' : 'Employee'}</th><th>Review period</th><th>Overall rating</th><th>Status</th><th>Actions</th></tr></thead><tbody>{appraisals.map((appraisal) => <tr key={appraisal.id}><td><strong>{account.role === 'employee' ? appraisal.cycleName : appraisal.employeeName}</strong></td><td>{appraisal.reviewFrom} to {appraisal.reviewTo}</td><td>{appraisal.overallRating ? `${appraisal.overallRating} / 5.0` : 'Not rated'}</td><td><StatusPill value={appraisal.status} /></td><td><button type="button" className="btn btn-outline btn-sm" onClick={() => setSelectedId(appraisal.id)}>{account.role === 'employee' ? 'View' : appraisal.status === 'pending' ? 'Review' : 'View review'}</button></td></tr>)}</tbody></PortalTable>
+  return <><PortalTable label="Appraisal reviews"><thead><tr><th>{account.role === 'employee' ? 'Cycle' : 'Employee'}</th><th>Department</th><th>Review period</th><th>Overall rating</th><th>Status</th><th>Actions</th></tr></thead><tbody>{appraisals.map((appraisal) => <tr key={appraisal.id}><td><strong>{account.role === 'employee' ? appraisal.cycleName : appraisal.employeeName}</strong><small>{appraisal.employeeJobTitle}</small></td><td>{appraisal.employeeDepartment || 'Not assigned'}</td><td>{appraisal.reviewFrom} to {appraisal.reviewTo}</td><td>{appraisal.overallRating ? `${appraisal.overallRating} / 5.0` : 'Not rated'}</td><td><StatusPill value={appraisal.status} /></td><td><button type="button" className="btn btn-outline btn-sm" onClick={() => setSelectedId(appraisal.id)}>{account.role === 'employee' ? 'View' : appraisal.status === 'pending' ? 'Review' : 'View review'}</button>{account.role === 'admin' && !readOnly && appraisal.status === 'pending' && appraisal.cycleStatus === 'active' && <RetainedRemoval authentication={authentication} branchId={branchId} kind="appraisal" record={appraisal} onChanged={reload} />}</td></tr>)}</tbody></PortalTable>
     <FormDialog title={selected ? `Appraisal · ${selected.employeeName}` : 'Appraisal'} open={Boolean(selected)} wide onClose={() => setSelectedId(null)}>{selected && <div className="appraisal-detail">
-    <p>{selected.cycleName} · {selected.reviewFrom} to {selected.reviewTo}</p><h4>Section results</h4><ul>{selected.sections.map((section) => <li key={section.id}>
+    <p>{selected.cycleName} · {selected.reviewFrom} to {selected.reviewTo}</p><p>{selected.employeeDepartment} · {selected.employeeJobTitle}</p>{editingReview ? <AdminAppraisalEditor key={selected.id} appraisal={selected} authentication={authentication} branchId={branchId} run={run} onSaved={async () => { setSelectedId(null); await reload().catch(() => {}) }} /> : <><h4>Section results</h4><ul>{selected.sections.map((section) => <li key={section.id}>
       <span><strong>{section.sectionName}</strong><small>Weight ×{section.weight}</small></span><span>{section.rating ?? 'Not rated'} / 5</span>{section.comments && <p>{section.comments}</p>}
       {!readOnly && account.role === 'manager' && selected.employeeId !== account.employeeId && selected.status === 'pending' && <button type="button" className="btn btn-outline btn-sm" onClick={() => open('rate', selected, section)}>Rate</button>}
     </li>)}</ul>
     <dl className="appraisal-summary"><div><dt>Reviewer comments</dt><dd>{selected.reviewerComments || 'None'}</dd></div><div><dt>Development plan</dt><dd>{selected.developmentPlan || 'None'}</dd></div><div><dt>Reviewed</dt><dd>{selected.reviewedAt ? new Date(selected.reviewedAt).toLocaleDateString() : 'Not reviewed'}</dd></div></dl>
     {!readOnly && account.role === 'admin' && selected.status === 'pending' && <button type="button" className="btn btn-primary" onClick={() => open('review', selected)}>Save review</button>}
     {!readOnly && account.role === 'admin' && selected.status === 'reviewed' && <button type="button" className="btn btn-outline" onClick={() => open('calibrate', selected)}>Calibrate</button>}
-    </div>}</FormDialog><AppraisalAction action={action} values={values} setValues={setValues} onClose={() => setAction(null)} onSave={async () => {
+    </>}</div>}</FormDialog><AppraisalAction action={action} values={values} setValues={setValues} onClose={() => setAction(null)} onSave={async () => {
     const saved = await run(() => action.kind === 'rate' ? rateAppraisalSection(authentication, action.appraisal, action.section, { rating: values.rating, comments: values.comments }) : action.kind === 'review' ? reviewAppraisal(authentication, branchId, action.appraisal, { reviewerComments: values.reviewerComments, developmentPlan: values.developmentPlan }) : calibrateAppraisal(authentication, branchId, action.appraisal, values.rating), action.kind === 'rate' ? 'Section rating saved.' : action.kind === 'review' ? 'Appraisal reviewed.' : 'Appraisal calibrated.')
     if (saved) { setAction(null); await reload().catch(() => {}) }
     return saved
@@ -152,6 +189,7 @@ function Appraisals({ account, authentication, branchId }) {
         <AppraisalRows appraisals={cycleReviews} account={account} authentication={authentication} branchId={branchId} reload={load} run={run} readOnly={selectedCycle.status === 'closed'} />
       </> : <div className="empty-state">Select a cycle to view its reviews.</div>}
     </>}
+    <RetainedRecords key={cycles.reduce((sum, cycle) => sum + cycle.appraisals.length, 0)} authentication={authentication} branchId={branchId} kind="appraisal" onChanged={load} />
     <ConfirmDialog title={confirmAction?.kind === 'close' ? 'Close cycle' : 'Remove cycle'} open={Boolean(confirmAction)} busy={busy} onClose={() => setConfirmAction(null)} confirmLabel={confirmAction?.kind === 'close' ? 'Close cycle' : 'Remove cycle'} onConfirm={async () => { const saved = await run(() => confirmAction.kind === 'close' ? appraisalCycleCommand(authentication, branchId, confirmAction.cycle, 'close') : deleteAppraisalCycle(authentication, branchId, confirmAction.cycle), confirmAction.kind === 'close' ? 'Appraisal cycle closed.' : 'Appraisal cycle removed.'); if (saved) { setConfirmAction(null); await load() } }}>Confirm this cycle action? Closing locks the completed review.</ConfirmDialog>
   </section>
 }
@@ -169,8 +207,8 @@ function StaffAppraisalRecords({ account, authentication, scope }) {
   useEffect(() => { let active = true; readAppraisals(authentication, scope === 'team' ? 'manager' : 'employee').then((items) => { if (active) setState({ status: 'ready', items }) }).catch(() => { if (active) setState({ status: 'error', items: [] }) }); return () => { active = false } }, [authentication, scope])
   if (state.status !== 'ready') return <p role={state.status === 'error' ? 'alert' : 'status'}>{state.status === 'loading' ? 'Loading appraisals...' : <>Appraisals are unavailable. <button type="button" onClick={() => load().catch(() => setState({ status: 'error', items: [] }))}>Retry</button></>}</p>
   return <><Message>{message}</Message><div className="staff-records">{state.items.map((appraisal) => <article key={appraisal.id} className="employee-panel staff-record">
-    <button type="button" className="staff-record-toggle" aria-expanded={expanded === appraisal.id} aria-controls={`appraisal-${appraisal.id}`} onClick={() => setExpanded(expanded === appraisal.id ? null : appraisal.id)}><span><strong>{scope === 'team' ? appraisal.employeeName : appraisal.cycleName}</strong><small>{scope === 'team' ? `${appraisal.cycleName} · ` : ''}{appraisal.reviewFrom} to {appraisal.reviewTo}</small></span><span>{appraisal.overallRating ? `${appraisal.overallRating} / 5` : 'Not rated'}</span><StatusPill value={appraisal.status} /><span aria-hidden="true">{expanded === appraisal.id ? '⌃' : '⌄'}</span></button>
-    {expanded === appraisal.id && <div id={`appraisal-${appraisal.id}`} className="appraisal-detail"><PortalTable label="Appraisal sections"><thead><tr><th>Section</th><th>Weight</th><th>Rating</th><th>Comments</th>{scope === 'team' && <th>Actions</th>}</tr></thead><tbody>{appraisal.sections.map((section) => <tr key={section.id}><td>{section.sectionName}</td><td>×{section.weight}</td><td>{section.rating ? `${section.rating} / 5` : 'Not rated'}</td><td>{section.comments || 'None'}</td>{scope === 'team' && <td>{appraisal.status === 'pending' && appraisal.cycleStatus === 'active' && appraisal.employeeId !== account.employeeId && <button type="button" onClick={() => { setValues({ rating: section.rating ?? '3.0', comments: section.comments }); setAction({ kind: 'rate', appraisal, section }) }}>Rate section</button>}</td>}</tr>)}</tbody></PortalTable><dl className="appraisal-summary"><div><dt>Reviewer comments</dt><dd>{appraisal.reviewerComments || 'None'}</dd></div><div><dt>Development plan</dt><dd>{appraisal.developmentPlan || 'None'}</dd></div></dl>{scope === 'my' && <p>Your appraisal is read-only.</p>}</div>}
+    <button type="button" className="staff-record-toggle" aria-expanded={expanded === appraisal.id} aria-controls={`appraisal-${appraisal.id}`} onClick={() => setExpanded(expanded === appraisal.id ? null : appraisal.id)}><span><strong>{scope === 'team' ? appraisal.employeeName : appraisal.cycleName}</strong><small>{appraisal.employeeJobTitle}{appraisal.employeeDepartment ? ` · ${appraisal.employeeDepartment}` : ''}</small><small>{scope === 'team' ? `${appraisal.cycleName} · ` : ''}{appraisal.reviewFrom} to {appraisal.reviewTo}</small></span><span>{appraisal.overallRating ? <><span aria-hidden="true" className="appraisal-stars">{'★'.repeat(Math.round(Number(appraisal.overallRating)))}{'☆'.repeat(5 - Math.round(Number(appraisal.overallRating)))}</span><small>{appraisal.overallRating} / 5</small></> : 'Not rated'}</span><StatusPill value={appraisal.status} /><span aria-hidden="true">{expanded === appraisal.id ? '⌃' : '⌄'}</span></button>
+    {expanded === appraisal.id && <div id={`appraisal-${appraisal.id}`} className="appraisal-detail">{scope === 'team' && appraisal.status === 'pending' && appraisal.cycleStatus === 'active' && appraisal.employeeId !== account.employeeId ? <ManagerAppraisalEditor key={appraisal.updatedAt} appraisal={appraisal} authentication={authentication} onSaved={async () => { setMessage('Appraisal submitted.'); await load().catch(() => { setState({ status: 'error', items: [] }); setMessage('Appraisal submitted. Reload to see the current review.') }) }} /> : <PortalTable label="Appraisal sections"><thead><tr><th>Section</th><th>Weight</th><th>Rating</th><th>Comments</th>{scope === 'team' && <th>Actions</th>}</tr></thead><tbody>{appraisal.sections.map((section) => <tr key={section.id}><td>{section.sectionName}</td><td>×{section.weight}</td><td>{section.rating ? `${section.rating} / 5` : 'Not rated'}</td><td>{section.comments || 'None'}</td>{scope === 'team' && <td>{appraisal.status === 'pending' && appraisal.cycleStatus === 'active' && appraisal.employeeId !== account.employeeId && <button type="button" onClick={() => { setValues({ rating: section.rating ?? '3.0', comments: section.comments }); setAction({ kind: 'rate', appraisal, section }) }}>Rate section</button>}</td>}</tr>)}</tbody></PortalTable>}<dl className="appraisal-summary"><div><dt>Reviewer comments</dt><dd>{appraisal.reviewerComments || 'None'}</dd></div><div><dt>Development plan</dt><dd>{appraisal.developmentPlan || 'None'}</dd></div><div><dt>Reviewed</dt><dd>{appraisal.reviewedAt ? new Date(appraisal.reviewedAt).toLocaleDateString('en-AE', { timeZone: 'Asia/Dubai' }) : 'Not reviewed'}</dd></div></dl>{scope === 'my' && <p>Your appraisal is read-only.</p>}</div>}
   </article>)}</div>{state.items.length === 0 && <div className="empty-state">No appraisals on file yet.</div>}
     <AppraisalAction key={action ? `${action.appraisal.id}:${action.section.id}` : 'closed'} action={action} values={values} setValues={setValues} onClose={() => setAction(null)} onSave={async () => {
       try { await rateAppraisalSection(authentication, action.appraisal, action.section, values) }
@@ -178,6 +216,29 @@ function StaffAppraisalRecords({ account, authentication, scope }) {
       setAction(null); setMessage('Section rating saved.'); await load().catch(() => { setState({ status: 'error', items: [] }); setMessage('Rating saved. Reload to see the latest appraisal.') }); return true
     }} />
   </>
+}
+
+function ManagerAppraisalEditor({ appraisal, authentication, onSaved }) {
+  const [sections, setSections] = useState(appraisal.sections.map((section) => ({ id: section.id, rating: section.rating ?? '', comments: section.comments })))
+  const [confirm, setConfirm] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [retry, setRetry] = useState(null)
+  const submit = async () => {
+    const payload = JSON.stringify(sections)
+    const attempt = retry?.payload === payload ? retry : { payload, key: crypto.randomUUID() }
+    setRetry(attempt); setBusy(true); setError('')
+    try {
+      await submitManagerAppraisalReview(authentication, appraisal, sections, attempt.key)
+      await onSaved()
+    } catch { setError('The review could not be submitted. Your ratings and comments have been kept. Reload if the appraisal or reporting manager has changed.') }
+    finally { setBusy(false) }
+  }
+  return <form className="manager-appraisal-editor" onSubmit={(event) => { event.preventDefault(); setConfirm(true); setError('') }}>
+    <PortalTable label="Appraisal ratings"><thead><tr><th>Section</th><th>Weight</th><th>Rating</th><th>Comments</th></tr></thead><tbody>{appraisal.sections.map((section, index) => <tr key={section.id}><td>{section.sectionName}</td><td>×{section.weight}</td><td><label>Rating for {section.sectionName}<input required disabled={busy || confirm} type="number" min="1" max="5" step="0.1" value={sections[index].rating} onChange={(event) => setSections((current) => current.map((item, position) => position === index ? { ...item, rating: event.target.value === '' ? '' : Number(event.target.value).toFixed(1) } : item))} /></label></td><td><label>Comments for {section.sectionName}<input disabled={busy || confirm} maxLength={10000} value={sections[index].comments} onChange={(event) => setSections((current) => current.map((item, position) => position === index ? { ...item, comments: event.target.value } : item))} /></label></td></tr>)}</tbody></PortalTable>
+    {error && <p role="alert">{error}</p>}
+    {confirm ? <div className="alert alert-warning"><div><strong>Submit appraisal review?</strong><p>This saves every section and sends the reviewed appraisal to HR for calibration.</p><div className="module-actions"><button type="button" className="btn btn-primary" disabled={busy} onClick={submit}>{busy ? 'Submitting...' : 'Confirm & Submit'}</button><button type="button" className="btn btn-ghost" disabled={busy} onClick={() => setConfirm(false)}>Back to ratings</button></div></div></div> : <button type="submit" className="btn btn-primary" disabled={busy}>Save Appraisal</button>}
+  </form>
 }
 
 function StaffAppraisals({ account, authentication }) {
@@ -274,12 +335,13 @@ function Incidents({ authentication, branchId }) {
             setShowForm(true)
           }}>Edit</button><button type="button" disabled={busy} onClick={() => {
             setActionText(''); setAction({ incident, kind: 'investigate' })
-          }}>Investigate</button></>}
+          }}>Investigate</button><RetainedRemoval authentication={authentication} branchId={branchId} kind="incident_report" record={incident} onChanged={load} disabled={busy} /></>}
           {incident.status === 'investigating' && <><button type="button" disabled={busy} onClick={() => {
             setActionText(''); setAction({ incident, kind: 'corrective-action' })
           }}>Corrective action</button><button type="button" disabled={busy} onClick={() => { setActionText(''); setAction({ incident, kind: 'close' }) }}>Close</button></>}
         </div></td></tr>)}{loadState === 'ready' && filtered.length === 0 && <tr><td colSpan={9}><div className="empty-state">No incidents match these filters.</div></td></tr>}</tbody></PortalTable>
     <FormDialog title={action?.kind === 'investigate' ? 'Investigate incident' : action?.kind === 'corrective-action' ? 'Corrective action' : 'Close incident'} open={Boolean(action)} onClose={() => { if (!busy) setAction(null) }}><form className="restoration-form" onSubmit={async (event) => { event.preventDefault(); const payload = action.kind === 'investigate' ? { rootCause: actionText.trim() } : action.kind === 'corrective-action' ? { correctiveAction: actionText.trim() } : {}; if (await run(() => incidentCommand(authentication, branchId, action.incident, action.kind, payload), action.kind === 'close' ? 'Incident closed.' : 'Incident action saved.')) setAction(null) }}>{action?.kind === 'close' ? <p>Close this incident? The server records the closure date and locks the incident.</p> : <label>{action?.kind === 'investigate' ? 'Root cause' : 'Corrective action'}<textarea required maxLength={10000} value={actionText} onChange={(event) => setActionText(event.target.value)} /></label>}<button type="submit" className="btn btn-primary" disabled={busy}>{busy ? 'Saving...' : 'Confirm action'}</button><Message>{message}</Message></form></FormDialog>
+    <RetainedRecords key={incidents.length} authentication={authentication} branchId={branchId} kind="incident_report" onChanged={load} />
   </section>
 }
 

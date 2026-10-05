@@ -287,6 +287,32 @@ def render_payslip_pdf(source: dict[str, Any]) -> RenderedOutput:
     )
 
 
+def render_employment_contract_pdf(source: dict[str, Any]) -> RenderedOutput:
+    lines = [
+        source["companyName"],
+        source["branchName"],
+        f"Employee: {source['employeeName']} ({source['employeeNumber']})",
+        f"Job title: {source['jobTitle'] or 'Not recorded'}",
+        f"Department: {source['department'] or 'Not recorded'}",
+        f"Employment start: {source['startDate'] or 'Not recorded'}",
+        f"Contract type: {source['contractType']}",
+        f"Contract end: {source['endDate'] or 'Open ended'}",
+        f"Basic salary: AED {source['basicSalary']}",
+        f"Total package: AED {source['totalPackage']}",
+        "Employee signature: ________________________",
+        "Employer signature: ________________________",
+    ]
+    return _render_pdf(
+        title="Employment contract letter",
+        document_id=f"employment-contract:{source['employeeId']}",
+        source_timestamp=source["updatedAt"],
+        lines=lines,
+        filename_base=f"contract_{source['employeeNumber']}",
+        filter_material={"employeeId": source["employeeId"]},
+        source_material=source,
+    )
+
+
 def render_letter_request_pdf(source: dict[str, Any]) -> RenderedOutput:
     lines = [
         f"Reference: {source['requestId']}",

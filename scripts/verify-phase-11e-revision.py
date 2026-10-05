@@ -14,7 +14,7 @@ REVISION = (
 )
 REVISION_ID = "a1c3e5f7b9d4"
 PREDECESSOR = "f0b2c4d6e8a3"
-CURRENT_HEAD = "e2c4f6a8b0d3"
+CURRENT_HEAD = "f3a5c7e9b1d4"
 
 
 def require(path: Path, *fragments: str) -> str:
@@ -65,7 +65,7 @@ def verify_static() -> None:
         "ROUND_HALF_UP",
         'Decimal("7.50")',
         "FOR UPDATE",
-        "lock_development_direct_report",
+        "set_manager_appraisal_section_rating",
     )
     require(
         ROOT / "backend/app/services/incidents.py",

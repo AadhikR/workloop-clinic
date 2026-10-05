@@ -530,6 +530,13 @@ jobs:
           docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env-from-file ./backend/.env.api --env RESTORATION_E_DISPOSABLE=true --env PYTHONPATH=/phase13f:/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-restoration-e-database.py
       - name: Verify restored staff portal browser workflows
         run: node tests/portal-restoration-e-browser-check.mjs
+      - name: Verify final restoration authority and projections
+        if: needs.changes.outputs.database_deep == 'true'
+        run: docker compose --profile tools run --rm --env-from-file ./backend/.env.postgres --env-from-file ./backend/.env.api --env RESTORATION_F_DISPOSABLE=true --env PYTHONPATH=/phase13f:/app --volume ./scripts:/verification:ro --entrypoint python migrate /verification/verify-restoration-f-database.py
+      - name: Verify complete restoration route states
+        run: node tests/portal-restoration-f-browser-check.mjs
+      - name: Verify final restoration interactions
+        run: node tests/portal-restoration-f-actions-browser-check.mjs
       - name: Verify service health
         run: |
           curl --fail --silent --show-error http://127.0.0.1:8000/health | jq --exit-status '.status == "ok" and .database == "ok"'

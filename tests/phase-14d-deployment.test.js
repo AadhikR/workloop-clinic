@@ -31,7 +31,7 @@ test('14A-GC-013 rejects a missing release digest', () => {
 })
 
 test('14A-GC-014 rejects a migration that does not verify the exact head', () => {
-  rejects(mutate('cloudMigrate', 'EXPECTED_ALEMBIC_HEAD = "e8a1c3f5b7d9"', 'EXPECTED_ALEMBIC_HEAD = "head"'), 'migration EXPECTED_ALEMBIC_HEAD')
+  rejects(mutate('cloudMigrate', 'EXPECTED_ALEMBIC_HEAD = "f3a5c7e9b1d4"', 'EXPECTED_ALEMBIC_HEAD = "head"'), 'migration EXPECTED_ALEMBIC_HEAD')
 })
 
 test('14A-GC-015 rejects an incomplete component health rule', () => {

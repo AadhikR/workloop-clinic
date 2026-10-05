@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.auth.application_user import AuthorizationPrincipal
 from app.db.audit import append_audit_event
+from app.http.versions import same_instant
 from app.schemas.incidents import (
     IncidentCorrectiveActionRequest,
     IncidentCreateRequest,
@@ -36,6 +37,7 @@ class IncidentListQuery:
     severity: str | None
     status: str | None
     limit: int
+    after_id: uuid.UUID | None = None
 
 
 class IncidentService:
@@ -58,12 +60,14 @@ FROM public.incident_reports report
 LEFT JOIN public.employees reporter ON reporter.id=report.reported_by_id
 LEFT JOIN public.employees involved ON involved.id=report.involved_emp_id
 WHERE report.company_id=:company_id AND report.branch_id=:branch_id
+  AND report.archived_at IS NULL
   AND (CAST(:date_from AS date) IS NULL OR report.incident_date>=:date_from)
   AND (CAST(:date_to AS date) IS NULL OR report.incident_date<=:date_to)
   AND (CAST(:incident_type AS text) IS NULL OR report.incident_type=:incident_type)
   AND (CAST(:severity AS text) IS NULL OR report.severity=:severity)
   AND (CAST(:status AS text) IS NULL OR report.status=:status)
-ORDER BY report.incident_date DESC,report.incident_time DESC NULLS LAST,report.id DESC
+  AND (CAST(:after_id AS uuid) IS NULL OR report.id>:after_id)
+ORDER BY report.id ASC
 LIMIT :limit
 """
                     ),
@@ -75,6 +79,7 @@ LIMIT :limit
                         "incident_type": query.incident_type,
                         "severity": query.severity,
                         "status": query.status,
+                        "after_id": query.after_id,
                         "limit": query.limit,
                     },
                 )
@@ -172,7 +177,9 @@ VALUES(:company_id,:branch_id,:incident_date,:incident_time,:location,:departmen
         request: IncidentUpdateRequest,
     ) -> IncidentResponse:
         current = await self._lock(principal, branch_id, incident_id)
-        if current.status != "open" or current.updated_at != request.expected_updated_at:
+        if current.status != "open" or not same_instant(
+            current.updated_at, request.expected_updated_at
+        ):
             raise ServiceExecutionError("state_conflict")
         await self._validate_people(
             principal, branch_id, request.reported_by_id, request.involved_emp_id
@@ -221,7 +228,9 @@ UPDATE public.incident_reports SET incident_date=:incident_date,incident_time=:i
         request: IncidentInvestigationRequest,
     ) -> IncidentResponse:
         current = await self._lock(principal, branch_id, incident_id)
-        if current.status != "open" or current.updated_at != request.expected_updated_at:
+        if current.status != "open" or not same_instant(
+            current.updated_at, request.expected_updated_at
+        ):
             raise ServiceExecutionError("state_conflict")
         await self.connection.execute(
             text(
@@ -250,7 +259,9 @@ UPDATE public.incident_reports SET incident_date=:incident_date,incident_time=:i
         request: IncidentCorrectiveActionRequest,
     ) -> IncidentResponse:
         current = await self._lock(principal, branch_id, incident_id)
-        if current.status != "investigating" or current.updated_at != request.expected_updated_at:
+        if current.status != "investigating" or not same_instant(
+            current.updated_at, request.expected_updated_at
+        ):
             raise ServiceExecutionError("state_conflict")
         await self.connection.execute(
             text(
@@ -281,7 +292,7 @@ UPDATE public.incident_reports SET incident_date=:incident_date,incident_time=:i
         current = await self._lock(principal, branch_id, incident_id)
         if (
             current.status != "investigating"
-            or current.updated_at != expected_updated_at
+            or not same_instant(current.updated_at, expected_updated_at)
             or not current.root_cause.strip()
             or not current.corrective_action.strip()
         ):
@@ -360,7 +371,7 @@ UPDATE public.incident_reports SET incident_date=:incident_date,incident_time=:i
                     "SELECT id,status,incident_type,severity,root_cause,corrective_action,"
                     "updated_at "
                     "FROM public.incident_reports WHERE id=:id AND company_id=:company_id "
-                    "AND branch_id=:branch_id FOR UPDATE"
+                    "AND branch_id=:branch_id AND archived_at IS NULL FOR UPDATE"
                 ),
                 {"id": incident_id, "company_id": principal.company_id, "branch_id": branch_id},
             )

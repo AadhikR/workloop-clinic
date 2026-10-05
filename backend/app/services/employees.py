@@ -684,6 +684,15 @@ class EmployeeService:
         ids = {employee_id}
         if request.reporting_manager_id is not None:
             ids.add(request.reporting_manager_id)
+        try:
+            for target_id in sorted(ids):
+                await self._repository.assert_employee_exists(
+                    company_id=principal.company_id,
+                    branch_id=branch_id,
+                    employee_id=target_id,
+                )
+        except ResourceNotFoundError:
+            raise ServiceExecutionError("resource_not_found") from None
         await self._repository.acquire_relationship_locks(ids)
         locked = await self._repository.lock_employee_set(
             company_id=principal.company_id,

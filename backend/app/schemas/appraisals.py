@@ -62,6 +62,26 @@ class AppraisalCalibrationRequest(AppraisalVersionRequest):
     final_rating: Decimal = Field(ge=Decimal("1.0"), le=Decimal("5.0"), multiple_of=0.1)
 
 
+class AppraisalSectionReviewRequest(StrictRequestSchema):
+    id: uuid.UUID
+    rating: Decimal = Field(ge=Decimal("1.0"), le=Decimal("5.0"), multiple_of=0.1)
+    comments: str = Field(default="", max_length=10000)
+
+
+class AppraisalManagerReviewRequest(AppraisalVersionRequest):
+    sections: list[AppraisalSectionReviewRequest] = Field(min_length=1, max_length=50)
+
+    @model_validator(mode="after")
+    def unique_sections(self) -> AppraisalManagerReviewRequest:
+        if len({section.id for section in self.sections}) != len(self.sections):
+            raise ValueError("duplicate appraisal sections")
+        return self
+
+
+class AppraisalAdminReviewRequest(AppraisalReviewRequest, AppraisalManagerReviewRequest):
+    pass
+
+
 class AppraisalSectionResponse(ApiSchema):
     id: uuid.UUID
     section_name: str
@@ -93,6 +113,8 @@ class AppraisalResponse(ApiSchema):
     review_to: date
     employee_id: uuid.UUID
     employee_name: str
+    employee_department: str = ""
+    employee_job_title: str = ""
     template_version: str
     overall_rating: Decimal | None
     status: AppraisalStatus

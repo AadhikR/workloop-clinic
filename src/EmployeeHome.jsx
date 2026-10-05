@@ -35,7 +35,7 @@ function urgency(date) {
   const days = Math.ceil((new Date(`${date}T00:00:00+04:00`) - Date.now()) / 86400000)
   if (days < 0) return 'expired'
   if (days <= 30) return 'critical'
-  if (days <= 90) return 'warning'
+  if (days <= 60) return 'warning'
   return 'valid'
 }
 
@@ -82,20 +82,22 @@ export default function EmployeeHome({ authentication, navigator, role = 'employ
         <span className="status-pill" data-status={employee.employmentStatus}>{employee.employmentStatus.replaceAll('_', ' ')}</span>
       </header>
 
-      <div className="employee-kpi-grid">
-        {state.dashboard.cards.map((card) => {
+      <section className="employee-panel home-attendance"><div className="employee-section-heading"><h3>Today's status</h3><button type="button" className="btn btn-ghost btn-sm" onClick={() => navigator.go(`/${role}/attendance`)}>View attendance</button></div>
+        {attendance ? <><strong>{attendance.record?.status.replaceAll('_', ' ') ?? 'Not calculated'}</strong><div className="home-attendance-times"><p>Clock in: {attendance.record?.clockInTime ? new Date(attendance.record.clockInTime).toLocaleTimeString('en-AE', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dubai' }) : 'Not recorded'}</p><p>Clock out: {attendance.record?.clockOutTime ? new Date(attendance.record.clockOutTime).toLocaleTimeString('en-AE', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dubai' }) : 'Not recorded'}</p><p>Hours: {attendance.record?.totalHours ?? 'Not calculated'}</p></div></> : <p>Attendance is unavailable.</p>}
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => navigator.go(`/${role}/schedule`)}>Today's shift: {cardValue(state.dashboard.cards.find((card) => card.code === 'todayShift'))}</button>
+      </section>
+
+      <div className="employee-kpi-grid home-quick-cards">
+        {state.dashboard.cards.filter((card) => ['leaveBalance', 'latestPayslip'].includes(card.code)).map((card) => {
           const path = targets[card.drillDown.target]?.replace('/employee', `/${role}`)
-          const content = <><span>{card.label}</span><strong>{cardValue(card)}</strong>{card.comparison && <small>{card.comparison.label}: {card.comparison.value}</small>}</>
+          const content = <><span>{card.code === 'leaveBalance' ? 'Annual leave balance' : card.label}</span><strong>{cardValue(card)}{card.code === 'leaveBalance' && ' days'}</strong>{card.code === 'leaveBalance' && <small>{requests === null ? 'Pending requests unavailable' : `${requests.filter((item) => item.status.toLowerCase() === 'pending').length} pending requests`}</small>}{card.comparison && <small>{card.comparison.label}: {card.comparison.value}</small>}</>
           return path ? <button className="employee-kpi-card" data-severity={card.severity} key={card.code} type="button" onClick={() => navigator.go(path)}>{content}</button>
             : <article className="employee-kpi-card" data-severity={card.severity} key={card.code}>{content}</article>
         })}
       </div>
 
+      {identityDates.some(([, date]) => ['warning', 'critical', 'expired'].includes(urgency(date))) && <section className="employee-panel alert alert-warning" aria-labelledby="identity-expiry-title"><h3 id="identity-expiry-title">Document expiry reminder</h3><ul className="employee-detail-list">{identityDates.filter(([, date]) => ['warning', 'critical', 'expired'].includes(urgency(date))).map(([label, date]) => <li key={label}><strong>{label}</strong><span>{date}</span><span className="status-pill" data-status={urgency(date)}>{urgency(date)}</span></li>)}</ul></section>}
       <div className="employee-home-grid">
-        <section className="employee-panel home-attendance"><div className="employee-section-heading"><h3>Today's status</h3><button type="button" className="btn btn-ghost btn-sm" onClick={() => navigator.go(`/${role}/attendance`)}>View attendance</button></div>
-          {attendance ? <><strong>{attendance.record?.status.replaceAll('_', ' ') ?? 'Not calculated'}</strong><p>Clock in: {attendance.record?.clockInTime ? new Date(attendance.record.clockInTime).toLocaleTimeString('en-AE', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dubai' }) : 'Not recorded'}</p><p>Clock out: {attendance.record?.clockOutTime ? new Date(attendance.record.clockOutTime).toLocaleTimeString('en-AE', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dubai' }) : 'Not recorded'}</p></> : <p>Attendance is unavailable.</p>}
-        </section>
-        <section className="employee-panel"><div className="employee-section-heading"><h3>Recent leave requests</h3><button type="button" className="btn btn-ghost btn-sm" onClick={() => navigator.go(`/${role}/leave`)}>All requests</button></div>{requests === null ? <p>Leave requests are unavailable.</p> : requests.length === 0 ? <p>No leave requests this year.</p> : <ul className="employee-detail-list">{requests.slice(0, 3).map((request) => <li key={request.id}><strong>{request.startDate} to {request.endDate}</strong><span>{request.daysRequested} days</span><span className="status-pill" data-status={request.status.toLowerCase()}>{request.status}</span></li>)}</ul>}</section>
         <section className="employee-panel" aria-labelledby="assigned-assets-title">
           <h3 id="assigned-assets-title">Assigned assets</h3>
           {state.assets.filter((item) => item.returnDate === null).length === 0 ? <p className="empty-copy">No assets are currently assigned to you.</p> : (
@@ -104,12 +106,7 @@ export default function EmployeeHome({ authentication, navigator, role = 'employ
             ))}</ul>
           )}
         </section>
-        <section className="employee-panel" aria-labelledby="identity-expiry-title">
-          <h3 id="identity-expiry-title">Identity document expiry</h3>
-          <ul className="employee-detail-list">{identityDates.map(([label, date]) => (
-            <li key={label}><strong>{label}</strong><span>{date ?? 'Not recorded'}</span><span className="status-pill" data-status={urgency(date)}>{urgency(date)}</span></li>
-          ))}</ul>
-        </section>
+        <section className="employee-panel"><div className="employee-section-heading"><h3>Recent leave requests</h3><button type="button" className="btn btn-ghost btn-sm" onClick={() => navigator.go(`/${role}/leave`)}>All requests</button></div>{requests === null ? <p>Leave requests are unavailable.</p> : requests.length === 0 ? <p>No leave requests this year.</p> : <ul className="employee-detail-list">{requests.slice(0, 3).map((request) => <li key={request.id}><strong>{request.startDate} to {request.endDate}</strong><span>{request.daysRequested} days</span><span className="status-pill" data-status={request.status.toLowerCase()}>{request.status}</span></li>)}</ul>}</section>
       </div>
     </section>
   )

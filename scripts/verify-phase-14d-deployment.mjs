@@ -173,7 +173,7 @@ export function validatePhase14DDeployment(sources) {
   const migration = blocks.get('database-migrate') ?? ''
   requireText(errors, migration, 'kind               = "PRE_DEPLOY"', 'pre-deploy migration kind')
   requireText(errors, migration, 'WORKLOOP_ALEMBIC_HEAD', 'migration manifest head')
-  for (const marker of ['EXPECTED_ALEMBIC_HEAD = "e8a1c3f5b7d9"', 'verify_schema_head', 'already_current']) {
+  for (const marker of ['EXPECTED_ALEMBIC_HEAD = "f3a5c7e9b1d4"', 'verify_schema_head', 'already_current']) {
     requireText(errors, sources.cloudMigrate, marker, `migration ${marker}`)
   }
 

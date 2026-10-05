@@ -1,0 +1,1662 @@
+{
+  "complete": true,
+  "routes": [
+    {
+      "path": "/admin",
+      "role": "admin",
+      "title": "Dashboard",
+      "screenshots": [
+        "admin-desktop.png",
+        "admin-mobile.png",
+        "admin-mobile-dark.png",
+        "admin-empty-desktop.png",
+        "admin-empty-mobile.png",
+        "admin-unavailable-desktop.png",
+        "admin-unavailable-mobile.png",
+        "admin-loading-desktop.png",
+        "admin-loading-mobile.png",
+        "admin-denied-desktop.png",
+        "admin-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/company",
+        "/api/v1/branches?limit=100",
+        "/api/v1/dashboards/admin",
+        "/api/v1/branches/d4000000-0000-4000-8000-000000000002",
+        "/api/v1/company",
+        "/api/v1/notifications/unread-count",
+        "/api/v1/dashboards/admin/workspace-summary",
+        "/api/v1/payroll-runs?limit=100",
+        "/api/v1/reports/emiratization?period=2026-10&limit=200",
+        "/api/v1/reports/payrollCost?limit=200"
+      ]
+    },
+    {
+      "path": "/admin/clinical-dashboard",
+      "role": "admin",
+      "title": "Clinical Dashboard",
+      "screenshots": [
+        "admin-clinical-dashboard-desktop.png",
+        "admin-clinical-dashboard-mobile.png",
+        "admin-clinical-dashboard-mobile-dark.png",
+        "admin-clinical-dashboard-empty-desktop.png",
+        "admin-clinical-dashboard-empty-mobile.png",
+        "admin-clinical-dashboard-unavailable-desktop.png",
+        "admin-clinical-dashboard-unavailable-mobile.png",
+        "admin-clinical-dashboard-loading-desktop.png",
+        "admin-clinical-dashboard-loading-mobile.png",
+        "admin-clinical-dashboard-denied-desktop.png",
+        "admin-clinical-dashboard-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/company",
+        "/api/v1/branches?limit=100",
+        "/api/v1/dashboards/clinical",
+        "/api/v1/notifications/unread-count",
+        "/api/v1/dashboards/clinical/workforce-summary",
+        "/api/v1/branches/d4000000-0000-4000-8000-000000000002",
+        "/api/v1/reports/staffingCompliance?period=2026-10&limit=200",
+        "/api/v1/reports/documentExpiry?to=2027-01-03&limit=200"
+      ]
+    },
+    {
+      "path": "/admin/company-settings",
+      "role": "admin",
+      "title": "Company Settings",
+      "screenshots": [
+        "admin-company-settings-desktop.png",
+        "admin-company-settings-mobile.png",
+        "admin-company-settings-mobile-dark.png",
+        "admin-company-settings-empty-desktop.png",
+        "admin-company-settings-empty-mobile.png",
+        "admin-company-settings-unavailable-desktop.png",
+        "admin-company-settings-unavailable-mobile.png",
+        "admin-company-settings-loading-desktop.png",
+        "admin-company-settings-loading-mobile.png",
+        "admin-company-settings-denied-desktop.png",
+        "admin-company-settings-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/company",
+        "/api/v1/branches?limit=100",
+        "/api/v1/notifications/unread-count",
+        "/api/v1/idempotency-recovery-namespaces",
+        "/api/v1/insurance/policies?limit=100"
+      ]
+    },
+    {
+      "path": "/admin/employees",
+      "role": "admin",
+      "title": "Employees",
+      "screenshots": [
+        "admin-employees-desktop.png",
+        "admin-employees-mobile.png",
+        "admin-employees-mobile-dark.png",
+        "admin-employees-empty-desktop.png",
+        "admin-employees-empty-mobile.png",
+        "admin-employees-unavailable-desktop.png",
+        "admin-employees-unavailable-mobile.png",
+        "admin-employees-loading-desktop.png",
+        "admin-employees-loading-mobile.png",
+        "admin-employees-denied-desktop.png",
+        "admin-employees-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/company",
+        "/api/v1/branches?limit=100",
+        "/api/v1/employees?limit=100",
+        "/api/v1/departments?limit=100",
+        "/api/v1/employees?limit=100",
+        "/api/v1/employee-job-history?limit=10",
+        "/api/v1/employees/expiry-summary?limit=100",
+        "/api/v1/employees/directory-details?limit=100",
+        "/api/v1/notifications/unread-count"
+      ]
+    },
+    {
+      "path": "/admin/departments",
+      "role": "admin",
+      "title": "Departments",
+      "screenshots": [
+        "admin-departments-desktop.png",
+        "admin-departments-mobile.png",
+        "admin-departments-mobile-dark.png",
+        "admin-departments-empty-desktop.png",
+        "admin-departments-empty-mobile.png",
+        "admin-departments-unavailable-desktop.png",
+        "admin-departments-unavailable-mobile.png",
+        "admin-departments-loading-desktop.png",
+        "admin-departments-loading-mobile.png",
+        "admin-departments-denied-desktop.png",
+        "admin-departments-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/company",
+        "/api/v1/branches?limit=100",
+        "/api/v1/branches/b2000000-0000-4000-8000-000000000002",
+        "/api/v1/departments?limit=100",
+        "/api/v1/employees?limit=100",
+        "/api/v1/department-staffing-rules?limit=100",
+        "/api/v1/notifications/unread-count"
+      ]
+    },
+    {
+      "path": "/admin/requests",
+      "role": "admin",
+      "title": "Requests",
+      "screenshots": [
+        "admin-requests-desktop.png",
+        "admin-requests-mobile.png",
+        "admin-requests-mobile-dark.png",
+        "admin-requests-empty-desktop.png",
+        "admin-requests-empty-mobile.png",
+        "admin-requests-unavailable-desktop.png",
+        "admin-requests-unavailable-mobile.png",
+        "admin-requests-loading-desktop.png",
+        "admin-requests-loading-mobile.png",
+        "admin-requests-denied-desktop.png",
+        "admin-requests-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/company",
+        "/api/v1/branches?limit=100",
+        "/api/v1/notifications/unread-count",
+        "/api/v1/requests"
+      ]
+    },
+    {
+      "path": "/admin/payroll",
+      "role": "admin",
+      "title": "Payroll Module",
+      "screenshots": [
+        "admin-payroll-desktop.png",
+        "admin-payroll-mobile.png",
+        "admin-payroll-mobile-dark.png",
+        "admin-payroll-empty-desktop.png",
+        "admin-payroll-empty-mobile.png",
+        "admin-payroll-unavailable-desktop.png",
+        "admin-payroll-unavailable-mobile.png",
+        "admin-payroll-loading-desktop.png",
+        "admin-payroll-loading-mobile.png",
+        "admin-payroll-denied-desktop.png",
+        "admin-payroll-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/company",
+        "/api/v1/branches?limit=100",
+        "/api/v1/notifications/unread-count",
+        "/api/v1/payroll-runs?limit=100"
+      ]
+    },
+    {
+      "path": "/admin/advances",
+      "role": "admin",
+      "title": "Advances",
+      "screenshots": [
+        "admin-advances-desktop.png",
+        "admin-advances-mobile.png",
+        "admin-advances-mobile-dark.png",
+        "admin-advances-empty-desktop.png",
+        "admin-advances-empty-mobile.png",
+        "admin-advances-unavailable-desktop.png",
+        "admin-advances-unavailable-mobile.png",
+        "admin-advances-loading-desktop.png",
+        "admin-advances-loading-mobile.png",
+        "admin-advances-denied-desktop.png",
+        "admin-advances-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/company",
+        "/api/v1/branches?limit=100",
+        "/api/v1/notifications/unread-count",
+        "/api/v1/advances?limit=100",
+        "/api/v1/employees?sort=name&limit=100"
+      ]
+    },
+    {
+      "path": "/admin/expenses",
+      "role": "admin",
+      "title": "Expenses",
+      "screenshots": [
+        "admin-expenses-desktop.png",
+        "admin-expenses-mobile.png",
+        "admin-expenses-mobile-dark.png",
+        "admin-expenses-empty-desktop.png",
+        "admin-expenses-empty-mobile.png",
+        "admin-expenses-unavailable-desktop.png",
+        "admin-expenses-unavailable-mobile.png",
+        "admin-expenses-loading-desktop.png",
+        "admin-expenses-loading-mobile.png",
+        "admin-expenses-denied-desktop.png",
+        "admin-expenses-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/company",
+        "/api/v1/branches?limit=100",
+        "/api/v1/notifications/unread-count",
+        "/api/v1/retained-records?kind=expense_claim&limit=100",
+        "/api/v1/expenses?limit=100",
+        "/api/v1/retained-records?kind=expense_claim&limit=100"
+      ]
+    },
+    {
+      "path": "/admin/leave",
+      "role": "admin",
+      "title": "Leave",
+      "screenshots": [
+        "admin-leave-desktop.png",
+        "admin-leave-mobile.png",
+        "admin-leave-mobile-dark.png",
+        "admin-leave-empty-desktop.png",
+        "admin-leave-empty-mobile.png",
+        "admin-leave-unavailable-desktop.png",
+        "admin-leave-unavailable-mobile.png",
+        "admin-leave-loading-desktop.png",
+        "admin-leave-loading-mobile.png",
+        "admin-leave-denied-desktop.png",
+        "admin-leave-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/company",
+        "/api/v1/branches?limit=100",
+        "/api/v1/leave/balances/branch?year=2026&limit=100",
+        "/api/v1/leave/requests/calendar/branch?year=2026&limit=100",
+        "/api/v1/leave/types?limit=100",
+        "/api/v1/employees?limit=100",
+        "/api/v1/notifications/unread-count"
+      ]
+    },
+    {
+      "path": "/admin/attendance",
+      "role": "admin",
+      "title": "Attendance",
+      "screenshots": [
+        "admin-attendance-desktop.png",
+        "admin-attendance-mobile.png",
+        "admin-attendance-mobile-dark.png",
+        "admin-attendance-empty-desktop.png",
+        "admin-attendance-empty-mobile.png",
+        "admin-attendance-unavailable-desktop.png",
+        "admin-attendance-unavailable-mobile.png",
+        "admin-attendance-loading-desktop.png",
+        "admin-attendance-loading-mobile.png",
+        "admin-attendance-denied-desktop.png",
+        "admin-attendance-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/company",
+        "/api/v1/branches?limit=100",
+        "/api/v1/employees?limit=100",
+        "/api/v1/attendance-records?limit=100",
+        "/api/v1/notifications/unread-count"
+      ]
+    },
+    {
+      "path": "/admin/assets",
+      "role": "admin",
+      "title": "Assets",
+      "screenshots": [
+        "admin-assets-desktop.png",
+        "admin-assets-mobile.png",
+        "admin-assets-mobile-dark.png",
+        "admin-assets-empty-desktop.png",
+        "admin-assets-empty-mobile.png",
+        "admin-assets-unavailable-desktop.png",
+        "admin-assets-unavailable-mobile.png",
+        "admin-assets-loading-desktop.png",
+        "admin-assets-loading-mobile.png",
+        "admin-assets-denied-desktop.png",
+        "admin-assets-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/company",
+        "/api/v1/branches?limit=100",
+        "/api/v1/notifications/unread-count",
+        "/api/v1/assets?limit=100",
+        "/api/v1/assets/assignments?limit=100"
+      ]
+    },
+    {
+      "path": "/admin/training",
+      "role": "admin",
+      "title": "Training",
+      "screenshots": [
+        "admin-training-desktop.png",
+        "admin-training-mobile.png",
+        "admin-training-mobile-dark.png",
+        "admin-training-empty-desktop.png",
+        "admin-training-empty-mobile.png",
+        "admin-training-unavailable-desktop.png",
+        "admin-training-unavailable-mobile.png",
+        "admin-training-loading-desktop.png",
+        "admin-training-loading-mobile.png",
+        "admin-training-denied-desktop.png",
+        "admin-training-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/company",
+        "/api/v1/branches?limit=100",
+        "/api/v1/employees?sort=name&limit=100",
+        "/api/v1/notifications/unread-count",
+        "/api/v1/training-records?limit=100",
+        "/api/v1/certifications?limit=100",
+        "/api/v1/employees?limit=100"
+      ]
+    },
+    {
+      "path": "/admin/appraisals",
+      "role": "admin",
+      "title": "Appraisals",
+      "screenshots": [
+        "admin-appraisals-desktop.png",
+        "admin-appraisals-mobile.png",
+        "admin-appraisals-mobile-dark.png",
+        "admin-appraisals-empty-desktop.png",
+        "admin-appraisals-empty-mobile.png",
+        "admin-appraisals-unavailable-desktop.png",
+        "admin-appraisals-unavailable-mobile.png",
+        "admin-appraisals-loading-desktop.png",
+        "admin-appraisals-loading-mobile.png",
+        "admin-appraisals-denied-desktop.png",
+        "admin-appraisals-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/company",
+        "/api/v1/branches?limit=100",
+        "/api/v1/notifications/unread-count",
+        "/api/v1/retained-records?kind=appraisal&limit=100",
+        "/api/v1/appraisal-cycles?limit=100",
+        "/api/v1/retained-records?kind=appraisal&limit=100"
+      ]
+    },
+    {
+      "path": "/admin/roster",
+      "role": "admin",
+      "title": "Roster",
+      "screenshots": [
+        "admin-roster-desktop.png",
+        "admin-roster-mobile.png",
+        "admin-roster-mobile-dark.png",
+        "admin-roster-empty-desktop.png",
+        "admin-roster-empty-mobile.png",
+        "admin-roster-unavailable-desktop.png",
+        "admin-roster-unavailable-mobile.png",
+        "admin-roster-loading-desktop.png",
+        "admin-roster-loading-mobile.png",
+        "admin-roster-denied-desktop.png",
+        "admin-roster-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/company",
+        "/api/v1/branches?limit=100",
+        "/api/v1/attendance-settings",
+        "/api/v1/shifts?limit=100",
+        "/api/v1/employees?limit=100",
+        "/api/v1/notifications/unread-count"
+      ]
+    },
+    {
+      "path": "/admin/incidents",
+      "role": "admin",
+      "title": "Incidents",
+      "screenshots": [
+        "admin-incidents-desktop.png",
+        "admin-incidents-mobile.png",
+        "admin-incidents-mobile-dark.png",
+        "admin-incidents-empty-desktop.png",
+        "admin-incidents-empty-mobile.png",
+        "admin-incidents-unavailable-desktop.png",
+        "admin-incidents-unavailable-mobile.png",
+        "admin-incidents-loading-desktop.png",
+        "admin-incidents-loading-mobile.png",
+        "admin-incidents-denied-desktop.png",
+        "admin-incidents-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/company",
+        "/api/v1/branches?limit=100",
+        "/api/v1/notifications/unread-count",
+        "/api/v1/retained-records?kind=incident_report&limit=100",
+        "/api/v1/clinical-incidents?limit=100",
+        "/api/v1/retained-records?kind=incident_report&limit=100"
+      ]
+    },
+    {
+      "path": "/admin/reports",
+      "role": "admin",
+      "title": "Reports",
+      "screenshots": [
+        "admin-reports-desktop.png",
+        "admin-reports-mobile.png",
+        "admin-reports-mobile-dark.png",
+        "admin-reports-empty-desktop.png",
+        "admin-reports-empty-mobile.png",
+        "admin-reports-unavailable-desktop.png",
+        "admin-reports-unavailable-mobile.png",
+        "admin-reports-loading-desktop.png",
+        "admin-reports-loading-mobile.png",
+        "admin-reports-denied-desktop.png",
+        "admin-reports-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/company",
+        "/api/v1/branches?limit=100",
+        "/api/v1/notifications/unread-count",
+        "/api/v1/reports/headcount?limit=50",
+        "/api/v1/employees?limit=100",
+        "/api/v1/departments?limit=100"
+      ]
+    },
+    {
+      "path": "/admin/tasks",
+      "role": "admin",
+      "title": "Tasks",
+      "screenshots": [
+        "admin-tasks-desktop.png",
+        "admin-tasks-mobile.png",
+        "admin-tasks-mobile-dark.png",
+        "admin-tasks-empty-desktop.png",
+        "admin-tasks-empty-mobile.png",
+        "admin-tasks-unavailable-desktop.png",
+        "admin-tasks-unavailable-mobile.png",
+        "admin-tasks-loading-desktop.png",
+        "admin-tasks-loading-mobile.png",
+        "admin-tasks-denied-desktop.png",
+        "admin-tasks-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/company",
+        "/api/v1/branches?limit=100",
+        "/api/v1/notifications/unread-count",
+        "/api/v1/tasks?limit=50"
+      ]
+    },
+    {
+      "path": "/manager",
+      "role": "manager",
+      "title": "Home",
+      "screenshots": [
+        "manager-desktop.png",
+        "manager-mobile.png",
+        "manager-mobile-dark.png",
+        "manager-empty-desktop.png",
+        "manager-empty-mobile.png",
+        "manager-unavailable-desktop.png",
+        "manager-unavailable-mobile.png",
+        "manager-loading-desktop.png",
+        "manager-loading-mobile.png",
+        "manager-denied-desktop.png",
+        "manager-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/employees/self",
+        "/api/v1/employer",
+        "/api/v1/branches?limit=100",
+        "/api/v1/attendance/me/today",
+        "/api/v1/leave/requests/calendar/self?limit=100",
+        "/api/v1/employees/self",
+        "/api/v1/dashboards/self",
+        "/api/v1/assets/self?limit=100",
+        "/api/v1/notifications/unread-count"
+      ]
+    },
+    {
+      "path": "/manager/leave-queue",
+      "role": "manager",
+      "title": "Leave Queue",
+      "screenshots": [
+        "manager-leave-queue-desktop.png",
+        "manager-leave-queue-mobile.png",
+        "manager-leave-queue-mobile-dark.png",
+        "manager-leave-queue-empty-desktop.png",
+        "manager-leave-queue-empty-mobile.png",
+        "manager-leave-queue-unavailable-desktop.png",
+        "manager-leave-queue-unavailable-mobile.png",
+        "manager-leave-queue-loading-desktop.png",
+        "manager-leave-queue-loading-mobile.png",
+        "manager-leave-queue-denied-desktop.png",
+        "manager-leave-queue-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/employees/self",
+        "/api/v1/employer",
+        "/api/v1/branches?limit=100",
+        "/api/v1/leave/approvals/queue?limit=100",
+        "/api/v1/leave/approvals/recent?limit=100",
+        "/api/v1/notifications/unread-count"
+      ]
+    },
+    {
+      "path": "/manager/expense-queue",
+      "role": "manager",
+      "title": "Expense Queue",
+      "screenshots": [
+        "manager-expense-queue-desktop.png",
+        "manager-expense-queue-mobile.png",
+        "manager-expense-queue-mobile-dark.png",
+        "manager-expense-queue-empty-desktop.png",
+        "manager-expense-queue-empty-mobile.png",
+        "manager-expense-queue-unavailable-desktop.png",
+        "manager-expense-queue-unavailable-mobile.png",
+        "manager-expense-queue-loading-desktop.png",
+        "manager-expense-queue-loading-mobile.png",
+        "manager-expense-queue-denied-desktop.png",
+        "manager-expense-queue-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/employees/self",
+        "/api/v1/employer",
+        "/api/v1/branches?limit=100",
+        "/api/v1/notifications/unread-count",
+        "/api/v1/expenses/manager-queue?limit=100"
+      ]
+    },
+    {
+      "path": "/manager/appraisals",
+      "role": "manager",
+      "title": "Appraisals",
+      "screenshots": [
+        "manager-appraisals-desktop.png",
+        "manager-appraisals-mobile.png",
+        "manager-appraisals-mobile-dark.png",
+        "manager-appraisals-empty-desktop.png",
+        "manager-appraisals-empty-mobile.png",
+        "manager-appraisals-unavailable-desktop.png",
+        "manager-appraisals-unavailable-mobile.png",
+        "manager-appraisals-loading-desktop.png",
+        "manager-appraisals-loading-mobile.png",
+        "manager-appraisals-denied-desktop.png",
+        "manager-appraisals-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/employees/self",
+        "/api/v1/employer",
+        "/api/v1/branches?limit=100",
+        "/api/v1/notifications/unread-count",
+        "/api/v1/appraisals/direct-reports?limit=100"
+      ]
+    },
+    {
+      "path": "/manager/leave",
+      "role": "manager",
+      "title": "My Leave",
+      "screenshots": [
+        "manager-leave-desktop.png",
+        "manager-leave-mobile.png",
+        "manager-leave-mobile-dark.png",
+        "manager-leave-empty-desktop.png",
+        "manager-leave-empty-mobile.png",
+        "manager-leave-unavailable-desktop.png",
+        "manager-leave-unavailable-mobile.png",
+        "manager-leave-loading-desktop.png",
+        "manager-leave-loading-mobile.png",
+        "manager-leave-denied-desktop.png",
+        "manager-leave-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/employees/self",
+        "/api/v1/employer",
+        "/api/v1/branches?limit=100",
+        "/api/v1/leave/balances/self?year=2026&limit=100",
+        "/api/v1/leave/requests/calendar/self?year=2026&limit=100",
+        "/api/v1/leave/types?limit=100",
+        "/api/v1/notifications/unread-count"
+      ]
+    },
+    {
+      "path": "/manager/schedule",
+      "role": "manager",
+      "title": "Schedule",
+      "screenshots": [
+        "manager-schedule-desktop.png",
+        "manager-schedule-mobile.png",
+        "manager-schedule-mobile-dark.png",
+        "manager-schedule-empty-desktop.png",
+        "manager-schedule-empty-mobile.png",
+        "manager-schedule-unavailable-desktop.png",
+        "manager-schedule-unavailable-mobile.png",
+        "manager-schedule-loading-desktop.png",
+        "manager-schedule-loading-mobile.png",
+        "manager-schedule-denied-desktop.png",
+        "manager-schedule-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/employees/self",
+        "/api/v1/employer",
+        "/api/v1/branches?limit=100",
+        "/api/v1/roster/schedules/self?period=2026-10",
+        "/api/v1/roster/shift-swaps/self?limit=100",
+        "/api/v1/notifications/unread-count"
+      ]
+    },
+    {
+      "path": "/manager/attendance",
+      "role": "manager",
+      "title": "My Attendance",
+      "screenshots": [
+        "manager-attendance-desktop.png",
+        "manager-attendance-mobile.png",
+        "manager-attendance-mobile-dark.png",
+        "manager-attendance-empty-desktop.png",
+        "manager-attendance-empty-mobile.png",
+        "manager-attendance-unavailable-desktop.png",
+        "manager-attendance-unavailable-mobile.png",
+        "manager-attendance-loading-desktop.png",
+        "manager-attendance-loading-mobile.png",
+        "manager-attendance-denied-desktop.png",
+        "manager-attendance-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/employees/self",
+        "/api/v1/employer",
+        "/api/v1/branches?limit=100",
+        "/api/v1/attendance/me/today",
+        "/api/v1/attendance/me?limit=31",
+        "/api/v1/attendance/regularisations/me?limit=50",
+        "/api/v1/notifications/unread-count"
+      ]
+    },
+    {
+      "path": "/manager/payslips",
+      "role": "manager",
+      "title": "Payslips",
+      "screenshots": [
+        "manager-payslips-desktop.png",
+        "manager-payslips-mobile.png",
+        "manager-payslips-mobile-dark.png",
+        "manager-payslips-empty-desktop.png",
+        "manager-payslips-empty-mobile.png",
+        "manager-payslips-unavailable-desktop.png",
+        "manager-payslips-unavailable-mobile.png",
+        "manager-payslips-loading-desktop.png",
+        "manager-payslips-loading-mobile.png",
+        "manager-payslips-denied-desktop.png",
+        "manager-payslips-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/employees/self",
+        "/api/v1/employer",
+        "/api/v1/branches?limit=100",
+        "/api/v1/payslips/self",
+        "/api/v1/notifications/unread-count"
+      ]
+    },
+    {
+      "path": "/manager/advances",
+      "role": "manager",
+      "title": "Advances",
+      "screenshots": [
+        "manager-advances-desktop.png",
+        "manager-advances-mobile.png",
+        "manager-advances-mobile-dark.png",
+        "manager-advances-empty-desktop.png",
+        "manager-advances-empty-mobile.png",
+        "manager-advances-unavailable-desktop.png",
+        "manager-advances-unavailable-mobile.png",
+        "manager-advances-loading-desktop.png",
+        "manager-advances-loading-mobile.png",
+        "manager-advances-denied-desktop.png",
+        "manager-advances-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/employees/self",
+        "/api/v1/employer",
+        "/api/v1/branches?limit=100",
+        "/api/v1/employees/self",
+        "/api/v1/notifications/unread-count",
+        "/api/v1/advances/self?limit=100"
+      ]
+    },
+    {
+      "path": "/manager/expenses",
+      "role": "manager",
+      "title": "Expenses",
+      "screenshots": [
+        "manager-expenses-desktop.png",
+        "manager-expenses-mobile.png",
+        "manager-expenses-mobile-dark.png",
+        "manager-expenses-empty-desktop.png",
+        "manager-expenses-empty-mobile.png",
+        "manager-expenses-unavailable-desktop.png",
+        "manager-expenses-unavailable-mobile.png",
+        "manager-expenses-loading-desktop.png",
+        "manager-expenses-loading-mobile.png",
+        "manager-expenses-denied-desktop.png",
+        "manager-expenses-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/employees/self",
+        "/api/v1/employer",
+        "/api/v1/branches?limit=100",
+        "/api/v1/notifications/unread-count",
+        "/api/v1/expenses/self?limit=100"
+      ]
+    },
+    {
+      "path": "/manager/training",
+      "role": "manager",
+      "title": "Training",
+      "screenshots": [
+        "manager-training-desktop.png",
+        "manager-training-mobile.png",
+        "manager-training-mobile-dark.png",
+        "manager-training-empty-desktop.png",
+        "manager-training-empty-mobile.png",
+        "manager-training-unavailable-desktop.png",
+        "manager-training-unavailable-mobile.png",
+        "manager-training-loading-desktop.png",
+        "manager-training-loading-mobile.png",
+        "manager-training-denied-desktop.png",
+        "manager-training-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/employees/self",
+        "/api/v1/employer",
+        "/api/v1/branches?limit=100",
+        "/api/v1/notifications/unread-count",
+        "/api/v1/employees/direct-reports?limit=100",
+        "/api/v1/employees/direct-reports?limit=100",
+        "/api/v1/employees/direct-reports?limit=100",
+        "/api/v1/training-records/direct-reports?employeeId=e5000000-0000-4000-8000-000000000006&limit=100",
+        "/api/v1/certifications/direct-reports?employeeId=e5000000-0000-4000-8000-000000000006&limit=100"
+      ]
+    },
+    {
+      "path": "/manager/documents",
+      "role": "manager",
+      "title": "Documents",
+      "screenshots": [
+        "manager-documents-desktop.png",
+        "manager-documents-mobile.png",
+        "manager-documents-mobile-dark.png",
+        "manager-documents-empty-desktop.png",
+        "manager-documents-empty-mobile.png",
+        "manager-documents-unavailable-desktop.png",
+        "manager-documents-unavailable-mobile.png",
+        "manager-documents-loading-desktop.png",
+        "manager-documents-loading-mobile.png",
+        "manager-documents-denied-desktop.png",
+        "manager-documents-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/employees/self",
+        "/api/v1/employer",
+        "/api/v1/branches?limit=100",
+        "/api/v1/notifications/unread-count",
+        "/api/v1/employee-documents/self?limit=100"
+      ]
+    },
+    {
+      "path": "/manager/requests",
+      "role": "manager",
+      "title": "Requests",
+      "screenshots": [
+        "manager-requests-desktop.png",
+        "manager-requests-mobile.png",
+        "manager-requests-mobile-dark.png",
+        "manager-requests-empty-desktop.png",
+        "manager-requests-empty-mobile.png",
+        "manager-requests-unavailable-desktop.png",
+        "manager-requests-unavailable-mobile.png",
+        "manager-requests-loading-desktop.png",
+        "manager-requests-loading-mobile.png",
+        "manager-requests-denied-desktop.png",
+        "manager-requests-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/employees/self",
+        "/api/v1/employer",
+        "/api/v1/branches?limit=100",
+        "/api/v1/notifications/unread-count",
+        "/api/v1/requests/self"
+      ]
+    },
+    {
+      "path": "/manager/profile",
+      "role": "manager",
+      "title": "Profile",
+      "screenshots": [
+        "manager-profile-desktop.png",
+        "manager-profile-mobile.png",
+        "manager-profile-mobile-dark.png",
+        "manager-profile-empty-desktop.png",
+        "manager-profile-empty-mobile.png",
+        "manager-profile-unavailable-desktop.png",
+        "manager-profile-unavailable-mobile.png",
+        "manager-profile-loading-desktop.png",
+        "manager-profile-loading-mobile.png",
+        "manager-profile-denied-desktop.png",
+        "manager-profile-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/employees/self",
+        "/api/v1/employer",
+        "/api/v1/branches?limit=100",
+        "/api/v1/employees/self",
+        "/api/v1/notifications/unread-count"
+      ]
+    },
+    {
+      "path": "/manager/tasks",
+      "role": "manager",
+      "title": "Tasks",
+      "screenshots": [
+        "manager-tasks-desktop.png",
+        "manager-tasks-mobile.png",
+        "manager-tasks-mobile-dark.png",
+        "manager-tasks-empty-desktop.png",
+        "manager-tasks-empty-mobile.png",
+        "manager-tasks-unavailable-desktop.png",
+        "manager-tasks-unavailable-mobile.png",
+        "manager-tasks-loading-desktop.png",
+        "manager-tasks-loading-mobile.png",
+        "manager-tasks-denied-desktop.png",
+        "manager-tasks-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/employees/self",
+        "/api/v1/employer",
+        "/api/v1/branches?limit=100",
+        "/api/v1/notifications/unread-count",
+        "/api/v1/tasks?limit=50"
+      ]
+    },
+    {
+      "path": "/employee",
+      "role": "employee",
+      "title": "Home",
+      "screenshots": [
+        "employee-desktop.png",
+        "employee-mobile.png",
+        "employee-mobile-dark.png",
+        "employee-empty-desktop.png",
+        "employee-empty-mobile.png",
+        "employee-unavailable-desktop.png",
+        "employee-unavailable-mobile.png",
+        "employee-loading-desktop.png",
+        "employee-loading-mobile.png",
+        "employee-denied-desktop.png",
+        "employee-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/employees/self",
+        "/api/v1/employer",
+        "/api/v1/branches?limit=100",
+        "/api/v1/attendance/me/today",
+        "/api/v1/leave/requests/calendar/self?limit=100",
+        "/api/v1/employees/self",
+        "/api/v1/dashboards/self",
+        "/api/v1/assets/self?limit=100",
+        "/api/v1/notifications/unread-count"
+      ]
+    },
+    {
+      "path": "/employee/leave",
+      "role": "employee",
+      "title": "Leave",
+      "screenshots": [
+        "employee-leave-desktop.png",
+        "employee-leave-mobile.png",
+        "employee-leave-mobile-dark.png",
+        "employee-leave-empty-desktop.png",
+        "employee-leave-empty-mobile.png",
+        "employee-leave-unavailable-desktop.png",
+        "employee-leave-unavailable-mobile.png",
+        "employee-leave-loading-desktop.png",
+        "employee-leave-loading-mobile.png",
+        "employee-leave-denied-desktop.png",
+        "employee-leave-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/employees/self",
+        "/api/v1/employer",
+        "/api/v1/branches?limit=100",
+        "/api/v1/leave/balances/self?year=2026&limit=100",
+        "/api/v1/leave/requests/calendar/self?year=2026&limit=100",
+        "/api/v1/leave/types?limit=100",
+        "/api/v1/notifications/unread-count"
+      ]
+    },
+    {
+      "path": "/employee/schedule",
+      "role": "employee",
+      "title": "Schedule",
+      "screenshots": [
+        "employee-schedule-desktop.png",
+        "employee-schedule-mobile.png",
+        "employee-schedule-mobile-dark.png",
+        "employee-schedule-empty-desktop.png",
+        "employee-schedule-empty-mobile.png",
+        "employee-schedule-unavailable-desktop.png",
+        "employee-schedule-unavailable-mobile.png",
+        "employee-schedule-loading-desktop.png",
+        "employee-schedule-loading-mobile.png",
+        "employee-schedule-denied-desktop.png",
+        "employee-schedule-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/employees/self",
+        "/api/v1/employer",
+        "/api/v1/branches?limit=100",
+        "/api/v1/roster/schedules/self?period=2026-10",
+        "/api/v1/roster/shift-swaps/self?limit=100",
+        "/api/v1/notifications/unread-count"
+      ]
+    },
+    {
+      "path": "/employee/attendance",
+      "role": "employee",
+      "title": "Attendance",
+      "screenshots": [
+        "employee-attendance-desktop.png",
+        "employee-attendance-mobile.png",
+        "employee-attendance-mobile-dark.png",
+        "employee-attendance-empty-desktop.png",
+        "employee-attendance-empty-mobile.png",
+        "employee-attendance-unavailable-desktop.png",
+        "employee-attendance-unavailable-mobile.png",
+        "employee-attendance-loading-desktop.png",
+        "employee-attendance-loading-mobile.png",
+        "employee-attendance-denied-desktop.png",
+        "employee-attendance-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/employees/self",
+        "/api/v1/employer",
+        "/api/v1/branches?limit=100",
+        "/api/v1/attendance/me/today",
+        "/api/v1/attendance/me?limit=31",
+        "/api/v1/attendance/regularisations/me?limit=50",
+        "/api/v1/notifications/unread-count"
+      ]
+    },
+    {
+      "path": "/employee/payslips",
+      "role": "employee",
+      "title": "Payslips",
+      "screenshots": [
+        "employee-payslips-desktop.png",
+        "employee-payslips-mobile.png",
+        "employee-payslips-mobile-dark.png",
+        "employee-payslips-empty-desktop.png",
+        "employee-payslips-empty-mobile.png",
+        "employee-payslips-unavailable-desktop.png",
+        "employee-payslips-unavailable-mobile.png",
+        "employee-payslips-loading-desktop.png",
+        "employee-payslips-loading-mobile.png",
+        "employee-payslips-denied-desktop.png",
+        "employee-payslips-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/employees/self",
+        "/api/v1/employer",
+        "/api/v1/branches?limit=100",
+        "/api/v1/payslips/self",
+        "/api/v1/notifications/unread-count"
+      ]
+    },
+    {
+      "path": "/employee/advances",
+      "role": "employee",
+      "title": "Advances",
+      "screenshots": [
+        "employee-advances-desktop.png",
+        "employee-advances-mobile.png",
+        "employee-advances-mobile-dark.png",
+        "employee-advances-empty-desktop.png",
+        "employee-advances-empty-mobile.png",
+        "employee-advances-unavailable-desktop.png",
+        "employee-advances-unavailable-mobile.png",
+        "employee-advances-loading-desktop.png",
+        "employee-advances-loading-mobile.png",
+        "employee-advances-denied-desktop.png",
+        "employee-advances-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/employees/self",
+        "/api/v1/employer",
+        "/api/v1/branches?limit=100",
+        "/api/v1/employees/self",
+        "/api/v1/notifications/unread-count",
+        "/api/v1/advances/self?limit=100"
+      ]
+    },
+    {
+      "path": "/employee/expenses",
+      "role": "employee",
+      "title": "Expenses",
+      "screenshots": [
+        "employee-expenses-desktop.png",
+        "employee-expenses-mobile.png",
+        "employee-expenses-mobile-dark.png",
+        "employee-expenses-empty-desktop.png",
+        "employee-expenses-empty-mobile.png",
+        "employee-expenses-unavailable-desktop.png",
+        "employee-expenses-unavailable-mobile.png",
+        "employee-expenses-loading-desktop.png",
+        "employee-expenses-loading-mobile.png",
+        "employee-expenses-denied-desktop.png",
+        "employee-expenses-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/employees/self",
+        "/api/v1/employer",
+        "/api/v1/branches?limit=100",
+        "/api/v1/notifications/unread-count",
+        "/api/v1/expenses/self?limit=100"
+      ]
+    },
+    {
+      "path": "/employee/training",
+      "role": "employee",
+      "title": "Training",
+      "screenshots": [
+        "employee-training-desktop.png",
+        "employee-training-mobile.png",
+        "employee-training-mobile-dark.png",
+        "employee-training-empty-desktop.png",
+        "employee-training-empty-mobile.png",
+        "employee-training-unavailable-desktop.png",
+        "employee-training-unavailable-mobile.png",
+        "employee-training-loading-desktop.png",
+        "employee-training-loading-mobile.png",
+        "employee-training-denied-desktop.png",
+        "employee-training-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/employees/self",
+        "/api/v1/employer",
+        "/api/v1/branches?limit=100",
+        "/api/v1/notifications/unread-count",
+        "/api/v1/cme/self?year=2026",
+        "/api/v1/training-records/self?limit=100",
+        "/api/v1/certifications/self?limit=100"
+      ]
+    },
+    {
+      "path": "/employee/appraisals",
+      "role": "employee",
+      "title": "Appraisals",
+      "screenshots": [
+        "employee-appraisals-desktop.png",
+        "employee-appraisals-mobile.png",
+        "employee-appraisals-mobile-dark.png",
+        "employee-appraisals-empty-desktop.png",
+        "employee-appraisals-empty-mobile.png",
+        "employee-appraisals-unavailable-desktop.png",
+        "employee-appraisals-unavailable-mobile.png",
+        "employee-appraisals-loading-desktop.png",
+        "employee-appraisals-loading-mobile.png",
+        "employee-appraisals-denied-desktop.png",
+        "employee-appraisals-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/employees/self",
+        "/api/v1/employer",
+        "/api/v1/branches?limit=100",
+        "/api/v1/notifications/unread-count",
+        "/api/v1/appraisals/self?limit=100"
+      ]
+    },
+    {
+      "path": "/employee/documents",
+      "role": "employee",
+      "title": "Documents",
+      "screenshots": [
+        "employee-documents-desktop.png",
+        "employee-documents-mobile.png",
+        "employee-documents-mobile-dark.png",
+        "employee-documents-empty-desktop.png",
+        "employee-documents-empty-mobile.png",
+        "employee-documents-unavailable-desktop.png",
+        "employee-documents-unavailable-mobile.png",
+        "employee-documents-loading-desktop.png",
+        "employee-documents-loading-mobile.png",
+        "employee-documents-denied-desktop.png",
+        "employee-documents-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/employees/self",
+        "/api/v1/employer",
+        "/api/v1/branches?limit=100",
+        "/api/v1/notifications/unread-count",
+        "/api/v1/employee-documents/self?limit=100"
+      ]
+    },
+    {
+      "path": "/employee/tasks",
+      "role": "employee",
+      "title": "Tasks",
+      "screenshots": [
+        "employee-tasks-desktop.png",
+        "employee-tasks-mobile.png",
+        "employee-tasks-mobile-dark.png",
+        "employee-tasks-empty-desktop.png",
+        "employee-tasks-empty-mobile.png",
+        "employee-tasks-unavailable-desktop.png",
+        "employee-tasks-unavailable-mobile.png",
+        "employee-tasks-loading-desktop.png",
+        "employee-tasks-loading-mobile.png",
+        "employee-tasks-denied-desktop.png",
+        "employee-tasks-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/employees/self",
+        "/api/v1/employer",
+        "/api/v1/branches?limit=100",
+        "/api/v1/notifications/unread-count",
+        "/api/v1/tasks?limit=50"
+      ]
+    },
+    {
+      "path": "/employee/requests",
+      "role": "employee",
+      "title": "Requests",
+      "screenshots": [
+        "employee-requests-desktop.png",
+        "employee-requests-mobile.png",
+        "employee-requests-mobile-dark.png",
+        "employee-requests-empty-desktop.png",
+        "employee-requests-empty-mobile.png",
+        "employee-requests-unavailable-desktop.png",
+        "employee-requests-unavailable-mobile.png",
+        "employee-requests-loading-desktop.png",
+        "employee-requests-loading-mobile.png",
+        "employee-requests-denied-desktop.png",
+        "employee-requests-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/employees/self",
+        "/api/v1/employer",
+        "/api/v1/branches?limit=100",
+        "/api/v1/notifications/unread-count",
+        "/api/v1/requests/self"
+      ]
+    },
+    {
+      "path": "/employee/profile",
+      "role": "employee",
+      "title": "Profile",
+      "screenshots": [
+        "employee-profile-desktop.png",
+        "employee-profile-mobile.png",
+        "employee-profile-mobile-dark.png",
+        "employee-profile-empty-desktop.png",
+        "employee-profile-empty-mobile.png",
+        "employee-profile-unavailable-desktop.png",
+        "employee-profile-unavailable-mobile.png",
+        "employee-profile-loading-desktop.png",
+        "employee-profile-loading-mobile.png",
+        "employee-profile-denied-desktop.png",
+        "employee-profile-denied-mobile.png"
+      ],
+      "states": [
+        "populated",
+        "keyboard",
+        "mobile",
+        "dark",
+        "empty",
+        "unavailable",
+        "loading",
+        "denied"
+      ],
+      "sources": [
+        "/api/v1/employees/self",
+        "/api/v1/employer",
+        "/api/v1/branches?limit=100",
+        "/api/v1/employees/self",
+        "/api/v1/notifications/unread-count"
+      ]
+    }
+  ]
+}

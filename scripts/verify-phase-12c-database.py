@@ -45,7 +45,7 @@ async def verify() -> None:
     try:
         async with engine.begin() as connection:
             head = await connection.scalar(text("SELECT version_num FROM alembic_version"))
-            assert head == "e2c4f6a8b0d3"
+            assert head == "f3a5c7e9b1d4"
             repository = SqlTaskRepository(connection)
             executed: list[str] = []
             for role in (AppRole.ADMIN, AppRole.MANAGER, AppRole.EMPLOYEE):

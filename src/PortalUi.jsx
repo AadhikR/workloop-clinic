@@ -27,9 +27,9 @@ export function FormDialog({ title, open, onClose, children, wide = false }) {
 }
 
 export function PortalTable({ children, className = '', label = 'Records', ...props }) {
-  return <div className="portal-table-wrap" role="region" aria-label={label} tabIndex={0}><table className={className} {...props}>{children}</table></div>
+  return <div className="table-wrap portal-table-wrap" role="region" aria-label={label} tabIndex={0}><table className={className} {...props}>{children}</table></div>
 }
 
 export function ConfirmDialog({ title, open, onClose, onConfirm, busy, children, confirmLabel = 'Confirm' }) {
-  return <FormDialog title={title} open={open} onClose={() => { if (!busy) onClose() }}><p>{children}</p><div className="modal-footer"><button type="button" className="btn btn-outline" disabled={busy} onClick={onClose}>Cancel</button><button type="button" className="btn btn-danger" disabled={busy} onClick={onConfirm}>{busy ? 'Working...' : confirmLabel}</button></div></FormDialog>
+  return <FormDialog title={title} open={open} onClose={() => { if (!busy) onClose() }}><div className="confirmation-copy">{children}</div><div className="modal-footer"><button type="button" className="btn btn-outline" disabled={busy} onClick={onClose}>Cancel</button><button type="button" className="btn btn-danger" disabled={busy} onClick={onConfirm}>{busy ? 'Working...' : confirmLabel}</button></div></FormDialog>
 }

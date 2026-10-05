@@ -1,4 +1,6 @@
 import pytest
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 
 from app.db import cloud_migrate
 from app.db.cloud_bootstrap import (
@@ -200,6 +202,16 @@ def test_cloud_migration_requires_the_release_schema_head(
     monkeypatch.setenv("WORKLOOP_ALEMBIC_HEAD", "older-head")
     with pytest.raises(RuntimeError, match="incompatible"):
         cloud_migrate.required_release_head()
+
+
+def test_cloud_migration_manifest_matches_the_checked_in_head(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = Config(str(cloud_migrate.ALEMBIC_CONFIG))
+    config.set_main_option("script_location", str(cloud_migrate.ALEMBIC_CONFIG.parent / "alembic"))
+    head = ScriptDirectory.from_config(config).get_current_head()
+    monkeypatch.setenv("WORKLOOP_ALEMBIC_HEAD", str(head))
+    assert cloud_migrate.required_release_head() == head
 
 
 def test_cloud_migration_accepts_a_repeat_run(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -47,3 +47,29 @@ These checks prove the changed workflows. They do not certify every historical m
 state, or exact image equality across the whole application. Existing modules still need individual
 comparisons for their dense detail views and dialogs. The original catalogue remains the route and
 interaction inventory, not a claim of completed visual parity.
+
+## Final restoration decisions in F
+
+The final 46-view audit and focused A through F interaction proofs are in `evidence/restoration-f`.
+`PORTAL_RESTORATION_PROGRESS.md` records each inherited dependency's current result.
+`PORTAL_RESTORATION_F_WORKING_RECORD.md` records the complete bounded implementation decisions.
+
+Administrator home now shows warning groups, the conditional setup checklist, five summary cards,
+optional Nafis compliance, payroll trend, and recent runs. All aggregates use scoped server data.
+Date, headcount, or run-count disagreement shows an unavailable state. Staff home restores today's
+read-only status, two summary cards, optional expiry warnings, assets, and recent leave.
+
+Insurance and contract editors use typed fields, current protected snapshots, and confirmation
+dialogs. Failed identical retries retain their input and idempotency key. Contract printing uses
+server-rendered PDF bytes and audit. Document rejection and removal retain a failed reason and reset
+when the selected employee changes.
+
+Administrator and manager appraisal review save all five canonical sections atomically. Archival
+retains eligible appraisal, incident, and expense source rows. Pending advance cancellation retains
+financial history. Complete pagination precedes every collection total. Clinical counts and details
+share the same credential and published-roster predicates.
+
+The audit contains populated desktop, light mobile, dark mobile, empty, loading, denied, and
+unavailable captures. Focused interaction proofs add failed save, conflict, confirmation, retry,
+and keyboard behavior. This evidence proves the restored supported workflows. It does not require
+pixel equality or reinstate biometric controls, unaudited hard deletion, or browser-generated output.

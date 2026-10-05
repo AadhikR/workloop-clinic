@@ -69,6 +69,9 @@ async def test_profile_save_updates_protected_fields_once_with_history_and_audit
         async def acquire_relationship_locks(self, _ids: set[uuid.UUID]) -> None:
             return None
 
+        async def assert_employee_exists(self, **_kwargs: object) -> None:
+            return None
+
         async def lock_employee_set(self, **_kwargs: object) -> dict[uuid.UUID, dict[str, object]]:
             return {cast(uuid.UUID, current["id"]): current}
 

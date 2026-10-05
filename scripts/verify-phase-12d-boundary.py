@@ -14,7 +14,9 @@ def source(path: str) -> str:
 
 
 def main() -> None:
-    repository = source("backend/app/repositories/dashboards.py")
+    repository = source("backend/app/repositories/dashboards.py") + source(
+        "backend/app/repositories/clinical_credentials.py"
+    )
     service = source("backend/app/services/dashboards.py")
     api = source("backend/app/dashboard_api.py")
     client = source("src/dashboardApi.js")

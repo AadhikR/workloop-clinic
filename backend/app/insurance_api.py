@@ -22,6 +22,7 @@ from app.phase11c_support import executor, idempotent_mutation
 from app.schemas.insurance import (
     CoverageReplaceRequest,
     DeletedInsuranceResponse,
+    EmployeeCoverageResponse,
     InsuranceDependantCreateRequest,
     InsuranceDependantDeleteRequest,
     InsuranceDependantResponse,
@@ -245,6 +246,29 @@ async def delete_insurance_policy(
         mutate=mutate,
         authorize=False,
     )
+
+
+@router.get(
+    "/employees/{employee_id}/coverage",
+    operation_id="read_employee_coverage",
+    responses=ERRORS,
+)
+async def read_employee_coverage(
+    employee_id: uuid.UUID,
+    request: Request,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedReadPrincipal,
+    selected: AdminSelectedBranch,
+) -> DataResponse[EmployeeCoverageResponse | None]:
+    result = await executor(request).execute(
+        claims=claims,
+        principal=principal,
+        selected_admin_branch_id=selected,
+        operation=lambda connection: _service(connection).read_coverage(
+            principal, selected, employee_id
+        ),
+    )
+    return DataResponse(data=result)
 
 
 @router.put(

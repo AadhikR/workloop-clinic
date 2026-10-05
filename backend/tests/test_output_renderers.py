@@ -29,6 +29,7 @@ from app.services.outputs import (
 from app.services.rendered_outputs import (
     MAX_PDF_PAGES,
     render_bounded,
+    render_employment_contract_pdf,
     render_final_settlement_pdf,
     render_letter_request_pdf,
     render_payslip_pdf,
@@ -191,6 +192,32 @@ def test_pdf_uses_source_time_fixed_metadata_and_deterministic_bytes() -> None:
     assert b"/BaseFont /Helvetica" in first.content
     assert b"/CreationDate" in first.content
     assert b"/ID [<" in first.content
+
+
+def test_contract_pdf_is_deterministic_and_changes_with_its_authoritative_source() -> None:
+    source = {
+        "employeeId": "f3000000-0000-4000-8000-000000000001",
+        "employeeNumber": "SYN-1",
+        "employeeName": "Synthetic Employee",
+        "jobTitle": "Nurse",
+        "department": "Clinical",
+        "startDate": "2025-01-01",
+        "contractType": "Limited",
+        "endDate": "2027-01-01",
+        "companyName": "Synthetic Clinic",
+        "branchName": "Synthetic Branch",
+        "basicSalary": "8000.00",
+        "totalPackage": "9750.00",
+        "updatedAt": "2026-10-05T08:00:00.000Z",
+    }
+    first = render_employment_contract_pdf(source)
+    assert first == render_employment_contract_pdf(source)
+    assert first.filename == "contract_SYN-1.pdf"
+    assert first.content.startswith(b"%PDF-1.7")
+    assert b"D:20261005080000Z" in first.content
+    changed = render_employment_contract_pdf({**source, "endDate": "2028-01-01"})
+    assert changed.source_digest != first.source_digest
+    assert changed.content != first.content
 
 
 def test_pdf_bytes_match_across_processes() -> None:

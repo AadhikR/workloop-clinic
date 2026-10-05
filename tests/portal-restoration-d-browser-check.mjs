@@ -6,7 +6,7 @@ import { chromium } from '@playwright/test'
 import { createServer } from 'vite'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const evidence = path.join(root, 'docs/migration/phase-15/evidence/restoration-d')
+const evidence = process.env.PORTAL_RESTORATION_EVIDENCE_DIR ? path.resolve(process.env.PORTAL_RESTORATION_EVIDENCE_DIR) : path.join(root, 'docs/migration/phase-15/evidence/restoration-d')
 const server = await createServer({ configFile: path.join(root, 'vite.config.js'), envFile: false, server: { host: '127.0.0.1', port: 5186, strictPort: true } })
 await server.listen()
 const browser = await chromium.launch({ headless: true })
@@ -23,11 +23,12 @@ try {
   await mount('dashboard')
   await page.getByRole('heading', { name: 'Setup checklist' }).waitFor()
   await page.getByRole('heading', { name: 'Emiratization / Nafis compliance' }).waitFor()
-  await page.locator('.dashboard-cards a').first().focus()
-  assert.equal(await page.locator('.dashboard-cards a').first().getAttribute('href'), '/admin/employees')
+  const employeeReview = page.locator('.dashboard-attention a').first()
+  await employeeReview.focus()
+  assert.equal(await employeeReview.getAttribute('href'), '/admin/employees')
   await screenshot('dashboard-desktop')
   await mount('clinical')
-  await page.getByRole('button', { name: 'View details' }).first().click()
+  await page.locator('[data-card-code="credentialsExpiring"] button').click()
   await page.getByRole('link', { name: 'Open work area' }).waitFor()
   await screenshot('clinical-desktop')
 

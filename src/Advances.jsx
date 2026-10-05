@@ -1,6 +1,6 @@
 import Dialog from './PortalDialog.jsx'
 import { readFinancialCollection } from './financialCollections.js'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   approveAdvance,
@@ -15,6 +15,7 @@ import {
   withdrawAdvance,
 } from './advanceApi.js'
 import { readAllEmployees, readEmployeeSelf } from './employeeApi.js'
+import { readOwnAdvanceProgress, cancelPendingAdminAdvance } from './portalProjectionsApi.js'
 
 const currentPeriod = new Date().toISOString().slice(0, 7)
 const emptyPlan = { amount: '', reason: '', installmentCount: 3, repaymentStartPeriod: currentPeriod }
@@ -61,7 +62,7 @@ function AdvanceActionDialog({ advance, busy, kind, onClose, onSubmit }) {
   const [amount, setAmount] = useState(advance.outstandingBalance)
   const [count, setCount] = useState(advance.installmentCount)
   const [period, setPeriod] = useState(advance.repaymentStartPeriod)
-  const labels = { reject: 'Reject Advance', repay: 'Record Repayment', schedule: 'Edit Repayment Schedule', settle: 'Settle Advance', withdraw: 'Withdraw Request' }
+  const labels = { reject: 'Reject Advance', repay: 'Record Repayment', schedule: 'Edit Repayment Schedule', settle: 'Settle Advance', withdraw: 'Withdraw Request', cancel: 'Cancel Pending Advance' }
   return (
     <Dialog labelledBy="advance-action-title" onClose={() => { if (!busy) onClose() }}>
       <form onSubmit={(event) => {
@@ -75,9 +76,10 @@ function AdvanceActionDialog({ advance, busy, kind, onClose, onSubmit }) {
           {kind === 'repay' && <div className="form-group"><label htmlFor="advance-repayment">Repayment Amount (AED) *</label><input id="advance-repayment" required min="0.01" max={advance.outstandingBalance} step="0.01" type="number" value={amount} onChange={(event) => setAmount(event.target.value)} /></div>}
           {kind === 'schedule' && <div className="form-grid form-grid-2"><div className="form-group"><label htmlFor="advance-schedule-amount">Revised Amount *</label><input id="advance-schedule-amount" required min="0.01" step="0.01" type="number" value={amount} onChange={(event) => setAmount(event.target.value)} /></div><div className="form-group"><label htmlFor="advance-schedule-count">Installments *</label><input id="advance-schedule-count" required min="1" max="120" type="number" value={count} onChange={(event) => setCount(event.target.value)} /></div><div className="form-group"><label htmlFor="advance-schedule-period">First Repayment Month *</label><input id="advance-schedule-period" required type="month" value={period} onChange={(event) => setPeriod(event.target.value)} /></div></div>}
           {kind === 'settle' && <div className="alert alert-warning">This records the remaining AED {money(advance.outstandingBalance)} as settled.</div>}
+          {kind === 'cancel' && <div className="alert alert-warning">Cancel this pending advance? The request and its audit will remain available.</div>}
           {kind === 'withdraw' && <div className="alert alert-warning">Withdraw this pending request? This cannot be undone.</div>}
         </div>
-        <div className="modal-footer"><button type="button" className="btn btn-outline" onClick={onClose}>Cancel</button><button type="submit" className={['reject', 'withdraw'].includes(kind) ? 'btn btn-danger' : 'btn btn-primary'} disabled={busy}>{busy ? 'Saving...' : labels[kind]}</button></div>
+        <div className="modal-footer"><button type="button" className="btn btn-outline" onClick={onClose}>Cancel</button><button type="submit" className={['reject', 'withdraw', 'cancel'].includes(kind) ? 'btn btn-danger' : 'btn btn-primary'} disabled={busy}>{busy ? 'Saving...' : labels[kind]}</button></div>
       </form>
     </Dialog>
   )
@@ -105,12 +107,36 @@ function AdminAdvances({ busy, expandedId, filter, items, onAction, onExpand, on
 }
 
 function AdvanceAdminRows({ advance, busy, expanded, onAction, onExpand }) {
-  return <><tr><td><strong>{advance.employeeName}</strong><small>Created by {advance.creatorName}</small></td><td>{money(advance.amount)}</td><td>{advance.installmentCount} months<small>Starts {advance.repaymentStartPeriod}</small></td><td className="text-right deduction-value">{advance.status === 'active' ? money(advance.monthlyInstallment) : '—'}</td><td className="text-right font-bold">{money(advance.outstandingBalance)}</td><td>{advance.reason}</td><td><span className={statusBadge(advance.status)}>{statusLabel(advance.status)}</span>{advance.rejectionReason && <small className="text-danger">{advance.rejectionReason}</small>}</td><td><div className="row-actions">{advance.canDecide && <><button type="button" className="btn btn-success btn-icon btn-sm" aria-label="Approve" disabled={busy} onClick={() => onAction('approve', advance)}>✓</button><button type="button" className="btn btn-danger btn-icon btn-sm" aria-label="Reject" disabled={busy} onClick={() => onAction('reject', advance)}>×</button><button type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={() => onAction('schedule', advance)}>Schedule</button></>}{advance.status === 'active' && <><button type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={() => onAction('repay', advance)}>Repayment</button><button type="button" className="btn btn-success btn-sm" disabled={busy} onClick={() => onAction('settle', advance)}>Settle</button></>}</div></td><td><button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label="Toggle repayment details" onClick={() => onExpand(advance.id)}>{expanded ? '⌃' : '⌄'}</button></td></tr>{expanded && <tr className="advance-detail-row"><td colSpan="9"><AdvanceSchedule advance={advance} /></td></tr>}</>
+  return <><tr><td><strong>{advance.employeeName}</strong><small>Created by {advance.creatorName}</small></td><td>{money(advance.amount)}</td><td>{advance.installmentCount} months<small>Starts {advance.repaymentStartPeriod}</small></td><td className="text-right deduction-value">{advance.status === 'active' ? money(advance.monthlyInstallment) : '—'}</td><td className="text-right font-bold">{money(advance.outstandingBalance)}</td><td>{advance.reason}</td><td><span className={statusBadge(advance.status)}>{statusLabel(advance.status)}</span>{advance.rejectionReason && <small className="text-danger">{advance.rejectionReason}</small>}</td><td><div className="row-actions">{advance.canDecide && <><button type="button" className="btn btn-success btn-icon btn-sm" aria-label="Approve" disabled={busy} onClick={() => onAction('approve', advance)}>✓</button><button type="button" className="btn btn-danger btn-icon btn-sm" aria-label="Reject" disabled={busy} onClick={() => onAction('reject', advance)}>×</button><button type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={() => onAction('schedule', advance)}>Schedule</button><button type="button" className="btn btn-danger btn-sm" disabled={busy} onClick={() => onAction('cancel', advance)}>Cancel</button></>}{advance.status === 'active' && <><button type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={() => onAction('repay', advance)}>Repayment</button><button type="button" className="btn btn-success btn-sm" disabled={busy} onClick={() => onAction('settle', advance)}>Settle</button></>}</div></td><td><button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label="Toggle repayment details" onClick={() => onExpand(advance.id)}>{expanded ? '⌃' : '⌄'}</button></td></tr>{expanded && <tr className="advance-detail-row"><td colSpan="9"><AdvanceSchedule advance={advance} /></td></tr>}</>
 }
 
-function SelfAdvanceSection({ busy, items, onAction, title }) {
+function OwnAdvanceDetails({ authentication, advance }) {
+  const [expanded, setExpanded] = useState(false)
+  const [state, setState] = useState({ status: 'idle' })
+  const load = async () => {
+    setExpanded(true)
+    setState({ status: 'loading' })
+    try {
+      const data = await readOwnAdvanceProgress(authentication, advance.id)
+      if (data.summary.updatedAt !== advance.updatedAt || data.summary.amount !== advance.amount
+        || data.summary.outstandingBalance !== advance.outstandingBalance) throw new Error('The advance changed. Refresh your advances.')
+      setState({ status: 'ready', data })
+    } catch (error) {
+      setState({ status: 'error', message: error.message || 'Repayment details are unavailable.' })
+    }
+  }
+  return <div className="own-advance-details"><button type="button" className="btn btn-ghost btn-sm" aria-expanded={expanded} onClick={() => expanded ? setExpanded(false) : load()}>{expanded ? 'Hide repayment details' : 'View repayment details'}</button>
+    {expanded && state.status === 'loading' && <p role="status">Loading repayment details...</p>}
+    {expanded && state.status === 'error' && <p role="alert">{state.message} <button type="button" className="btn btn-outline btn-sm" onClick={load}>Retry</button></p>}
+    {expanded && state.status === 'ready' && <><p>AED {money(state.data.summary.totalPaid)} repaid · AED {money(state.data.summary.outstandingBalance)} outstanding</p>
+      <div className="advance-schedule-grid">{state.data.summary.schedule.map((item) => <div key={item.period} className={item.status}><span>{item.period}</span><strong>AED {money(item.scheduledAmount)}</strong><small>{item.status} · AED {money(item.paidAmount)} paid</small></div>)}</div>
+      {state.data.payments.length === 0 ? <p>No repayments recorded.</p> : <div className="table-wrap"><table><thead><tr><th>Date</th><th>Amount (AED)</th><th>Payroll period</th></tr></thead><tbody>{state.data.payments.map((item) => <tr key={item.id}><td>{item.paidDate}</td><td>{money(item.amount)}</td><td>{item.payrollPeriod ?? 'No payroll period'}</td></tr>)}</tbody></table></div>}</>}
+  </div>
+}
+
+function SelfAdvanceSection({ authentication, busy, items, onAction, title }) {
   if (items.length === 0) return null
-  return <section className="employee-panel self-advance-section"><h3>{title}</h3>{items.map((advance) => { const repaid = Number(advance.amount) === 0 ? 0 : Math.round((1 - Number(advance.outstandingBalance) / Number(advance.amount)) * 100); return <article className="self-advance-row" key={advance.id}><div><strong>AED {money(advance.amount)}</strong><p>{advance.reason}</p><small>Requested {new Date(advance.createdAt).toLocaleDateString('en-AE')}</small>{advance.rejectionReason && <small className="text-danger">Reason: {advance.rejectionReason}</small>}</div><div className="self-advance-meta"><span className={statusBadge(advance.status)}>{statusLabel(advance.status)}</span>{advance.status === 'active' && <><strong>AED {money(advance.outstandingBalance)} outstanding</strong><div className="advance-progress"><span style={{ width: `${repaid}%` }} /></div><small>{repaid}% repaid · AED {money(advance.monthlyInstallment)} monthly</small></>}{advance.status === 'pending' && <button type="button" className="btn btn-ghost btn-sm text-danger" disabled={busy} onClick={() => onAction('withdraw', advance)}>Withdraw</button>}</div></article> })}</section>
+  return <section className="employee-panel self-advance-section"><h3>{title}</h3>{items.map((advance) => { const repaid = Number(advance.amount) === 0 ? 0 : Math.round((1 - Number(advance.outstandingBalance) / Number(advance.amount)) * 100); return <article className="self-advance-row" key={advance.id}><div><strong>AED {money(advance.amount)}</strong><p>{advance.reason}</p><small>Requested {new Date(advance.createdAt).toLocaleDateString('en-AE')}</small>{advance.rejectionReason && <small className="text-danger">Reason: {advance.rejectionReason}</small>}</div><div className="self-advance-meta"><span className={statusBadge(advance.status)}>{statusLabel(advance.status)}</span>{advance.status === 'active' && <><strong>AED {money(advance.outstandingBalance)} outstanding</strong><div className="advance-progress"><span style={{ width: `${repaid}%` }} /></div><small>{repaid}% repaid · AED {money(advance.monthlyInstallment)} monthly</small></>}{advance.status === 'pending' && <button type="button" className="btn btn-ghost btn-sm text-danger" disabled={busy} onClick={() => onAction('withdraw', advance)}>Withdraw</button>}</div>{['active', 'settled'].includes(advance.status) && <OwnAdvanceDetails authentication={authentication} advance={advance} />}</article> })}</section>
 }
 
 export default function Advances({ account, authentication, branchId }) {
@@ -125,6 +151,7 @@ export default function Advances({ account, authentication, branchId }) {
   const [filter, setFilter] = useState('all')
   const [expandedId, setExpandedId] = useState(null)
   const [actionDialog, setActionDialog] = useState(null)
+  const cancelAttempt = useRef(null)
 
   const load = useCallback(async () => {
     setStatus('loading')
@@ -176,6 +203,11 @@ export default function Advances({ account, authentication, branchId }) {
     setBusy(true)
     setMessage('')
     try {
+      if (kind === 'cancel') {
+        const fingerprint = `${advance.id}:${advance.updatedAt}`
+        if (cancelAttempt.current?.fingerprint !== fingerprint) cancelAttempt.current = { fingerprint, key: crypto.randomUUID() }
+        await cancelPendingAdminAdvance(authentication, branchId, advance, cancelAttempt.current.key)
+      }
       if (kind === 'withdraw') await withdrawAdvance(authentication, advance)
       if (kind === 'approve') await approveAdvance(authentication, branchId, advance)
       if (kind === 'reject') await rejectAdvance(authentication, branchId, advance, values.reason)
@@ -205,7 +237,7 @@ export default function Advances({ account, authentication, branchId }) {
       {status === 'loading' && <div className="module-loading" role="status">Loading salary advances...</div>}
       {status === 'unavailable' && <div className="alert alert-danger">Salary advances are unavailable.</div>}
       {status === 'ready' && admin && <><div className="stats-grid advance-stats"><div className="stat-card"><div className="stat-label">Pending Requests</div><div className="stat-value">{pending.length}</div><div className="stat-sub">awaiting approval</div></div><div className="stat-card"><div className="stat-label">Active Advances</div><div className="stat-value">{active.length}</div><div className="stat-sub">being repaid</div></div><div className="stat-card"><div className="stat-label">Total Outstanding</div><div className="stat-value text-primary">{money(totalOutstanding)}</div><div className="stat-sub">AED outstanding balance</div></div></div><AdminAdvances busy={busy} expandedId={expandedId} filter={filter} items={items} onAction={onAction} onExpand={(id) => setExpandedId((current) => current === id ? null : id)} onFilter={setFilter} /></>}
-      {status === 'ready' && !admin && <><div className="self-advance-summary"><span aria-hidden="true">$</span><div><small>Total Outstanding Balance</small><strong>AED {money(totalOutstanding)}</strong><p>across {active.length} active advance{active.length === 1 ? '' : 's'}</p></div></div><SelfAdvanceSection busy={busy} items={pending} onAction={onAction} title="Pending Requests" /><SelfAdvanceSection busy={busy} items={active} onAction={onAction} title="Active Advances" /><SelfAdvanceSection busy={busy} items={history} onAction={onAction} title="Past Advances" />{items.length === 0 && <div className="empty-state"><h3>No advance requests yet</h3><p>Use Request Advance to submit your first request.</p></div>}</>}
+      {status === 'ready' && !admin && <><div className="self-advance-summary"><span aria-hidden="true">$</span><div><small>Total Outstanding Balance</small><strong>AED {money(totalOutstanding)}</strong><p>across {active.length} active advance{active.length === 1 ? '' : 's'}</p></div></div><SelfAdvanceSection authentication={authentication} busy={busy} items={pending} onAction={onAction} title="Pending Requests" /><SelfAdvanceSection authentication={authentication} busy={busy} items={active} onAction={onAction} title="Active Advances" /><SelfAdvanceSection authentication={authentication} busy={busy} items={history} onAction={onAction} title="Past Advances" />{items.length === 0 && <div className="empty-state"><h3>No advance requests yet</h3><p>Use Request Advance to submit your first request.</p></div>}</>}
       {showCreate && <AdvanceDialog admin={admin} busy={busy} employees={employees} onClose={() => setShowCreate(false)} onSubmit={submit} />}
       {actionDialog && <AdvanceActionDialog advance={actionDialog.advance} busy={busy} kind={actionDialog.kind} onClose={() => setActionDialog(null)} onSubmit={(values) => runAction(actionDialog.kind, actionDialog.advance, values)} />}
     </section>

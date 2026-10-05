@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import PortalDialog from './PortalDialog.jsx'
 import Offboarding from './Offboarding.jsx'
-import { EmployeeRecordsEditor } from './RecordsBenefits.jsx'
+import { EmployeeRecordsEditor } from './DeferredRecordsBenefits.jsx'
 
 import { HttpClientError } from './http.js'
 import {
@@ -12,11 +12,10 @@ import {
   extendEmployeeProbation,
   importEmployees,
   readBranchJobHistory,
-  readDirectReports,
+  readAllDirectReports,
   readEmployee,
   readEmployeeJobHistory,
   readAllEmployees,
-  readEmployees,
   readEmployeeSelf,
   readEmployeePortalRole,
   setEmployeePortalRole,
@@ -28,7 +27,7 @@ import { parseEmployeeCsv } from './employeeCsv.js'
 import { readAllDepartments } from './departmentApi.js'
 import { downloadEmployees, downloadEmployeeTemplate } from './outputApi.js'
 import { saveDownload } from './outputDelivery.js'
-import { readEmployeeDocuments } from './recordsBenefitsApi.js'
+import { readBranchExpiry, readEmployeeDirectoryDetails } from './portalProjectionsApi.js'
 import { assignShift, readShiftAssignments, readShifts } from './attendanceConfigurationApi.js'
 
 function useLoad(load, dependencies) {
@@ -36,19 +35,25 @@ function useLoad(load, dependencies) {
   useEffect(() => {
     const controller = new AbortController()
     load(controller.signal)
-      .then((data) => setState({ status: 'ready', data }))
+      .then((data) => { if (!controller.signal.aborted) setState({ status: 'ready', data, dependencies }) })
       .catch((error) => {
-        if (!controller.signal.aborted) setState({ status: 'error', error })
+        if (!controller.signal.aborted) setState({ status: 'error', error, dependencies })
       })
     return () => controller.abort()
   // The caller passes the exact values that define the request.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, dependencies)
-  return state
+  return state.dependencies?.every((value, index) => Object.is(value, dependencies[index]))
+    ? state : { status: 'loading' }
 }
 
-function EmployeeRows({ employees, onSelect }) {
-  if (onSelect) return <div className="table-wrap employee-directory-table"><table><thead><tr><th>Employee</th><th>Job title</th><th>Department</th><th>Status</th><th aria-label="Actions" /></tr></thead><tbody>{employees.map((employee) => <tr key={employee.id}><td><button type="button" className="employee-name-link" onClick={() => onSelect(employee.id)}>{employee.name}</button><small>{employee.empNo}</small></td><td>{employee.jobTitle || 'Not assigned'}</td><td>{employee.department || 'Not assigned'}</td><td><span className={`badge ${employee.active ? 'badge-green' : 'badge-gray'}`}>{employee.employmentStatus.replaceAll('_', ' ')}</span></td><td><button type="button" className="btn btn-ghost btn-sm" onClick={() => onSelect(employee.id)}>View</button></td></tr>)}</tbody></table></div>
+function EmployeeRows({ employees, onSelect, details = [] }) {
+  if (onSelect) return <div className="table-wrap employee-directory-table"><table><thead><tr><th>No.</th><th>Name</th><th>MOL ID</th><th>Job title</th><th>Department</th><th>Status</th><th>Basic salary</th><th>Total package</th><th>Bank</th><th>Visa expiry</th><th>Emirates ID expiry</th><th>Actions</th></tr></thead><tbody>{employees.map((employee) => {
+    const extra = details.find((item) => item.id === employee.id)
+    const currency = (value) => `AED ${Number(value).toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    const total = extra ? ['basicSalary', 'housingAllowance', 'transportAllowance', 'otherAllowances'].reduce((sum, field) => sum + Number(employee[field]), Number(extra.allowance)) : null
+    return <tr key={employee.id}><td>{employee.empNo}</td><td><button type="button" className="employee-name-link" onClick={() => onSelect(employee.id)}>{employee.name}</button></td><td>{extra?.molId ?? 'Not available'}</td><td>{employee.jobTitle || 'Not assigned'}</td><td>{employee.department || 'Not assigned'}</td><td><span className={`badge ${employee.active ? 'badge-green' : 'badge-gray'}`}>{employee.employmentStatus.replaceAll('_', ' ')}</span></td><td>{currency(employee.basicSalary)}</td><td>{total === null ? 'Not available' : currency(total)}</td><td>{employee.bankName || 'Not recorded'}</td><td>{extra ? extra.visaExpiry ?? 'Not recorded' : 'Not available'}</td><td>{extra ? extra.emiratesIdExpiry ?? 'Not recorded' : 'Not available'}</td><td><button type="button" className="btn btn-ghost btn-sm" onClick={() => onSelect(employee.id)}>View</button></td></tr>
+  })}</tbody></table></div>
   return (
     <ul className="employee-list">
       {employees.map((employee) => (
@@ -614,12 +619,14 @@ function EmployeeImportPanel({ authentication, branchId, onSaved }) {
 function AdminDirectory({ account, authentication, branchId, clearBranch }) {
   const [dialog, setDialog] = useState(null)
   const [directoryView, setDirectoryView] = useState('list')
+  const [saveNotice, setSaveNotice] = useState(null)
   const [search, setSearch] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [selectedId, setSelectedId] = useState(null)
+  const [lifecycleDisclosure, setLifecycleDisclosure] = useState(null)
   const [revision, setRevision] = useState(0)
   const listing = useLoad(
-    (signal) => readEmployees(authentication, branchId, {
+    (signal) => readAllEmployees(authentication, branchId, {
       signal,
       ...(appliedSearch ? { search: appliedSearch } : {}),
     }),
@@ -637,17 +644,11 @@ function AdminDirectory({ account, authentication, branchId, clearBranch }) {
     [authentication, branchId],
   )
   const directoryDetails = useLoad(
-    async (signal) => {
-      const employees = await readAllEmployees(authentication, branchId, { signal })
-      const details = await Promise.all(employees.map(async (employee) => {
-        const [record, documents] = await Promise.all([
-          readEmployee(authentication, branchId, employee.id, { signal }),
-          readEmployeeDocuments(authentication, branchId, employee.id),
-        ])
-        return { ...record, documentExpiries: documents.items.map((item) => item.expiryDate).filter(Boolean) }
-      }))
-      return [details, Date.now() + 90 * 24 * 60 * 60 * 1000]
-    },
+    () => readBranchExpiry(authentication, branchId),
+    [authentication, branchId, revision],
+  )
+  const tableDetails = useLoad(
+    () => readEmployeeDirectoryDetails(authentication, branchId),
     [authentication, branchId, revision],
   )
   const detail = useLoad(
@@ -666,18 +667,13 @@ function AdminDirectory({ account, authentication, branchId, clearBranch }) {
     setRevision((value) => value + 1)
   }
 
-  const allDetails = directoryDetails.status === 'ready' ? directoryDetails.data[0] : []
-  const expiryThreshold = directoryDetails.status === 'ready' ? directoryDetails.data[1] : 0
-  const expiring = allDetails.filter((employee) => {
-    const dates = [employee.visaExpiry, employee.passportExpiry, employee.emiratesIdExpiry, employee.labourCardExpiry, employee.licenceExpiry, ...employee.documentExpiries].filter(Boolean)
-    return dates.some((value) => new Date(`${value}T00:00:00Z`).valueOf() <= expiryThreshold)
-  })
+  const allDetails = choices.status === 'ready' ? choices.data[1] : []
+  const expiring = directoryDetails.status === 'ready'
+    ? directoryDetails.data.filter((source) => source.status !== 'valid') : []
   const terminated = allDetails.filter((employee) => employee.employmentStatus === 'terminated')
-  const visibleEmployees = directoryView === 'expiry'
-    ? expiring
-    : directoryView === 'terminated'
+  const visibleEmployees = directoryView === 'terminated'
       ? terminated
-      : listing.status === 'ready' ? listing.data.data : []
+      : listing.status === 'ready' ? listing.data.filter((employee) => employee.employmentStatus !== 'terminated') : []
 
   useEffect(() => {
     if (
@@ -689,11 +685,12 @@ function AdminDirectory({ account, authentication, branchId, clearBranch }) {
 
   return (
     <section className="employee-directory" aria-label="Employee directory">
+      {saveNotice?.branchId === branchId && <p role="status">{saveNotice.message}</p>}
       <div className="employee-module-toolbar"><h3>Employees</h3><div className="actions"><button type="button" className="btn btn-outline" onClick={async () => saveDownload(await downloadEmployees(authentication, branchId))}>Export CSV</button><button type="button" className="btn btn-outline" onClick={() => setDialog('import')}>Import employees</button><button type="button" className="btn btn-primary" disabled={choices.status !== 'ready'} onClick={() => setDialog('create')}>Add Employee</button></div></div>
       <div className="employee-summary-tabs" role="tablist" aria-label="Employee summaries">
-        <button type="button" role="tab" aria-selected={directoryView === 'list'} onClick={() => setDirectoryView('list')}>Employee list <strong>{allDetails.filter((item) => item.active).length}</strong></button>
-        <button type="button" role="tab" aria-selected={directoryView === 'expiry'} onClick={() => setDirectoryView('expiry')}>Document expiry <strong>{expiring.length}</strong></button>
-        <button type="button" role="tab" aria-selected={directoryView === 'terminated'} onClick={() => setDirectoryView('terminated')}>Terminated employees <strong>{terminated.length}</strong></button>
+        <button type="button" role="tab" aria-selected={directoryView === 'list'} onClick={() => setDirectoryView('list')}>Employee list <strong>{choices.status === 'ready' ? allDetails.filter((item) => item.active && item.employmentStatus !== 'terminated').length : 'Not available'}</strong></button>
+        <button type="button" role="tab" aria-selected={directoryView === 'expiry'} onClick={() => setDirectoryView('expiry')}>Document expiry <strong>{directoryDetails.status === 'ready' ? expiring.length : 'Not available'}</strong></button>
+        <button type="button" role="tab" aria-selected={directoryView === 'terminated'} onClick={() => setDirectoryView('terminated')}>Terminated employees <strong>{choices.status === 'ready' ? terminated.length : 'Not available'}</strong></button>
       </div>
       {dialog && <PortalDialog labelledBy="employee-dialog-title" onClose={() => setDialog(null)}><div className="modal-header"><h3 id="employee-dialog-title">{dialog === 'create' ? 'Add Employee' : 'Import employees'}</h3><button type="button" className="btn btn-ghost btn-icon" aria-label="Close employee form" onClick={() => setDialog(null)}>×</button></div><div className="modal-body">{dialog === 'create' && choices.status === 'ready' ? <EmployeeCreateForm authentication={authentication} branchId={branchId} departments={choices.data[0]} managers={choices.data[1]} onSaved={saved} /> : <><p><button type="button" className="btn btn-outline btn-sm" onClick={async () => saveDownload(await downloadEmployeeTemplate(authentication, branchId))}>Download import template</button></p><EmployeeImportPanel authentication={authentication} branchId={branchId} onSaved={saved} /></>}</div></PortalDialog>}
       <form onSubmit={(event) => { event.preventDefault(); setAppliedSearch(search.trim()) }}>
@@ -710,9 +707,20 @@ function AdminDirectory({ account, authentication, branchId, clearBranch }) {
       </form>
       {listing.status === 'loading' && <p>Loading employees...</p>}
       {listing.status === 'error' && <p role="status">Employee directory is unavailable.</p>}
-      {listing.status === 'ready' && (
+      {directoryView === 'expiry' && <section className="card employee-expiry-panel"><div className="card-header"><h3>Document expiry warnings</h3><p>Fixed dates use 60 days. Uploaded clinical documents use 90 days.</p></div>
+        {directoryDetails.status === 'loading' && <p role="status">Loading expiry warnings...</p>}
+        {directoryDetails.status === 'error' && <p role="alert">Expiry warnings are unavailable.</p>}
+        {directoryDetails.status === 'ready' && (expiring.length === 0 ? <p>No documents reach their warning period.</p>
+          : <div className="employee-expiry-groups">{['visa', 'passport', 'emirates_id', 'labour_card', 'licence', 'uploaded'].map((group) => {
+            const sources = expiring.filter((source) => group === 'uploaded' ? source.id.startsWith('document:')
+              : source.id.startsWith('employee:') && source.sourceType === group)
+            if (sources.length === 0) return null
+            return <section key={group}><h4>{group === 'uploaded' ? 'Uploaded documents' : group.replaceAll('_', ' ')} · {sources.length}</h4><div className="table-wrap"><table><thead><tr><th>Name</th>{group === 'uploaded' && <th>Type</th>}<th>Status</th><th>Date</th></tr></thead><tbody>{sources.sort((a, b) => a.expiryDate.localeCompare(b.expiryDate)).map((source) => <tr key={source.id}><td><button type="button" className="employee-name-link" onClick={() => setSelectedId(source.employeeId)}>{source.employeeName}</button></td>{group === 'uploaded' && <td>{source.sourceType}</td>}<td><span className={`badge ${source.status === 'expired' ? 'badge-red' : 'badge-amber'}`}>{source.status}</span></td><td>{source.expiryDate}</td></tr>)}</tbody></table></div></section>
+          })}</div>)}
+      </section>}
+      {directoryView !== 'expiry' && listing.status === 'ready' && (
         visibleEmployees.length
-          ? <EmployeeRows employees={visibleEmployees} onSelect={setSelectedId} />
+          ? <EmployeeRows employees={visibleEmployees} onSelect={setSelectedId} details={tableDetails.status === 'ready' ? tableDetails.data : []} />
           : <p>No employees match this branch query.</p>
       )}
       {detail.status === 'ready' && detail.data && (
@@ -729,9 +737,9 @@ function AdminDirectory({ account, authentication, branchId, clearBranch }) {
             employees={choices.data[1]}
             departments={choices.data[0]}
             history={detail.data[1].data}
-            onSaved={saved}
+            onSaved={(employee) => { setSaveNotice({ branchId, message: 'Employee profile saved.' }); saved(employee) }}
           />
-          <details><summary>Lifecycle and portal access</summary>
+          <details open={lifecycleDisclosure?.branchId === branchId && lifecycleDisclosure.employeeId === selectedId && lifecycleDisclosure.open} onToggle={(event) => setLifecycleDisclosure({ branchId, employeeId: selectedId, open: event.currentTarget.open })}><summary>Lifecycle and portal access</summary>
               <EmployeeLifecyclePanel
                 key={`lifecycle-${detail.data[0].id}-${detail.data[0].updatedAt}`}
                 authentication={authentication}
@@ -814,7 +822,7 @@ function StaffDirectory({ account, authentication }) {
   )
   const reports = useLoad(
     (signal) => account.role === 'manager'
-      ? readDirectReports(authentication, { signal })
+      ? readAllDirectReports(authentication, { signal })
       : Promise.resolve(null),
     [account.role, authentication],
   )
@@ -842,7 +850,7 @@ function StaffDirectory({ account, authentication }) {
       {account.role === 'manager' && (
         <section className="direct-reports">
           <h4>Direct reports</h4>
-          {reports.status === 'ready' && <EmployeeRows employees={reports.data.data} />}
+          {reports.status === 'ready' && <EmployeeRows employees={reports.data} />}
           {reports.status === 'loading' && <p>Loading direct reports...</p>}
           {reports.status === 'error' && <p role="status">Direct reports are unavailable.</p>}
         </section>

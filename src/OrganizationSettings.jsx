@@ -318,7 +318,7 @@ export default function OrganizationSettings({ authentication }) {
       <CompanyForm key={organization.company.id} authentication={authentication} />
       <BranchForm key={organization.selectedBranch.id} authentication={authentication} />
       <section className="card" aria-label="Medical insurance policies"><AdminInsurance authentication={authentication} branchId={organization.selectedBranch.id} policiesOnly /></section>
-      <section className="card"><div className="card-header"><h3>WPS and SIF file reference</h3></div></section>
+      <section className="card"><div className="card-header"><h3>WPS and SIF file reference</h3></div><div className="card-body"><p>Payroll generates employee detail records followed by the salary control record.</p><pre className="sif-preview">{'EDR,<MOL_Employee_ID>,<Bank_Routing>,<IBAN>,<Start_Date>,<End_Date>,<Paid_Days>,<Basic_AED>,<Variable_AED>,0\nSCR,<MOL_Employer_ID>,<Bank_Routing>,<Payment_Date>,<Sequence>,<MMYYYY>,<Employee_Count>,<Total_AED>,AED,<Description>'}</pre><p>Amounts use integer AED and dates use YYYY-MM-DD. The payroll preview shows the server-calculated basic and variable pay before download.</p></div></section>
       <CreateBranchForm authentication={authentication} />
     </section>
   )

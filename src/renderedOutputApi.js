@@ -50,6 +50,11 @@ export const downloadRequestLetterPdf = (authentication, branchId, requestId) =>
   return byteRequest(authentication, `/api/v1/requests/${requestId}/letter.pdf`, branchId)
 }
 
+export const downloadEmploymentContractPdf = (authentication, branchId, employeeId) => {
+  if (!uuid.test(employeeId)) throw new TypeError('Invalid employee ID')
+  return byteRequest(authentication, `/api/v1/employees/${employeeId}/contract-letter.pdf`, branchId)
+}
+
 export const downloadOffboardingLetterPdf = (
   authentication, branchId, checklistId, letterKind,
 ) => {

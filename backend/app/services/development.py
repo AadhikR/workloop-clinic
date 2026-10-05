@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.auth.application_user import AuthorizationPrincipal
 from app.db.audit import append_audit_event
+from app.http.versions import same_instant
 from app.models.identity import AppRole
 from app.schemas.development import (
     CertificationAdminCreateRequest,
@@ -55,6 +56,7 @@ class TrainingListQuery:
     training_type: str | None
     is_cme: bool | None
     limit: int
+    after_id: uuid.UUID | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,6 +64,7 @@ class CertificationListQuery:
     employee_id: uuid.UUID | None
     status: str | None
     limit: int
+    after_id: uuid.UUID | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,7 +119,8 @@ WHERE company_id=:company_id AND branch_id=:branch_id
   AND (CAST(:status AS text) IS NULL OR status=:status)
   AND (CAST(:training_type AS text) IS NULL OR training_type=:training_type)
   AND (CAST(:is_cme AS boolean) IS NULL OR is_cme=:is_cme)
-ORDER BY start_date DESC NULLS LAST,id DESC LIMIT :limit
+  AND (CAST(:after_id AS uuid) IS NULL OR id>:after_id)
+ORDER BY id ASC LIMIT :limit
 """
                     ),
                     {
@@ -127,6 +131,7 @@ ORDER BY start_date DESC NULLS LAST,id DESC LIMIT :limit
                         "status": query.status,
                         "training_type": query.training_type,
                         "is_cme": query.is_cme,
+                        "after_id": query.after_id,
                         "limit": query.limit,
                     },
                 )
@@ -213,7 +218,10 @@ RETURNING id
         await self._scope_employee(
             principal, branch_id, employee_id, scope=effective_scope, optional=False
         )
-        if row["updated_at"] != request.expected_updated_at or row["status"] != "planned":
+        if (
+            not same_instant(row["updated_at"], request.expected_updated_at)
+            or row["status"] != "planned"
+        ):
             raise ServiceExecutionError("state_conflict")
         if scope != "admin" and (request.cost != row["cost"] or request.is_cme != row["is_cme"]):
             raise ServiceExecutionError("operation_not_permitted")
@@ -261,7 +269,7 @@ UPDATE public.training_records SET training_title=:training_title,
         row = await self._training_row(principal, branch_id, record_id, lock=True)
         employee_id = self._row_employee_id(row)
         await self._scope_employee(principal, branch_id, employee_id, scope=scope, optional=False)
-        if row["updated_at"] != request.expected_updated_at or not (
+        if not same_instant(row["updated_at"], request.expected_updated_at) or not (
             row["status"] in {"planned", "in_progress"}
             or (row["status"] == "completed" and not row["result_verified"])
         ):
@@ -365,7 +373,7 @@ UPDATE public.training_records SET status='completed',end_date=:end_date,
             principal, branch_id, employee_id, scope=effective_scope, optional=False
         )
         if (
-            row["updated_at"] != expected_updated_at
+            not same_instant(row["updated_at"], expected_updated_at)
             or row["status"] != "planned"
             or row["has_evidence"]
         ):
@@ -397,7 +405,8 @@ SELECT {CERTIFICATION_COLUMNS} FROM public.certifications
 WHERE company_id=:company_id AND branch_id=:branch_id
   AND (CAST(:employee_id AS uuid) IS NULL OR employee_id=:employee_id)
   AND (CAST(:status AS text) IS NULL OR status=:status)
-ORDER BY expiry_date ASC NULLS LAST,certification_name ASC,id ASC LIMIT :limit
+  AND (CAST(:after_id AS uuid) IS NULL OR id>:after_id)
+ORDER BY id ASC LIMIT :limit
 """
                     ),
                     {
@@ -405,6 +414,7 @@ ORDER BY expiry_date ASC NULLS LAST,certification_name ASC,id ASC LIMIT :limit
                         "branch_id": branch_id,
                         "employee_id": employee_id,
                         "status": query.status,
+                        "after_id": query.after_id,
                         "limit": query.limit,
                     },
                 )
@@ -492,7 +502,7 @@ VALUES(:company_id,:branch_id,:employee_id,:certification_name,:issuing_body,
         await self._scope_employee(
             principal, branch_id, employee_id, scope=effective_scope, optional=False
         )
-        if row["updated_at"] != request.expected_updated_at:
+        if not same_instant(row["updated_at"], request.expected_updated_at):
             raise ServiceExecutionError("state_conflict")
         if principal.role is not AppRole.ADMIN and row["status"] == "verified":
             raise ServiceExecutionError("state_conflict")
@@ -541,7 +551,10 @@ VALUES(:company_id,:branch_id,:employee_id,:certification_name,:issuing_body,
         reason: str | None,
     ) -> CertificationResponse:
         row = await self._certification_row(principal, branch_id, certification_id, lock=True)
-        if row["updated_at"] != expected_updated_at or row["status"] != "pending_review":
+        if (
+            not same_instant(row["updated_at"], expected_updated_at)
+            or row["status"] != "pending_review"
+        ):
             raise ServiceExecutionError("state_conflict")
         if verify and not row["has_evidence"]:
             raise ServiceExecutionError("state_conflict")
@@ -588,7 +601,7 @@ VALUES(:company_id,:branch_id,:employee_id,:certification_name,:issuing_body,
             principal, branch_id, employee_id, scope=effective_scope, optional=False
         )
         if (
-            row["updated_at"] != expected_updated_at
+            not same_instant(row["updated_at"], expected_updated_at)
             or row["status"] not in {"pending_review", "rejected"}
             or row["has_evidence"]
         ):
@@ -680,7 +693,7 @@ VALUES(:company_id,:branch_id,:employee_id,:certification_name,:issuing_body,
                 )
             ).scalar_one()
         else:
-            if current.updated_at != request.expected_updated_at:
+            if not same_instant(current.updated_at, request.expected_updated_at):
                 raise ServiceExecutionError("state_conflict")
             requirement_id = current.id
             await self.connection.execute(
@@ -712,7 +725,7 @@ VALUES(:company_id,:branch_id,:employee_id,:certification_name,:issuing_body,
         expected_updated_at: object,
     ) -> None:
         current = await self.get_requirement(principal, branch_id, employee_id, year)
-        if current.updated_at != expected_updated_at:
+        if not same_instant(current.updated_at, expected_updated_at):
             raise ServiceExecutionError("state_conflict")
         await self._audit(
             "cme_requirement_deleted",
@@ -724,6 +737,50 @@ VALUES(:company_id,:branch_id,:employee_id,:certification_name,:issuing_body,
         await self.connection.execute(
             text("DELETE FROM public.cme_requirements WHERE id=:id"), {"id": current.id}
         )
+
+    async def cme_contributions(
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        employee_id: uuid.UUID,
+        year: int,
+        limit: int,
+        after_id: uuid.UUID | None,
+    ) -> list[TrainingResponse]:
+        await self._scope_employee(principal, branch_id, employee_id, scope="admin", optional=False)
+        rows = (
+            (
+                await self.connection.execute(
+                    text(
+                        f"SELECT {TRAINING_COLUMNS} FROM public.training_records record "
+                        "WHERE record.company_id=:company_id AND record.branch_id=:branch_id "
+                        "AND record.employee_id=:employee_id AND record.is_cme "
+                        "AND EXTRACT(year FROM record.start_date)=:year "
+                        "AND (record.status IN ('planned','in_progress') OR "
+                        "record.status='completed' AND record.passed AND record.result_verified "
+                        "AND (record.content_type IS NULL OR "
+                        "public.file_security_scan_allows_download("
+                        "record.file_security_scan_id,'training_evidence',record.id,record.storage_path,"
+                        "record.content_type,record.size_bytes,record.sha256,"
+                        ":scanner_definition))) "
+                        "AND (CAST(:after_id AS uuid) IS NULL OR record.id>:after_id) "
+                        "ORDER BY record.id ASC LIMIT :limit"
+                    ),
+                    {
+                        "company_id": principal.company_id,
+                        "branch_id": branch_id,
+                        "employee_id": employee_id,
+                        "year": year,
+                        "limit": limit,
+                        "after_id": after_id,
+                        "scanner_definition": self.scanner_definition,
+                    },
+                )
+            )
+            .mappings()
+            .all()
+        )
+        return [TrainingResponse.model_validate(row) for row in rows]
 
     async def branch_cme(
         self,
@@ -1062,7 +1119,11 @@ VALUES(:company_id,:branch_id,:employee_id,:creator,:entity_type,:entity_id,
             if entity_type == "training_evidence"
             else row["status"] in {"pending_review", "rejected"}
         )
-        if not allowed or row["updated_at"] != expected_updated_at or row["content_type"] is None:
+        if (
+            not allowed
+            or not same_instant(row["updated_at"], expected_updated_at)
+            or row["content_type"] is None
+        ):
             raise ServiceExecutionError("state_conflict")
         try:
             operation_id = (

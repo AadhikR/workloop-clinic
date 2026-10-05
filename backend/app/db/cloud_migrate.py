@@ -12,7 +12,7 @@ from app.db import cloud_bootstrap, cloud_seed
 from app.db.engine import normalize_psycopg_url
 
 ALEMBIC_CONFIG = Path(__file__).resolve().parents[2] / "alembic.ini"
-EXPECTED_ALEMBIC_HEAD = "e8a1c3f5b7d9"
+EXPECTED_ALEMBIC_HEAD = "f3a5c7e9b1d4"
 
 
 def upgrade_schema() -> None:

@@ -15,7 +15,11 @@ import {
 import { readAllEmployees } from './employeeApi.js'
 import { HttpClientError } from './http.js'
 import { readBranch } from './organizationApi.js'
-import { ConfirmDialog, FilterTabs, FormDialog, PortalTable } from './PortalUi.jsx'
+import { ConfirmDialog, FilterTabs, PortalTable } from './PortalUi.jsx'
+
+function InlineEditor({ title, open, onClose, children }) {
+  return open && <section className="card department-inline-editor" aria-label={title}><div className="card-header"><h4>{title}</h4><button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button></div><div className="card-body">{children}</div></section>
+}
 
 const emptyDepartment = {
   name: '', parentId: null, headEmployeeId: null, color: '#6366f1', description: '', sortOrder: 0,
@@ -265,6 +269,9 @@ export default function DepartmentManager({ authentication, branchId, clearBranc
   const [editorBusy, setEditorBusy] = useState(false)
   const [orgSearch, setOrgSearch] = useState('')
   const [orgDepartment, setOrgDepartment] = useState('')
+  const [rowRemoval, setRowRemoval] = useState(null)
+  const [removalBusy, setRemovalBusy] = useState(false)
+  const [removalError, setRemovalError] = useState('')
 
   const load = useCallback(async ({ keepSelection = false, notice: nextNotice = '' } = {}) => {
     try {
@@ -306,11 +313,9 @@ export default function DepartmentManager({ authentication, branchId, clearBranc
   return (
     <section className="department-manager restored-module" aria-label="Departments and staffing rules">
       {notice && <p role="status">{notice}</p>}
-      <header className="restored-module-header"><h3>Departments</h3><div className="module-actions"><button type="button" className="btn btn-outline" onClick={() => load().catch(() => {})}>Reload</button><button type="button" className="btn btn-primary" onClick={() => { setSelectedDepartment(null); setShowDepartment(true) }}>New Department</button></div></header>
+      <header className="restored-module-header"><h3>Departments</h3><div className="module-actions"><button type="button" className="btn btn-outline" onClick={() => load().catch(() => {})}>Reload</button>{view === 'departments' && <button type="button" className="btn btn-primary" onClick={() => { setSelectedDepartment(null); setShowDepartment(true) }}>New Department</button>}</div></header>
       <FilterTabs label="Department views" options={[{ value: 'departments', label: 'Departments' }, { value: 'chart', label: 'Organization Chart' }, ...(state.enableStaffingRules ? [{ value: 'staffing', label: 'Staffing Rules' }] : [])]} value={view} onChange={setView} />
-      {view === 'departments' && <PortalTable label="Departments"><thead><tr><th>Department</th><th>Parent</th><th>Head</th><th>Employees</th><th>Actions</th></tr></thead><tbody>{rows.map(({ department, depth }) => <tr key={department.id}><td style={{ paddingInlineStart: `${16 + depth * 18}px` }}><span className="department-swatch" style={{ background: department.color }} />{department.name}<small>{department.description}</small></td><td>{state.departments.find((item) => item.id === department.parentId)?.name ?? 'No parent'}</td><td>{state.employees.find((item) => item.id === department.headEmployeeId)?.name ?? 'No head'}</td><td>{state.employees.filter((item) => item.department === department.name && item.active).length}</td><td><button type="button" className="btn btn-outline btn-sm" onClick={() => { setSelectedDepartment(department); setShowDepartment(true) }}>Edit</button></td></tr>)}{state.departments.length === 0 && <tr><td colSpan={5}><div className="empty-state">No departments yet.</div></td></tr>}</tbody></PortalTable>}
-      {view === 'chart' && <><div className="restored-toolbar"><label>Search organization<input type="search" value={orgSearch} onChange={(event) => setOrgSearch(event.target.value)} placeholder="Search by name or title" /></label><label>Department<select value={orgDepartment} onChange={(event) => setOrgDepartment(event.target.value)}><option value="">All departments</option>{[...new Set(state.employees.map((employee) => employee.department).filter(Boolean))].sort().map((name) => <option key={name}>{name}</option>)}</select></label><button type="button" className="btn btn-outline" onClick={() => setCollapsed([])}>Expand all</button><button type="button" className="btn btn-outline" onClick={() => setCollapsed(state.employees.map((item) => item.id))}>Collapse all</button></div><ReportingChart employees={state.employees} departments={state.departments} search={orgSearch} department={orgDepartment} collapsed={collapsed} onToggle={(id) => setCollapsed((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id])} /></>}
-      <FormDialog title={selectedDepartment ? 'Edit department' : 'New department'} open={showDepartment} onClose={() => { if (!editorBusy) setShowDepartment(false) }}>
+      <InlineEditor title={selectedDepartment ? 'Edit department' : 'New department'} open={view === 'departments' && showDepartment} onClose={() => { if (!editorBusy) setShowDepartment(false) }}>
         <DepartmentEditor
           key={selectedDepartment ? JSON.stringify(departmentSnapshot(selectedDepartment)) : 'new'}
           authentication={authentication}
@@ -322,9 +327,11 @@ export default function DepartmentManager({ authentication, branchId, clearBranc
           onCancel={() => setShowDepartment(false)}
           onSaved={async (options) => { await load(options); if (options.notice) setShowDepartment(false) }}
         />
-      </FormDialog>
-      {view === 'staffing' && state.enableStaffingRules && <><div className="restored-toolbar"><h4>Staffing rules</h4><button type="button" className="btn btn-primary" disabled={!state.departments.length} onClick={() => { setSelectedRule(null); setShowRule(true) }}>Add Rule</button></div><PortalTable label="Staffing rules"><thead><tr><th>Department</th><th>Shift category</th><th>Minimum staff</th><th>Effective from</th><th>Effective to</th><th>Actions</th></tr></thead><tbody>{state.rules.map((rule) => <tr key={rule.id}><td>{rule.department}</td><td>{rule.shiftCategory}</td><td>{rule.minStaff}</td><td>{rule.effectiveFrom ?? 'Not set'}</td><td>{rule.effectiveTo ?? 'Not set'}</td><td><button type="button" className="btn btn-outline btn-sm" onClick={() => { setSelectedRule(rule); setShowRule(true) }}>Edit</button></td></tr>)}{state.rules.length === 0 && <tr><td colSpan={6}><div className="empty-state">No staffing rules yet.</div></td></tr>}</tbody></PortalTable></>}
-      {state.enableStaffingRules && <FormDialog title={selectedRule ? 'Edit staffing rule' : 'New staffing rule'} open={showRule} onClose={() => { if (!editorBusy) setShowRule(false) }}>
+      </InlineEditor>
+      {view === 'departments' && <PortalTable label="Departments"><thead><tr><th>Department</th><th>Parent</th><th>Head</th><th>Employees</th><th>Actions</th></tr></thead><tbody>{rows.map(({ department, depth }) => <tr key={department.id}><td style={{ paddingInlineStart: `${16 + depth * 18}px` }}><span className="department-swatch" style={{ background: department.color }} />{department.name}<small>{department.description}</small></td><td>{state.departments.find((item) => item.id === department.parentId)?.name ?? 'No parent'}</td><td>{state.employees.find((item) => item.id === department.headEmployeeId)?.name ?? 'No head'}</td><td>{state.employees.filter((item) => item.department === department.name && item.active).length}</td><td><button type="button" className="btn btn-outline btn-sm" onClick={() => { setSelectedDepartment(department); setShowDepartment(true) }}>Edit</button><button type="button" className="btn btn-danger btn-sm" onClick={() => { setRemovalError(''); setRowRemoval({ kind: 'department', item: department }) }}>Delete</button></td></tr>)}{state.departments.length === 0 && <tr><td colSpan={5}><div className="empty-state">No departments yet.</div></td></tr>}</tbody></PortalTable>}
+      {view === 'chart' && <><div className="restored-toolbar"><label>Search organization<input type="search" value={orgSearch} onChange={(event) => setOrgSearch(event.target.value)} placeholder="Search by name or title" /></label><label>Department<select value={orgDepartment} onChange={(event) => setOrgDepartment(event.target.value)}><option value="">All departments</option>{[...new Set(state.employees.map((employee) => employee.department).filter(Boolean))].sort().map((name) => <option key={name}>{name}</option>)}</select></label><button type="button" className="btn btn-outline" onClick={() => setCollapsed([])}>Expand all</button><button type="button" className="btn btn-outline" onClick={() => setCollapsed(state.employees.map((item) => item.id))}>Collapse all</button></div><ReportingChart employees={state.employees} departments={state.departments} search={orgSearch} department={orgDepartment} collapsed={collapsed} onToggle={(id) => setCollapsed((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id])} /></>}
+
+      {state.enableStaffingRules && <InlineEditor title={selectedRule ? 'Edit staffing rule' : 'New staffing rule'} open={view === 'staffing' && showRule} onClose={() => { if (!editorBusy) setShowRule(false) }}>
       <StaffingEditor
         key={selectedRule
           ? JSON.stringify(staffingRuleSnapshot(selectedRule))
@@ -337,13 +344,23 @@ export default function DepartmentManager({ authentication, branchId, clearBranc
         onSelect={setSelectedRule}
         onSaved={async (options) => { await load(options); if (options.notice) setShowRule(false) }}
       />
-      </FormDialog>}
+      </InlineEditor>}
+      {view === 'staffing' && state.enableStaffingRules && <><div className="restored-toolbar"><h4>Staffing rules</h4><button type="button" className="btn btn-primary" disabled={!state.departments.length} onClick={() => { setSelectedRule(null); setShowRule(true) }}>Add Rule</button></div><PortalTable label="Staffing rules"><thead><tr><th>Department</th><th>Shift category</th><th>Minimum staff</th><th>Effective from</th><th>Effective to</th><th>Actions</th></tr></thead><tbody>{state.rules.map((rule) => <tr key={rule.id}><td>{rule.department}</td><td>{rule.shiftCategory}</td><td>{rule.minStaff}</td><td>{rule.effectiveFrom ?? 'Not set'}</td><td>{rule.effectiveTo ?? 'Not set'}</td><td><button type="button" className="btn btn-outline btn-sm" onClick={() => { setSelectedRule(rule); setShowRule(true) }}>Edit</button><button type="button" className="btn btn-danger btn-sm" onClick={() => { setRemovalError(''); setRowRemoval({ kind: 'rule', item: rule }) }}>Delete</button></td></tr>)}{state.rules.length === 0 && <tr><td colSpan={6}><div className="empty-state">No staffing rules yet.</div></td></tr>}</tbody></PortalTable></>}
+      <ConfirmDialog title={rowRemoval?.kind === 'rule' ? 'Delete staffing rule' : 'Delete department'} open={Boolean(rowRemoval)} busy={removalBusy} onClose={() => setRowRemoval(null)} confirmLabel="Delete" onConfirm={async () => {
+        setRemovalBusy(true); setRemovalError('')
+        try {
+          if (rowRemoval.kind === 'rule') await deleteStaffingRule(authentication, branchId, rowRemoval.item)
+          else await deleteDepartment(authentication, branchId, rowRemoval.item)
+          setRowRemoval(null); await load({ notice: 'Record deleted.' })
+        } catch (error) { setRemovalError(requestError(error)) }
+        finally { setRemovalBusy(false) }
+      }}><p>Delete {rowRemoval?.item.name ?? rowRemoval?.item.department}? Dependent or changed records may prevent deletion.</p>{removalError && <p role="alert">{removalError}</p>}</ConfirmDialog>
     </section>
   )
 }
 
 function ReportingChart({ employees, departments, search, department, collapsed, onToggle }) {
-  const active = employees.filter((employee) => employee.active && employee.employmentStatus !== 'Terminated')
+  const active = employees.filter((employee) => employee.active && employee.employmentStatus !== 'terminated')
   const byId = new Map(active.map((employee) => [employee.id, employee]))
   const matches = (employee) => (!department || employee.department === department)
     && `${employee.name} ${employee.jobTitle}`.toLowerCase().includes(search.toLowerCase())

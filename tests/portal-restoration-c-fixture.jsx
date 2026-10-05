@@ -117,4 +117,5 @@ if (moduleName === 'leave') content = <LeaveManager {...shared} />
 else if (moduleName === 'attendance') content = <AttendanceManager {...shared} />
 else if (moduleName === 'roster') content = <RosterManager {...shared} />
 else content = <DepartmentManager authentication={authentication} branchId={branchId} clearBranch={() => {}} />
-createRoot(document.getElementById('root')).render(<main className="portal-main"><div className="portal-route">{content}</div></main>)
+export const restorationFixture = { account, authentication, branchId, branch: branch(staffingEnabled) }
+if (!query.has('fixtureOnly')) createRoot(document.getElementById('root')).render(<main className="portal-main"><div className="portal-route">{content}</div></main>)

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { FormDialog } from './PortalUi.jsx'
+import { readRecentLeaveActions } from './portalProjectionsApi.js'
 
 import { readAllEmployees, readEmployeePortalRole } from './employeeApi.js'
 import {
@@ -267,12 +268,15 @@ export function Delegations({ authentication, branchId }) {
 export default function LeaveApprovals({ account, authentication, branchId, queueOnly = false, delegationsOnly = false }) {
   const admin = account.role === 'admin'
   const [state, setState] = useState({ status: 'loading', items: [], message: '' })
+  const [historyOpen, setHistoryOpen] = useState(false)
 
   const refresh = useCallback(async (signal) => {
-    const items = admin
-      ? await readAdminApprovalQueue(authentication, branchId, { signal })
-      : await readApproverQueue(authentication, { signal })
-    setState({ status: 'ready', items, message: '' })
+    const [items, history] = await Promise.all([
+      admin ? readAdminApprovalQueue(authentication, branchId, { signal })
+        : readApproverQueue(authentication, { signal }),
+      admin ? Promise.resolve([]) : readRecentLeaveActions(authentication),
+    ])
+    if (!signal?.aborted) setState({ status: 'ready', items, history, message: '' })
   }, [admin, authentication, branchId])
 
   useEffect(() => {
@@ -301,6 +305,14 @@ export default function LeaveApprovals({ account, authentication, branchId, queu
           onChanged={refresh}
         />
       ))}
+      {!admin && state.status === 'ready' && <section className="recent-leave-actions">
+        <button type="button" className="btn btn-ghost" aria-expanded={historyOpen} onClick={() => setHistoryOpen((value) => !value)}>
+          {historyOpen ? '⌃' : '⌄'} Recently actioned · {state.history.length}
+        </button>
+        {historyOpen && (state.history.length === 0 ? <p>No decisions in the last 90 days for your current reports or delegations.</p>
+          : <div className="table-wrap"><table><thead><tr><th>Employee</th><th>Type</th><th>Dates</th><th>Decision</th><th>Reason</th><th>Actioned by</th><th>Time</th></tr></thead>
+            <tbody>{state.history.map((entry) => <tr key={entry.id}><td>{entry.employeeName}</td><td>{entry.leaveType}</td><td>{entry.startDate} to {entry.endDate}</td><td>{entry.action.replaceAll('_', ' ')}</td><td>{entry.reason}</td><td>{entry.actorName}</td><td>{new Date(entry.actionAt).toLocaleString('en-AE', { timeZone: 'Asia/Dubai' })}</td></tr>)}</tbody></table></div>)}
+      </section>}
       {admin && !queueOnly && <Delegations authentication={authentication} branchId={branchId} />}
     </section>
   )

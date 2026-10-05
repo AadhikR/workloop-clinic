@@ -31,10 +31,10 @@ const certification = { id: id(31), employeeId: employees[0].id, certificationNa
 const requirement = { id: id(32), employeeId: employees[0].id, year: 2026, requiredHours: '25.0',
   notes: '', createdAt: timestamp, updatedAt: timestamp }
 const appraisal = { id: id(41), cycleId: id(40), cycleName: 'H2 2026', reviewFrom: '2026-07-01', reviewTo: '2026-12-31',
-  employeeId: employees[0].id, employeeName: employees[0].name, templateVersion: 1, overallRating: null,
+  employeeId: employees[0].id, employeeName: employees[0].name, employeeDepartment: 'Clinical', employeeJobTitle: 'Nurse', cycleStatus: 'active', templateVersion: 'clinic-v1', overallRating: null,
   status: 'pending', reviewerComments: '', developmentPlan: '', reviewedAt: null, reviewedByAppUserId: null,
-  createdAt: timestamp, updatedAt: timestamp, sections: [{ id: id(42), sectionName: 'Clinical competence',
-    weight: '100.00', rating: '4.0', comments: 'Strong progress', sortOrder: 0, updatedAt: timestamp }] }
+  createdAt: timestamp, updatedAt: timestamp, sections: ['Clinical Competency', 'Patient Care Quality', 'Communication and Teamwork', 'Punctuality and Attendance', 'Professional Development'].map((sectionName, index) => ({ id: id(42 + index), sectionName,
+    weight: ['2.00', '2.00', '1.50', '1.00', '1.00'][index], rating: '4.0', comments: 'Strong progress', sortOrder: (index + 1) * 10, updatedAt: timestamp })) }
 const cycle = { id: id(40), name: 'H2 2026', reviewFrom: '2026-07-01', reviewTo: '2026-12-31', status: 'active',
   closedByAppUserId: null, closedAt: null, createdAt: timestamp, updatedAt: timestamp, appraisals: [appraisal] }
 const incident = { id: id(50), incidentDate: '2026-10-01', incidentTime: '10:30:00', location: 'Treatment room',
@@ -51,7 +51,7 @@ const branch = { id: branchId, name: 'Dubai clinic', address: 'Synthetic address
   defaultSalaryDay: 28, enableStaffingRules: true, enableBiometricImport: false, createdAt: timestamp, updatedAt: timestamp }
 const query = new URLSearchParams(location.search)
 const moduleName = query.get('module') ?? 'assets'
-window.history.replaceState(null, '', `/admin/${moduleName}`)
+if (!query.has('fixtureOnly')) window.history.replaceState(null, '', `/admin/${moduleName}`)
 sessionStorage.setItem('workloop.branchId', branchId)
 window.__restorationRequests = []
 window.__restorationFailNext = false
@@ -100,6 +100,7 @@ const fixture = {
     if (route === '/api/v1/cme/summary') return { data: [{ employeeId: employees[0].id, employeeName: employees[0].name, department: 'Clinical', year: Number(url.searchParams.get('year')), targetHours: requirement.requiredHours, achievedHours: '12.0', inProgressHours: '8.0', gapHours: '13.0', requirement: { ...requirement, year: Number(url.searchParams.get('year')) } }], page }
     if (route.startsWith('/api/v1/cme/requirements/')) { Object.assign(requirement, body); delete requirement.expectedUpdatedAt; return { data: requirement } }
     if (route === '/api/v1/appraisal-cycles') return { data: [cycle], page }
+    if (route === `/api/v1/appraisals/${appraisal.id}/admin-review`) { Object.assign(appraisal, { ...body, sections: appraisal.sections.map((section) => ({ ...section, ...body.sections.find((item) => item.id === section.id) })), status: 'reviewed', overallRating: '4.0', reviewedAt: timestamp, reviewedByAppUserId: id(5) }); delete appraisal.expectedUpdatedAt; return { data: appraisal } }
     if (route === `/api/v1/appraisals/${appraisal.id}/review`) { Object.assign(appraisal, body, { status: 'reviewed', overallRating: '4.0', reviewedAt: timestamp, reviewedByAppUserId: id(5) }); delete appraisal.expectedUpdatedAt; return { data: appraisal } }
     if (route === '/api/v1/clinical-incidents') return { data: [incident], page }
     if (route === `/api/v1/clinical-incidents/${incident.id}`) { Object.assign(incident, body); delete incident.expectedUpdatedAt; return { data: incident } }
@@ -111,4 +112,6 @@ const authentication = {
   async logout() {},
   async request(...args) { return structuredClone(await fixture.request(...args)) },
 }
-createRoot(document.getElementById('root')).render(<PortalShell account={{ role: 'admin', appUserId: id(5), companyId: id(1), employeeId: null, branchId: null }} authentication={authentication} />)
+const account = { role: 'admin', appUserId: id(5), companyId: id(1), employeeId: null, branchId: null }
+export const restorationFixture = { account, authentication, branchId, branch }
+if (!query.has('fixtureOnly')) createRoot(document.getElementById('root')).render(<PortalShell account={account} authentication={authentication} />)

@@ -17,7 +17,8 @@ from app.auth.dependencies import (
     VerifiedAccessToken,
 )
 from app.http.errors import api_error, error_response_documentation, success_response_documentation
-from app.http.schemas import CollectionResponse, DataResponse, Page
+from app.http.pagination import uuid_page
+from app.http.schemas import CollectionResponse, DataResponse
 from app.phase11c_support import executor, idempotent_mutation
 from app.schemas.incidents import (
     IncidentCorrectiveActionRequest,
@@ -104,6 +105,7 @@ async def list_clinical_incidents(
     severity: str | None = None,
     incident_status: Annotated[str | None, Query(alias="status")] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    cursor: Annotated[uuid.UUID | None, Query()] = None,
 ) -> CollectionResponse[IncidentResponse]:
     if date_from is not None and date_to is not None and date_to < date_from:
         raise api_error("validation_failed")
@@ -138,10 +140,12 @@ async def list_clinical_incidents(
         operation=lambda connection: IncidentService(connection).list(
             principal,
             selected,
-            IncidentListQuery(date_from, date_to, incident_type, severity, incident_status, limit),
+            IncidentListQuery(
+                date_from, date_to, incident_type, severity, incident_status, limit + 1, cursor
+            ),
         ),
     )
-    return CollectionResponse(data=items, page=Page(limit=limit, next_cursor=None, has_more=False))
+    return uuid_page(items, limit)
 
 
 @router.post("", operation_id="create_clinical_incident", responses=ERRORS)

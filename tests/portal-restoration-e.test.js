@@ -32,3 +32,10 @@ test('training parser rejects a self result that grants CME credit', () => {
   assert.equal(parseTraining(training()).resultVerified, false)
   assert.throws(() => parseTraining({ ...training(), isCme: true }), /Invalid training response/)
 })
+
+test('planned CME training preserves the database provenance constraint', () => {
+  for (const status of ['planned', 'in_progress']) {
+    assert.equal(parseTraining({ ...training(), status, passed: null, isCme: true, resultVerified: true }).isCme, true)
+    assert.throws(() => parseTraining({ ...training(), status, passed: null, isCme: true }), /Invalid training response/)
+  }
+})

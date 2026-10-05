@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.auth.application_user import AuthorizationPrincipal
 from app.db.audit import append_audit_event
+from app.http.versions import same_instant
 from app.models.identity import AppRole
 from app.schemas.assets import (
     AssetAssignmentResponse,
@@ -137,7 +138,7 @@ VALUES(:company_id,:branch_id,:name,:asset_code,:category,:brand,:model,:serial_
         request: AssetUpdateRequest,
     ) -> AssetResponse:
         current = await self._lock(principal, branch_id, asset_id)
-        if current.updated_at != request.expected_updated_at:
+        if not same_instant(current.updated_at, request.expected_updated_at):
             raise ServiceExecutionError("state_conflict")
         try:
             await self.connection.execute(
@@ -183,7 +184,7 @@ UPDATE public.assets SET name=:name,asset_code=:asset_code,category=:category,
         expected_updated_at: object,
     ) -> AssetResponse:
         current = await self._lock(principal, branch_id, asset_id)
-        if current.updated_at != expected_updated_at:
+        if not same_instant(current.updated_at, expected_updated_at):
             raise ServiceExecutionError("state_conflict")
         allowed: dict[str, set[str]] = {
             "available": {"under_repair", "retired", "lost"},
@@ -216,7 +217,10 @@ UPDATE public.assets SET name=:name,asset_code=:asset_code,category=:category,
         request: AssetAssignRequest,
     ) -> AssetAssignmentResponse:
         current = await self._lock(principal, branch_id, asset_id)
-        if current.updated_at != request.expected_updated_at or current.status != "available":
+        if (
+            not same_instant(current.updated_at, request.expected_updated_at)
+            or current.status != "available"
+        ):
             raise ServiceExecutionError("state_conflict")
         employee = (
             await self.connection.execute(
@@ -297,7 +301,10 @@ RETURNING id
         request: AssetReturnRequest,
     ) -> AssetAssignmentResponse:
         current = await self._lock(principal, branch_id, asset_id)
-        if current.updated_at != request.expected_updated_at or current.status != "assigned":
+        if (
+            not same_instant(current.updated_at, request.expected_updated_at)
+            or current.status != "assigned"
+        ):
             raise ServiceExecutionError("state_conflict")
         assignment = (
             await self.connection.execute(
@@ -355,7 +362,7 @@ RETURNING id
         expected_updated_at: object,
     ) -> None:
         current = await self._lock(principal, branch_id, asset_id)
-        if current.updated_at != expected_updated_at:
+        if not same_instant(current.updated_at, expected_updated_at):
             raise ServiceExecutionError("state_conflict")
         history = (
             await self.connection.execute(
@@ -371,7 +378,11 @@ RETURNING id
         )
 
     async def list_self(
-        self, principal: AuthorizationPrincipal, branch_id: uuid.UUID, limit: int
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        limit: int,
+        after_id: uuid.UUID | None = None,
     ) -> list[AssetAssignmentResponse]:
         if principal.employee_id is None:
             raise ServiceExecutionError("operation_not_permitted")
@@ -388,13 +399,15 @@ FROM public.asset_assignments assignment
 JOIN public.assets asset ON asset.id=assignment.asset_id
 WHERE assignment.company_id=:company_id AND assignment.branch_id=:branch_id
   AND assignment.employee_id=:employee_id
-ORDER BY assignment.assigned_date DESC,assignment.id DESC LIMIT :limit
+  AND (CAST(:after_id AS uuid) IS NULL OR assignment.id>:after_id)
+ORDER BY assignment.id ASC LIMIT :limit
 """
                     ),
                     {
                         "company_id": principal.company_id,
                         "branch_id": branch_id,
                         "employee_id": principal.employee_id,
+                        "after_id": after_id,
                         "limit": limit,
                     },
                 )
@@ -423,12 +436,19 @@ ORDER BY assignment.assigned_date DESC,assignment.id DESC LIMIT :limit
 SELECT assignment.id,assignment.asset_id,assignment.employee_id,employee.name employee_name,
  asset.name asset_name,asset.asset_code,asset.status,assignment.assigned_date,
  assignment.return_date,assignment.condition_at_handover,assignment.condition_at_return,
- assignment.notes,assignment.created_at
+ assignment.notes,assignment.created_at,
+ CASE WHEN actor_profile.role='admin' AND actor_profile.employee_id IS NULL THEN 'Administrator'
+ WHEN actor.id IS NOT NULL THEN actor.name ELSE 'Unknown actor' END assigned_by_name
 FROM public.asset_assignments assignment
 JOIN public.assets asset ON asset.id=assignment.asset_id
  AND asset.company_id=assignment.company_id AND asset.branch_id=assignment.branch_id
 JOIN public.employees employee ON employee.id=assignment.employee_id
  AND employee.company_id=assignment.company_id AND employee.branch_id=assignment.branch_id
+LEFT JOIN public.user_profiles actor_profile
+ ON actor_profile.app_user_id=assignment.assigned_by_app_user_id
+ AND actor_profile.company_id=assignment.company_id
+LEFT JOIN public.employees actor ON actor.id=actor_profile.employee_id
+ AND actor.company_id=assignment.company_id AND actor.branch_id=assignment.branch_id
 WHERE assignment.company_id=:company_id AND assignment.branch_id=:branch_id
  AND (CAST(:asset_id AS uuid) IS NULL OR assignment.asset_id=:asset_id)
  AND (CAST(:after_date AS date) IS NULL

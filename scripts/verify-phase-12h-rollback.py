@@ -16,7 +16,7 @@ from app.db.seed.fixtures import build_rows  # noqa: E402
 from app.db.seed.runner import apply_rows, validate  # noqa: E402
 from app.db.seed.runner import clean as clean_seed  # noqa: E402
 
-HEAD = "e2c4f6a8b0d3"
+HEAD = "f3a5c7e9b1d4"
 PREDECESSOR = "d6f8a0c2e4b7"
 RENDERER = "phase12h-rollback-v1"
 

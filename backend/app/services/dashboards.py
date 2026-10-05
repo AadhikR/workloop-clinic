@@ -256,6 +256,13 @@ class DashboardService:
                 "AED",
                 "info",
                 "payslips",
+                comparison=(
+                    DashboardComparison(
+                        label="Payroll period", value=str(source["payslip_period"]), unit="period"
+                    )
+                    if source["payslip_period"] is not None
+                    else None
+                ),
             ),
             _card(
                 "todayAttendance",

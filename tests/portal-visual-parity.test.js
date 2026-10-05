@@ -103,7 +103,7 @@ test('retains each non-financial historical module instead of a generic placehol
     ['RosterDrafts.jsx', ['Monthly roster', 'Publication gates', 'Publication']],
     ['DevelopmentAssets.jsx', ['Asset Register', 'Assignment History', 'Training &amp; Certifications', 'CME targets']],
     ['AppraisalsIncidents.jsx', ['Appraisal cycles', 'Appraisal reviews', 'Incident status']],
-    ['RecordsBenefits.jsx', ['Employee documents', 'Insurance administration', 'Employment contracts']],
+    ['RecordsBenefits.jsx', ['Employee documents', 'InsuranceEditor', 'ContractEditor']],
     ['Offboarding.jsx', ['Offboarding and final settlement', 'Settlement preview']],
     ['Reports.jsx', ['Reports']],
     ['Tasks.jsx', ['Tasks']],

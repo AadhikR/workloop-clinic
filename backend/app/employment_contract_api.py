@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from typing import Annotated, cast
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Query, Request, Response
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncConnection
 
@@ -17,8 +17,10 @@ from app.auth.dependencies import (
 from app.http.errors import error_response_documentation, success_response_documentation
 from app.http.schemas import CollectionResponse, DataResponse, Page
 from app.phase11c_support import executor, idempotent_mutation
+from app.rendered_output_api import deliver_rendered_output
 from app.schemas.employment_contract import (
     ContractCommandRequest,
+    ContractCurrentResponse,
     ContractNotRenewedRequest,
     EmployeeContractResponse,
 )
@@ -28,6 +30,8 @@ from app.services.employment_contracts import (
     EmploymentContractService,
 )
 from app.services.idempotency import IdempotentResponse
+from app.services.outputs import RenderedOutput
+from app.services.rendered_outputs import render_bounded, render_employment_contract_pdf
 
 router = APIRouter(prefix="/api/v1/employees", tags=["employment-contracts"])
 ERRORS = error_response_documentation(
@@ -87,6 +91,60 @@ async def list_employee_contracts(
     return CollectionResponse(
         data=items,
         page=Page(limit=limit, next_cursor=next_cursor, has_more=next_cursor is not None),
+    )
+
+
+@router.get(
+    "/{employee_id}/contracts/current",
+    operation_id="read_current_employee_contract",
+    responses=ERRORS,
+)
+async def read_current_employee_contract(
+    employee_id: uuid.UUID,
+    request: Request,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedReadPrincipal,
+    selected: AdminSelectedBranch,
+) -> DataResponse[ContractCurrentResponse]:
+    result = await executor(request).execute(
+        claims=claims,
+        principal=principal,
+        selected_admin_branch_id=selected,
+        operation=lambda connection: EmploymentContractService(connection).current(
+            principal, selected, employee_id
+        ),
+    )
+    return DataResponse(data=result)
+
+
+@router.get(
+    "/{employee_id}/contract-letter.pdf",
+    operation_id="download_employment_contract_pdf",
+    responses=ERRORS,
+    response_class=Response,
+)
+async def download_employment_contract_pdf(
+    employee_id: uuid.UUID,
+    request: Request,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedReadPrincipal,
+    selected: AdminSelectedBranch,
+) -> Response:
+    async def producer(connection: AsyncConnection) -> tuple[RenderedOutput, str, str, uuid.UUID]:
+        source = await EmploymentContractService(connection).print_source(
+            principal, selected, employee_id
+        )
+        output = await render_bounded(
+            principal.app_user_id, lambda: render_employment_contract_pdf(source)
+        )
+        return output, "employment_contract_pdf_exported", "employee", employee_id
+
+    return await deliver_rendered_output(
+        request=request,
+        claims=claims,
+        principal=principal,
+        branch_id=selected,
+        producer=producer,
     )
 
 

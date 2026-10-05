@@ -190,12 +190,12 @@ test('fixes promotion, no-network, retention, rollback, and approval rules', () 
 
 test('preserves the Part 12G schema history beneath the restoration revision', () => {
   const catalogue = JSON.parse(readText(cataloguePath))
-  const indexedAlembic = gitOutput(['ls-files', '-s', '-z', 'backend/alembic', ':(exclude)backend/alembic/versions/f1a3c5e7b9d2_add_branch_payroll_routing_command.py', ':(exclude)backend/alembic/versions/e2c4f6a8b0d3_add_training_personal_results.py'])
+  const indexedAlembic = gitOutput(['ls-files', '-s', '-z', 'backend/alembic', ':(exclude)backend/alembic/versions/f1a3c5e7b9d2_add_branch_payroll_routing_command.py', ':(exclude)backend/alembic/versions/e2c4f6a8b0d3_add_training_personal_results.py', ':(exclude)backend/alembic/versions/f3a5c7e9b1d4_add_portal_retained_commands.py'])
   assert.equal(
     createHash('sha256').update(indexedAlembic).digest('hex'),
     catalogue.alembicIndexSha256,
   )
-  assert.deepEqual(alembicHeads(), ['e2c4f6a8b0d3'])
+  assert.deepEqual(alembicHeads(), ['f3a5c7e9b1d4'])
 })
 
 test('keeps external discovery and the owner retention decision fail closed', () => {

@@ -16,6 +16,7 @@ from app.auth.dependencies import (
     VerifiedAccessToken,
 )
 from app.http.errors import api_error, error_response_documentation, success_response_documentation
+from app.http.pagination import uuid_page
 from app.http.schemas import CollectionResponse, DataResponse, Page
 from app.models.identity import AppRole
 from app.phase11c_support import executor, idempotent_mutation
@@ -150,6 +151,7 @@ async def list_training_records(
     training_type: Annotated[str | None, Query(alias="type", max_length=120)] = None,
     is_cme: Annotated[bool | None, Query(alias="isCme")] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    cursor: Annotated[uuid.UUID | None, Query()] = None,
 ) -> CollectionResponse[TrainingResponse]:
     if training_status not in {None, "planned", "in_progress", "completed", "cancelled"}:
         raise api_error("validation_failed")
@@ -160,11 +162,13 @@ async def list_training_records(
         operation=lambda connection: _service(request, connection).list_training(
             principal,
             selected,
-            TrainingListQuery(employee_id, year, training_status, training_type, is_cme, limit),
+            TrainingListQuery(
+                employee_id, year, training_status, training_type, is_cme, limit + 1, cursor
+            ),
             scope="admin",
         ),
     )
-    return CollectionResponse(data=items, page=Page(limit=limit, next_cursor=None, has_more=False))
+    return uuid_page(items, limit)
 
 
 @training_router.post("", operation_id="create_training_record", responses=ERRORS)
@@ -205,6 +209,7 @@ async def _staff_training_list(
     principal: AuthorizationPrincipal,
     employee_id: uuid.UUID | None,
     limit: int,
+    cursor: uuid.UUID | None = None,
     scope: str,
 ) -> CollectionResponse[TrainingResponse]:
     if principal.branch_id is None:
@@ -216,11 +221,11 @@ async def _staff_training_list(
         operation=lambda connection: _service(request, connection).list_training(
             principal,
             branch_id,
-            TrainingListQuery(employee_id, None, None, None, None, limit),
+            TrainingListQuery(employee_id, None, None, None, None, limit + 1, cursor),
             scope=scope,
         ),
     )
-    return CollectionResponse(data=items, page=Page(limit=limit, next_cursor=None, has_more=False))
+    return uuid_page(items, limit)
 
 
 @training_router.get("/self", operation_id="list_self_training_records", responses=ERRORS)
@@ -229,6 +234,7 @@ async def list_self_training_records(
     claims: VerifiedAccessToken,
     principal: AuthenticatedReadPrincipal,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    cursor: Annotated[uuid.UUID | None, Query()] = None,
 ) -> CollectionResponse[TrainingResponse]:
     return await _staff_training_list(
         request=request,
@@ -236,6 +242,7 @@ async def list_self_training_records(
         principal=principal,
         employee_id=None,
         limit=limit,
+        cursor=cursor,
         scope="self",
     )
 
@@ -283,6 +290,7 @@ async def list_direct_report_training_records(
     principal: AuthenticatedReadPrincipal,
     employee_id: Annotated[uuid.UUID, Query(alias="employeeId")],
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    cursor: Annotated[uuid.UUID | None, Query()] = None,
 ) -> CollectionResponse[TrainingResponse]:
     return await _staff_training_list(
         request=request,
@@ -290,6 +298,7 @@ async def list_direct_report_training_records(
         principal=principal,
         employee_id=employee_id,
         limit=limit,
+        cursor=cursor,
         scope="direct_report",
     )
 
@@ -568,6 +577,7 @@ async def list_certifications(
     employee_id: Annotated[uuid.UUID | None, Query(alias="employeeId")] = None,
     certification_status: Annotated[str | None, Query(alias="status")] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    cursor: Annotated[uuid.UUID | None, Query()] = None,
 ) -> CollectionResponse[CertificationResponse]:
     if certification_status not in {None, "pending_review", "verified", "rejected"}:
         raise api_error("validation_failed")
@@ -578,11 +588,11 @@ async def list_certifications(
         operation=lambda connection: _service(request, connection).list_certifications(
             principal,
             selected,
-            CertificationListQuery(employee_id, certification_status, limit),
+            CertificationListQuery(employee_id, certification_status, limit + 1, cursor),
             scope="admin",
         ),
     )
-    return CollectionResponse(data=items, page=Page(limit=limit, next_cursor=None, has_more=False))
+    return uuid_page(items, limit)
 
 
 @certification_router.post("", operation_id="create_certification", responses=ERRORS)
@@ -623,6 +633,7 @@ async def _staff_certification_list(
     principal: AuthorizationPrincipal,
     employee_id: uuid.UUID | None,
     limit: int,
+    cursor: uuid.UUID | None = None,
     scope: str,
 ) -> CollectionResponse[CertificationResponse]:
     if principal.branch_id is None:
@@ -634,11 +645,11 @@ async def _staff_certification_list(
         operation=lambda connection: _service(request, connection).list_certifications(
             principal,
             branch_id,
-            CertificationListQuery(employee_id, None, limit),
+            CertificationListQuery(employee_id, None, limit + 1, cursor),
             scope=scope,
         ),
     )
-    return CollectionResponse(data=items, page=Page(limit=limit, next_cursor=None, has_more=False))
+    return uuid_page(items, limit)
 
 
 @certification_router.get("/self", operation_id="list_self_certifications", responses=ERRORS)
@@ -647,6 +658,7 @@ async def list_self_certifications(
     claims: VerifiedAccessToken,
     principal: AuthenticatedReadPrincipal,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    cursor: Annotated[uuid.UUID | None, Query()] = None,
 ) -> CollectionResponse[CertificationResponse]:
     return await _staff_certification_list(
         request=request,
@@ -654,6 +666,7 @@ async def list_self_certifications(
         principal=principal,
         employee_id=None,
         limit=limit,
+        cursor=cursor,
         scope="self",
     )
 
@@ -718,6 +731,7 @@ async def list_direct_report_certifications(
     principal: AuthenticatedReadPrincipal,
     employee_id: Annotated[uuid.UUID, Query(alias="employeeId")],
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    cursor: Annotated[uuid.UUID | None, Query()] = None,
 ) -> CollectionResponse[CertificationResponse]:
     return await _staff_certification_list(
         request=request,
@@ -725,6 +739,7 @@ async def list_direct_report_certifications(
         principal=principal,
         employee_id=employee_id,
         limit=limit,
+        cursor=cursor,
         scope="direct_report",
     )
 
@@ -952,6 +967,37 @@ async def read_branch_cme_summary(
             next_cursor=str(visible[-1].employee_id) if has_more else None,
         ),
     )
+
+
+@cme_router.get(
+    "/contributions",
+    operation_id="list_cme_contributions",
+    responses=ERRORS,
+)
+async def list_cme_contributions(
+    request: Request,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedReadPrincipal,
+    selected: AdminSelectedBranch,
+    employee_id: Annotated[uuid.UUID, Query(alias="employeeId")],
+    year: Annotated[int, Query(ge=1900, le=9999)],
+    limit: Annotated[int, Query(ge=1, le=100)] = 100,
+    cursor: Annotated[uuid.UUID | None, Query()] = None,
+) -> CollectionResponse[TrainingResponse]:
+    items = await executor(request).execute(
+        claims=claims,
+        principal=principal,
+        selected_admin_branch_id=selected,
+        operation=lambda connection: _service(request, connection).cme_contributions(
+            principal,
+            selected,
+            employee_id,
+            year,
+            limit + 1,
+            cursor,
+        ),
+    )
+    return uuid_page(items, limit)
 
 
 @cme_router.get(

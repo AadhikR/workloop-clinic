@@ -145,3 +145,4 @@ class DeletedAssetResponse(ApiSchema):
 
 class AssetHistoryResponse(AssetAssignmentResponse):
     employee_name: str
+    assigned_by_name: str = "Unknown actor"

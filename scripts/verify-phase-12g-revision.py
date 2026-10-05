@@ -110,7 +110,7 @@ WHERE namespace.nspname='public' AND procedure.oid=CAST(:signature AS regprocedu
             assert "payslip_zip_exported" not in definition
             assert "workloop_role() = 'admin'::text" not in payslip_policy
         elif mode == "head":
-            assert version == "e2c4f6a8b0d3"
+            assert version == "f3a5c7e9b1d4"
             assert "report_pdf_exported" in definition
             assert "payslip_zip_exported" in definition
             assert "final_settlement_pdf_exported" in definition

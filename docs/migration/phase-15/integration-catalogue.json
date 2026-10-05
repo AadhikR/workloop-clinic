@@ -1,9 +1,45 @@
 {
   "schemaVersion": 1,
+  "portalRestorationF": {
+    "authorization": "PORTAL_RESTORATION_EXECUTION.md",
+    "currentHead": "f3a5c7e9b1d4",
+    "predecessor": "e2c4f6a8b0d3",
+    "contract": "PORTAL_RESTORATION_F_WORKING_RECORD.md",
+    "safeReads": [
+      "administrator workspace summary",
+      "complete directory details and expiry",
+      "clinical credential and workforce count/detail",
+      "manager recent leave decisions",
+      "owner advance installments and repayments",
+      "CME contributing training",
+      "employee insurance coverage",
+      "current employee contract state"
+    ],
+    "protectedCommands": [
+      "retained record archive and restore",
+      "pending administrator advance cancellation",
+      "atomic administrator appraisal review",
+      "atomic manager five-section appraisal submission",
+      "audited administrator employment contract PDF"
+    ],
+    "rollback": "Preserve archives and new audit actions. Eligible downgrade restores the exact E predecessor. Never downgrade automatically.",
+    "promotionOrder": [
+      "compatible migration and backend",
+      "frontend",
+      "live synthetic acceptance"
+    ],
+    "routeAudit": "evidence/restoration-f/routes/route-audit.json",
+    "verifiers": [
+      "scripts/verify-restoration-f-database.py",
+      "tests/portal-restoration-f.test.js",
+      "tests/portal-restoration-f-browser-check.mjs",
+      "tests/portal-restoration-f-actions-browser-check.mjs"
+    ]
+  },
   "portalRestorationE": {
     "authorization": "PORTAL_RESTORATION_EXECUTION.md",
     "historicalBaselineHead": "e8a1c3f5b7d9",
-    "currentHead": "e2c4f6a8b0d3",
+    "currentHead": "f3a5c7e9b1d4",
     "predecessor": "f1a3c5e7b9d2",
     "contract": "PORTAL_RESTORATION_PROGRESS.md",
     "protectedTrainingCommands": [

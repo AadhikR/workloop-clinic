@@ -1,3 +1,5 @@
+import { readCollectionPages } from './collectionPages.js'
+
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const uuid4Pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 const datePattern = /^\d{4}-\d{2}-\d{2}$/
@@ -577,24 +579,10 @@ export async function readAllEmployees(authentication, branchId, options = {}) {
   if (Object.keys(options).some((key) => !['search', 'signal', 'sort'].includes(key))) {
     throw new TypeError('Invalid employee query')
   }
-  const employees = []
-  const identifiers = new Set()
-  const cursors = new Set()
-  let cursor
-  do {
-    const page = await readEmployees(authentication, branchId, { ...options, cursor, limit: 100 })
-    for (const employee of page.data) {
-      if (identifiers.has(employee.id)) throw invalidEmployeeResponse()
-      identifiers.add(employee.id)
-      employees.push(employee)
-    }
-    cursor = page.page.nextCursor ?? undefined
-    if (cursor !== undefined) {
-      if (cursors.has(cursor)) throw invalidEmployeeResponse()
-      cursors.add(cursor)
-    }
-  } while (cursor !== undefined)
-  return Object.freeze(employees)
+  return Object.freeze(await readCollectionPages(async (cursor) => {
+    const page = await readEmployees(authentication, branchId, { ...options, cursor: cursor ?? undefined, limit: 100 })
+    return { items: page.data, page: page.page }
+  }))
 }
 
 export async function readEmployee(authentication, branchId, employeeId, { signal } = {}) {
@@ -623,6 +611,16 @@ export async function readDirectReports(authentication, options = {}) {
     { access: 'protected', signal },
   )
   return collection(response, parseDirectReport)
+}
+
+export async function readAllDirectReports(authentication, options = {}) {
+  if (Object.keys(options).some((key) => !['search', 'signal', 'sort'].includes(key))) {
+    throw new TypeError('Invalid direct report query')
+  }
+  return Object.freeze(await readCollectionPages(async (cursor) => {
+    const page = await readDirectReports(authentication, { ...options, cursor: cursor ?? undefined, limit: 100 })
+    return { items: page.data, page: page.page }
+  }))
 }
 
 export async function readBranchJobHistory(authentication, branchId, options = {}) {

@@ -83,6 +83,7 @@ LEFT JOIN public.user_profiles AS admin_profile
   ON admin_profile.app_user_id=claim.approved_by_app_user_id
 LEFT JOIN public.employees AS admin_employee ON admin_employee.id=admin_profile.employee_id
 WHERE claim.company_id=:company_id AND claim.branch_id=:branch_id AND {scope}
+  AND claim.archived_at IS NULL
   AND (CAST(:employee_id AS uuid) IS NULL OR claim.employee_id=CAST(:employee_id AS uuid))
   AND (CAST(:status AS text) IS NULL OR claim.status=CAST(:status AS text))
   {default_manager_status}
@@ -169,6 +170,7 @@ JOIN public.employees AS employee
 LEFT JOIN public.expense_receipts AS receipt ON receipt.expense_claim_id=claim.id
 LEFT JOIN public.payroll_runs AS payroll ON payroll.id=claim.payroll_run_id
 WHERE claim.id=:id AND claim.company_id=:company_id AND claim.branch_id=:branch_id
+AND claim.archived_at IS NULL
 """
                     ),
                     {"id": claim_id, "company_id": company_id, "branch_id": branch_id},
@@ -204,6 +206,7 @@ LEFT JOIN public.user_profiles AS admin_profile
   ON admin_profile.app_user_id=claim.approved_by_app_user_id
 LEFT JOIN public.employees AS admin_employee ON admin_employee.id=admin_profile.employee_id
 WHERE claim.id=:id AND claim.company_id=:company_id AND claim.branch_id=:branch_id
+AND claim.archived_at IS NULL
 """
                     ),
                     {"id": claim_id, "company_id": company_id, "branch_id": branch_id},
