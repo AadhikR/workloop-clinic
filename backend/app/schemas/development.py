@@ -81,12 +81,11 @@ class TrainingUpdateRequest(TrainingFields):
         return _decimal(value, places=2, maximum="9999999999.99")
 
 
-class TrainingCompleteRequest(StrictRequestSchema):
+class TrainingSelfCompleteRequest(StrictRequestSchema):
     end_date: date
     duration_hours: Decimal
     score: str = Field(default="", max_length=120)
     passed: bool
-    is_cme: bool
     expected_updated_at: datetime
 
     @field_validator("duration_hours", mode="before")
@@ -98,6 +97,10 @@ class TrainingCompleteRequest(StrictRequestSchema):
     @classmethod
     def trim_score(cls, value: object) -> object:
         return value.strip() if isinstance(value, str) else value
+
+
+class TrainingCompleteRequest(TrainingSelfCompleteRequest):
+    is_cme: bool
 
 
 class VersionRequest(StrictRequestSchema):
@@ -119,6 +122,7 @@ class TrainingResponse(ApiSchema):
     passed: bool | None
     notes: str
     is_cme: bool
+    result_verified: bool = True
     has_evidence: bool
     file_name: str | None
     content_type: str | None

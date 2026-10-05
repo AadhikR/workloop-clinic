@@ -29,7 +29,7 @@ CYCLE_COLUMNS = """
 id,name,review_from,review_to,status,closed_by_app_user_id,closed_at,created_at,updated_at
 """
 APPRAISAL_COLUMNS = """
-a.id,a.cycle_id,c.name cycle_name,c.review_from,c.review_to,a.employee_id,
+a.id,a.cycle_id,c.name cycle_name,c.status cycle_status,c.review_from,c.review_to,a.employee_id,
 e.name employee_name,a.template_version,a.overall_rating,a.status,
 COALESCE(a.reviewer_comments,'') reviewer_comments,
 COALESCE(a.development_plan,'') development_plan,a.reviewed_at,

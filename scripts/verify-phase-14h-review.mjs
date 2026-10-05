@@ -230,7 +230,7 @@ export function validatePhase14HReview(sources, root = repositoryDirectory) {
   validateDocuments(errors, sources)
   validatePriorParts(errors, root)
   const heads = alembicHeads(root)
-  if (heads.length !== 1 || heads[0] !== 'f1a3c5e7b9d2') errors.push(`unexpected Alembic heads: ${heads.join(', ')}`)
+  if (heads.length !== 1 || heads[0] !== 'e2c4f6a8b0d3') errors.push(`unexpected Alembic heads: ${heads.join(', ')}`)
   return {
     errors,
     inventory: inventoryTrace.length,

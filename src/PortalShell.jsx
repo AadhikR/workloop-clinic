@@ -6,6 +6,7 @@ import BranchChooser from './BranchChooser.jsx'
 import { CompanyProvider } from './CompanyContext.jsx'
 import Dashboard from './Dashboards.jsx'
 import EmployeePortal from './EmployeePortal.jsx'
+import { readEmployeeSelf } from './employeeApi.js'
 import ManagerPortal from './ManagerPortal.jsx'
 import NotificationBell from './NotificationBell.jsx'
 import { useCompanyContext } from './companyContextState.js'
@@ -143,6 +144,13 @@ function PortalHome({ account, authentication, navigator, route }) {
   const organization = useCompanyContext()
   const headingRef = useRef(null)
   const navigationRef = useRef(null)
+  const [staffIdentity, setStaffIdentity] = useState(null)
+  useEffect(() => {
+    if (account.role === 'admin') return undefined
+    let current = true
+    readEmployeeSelf(authentication).then((employee) => { if (current) setStaffIdentity(employee) }).catch(() => { if (current) setStaffIdentity(null) })
+    return () => { current = false }
+  }, [account.role, account.employeeId, authentication])
   const allNavigation = roleNavigation(account.role)
   const sidebarStorageKey = `workloop-${account.role}-sidebar-collapsed`
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
@@ -265,7 +273,7 @@ function PortalHome({ account, authentication, navigator, route }) {
       <aside className={`sidebar${sidebarCollapsed ? ' collapsed' : ''}`}>
         <div className="sidebar-logo">
           <div className="sidebar-brand-row">
-            <p className="sidebar-brand">Workloop</p>
+            <p className="sidebar-brand">{account.role === 'admin' ? 'Workloop' : organizationName}</p>
             <button
               type="button"
               className="sidebar-collapse-btn"
@@ -276,6 +284,7 @@ function PortalHome({ account, authentication, navigator, route }) {
               <span aria-hidden="true">{sidebarCollapsed ? '›' : '‹'}</span>
             </button>
           </div>
+          {account.role !== 'admin' && <p className="staff-portal-label">{account.role === 'manager' ? 'Manager Portal' : 'Employee Portal'}</p>}
           {account.role === 'admin' ? (
             <button
               type="button"
@@ -318,10 +327,10 @@ function PortalHome({ account, authentication, navigator, route }) {
         </nav>
         <div className="sidebar-footer">
           <div className="sidebar-user">
-            <span aria-hidden="true" className="user-avatar">{account.role.slice(0, 1).toUpperCase()}</span>
+            <span aria-hidden="true" className="user-avatar">{staffIdentity?.name.slice(0, 1) ?? account.role.slice(0, 1).toUpperCase()}</span>
             <span className="sidebar-user-copy">
-              <strong>{organizationName}</strong>
-              <small>{account.role === 'admin' ? 'HR Admin' : account.role === 'manager' ? 'Manager' : 'Employee'}</small>
+              <strong>{account.role === 'admin' ? organizationName : staffIdentity?.name ?? 'Your workspace'}</strong>
+              <small>{account.role === 'admin' ? 'HR Admin' : staffIdentity?.jobTitle || (account.role === 'manager' ? 'Manager' : 'Employee')}</small>
             </span>
             <NotificationBell account={account} authentication={authentication} branchId={branch.id} />
           </div>
@@ -366,7 +375,7 @@ function PortalHome({ account, authentication, navigator, route }) {
           )}
         </header>
         <div className="page-body">
-          {route.path === roleHome(account.role) && account.role !== 'employee' && (
+          {route.path === roleHome(account.role) && account.role === 'admin' && (
             <section className="welcome-banner" aria-label="Welcome">
               <h2>Workloop - UAE Payroll &amp; HRMS</h2>
               <p>Welcome back to {organizationName}</p>
@@ -381,7 +390,7 @@ function PortalHome({ account, authentication, navigator, route }) {
               navigator={navigator}
               path={route.path}
             />
-          ) : account.role === 'manager' && route.path !== '/manager' ? (
+          ) : account.role === 'manager' ? (
             <ManagerPortal
               account={account}
               authentication={authentication}
@@ -437,6 +446,7 @@ export default function PortalShell({ account, authentication }) {
   return (
     <CompanyProvider account={account} authentication={authentication}>
       <PortalHome
+        key={`${account.role}:${account.companyId}:${account.employeeId}`}
         account={account}
         authentication={authentication}
         navigator={navigator}

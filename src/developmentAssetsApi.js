@@ -10,11 +10,11 @@ function exact(value, keys) {
     && Object.keys(value).sort().join('|') === [...keys].sort().join('|')
 }
 
-function headers(branchId, idempotent = false) {
+function headers(branchId, idempotent = false, idempotencyKey = crypto.randomUUID()) {
   if (branchId !== null && !uuid.test(branchId)) throw new TypeError('Invalid branch ID')
   return {
     ...(branchId === null ? {} : { 'X-Workloop-Branch-ID': branchId }),
-    ...(idempotent ? { 'Idempotency-Key': crypto.randomUUID() } : {}),
+    ...(idempotent ? { 'Idempotency-Key': idempotencyKey } : {}),
   }
 }
 
@@ -128,7 +128,9 @@ const trainingKeys = [
 ]
 
 export function parseTraining(value) {
-  if (!exact(value, trainingKeys) || !uuid.test(value.id) || !uuid.test(value.employeeId)
+  const keys = value && Object.hasOwn(value, 'resultVerified') ? [...trainingKeys, 'resultVerified'] : trainingKeys
+  if (!exact(value, keys) || value.resultVerified !== undefined && typeof value.resultVerified !== 'boolean'
+    || value.resultVerified === false && value.isCme || !uuid.test(value.id) || !uuid.test(value.employeeId)
     || typeof value.trainingTitle !== 'string' || value.startDate !== null && !date.test(value.startDate)
     || value.endDate !== null && !date.test(value.endDate)
     || value.durationHours !== null && !hours.test(value.durationHours) || !money.test(value.cost)
@@ -192,9 +194,10 @@ export async function createTraining(authentication, branchId, role, employeeId,
 }
 
 export async function updateTraining(authentication, branchId, role, record, values) {
+  const staffValues = Object.fromEntries(['trainingTitle', 'trainingType', 'provider', 'startDate', 'endDate', 'durationHours', 'notes'].map((key) => [key, values[key]]))
   const response = await authentication.request(`/api/v1/training-records/${record.id}`, {
     access: 'protected', method: 'PATCH', headers: headers(role === 'admin' ? branchId : null, true),
-    json: { ...values, expectedUpdatedAt: record.updatedAt },
+    json: { ...(role === 'admin' ? values : staffValues), expectedUpdatedAt: record.updatedAt },
   })
   return parseTraining(response.data)
 }
@@ -203,6 +206,22 @@ export async function completeTraining(authentication, branchId, record, values)
   return parseTraining((await authentication.request(`/api/v1/training-records/${record.id}/complete`, {
     access: 'protected', method: 'POST', headers: headers(branchId, true),
     json: { ...values, expectedUpdatedAt: record.updatedAt },
+  })).data)
+}
+
+export async function completeOwnTraining(authentication, record, values, { idempotencyKey } = {}) {
+  const { endDate, durationHours, score, passed } = values
+  return parseTraining((await authentication.request(`/api/v1/training-records/${record.id}/self-complete`, {
+    access: 'protected', method: 'POST', headers: headers(null, true, idempotencyKey),
+    json: { endDate, durationHours, score, passed, expectedUpdatedAt: record.updatedAt },
+  })).data)
+}
+
+export async function transitionTraining(authentication, branchId, record, command, { idempotencyKey } = {}) {
+  if (!['start', 'cancel'].includes(command)) throw new TypeError('Invalid training transition')
+  return parseTraining((await authentication.request(`/api/v1/training-records/${record.id}/${command}`, {
+    access: 'protected', method: 'POST', headers: headers(branchId, true, idempotencyKey),
+    json: { expectedUpdatedAt: record.updatedAt },
   })).data)
 }
 

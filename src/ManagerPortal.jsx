@@ -3,6 +3,7 @@ import AppraisalsIncidents from './AppraisalsIncidents.jsx'
 import DevelopmentAssets from './DevelopmentAssets.jsx'
 import EmployeeDirectory from './EmployeeDirectory.jsx'
 import EmployeeProfile from './EmployeeProfile.jsx'
+import EmployeeHome from './EmployeeHome.jsx'
 import Expenses from './Expenses.jsx'
 import LeaveApprovals from './LeaveApprovals.jsx'
 import LeaveOverview from './LeaveOverview.jsx'
@@ -16,11 +17,12 @@ import { managerRouteGroup } from './managerRoutes.js'
 
 export default function ManagerPortal({ account, authentication, branchId, navigator, path }) {
   const group = managerRouteGroup(path)
-  if (group === null || path === '/manager') return null
+  if (group === null) return null
 
   const shared = { account, authentication, branchId }
   return (
     <div className="portal-route manager-route" data-manager-route={path}>
+      {path === '/manager' && <EmployeeHome authentication={authentication} navigator={navigator} role="manager" />}
       {path === '/manager/team' && <EmployeeDirectory {...shared} />}
       {path === '/manager/leave-queue' && <LeaveApprovals {...shared} />}
       {path === '/manager/expense-queue' && <Expenses {...shared} view="queue" />}

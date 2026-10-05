@@ -51,7 +51,8 @@ const appraisalKeys = [
 ]
 
 export function parseAppraisal(value) {
-  if (!exact(value, appraisalKeys) || !uuid.test(value.id) || !uuid.test(value.cycleId)
+  const keys = value && Object.hasOwn(value, 'cycleStatus') ? [...appraisalKeys, 'cycleStatus'] : appraisalKeys
+  if (!exact(value, keys) || value.cycleStatus != null && !['draft', 'active', 'closed'].includes(value.cycleStatus) || !uuid.test(value.id) || !uuid.test(value.cycleId)
     || !uuid.test(value.employeeId) || !date.test(value.reviewFrom) || !date.test(value.reviewTo)
     || value.overallRating !== null && !rating.test(value.overallRating)
     || !['pending', 'reviewed', 'calibrated'].includes(value.status)

@@ -93,7 +93,7 @@ allowlist for integration, not permission to synthesize another path under the s
 | `P15-API-017` | `src/attendancePeriodsApi.js` | admin | periods | 15C |
 | `P15-API-018` | `src/rosterApi.js` | admin, manager, employee | months, schedules | 15C |
 | `P15-API-019` | `src/shiftSwapApi.js` | admin, manager, employee | shift swaps | 15C |
-| `P15-API-020` | `src/payrollApi.js` | admin, employee | payroll runs, self payslips | 15C |
+| `P15-API-020` | `src/payrollApi.js` | admin, manager, employee | payroll runs for admin; own payslips for staff under the restoration E amendment | 15C |
 | `P15-API-021` | `src/wpsNafisApi.js` | admin | payroll WPS and SIF, Nafis | 15C |
 | `P15-API-022` | `src/expenseApi.js` | admin, manager, employee | expenses and receipts | 15C |
 | `P15-API-023` | `src/advanceApi.js` | admin, manager, employee | advances | 15C |
@@ -104,7 +104,7 @@ allowlist for integration, not permission to synthesize another path under the s
 | `P15-API-028` | `src/offboardingApi.js` | admin | offboarding | 15C |
 | `P15-API-029` | `src/reportApi.js` | admin | reports | 15C |
 | `P15-API-030` | `src/outputApi.js` | admin | exports | 15C |
-| `P15-API-031` | `src/renderedOutputApi.js` | admin, employee | reports, payslips, requests, offboarding | 15C |
+| `P15-API-031` | `src/renderedOutputApi.js` | admin, manager, employee | reports and offboarding for admin; own payslips and completed standard letters for staff under the restoration E amendment | 15C |
 
 Every client record also names its current backend source in the machine catalogue. Part 15A found
 no portal need for a new backend route. Dynamic identifiers and commands remain constrained by each

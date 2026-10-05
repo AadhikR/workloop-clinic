@@ -28,6 +28,7 @@ from app.schemas.development import (
     TrainingAdminCreateRequest,
     TrainingCompleteRequest,
     TrainingResponse,
+    TrainingSelfCompleteRequest,
     TrainingStaffCreateRequest,
     TrainingUpdateRequest,
 )
@@ -36,7 +37,7 @@ from app.services.leave_attachment import ValidatedUpload
 
 TRAINING_COLUMNS = """
 id,employee_id,training_title,training_type,provider,start_date,end_date,duration_hours,
-cost,status,score,passed,notes,is_cme,(content_type IS NOT NULL) has_evidence,
+cost,status,score,passed,notes,is_cme,result_verified,(content_type IS NOT NULL) has_evidence,
 NULLIF(file_name,'') file_name,content_type,created_at,updated_at
 """
 CERTIFICATION_COLUMNS = """
@@ -260,10 +261,10 @@ UPDATE public.training_records SET training_title=:training_title,
         row = await self._training_row(principal, branch_id, record_id, lock=True)
         employee_id = self._row_employee_id(row)
         await self._scope_employee(principal, branch_id, employee_id, scope=scope, optional=False)
-        if row["updated_at"] != request.expected_updated_at or row["status"] not in {
-            "planned",
-            "in_progress",
-        }:
+        if row["updated_at"] != request.expected_updated_at or not (
+            row["status"] in {"planned", "in_progress"}
+            or (row["status"] == "completed" and not row["result_verified"])
+        ):
             raise ServiceExecutionError("state_conflict")
         start_date = cast(date | None, row["start_date"])
         if start_date is not None and request.end_date < start_date:
@@ -272,7 +273,8 @@ UPDATE public.training_records SET training_title=:training_title,
             text(
                 """
 UPDATE public.training_records SET status='completed',end_date=:end_date,
- duration_hours=:duration_hours,score=:score,passed=:passed,is_cme=:is_cme WHERE id=:id
+ duration_hours=:duration_hours,score=:score,passed=:passed,is_cme=:is_cme,
+ result_verified=true WHERE id=:id
 """
             ),
             {
@@ -284,11 +286,68 @@ UPDATE public.training_records SET status='completed',end_date=:end_date,
             "training_completed",
             "training_record",
             record_id,
-            ["status", "end_date", "duration_hours", "score", "passed", "is_cme"],
+            [
+                "status",
+                "end_date",
+                "duration_hours",
+                "score",
+                "passed",
+                "is_cme",
+                "result_verified",
+            ],
             "Training completed",
             {"transition": f"{row['status']}_to_completed"},
         )
         return await self.get_training(principal, branch_id, record_id, scope=scope)
+
+    async def transition_training(
+        self,
+        principal: AuthorizationPrincipal,
+        branch_id: uuid.UUID,
+        record_id: uuid.UUID,
+        expected_updated_at: object,
+        command: str,
+        result: TrainingSelfCompleteRequest | None = None,
+    ) -> TrainingResponse:
+        if command not in {"start", "cancel", "self_complete"} or (
+            command == "self_complete" and principal.role not in {AppRole.MANAGER, AppRole.EMPLOYEE}
+        ):
+            raise ServiceExecutionError("operation_not_permitted")
+        outcome = (
+            await self.connection.execute(
+                text(
+                    "SELECT public.transition_training_record(:id,:expected,:command,"
+                    ":end_date,:hours,:score,:passed)"
+                ),
+                {
+                    "id": record_id,
+                    "expected": expected_updated_at,
+                    "command": command,
+                    "end_date": result.end_date if result else None,
+                    "hours": result.duration_hours if result else None,
+                    "score": result.score if result else "",
+                    "passed": result.passed if result else None,
+                },
+            )
+        ).scalar_one()
+        if outcome != "ok":
+            raise ServiceExecutionError(
+                outcome
+                if outcome
+                in {
+                    "operation_not_permitted",
+                    "resource_not_found",
+                    "validation_failed",
+                    "state_conflict",
+                }
+                else "service_unavailable"
+            )
+        return await self.get_training(
+            principal,
+            branch_id,
+            record_id,
+            scope="admin" if principal.role is AppRole.ADMIN else "staff",
+        )
 
     async def delete_training(
         self,
@@ -690,6 +749,7 @@ LEFT JOIN public.cme_requirements requirement
 LEFT JOIN LATERAL (
  SELECT count(*) record_count,
  COALESCE(sum(record.duration_hours) FILTER (WHERE record.status='completed' AND record.passed
+   AND record.result_verified
    AND (record.content_type IS NULL OR public.file_security_scan_allows_download(
      record.file_security_scan_id,'training_evidence',record.id,record.storage_path,
      record.content_type,record.size_bytes,record.sha256,:scanner_definition))),0) achieved,
@@ -763,6 +823,7 @@ SELECT COALESCE((SELECT required_hours FROM public.cme_requirements
 COALESCE((SELECT sum(duration_hours) FROM public.training_records record
  WHERE record.company_id=:company_id AND record.branch_id=:branch_id
    AND record.employee_id=:employee_id AND record.status='completed' AND record.passed
+   AND record.result_verified
    AND record.is_cme AND EXTRACT(year FROM record.start_date)=:year
    AND (record.content_type IS NULL OR public.file_security_scan_allows_download(
      record.file_security_scan_id,'training_evidence',record.id,record.storage_path,

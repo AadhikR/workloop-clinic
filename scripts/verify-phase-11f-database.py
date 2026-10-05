@@ -70,7 +70,7 @@ async def main() -> None:
         apply_rows(connection, seed_rows)
         validate(connection, seed_rows)
         assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
-            "f1a3c5e7b9d2"
+            "e2c4f6a8b0d3"
         )
 
     runtime_engine = create_async_engine(

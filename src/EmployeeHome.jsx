@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { readDashboard } from './dashboardApi.js'
 import { readSelfAssets } from './developmentAssetsApi.js'
 import { readEmployeeSelf } from './employeeApi.js'
+import { readPersonalAttendance } from './attendanceCalculationApi.js'
+import { readAllEmployeeLeaveRequests } from './leaveBalanceApi.js'
 
 const targets = {
   assignedAssets: '/employee/documents',
@@ -15,7 +17,7 @@ const targets = {
 }
 
 function greeting() {
-  const hour = new Date().getHours()
+  const hour = Number(new Intl.DateTimeFormat('en', { hour: 'numeric', hourCycle: 'h23', timeZone: 'Asia/Dubai' }).format(new Date()))
   if (hour < 12) return 'Good morning'
   if (hour < 18) return 'Good afternoon'
   return 'Good evening'
@@ -37,11 +39,15 @@ function urgency(date) {
   return 'valid'
 }
 
-export default function EmployeeHome({ authentication, navigator }) {
+export default function EmployeeHome({ authentication, navigator, role = 'employee' }) {
   const [state, setState] = useState({ status: 'loading', employee: null, dashboard: null, assets: [] })
+  const [attendance, setAttendance] = useState(null)
+  const [requests, setRequests] = useState(null)
 
   useEffect(() => {
     const controller = new AbortController()
+    readPersonalAttendance(authentication).then((value) => { if (!controller.signal.aborted) setAttendance(value) }).catch(() => {})
+    readAllEmployeeLeaveRequests(authentication, new Date().getUTCFullYear()).then((value) => { if (!controller.signal.aborted) setRequests(value) }).catch(() => {})
     Promise.all([
       readEmployeeSelf(authentication, { signal: controller.signal }),
       readDashboard(authentication, 'self'),
@@ -78,7 +84,7 @@ export default function EmployeeHome({ authentication, navigator }) {
 
       <div className="employee-kpi-grid">
         {state.dashboard.cards.map((card) => {
-          const path = targets[card.drillDown.target]
+          const path = targets[card.drillDown.target]?.replace('/employee', `/${role}`)
           const content = <><span>{card.label}</span><strong>{cardValue(card)}</strong>{card.comparison && <small>{card.comparison.label}: {card.comparison.value}</small>}</>
           return path ? <button className="employee-kpi-card" data-severity={card.severity} key={card.code} type="button" onClick={() => navigator.go(path)}>{content}</button>
             : <article className="employee-kpi-card" data-severity={card.severity} key={card.code}>{content}</article>
@@ -86,6 +92,10 @@ export default function EmployeeHome({ authentication, navigator }) {
       </div>
 
       <div className="employee-home-grid">
+        <section className="employee-panel home-attendance"><div className="employee-section-heading"><h3>Today's status</h3><button type="button" className="btn btn-ghost btn-sm" onClick={() => navigator.go(`/${role}/attendance`)}>View attendance</button></div>
+          {attendance ? <><strong>{attendance.record?.status.replaceAll('_', ' ') ?? 'Not calculated'}</strong><p>Clock in: {attendance.record?.clockInTime ? new Date(attendance.record.clockInTime).toLocaleTimeString('en-AE', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dubai' }) : 'Not recorded'}</p><p>Clock out: {attendance.record?.clockOutTime ? new Date(attendance.record.clockOutTime).toLocaleTimeString('en-AE', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dubai' }) : 'Not recorded'}</p></> : <p>Attendance is unavailable.</p>}
+        </section>
+        <section className="employee-panel"><div className="employee-section-heading"><h3>Recent leave requests</h3><button type="button" className="btn btn-ghost btn-sm" onClick={() => navigator.go(`/${role}/leave`)}>All requests</button></div>{requests === null ? <p>Leave requests are unavailable.</p> : requests.length === 0 ? <p>No leave requests this year.</p> : <ul className="employee-detail-list">{requests.slice(0, 3).map((request) => <li key={request.id}><strong>{request.startDate} to {request.endDate}</strong><span>{request.daysRequested} days</span><span className="status-pill" data-status={request.status.toLowerCase()}>{request.status}</span></li>)}</ul>}</section>
         <section className="employee-panel" aria-labelledby="assigned-assets-title">
           <h3 id="assigned-assets-title">Assigned assets</h3>
           {state.assets.filter((item) => item.returnDate === null).length === 0 ? <p className="empty-copy">No assets are currently assigned to you.</p> : (

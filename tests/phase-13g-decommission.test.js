@@ -306,5 +306,5 @@ test('records the completed Part 13G retained-project closure', () => {
   assert.ok(catalogue.closures['13G'].goldenCases.includes('13A-GC-027'))
   assert.ok(catalogue.closures['13G'].goldenCases.includes('13A-GC-028'))
   assert.ok(catalogue.closures['13G'].goldenCases.includes('13A-GC-030'))
-  assert.deepEqual(alembicHeads(), ['f1a3c5e7b9d2'])
+  assert.deepEqual(alembicHeads(), ['e2c4f6a8b0d3'])
 })

@@ -124,7 +124,7 @@ async def main() -> None:
     unpaid_type_id = seed.derive("leave_types", seed.HORIZON, "dubai", "none", "unpaid")
     with migration_engine.begin() as connection:
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "f1a3c5e7b9d2"
+            "e2c4f6a8b0d3"
         )
         connection.execute(
             text("DELETE FROM public.idempotency_records WHERE replay_resource_kind='payroll_run'")

@@ -55,7 +55,7 @@ function alembicHeads(root = repositoryDirectory) {
 }
 
 function indexedAlembicDigest(root = repositoryDirectory) {
-  const result = spawnSync('git', ['ls-files', '-s', '-z', 'backend/alembic', ':(exclude)backend/alembic/versions/f1a3c5e7b9d2_add_branch_payroll_routing_command.py'], {
+  const result = spawnSync('git', ['ls-files', '-s', '-z', 'backend/alembic', ':(exclude)backend/alembic/versions/f1a3c5e7b9d2_add_branch_payroll_routing_command.py', ':(exclude)backend/alembic/versions/e2c4f6a8b0d3_add_training_personal_results.py'], {
     cwd: root,
     encoding: 'buffer',
   })
@@ -196,7 +196,7 @@ export function validatePhase14Catalogue(
 
   if (checkRepository) {
     const heads = alembicHeads(root)
-    if (heads.length !== 1 || heads[0] !== 'f1a3c5e7b9d2') {
+    if (heads.length !== 1 || heads[0] !== 'e2c4f6a8b0d3') {
       errors.push(`unexpected Alembic heads: ${heads.join(', ')}`)
     }
     const sourceChecks = new Map([

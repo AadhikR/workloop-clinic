@@ -88,6 +88,7 @@ class AppraisalResponse(ApiSchema):
     id: uuid.UUID
     cycle_id: uuid.UUID
     cycle_name: str
+    cycle_status: AppraisalCycleStatus | None = None
     review_from: date
     review_to: date
     employee_id: uuid.UUID

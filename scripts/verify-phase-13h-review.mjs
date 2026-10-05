@@ -216,7 +216,7 @@ export function inspectPhase13Review() {
   verifyClosingWorkflow(errors)
   verifyRetainedArchive(errors)
   const heads = alembicHeads()
-  if (heads.length !== 1 || heads[0] !== 'f1a3c5e7b9d2') errors.push(`unexpected Alembic heads: ${heads.join(', ')}`)
+  if (heads.length !== 1 || heads[0] !== 'e2c4f6a8b0d3') errors.push(`unexpected Alembic heads: ${heads.join(', ')}`)
   const contract = read('docs/migration/phase-13/PART_13A_PROMOTION_AND_DECOMMISSION_CONTRACT.md')
   if (!/1\. Stop the 13F disposable proof[\s\S]*2\. Revert the 13E guard[\s\S]*3\. Restore the 13D package[\s\S]*4\. Restore the 13C legacy tree[\s\S]*5\. Restore the 13B command mapping/.test(contract)) {
     errors.push('repository rollback order is incomplete or out of order')

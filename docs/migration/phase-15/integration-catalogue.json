@@ -1,5 +1,31 @@
 {
   "schemaVersion": 1,
+  "portalRestorationE": {
+    "authorization": "PORTAL_RESTORATION_EXECUTION.md",
+    "historicalBaselineHead": "e8a1c3f5b7d9",
+    "currentHead": "e2c4f6a8b0d3",
+    "predecessor": "f1a3c5e7b9d2",
+    "contract": "PORTAL_RESTORATION_PROGRESS.md",
+    "protectedTrainingCommands": [
+      "start",
+      "cancel",
+      "self-complete"
+    ],
+    "personalResultAuthority": "Own completed results remain unverified and earn no verified CME credit. Trusted completion requires administrator or current direct-report authority.",
+    "managerOutputAuthority": [
+      "own payslip PDF",
+      "own completed standard-letter source and PDF"
+    ],
+    "rollback": "Preserve unverified results. Downgrade refuses while any remain. Never downgrade automatically.",
+    "requiredFinalDependencies": [
+      "A-04",
+      "D-01",
+      "D-02",
+      "E-01",
+      "E-02",
+      "E-03"
+    ]
+  },
   "phase": "15",
   "part": "15A",
   "baselineCommit": "628aa5b6a75243fd049163b19b46a821904abdb3",
@@ -111,7 +137,7 @@
     {"id":"P15-API-017","source":"src/attendancePeriodsApi.js","roles":["admin"],"owner":"15C","sourceMarkers":["/api/v1/attendance/periods"],"backendSources":["backend/app/attendance_periods_api.py"]},
     {"id":"P15-API-018","source":"src/rosterApi.js","roles":["admin","manager","employee"],"owner":"15C","sourceMarkers":["/api/v1/roster/months/","/api/v1/roster/schedules/"],"backendSources":["backend/app/roster_api.py","backend/app/roster_publication_api.py"]},
     {"id":"P15-API-019","source":"src/shiftSwapApi.js","roles":["admin","manager","employee"],"owner":"15C","sourceMarkers":["/api/v1/roster/shift-swaps"],"backendSources":["backend/app/shift_swap_api.py"]},
-    {"id":"P15-API-020","source":"src/payrollApi.js","roles":["admin","employee"],"owner":"15C","sourceMarkers":["/api/v1/payroll-runs","/api/v1/payslips/self"],"backendSources":["backend/app/payroll_api.py"]},
+    {"id":"P15-API-020","source":"src/payrollApi.js","roles":["admin","manager","employee"],"owner":"15C","sourceMarkers":["/api/v1/payroll-runs","/api/v1/payslips/self"],"backendSources":["backend/app/payroll_api.py"]},
     {"id":"P15-API-021","source":"src/wpsNafisApi.js","roles":["admin"],"owner":"15C","sourceMarkers":["/api/v1/payroll-runs/","/api/v1/nafis-snapshots"],"backendSources":["backend/app/wps_api.py"]},
     {"id":"P15-API-022","source":"src/expenseApi.js","roles":["admin","manager","employee"],"owner":"15C","sourceMarkers":["/api/v1/expenses"],"backendSources":["backend/app/expense_api.py"]},
     {"id":"P15-API-023","source":"src/advanceApi.js","roles":["admin","manager","employee"],"owner":"15C","sourceMarkers":["/api/v1/advances"],"backendSources":["backend/app/advance_api.py"]},
@@ -122,7 +148,7 @@
     {"id":"P15-API-028","source":"src/offboardingApi.js","roles":["admin"],"owner":"15C","sourceMarkers":["/api/v1/offboarding"],"backendSources":["backend/app/offboarding_api.py"]},
     {"id":"P15-API-029","source":"src/reportApi.js","roles":["admin"],"owner":"15C","sourceMarkers":["/api/v1/reports/"],"backendSources":["backend/app/report_api.py"]},
     {"id":"P15-API-030","source":"src/outputApi.js","roles":["admin"],"owner":"15C","sourceMarkers":["/api/v1/exports/"],"backendSources":["backend/app/output_api.py"]},
-    {"id":"P15-API-031","source":"src/renderedOutputApi.js","roles":["admin","employee"],"owner":"15C","sourceMarkers":["/api/v1/reports/","/api/v1/payslips/","/api/v1/requests/","/api/v1/offboarding/"],"backendSources":["backend/app/rendered_output_api.py"]}
+    {"id":"P15-API-031","source":"src/renderedOutputApi.js","roles":["admin","manager","employee"],"owner":"15C","sourceMarkers":["/api/v1/reports/","/api/v1/payslips/","/api/v1/requests/","/api/v1/offboarding/"],"backendSources":["backend/app/rendered_output_api.py"]}
   ],
   "routeContracts": [
     {"id":"P15-ROUTE-001","path":"/","roles":["public","admin","manager","employee"],"owner":"15B","result":"Public sign-in state or role-derived redirect after account resolution","evidence":["src/App.jsx","src/portalRoutes.js","tests/phase-15b-shell.test.js","tests/phase-15b-browser-check.mjs"]},

@@ -234,3 +234,14 @@ deployment, an external delivery service, a second provider, or a committed cred
 
 The Phase 14 architecture proof backend route may remain for infrastructure verification, but it is
 not a portal feature and must not appear in signed-in product navigation after 15B.
+
+
+## Portal restoration E amendment
+
+The October 4 restoration authorization permits bounded backend and append-only schema additions
+required by historical workflows. The original Phase 15A baseline above remains a historical
+release contract. The current restoration head is `e2c4f6a8b0d3`, following D's
+`f1a3c5e7b9d2`. See `PORTAL_RESTORATION_PROGRESS.md` for the protected training commands,
+result provenance, manager-own PDF authority, rollback guard, and required F dependencies.
+F must bind the final release to the actual reviewed head and publish its matching backend before
+frontend promotion. It must not silently downgrade unverified personal results.

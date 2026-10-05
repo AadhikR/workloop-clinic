@@ -12,7 +12,7 @@ def main() -> None:
     engine = create_engine(os.environ["MIGRATION_DATABASE_URL"])
     with engine.connect() as connection:
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "f1a3c5e7b9d2"
+            "e2c4f6a8b0d3"
         )
         for table in (
             "payroll_runs",

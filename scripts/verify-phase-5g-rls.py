@@ -399,12 +399,25 @@ WHERE schemaname='public' AND policyname NOT LIKE 'phase5%'
     'phase11d_training_records_delete_runtime',
     'phase11d_certifications_delete_runtime',
     'phase11d_cme_requirements_select_runtime',
-    'phase11g_offboarding_tasks_delete_runtime'
+    'phase11g_offboarding_tasks_delete_runtime',
+    'restoration_e_manager_payslips'
   )
 """
             )
         ).scalar_one()
         assert non_phase5_policies == 0
+        restoration_policies = {
+            (row.tablename, row.policyname, row.cmd, tuple(row.roles))
+            for row in connection.execute(
+                text(
+                    "SELECT tablename,policyname,cmd,roles FROM pg_catalog.pg_policies "
+                    "WHERE schemaname='public' AND policyname LIKE 'restoration_e_%'"
+                )
+            )
+        }
+        assert restoration_policies == {
+            ("payslips", "restoration_e_manager_payslips", "SELECT", ("workloop_runtime",))
+        }
 
         flags = {
             row[0]: row[1]

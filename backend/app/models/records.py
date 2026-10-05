@@ -810,6 +810,7 @@ class TrainingRecord(Base):
             ondelete="RESTRICT",
         ),
         CheckConstraint("cost >= 0", name="cost"),
+        CheckConstraint("result_verified OR NOT is_cme", name="personal_result_credit"),
         CheckConstraint(
             "end_date IS NULL OR start_date IS NULL OR end_date >= start_date", name="dates"
         ),
@@ -874,6 +875,9 @@ class TrainingRecord(Base):
         UUID(as_uuid=True), nullable=True
     )
     notes: Mapped[str] = mapped_column(Text(), nullable=False, server_default=text("''"))
+    result_verified: Mapped[bool] = mapped_column(
+        Boolean(), nullable=False, server_default=text("true")
+    )
     is_cme: Mapped[bool] = mapped_column(Boolean(), nullable=False, server_default=text("false"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")

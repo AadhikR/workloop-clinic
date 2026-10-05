@@ -96,7 +96,7 @@ test('retains each non-financial historical module instead of a generic placehol
     ['LetterRequests.jsx', ['Letter and custom requests', 'Completed request source']],
     ['LeaveConfiguration.jsx', ['Leave configuration', 'Leave types', 'Public holidays']],
     ['LeaveOverview.jsx', ['Submit leave request', 'Request history', 'Request calendar']],
-    ['LeaveApprovals.jsx', ['Approval delegations', 'Leave approvals']],
+    ['LeaveApprovals.jsx', ['Approval delegations', 'Branch leave decisions', 'Leave Queue']],
     ['AttendanceConfiguration.jsx', ['Branch rules', 'Effective shift assignment']],
     ['AttendanceIngestion.jsx', ['Manual clock event', 'Recent raw events']],
     ['AttendanceExceptions.jsx', ['Pending corrections', 'Unresolved absences', 'Recent audit']],

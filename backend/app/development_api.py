@@ -33,6 +33,7 @@ from app.schemas.development import (
     TrainingAdminCreateRequest,
     TrainingCompleteRequest,
     TrainingResponse,
+    TrainingSelfCompleteRequest,
     TrainingStaffCreateRequest,
     TrainingUpdateRequest,
     VersionRequest,
@@ -394,6 +395,120 @@ async def complete_training_record(
         principal=principal,
         branch_id=branch_id,
         operation_id="complete_training_record",
+        method="POST",
+        route_parameters={"recordId": str(record_id)},
+        body=cast(dict[str, object], body.model_dump(mode="json", by_alias=True)),
+        mutate=mutate,
+    )
+
+
+@training_router.post("/{record_id}/start", operation_id="start_training_record", responses=ERRORS)
+async def start_training_record(
+    record_id: uuid.UUID,
+    request: Request,
+    body: VersionRequest,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedWritePrincipal,
+    selected_branch: str | None = Header(default=None, alias="X-Workloop-Branch-ID"),
+) -> JSONResponse:
+    branch_id = _staff_branch(principal, selected_branch)
+
+    async def mutate(service: DevelopmentService) -> IdempotentResponse:
+        result = await service.transition_training(
+            principal, branch_id, record_id, body.expected_updated_at, "start"
+        )
+        return IdempotentResponse(
+            200,
+            DataResponse(data=result).model_dump(mode="json", by_alias=True),
+            None,
+            "training_record",
+            record_id,
+        )
+
+    return await _mutation(
+        request=request,
+        claims=claims,
+        principal=principal,
+        branch_id=branch_id,
+        operation_id="start_training_record",
+        method="POST",
+        route_parameters={"recordId": str(record_id)},
+        body=cast(dict[str, object], body.model_dump(mode="json", by_alias=True)),
+        mutate=mutate,
+    )
+
+
+@training_router.post(
+    "/{record_id}/cancel", operation_id="cancel_training_record", responses=ERRORS
+)
+async def cancel_training_record(
+    record_id: uuid.UUID,
+    request: Request,
+    body: VersionRequest,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedWritePrincipal,
+    selected_branch: str | None = Header(default=None, alias="X-Workloop-Branch-ID"),
+) -> JSONResponse:
+    branch_id = _staff_branch(principal, selected_branch)
+
+    async def mutate(service: DevelopmentService) -> IdempotentResponse:
+        result = await service.transition_training(
+            principal, branch_id, record_id, body.expected_updated_at, "cancel"
+        )
+        return IdempotentResponse(
+            200,
+            DataResponse(data=result).model_dump(mode="json", by_alias=True),
+            None,
+            "training_record",
+            record_id,
+        )
+
+    return await _mutation(
+        request=request,
+        claims=claims,
+        principal=principal,
+        branch_id=branch_id,
+        operation_id="cancel_training_record",
+        method="POST",
+        route_parameters={"recordId": str(record_id)},
+        body=cast(dict[str, object], body.model_dump(mode="json", by_alias=True)),
+        mutate=mutate,
+    )
+
+
+@training_router.post(
+    "/{record_id}/self-complete", operation_id="complete_self_training_record", responses=ERRORS
+)
+async def complete_self_training_record(
+    record_id: uuid.UUID,
+    request: Request,
+    body: TrainingSelfCompleteRequest,
+    claims: VerifiedAccessToken,
+    principal: AuthenticatedWritePrincipal,
+    selected_branch: str | None = Header(default=None, alias="X-Workloop-Branch-ID"),
+) -> JSONResponse:
+    if principal.role not in {AppRole.MANAGER, AppRole.EMPLOYEE}:
+        raise api_error("operation_not_permitted")
+    branch_id = _staff_branch(principal, selected_branch)
+
+    async def mutate(service: DevelopmentService) -> IdempotentResponse:
+        result = await service.transition_training(
+            principal, branch_id, record_id, body.expected_updated_at, "self_complete", body
+        )
+        return IdempotentResponse(
+            200,
+            DataResponse(data=result).model_dump(mode="json", by_alias=True),
+            None,
+            "training_record",
+            record_id,
+        )
+
+    return await _mutation(
+        request=request,
+        claims=claims,
+        principal=principal,
+        branch_id=branch_id,
+        operation_id="complete_self_training_record",
         method="POST",
         route_parameters={"recordId": str(record_id)},
         body=cast(dict[str, object], body.model_dump(mode="json", by_alias=True)),

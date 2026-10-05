@@ -231,10 +231,11 @@ try {
     document.body.append(container)
     createRoot(container).render(createElement(LeaveOverview, { account: { role: 'employee' }, authentication }))
   })
-  const leaveRow = leavePage.locator('.leave-request-table tbody tr').filter({
+  const leaveRow = leavePage.locator('.personal-leave-card').filter({
     has: leavePage.locator('time[datetime="2026-09-21"]'),
   })
   await leaveRow.waitFor()
+  await leaveRow.locator('summary').click()
   assert.equal(await leaveRow.count(), 1)
   assert.deepEqual(await leaveRow.locator('time').evaluateAll((elements) => elements.map((element) => element.dateTime)), ['2026-09-21', '2026-09-21'])
   leavePage.once('dialog', async (dialog) => {
@@ -242,7 +243,7 @@ try {
     assert.equal(dialog.message(), 'Cancel this pending leave request?')
     await dialog.accept()
   })
-  await leaveRow.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await leaveRow.getByRole('button', { name: 'Cancel Request', exact: true }).click()
   await leaveRow.getByText('Cancelled', { exact: true }).waitFor()
   const cancellation = await leavePage.evaluate(() => window.__leaveCancellation)
   assert.equal(cancellation.path, '/api/v1/leave/requests/b2000000-0000-4000-8000-000000000005/cancel/self')

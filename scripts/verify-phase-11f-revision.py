@@ -10,7 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 REVISION = ROOT / "backend/alembic/versions/b2d4f6a8c0e5_add_phase11f_letter_requests.py"
 PREDECESSOR = "a1c3e5f7b9d4"
-CURRENT_HEAD = "f1a3c5e7b9d2"
+CURRENT_HEAD = "e2c4f6a8b0d3"
 
 
 def require(path: Path, *fragments: str) -> str:

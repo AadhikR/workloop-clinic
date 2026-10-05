@@ -3,12 +3,11 @@ import { useEffect, useState } from 'react'
 import { readEmployeeSelf, updateEmployeeSelfContact } from './employeeApi.js'
 
 const sections = [
-  ['Personal', [['Name', 'name'], ['Employee number', 'empNo'], ['Date of birth', 'dateOfBirth'], ['Nationality', 'nationality'], ['Personal email', 'personalEmail'], ['UAE phone', 'phone']]],
-  ['Job', [['Job title', 'jobTitle'], ['Department', 'department'], ['Reporting manager', 'reportingManager.name'], ['Work location', 'workLocationType']]],
-  ['Salary', [['Basic salary', 'basicSalary', 'money'], ['Housing allowance', 'housingAllowance', 'money'], ['Transport allowance', 'transportAllowance', 'money'], ['Other allowances', 'otherAllowances', 'money']]],
-  ['Bank', [['Bank', 'bankName'], ['Account holder', 'bankAccountHolder'], ['Routing code', 'bankRoutingCode'], ['IBAN', 'iban']]],
-  ['UAE compliance', [['Visa type', 'visaType'], ['Visa number', 'visaNumber'], ['Visa expiry', 'visaExpiry'], ['Passport', 'passportNumber'], ['Passport expiry', 'passportExpiry'], ['Emirates ID', 'emiratesId'], ['Emirates ID expiry', 'emiratesIdExpiry'], ['Labour card', 'labourCardNumber'], ['Labour card expiry', 'labourCardExpiry']]],
-  ['Employment', [['Status', 'employmentStatus'], ['Start date', 'employmentStartDate'], ['Probation end', 'probationEndDate'], ['Emergency contact', 'emergencyContactName'], ['Emergency phone', 'emergencyContactPhone']]],
+  ['Employment', [['Employee number', 'empNo'], ['Job title', 'jobTitle'], ['Department', 'department'], ['Reporting manager', 'reportingManager.name'], ['Status', 'employmentStatus'], ['Start date', 'employmentStartDate'], ['Probation end', 'probationEndDate'], ['Work location', 'workLocationType']]],
+  ['Salary & bank', [['Basic salary', 'basicSalary', 'money'], ['Housing allowance', 'housingAllowance', 'money'], ['Transport allowance', 'transportAllowance', 'money'], ['Other allowances', 'otherAllowances', 'money'], ['Bank', 'bankName'], ['Account holder', 'bankAccountHolder'], ['Routing code', 'bankRoutingCode'], ['IBAN', 'iban']]],
+  ['Contact', [['Personal email', 'personalEmail'], ['UAE phone', 'phone'], ['Date of birth', 'dateOfBirth'], ['Nationality', 'nationality']]],
+  ['Emergency contact', [['Name', 'emergencyContactName'], ['Phone', 'emergencyContactPhone']]],
+  ['UAE documents', [['Visa type', 'visaType'], ['Visa number', 'visaNumber'], ['Visa expiry', 'visaExpiry'], ['Passport', 'passportNumber'], ['Passport expiry', 'passportExpiry'], ['Emirates ID', 'emiratesId'], ['Emirates ID expiry', 'emiratesIdExpiry'], ['Labour card', 'labourCardNumber'], ['Labour card expiry', 'labourCardExpiry']]],
 ]
 
 function valueAt(employee, path, kind) {
@@ -63,12 +62,10 @@ export default function EmployeeProfile({ authentication, onSignOut }) {
 
   return (
     <section className="employee-profile" aria-labelledby="employee-profile-title">
-      <div className="employee-section-heading"><div><h2 id="employee-profile-title">Profile</h2><p>Review the information held by HR. You can update contact details only.</p></div><button type="button" className="secondary" onClick={() => setEditing((value) => !value)}>{editing ? 'Cancel edit' : 'Edit contact details'}</button></div>
+      <div className="employee-section-heading"><div><h2 id="employee-profile-title">My Profile</h2><p>Review the information held by HR. You can update contact details only.</p></div><button type="button" className="secondary" disabled={status === 'saving'} onClick={() => { if (editing) setForm({ phone: employee.phone, personalEmail: employee.personalEmail, emergencyContactName: employee.emergencyContactName, emergencyContactPhone: employee.emergencyContactPhone }); setEditing((value) => !value) }}>{editing ? 'Cancel edit' : 'Edit contact details'}</button></div>
+      <div className="employee-panel staff-profile-identity"><span className="staff-avatar" aria-hidden="true">{employee.name.slice(0, 1)}</span><div><h3>{employee.name}</h3><p>{employee.jobTitle} · {employee.department}</p></div></div>
       {status === 'saved' && <p className="feedback success" role="status">Contact details saved.</p>}
       {status === 'error-saving' && <p className="feedback danger" role="alert">Contact details could not be saved.</p>}
-      <div className="employee-profile-sections">{sections.map(([title, fields]) => (
-        <section className="employee-panel" key={title}><h3>{title}</h3><dl>{fields.map(([label, path, kind]) => <div key={path}><dt>{label}</dt><dd>{valueAt(employee, path, kind)}{path.endsWith('Expiry') && <span className="status-pill" data-status={expiryStatus(employee[path])}>{expiryStatus(employee[path])}</span>}</dd></div>)}</dl></section>
-      ))}</div>
       {editing && <form className="employee-contact-form" onSubmit={submit}>
         <h3>Edit contact details</h3>
         <div className="employee-form-grid">
@@ -79,6 +76,9 @@ export default function EmployeeProfile({ authentication, onSignOut }) {
         </div>
         <button type="submit" disabled={status === 'saving'}>{status === 'saving' ? 'Saving...' : 'Save contact details'}</button>
       </form>}
+      <div className="employee-profile-sections">{sections.map(([title, fields]) => (
+        <section className="employee-panel" key={title}><h3>{title}</h3><dl>{fields.map(([label, path, kind]) => <div key={path}><dt>{label}</dt><dd>{valueAt(employee, path, kind)}{path.endsWith('Expiry') && <span className="status-pill" data-status={expiryStatus(employee[path])}>{expiryStatus(employee[path])}</span>}</dd></div>)}</dl></section>
+      ))}</div>
       <div className="employee-signout"><button type="button" className="danger" onClick={onSignOut}>Sign out</button></div>
     </section>
   )

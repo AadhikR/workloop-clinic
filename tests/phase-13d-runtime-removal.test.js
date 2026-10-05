@@ -147,5 +147,5 @@ test('closes the Part 13D catalogue boundary without changing the schema head', 
   assert.deepEqual(closure.goldenCases, ['13A-GC-009'])
   assert.ok(closure.evidence.includes('tests/phase-13d-runtime-removal.test.js'))
   assert.ok(closure.evidence.includes('docs/migration/phase-13/PART_13D_COMPLETION.md'))
-  assert.deepEqual(alembicHeads(), ['f1a3c5e7b9d2'])
+  assert.deepEqual(alembicHeads(), ['e2c4f6a8b0d3'])
 })

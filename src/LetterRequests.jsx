@@ -38,8 +38,9 @@ function Source({ source }) {
   </div>
 }
 
-function requestStatus(status) {
-  return status === 'completed' ? 'Ready' : status.charAt(0).toUpperCase() + status.slice(1)
+function requestStatus(item) {
+  return item.status === 'completed' && item.requestKind === 'letter' ? 'Ready'
+    : item.status.charAt(0).toUpperCase() + item.status.slice(1)
 }
 
 export default function LetterRequests({ account, authentication, branchId }) {
@@ -49,12 +50,15 @@ export default function LetterRequests({ account, authentication, branchId }) {
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
   const [source, setSource] = useState(null)
+  const [loadState, setLoadState] = useState('loading')
 
   const load = useCallback(async () => {
-    const result = account.role === 'admin'
-      ? await readRequestQueue(authentication, branchId)
-      : await readOwnRequests(authentication)
-    setItems(result)
+    try {
+      const result = account.role === 'admin'
+        ? await readRequestQueue(authentication, branchId)
+        : await readOwnRequests(authentication)
+      setItems(result); setLoadState('ready')
+    } catch { setLoadState('error') }
   }, [account.role, authentication, branchId])
 
   useEffect(() => {
@@ -67,7 +71,7 @@ export default function LetterRequests({ account, authentication, branchId }) {
   const run = async (action, success) => {
     setBusy(true); setMessage('')
     try { await action(); setMessage(success); await load() }
-    catch { setMessage('The request action could not be completed.') }
+    catch { setMessage('The request action could not be completed. Your entries have been kept.') }
     finally { setBusy(false) }
   }
 
@@ -106,6 +110,9 @@ export default function LetterRequests({ account, authentication, branchId }) {
   return <section className="records-benefits" aria-labelledby="letter-requests-title">
     <h2 id="letter-requests-title">Letter and custom requests</h2>
     <Message>{message}</Message>
+    {loadState === 'loading' && <p role="status">Loading requests...</p>}
+    {loadState === 'error' && <p role="alert">Requests are unavailable. <button type="button" onClick={load}>Retry</button></p>}
+    {loadState === 'ready' && items.length === 0 && <p>No requests yet.</p>}
     {account.role !== 'admin' && <><div className="tabs" role="tablist" aria-label="Request type"><button type="button" role="tab" aria-selected={form.requestKind === 'letter'} className={`tab-btn${form.requestKind === 'letter' ? ' active' : ''}`} onClick={() => setForm({ ...form, requestKind: 'letter' })}>HR letters</button><button type="button" role="tab" aria-selected={form.requestKind === 'custom'} className={`tab-btn${form.requestKind === 'custom' ? ' active' : ''}`} onClick={() => setForm({ ...form, requestKind: 'custom' })}>Custom requests</button></div><form className="expense-form" onSubmit={submit}>
       {form.requestKind === 'letter' ? <>
         <label>Letter type<select value={form.letterType} onChange={(event) => setForm({
@@ -141,7 +148,7 @@ export default function LetterRequests({ account, authentication, branchId }) {
       {account.role === 'admin' && <td>{item.employeeName}<small>{item.jobTitle}</small></td>}
       <td>{item.requestKind === 'letter' ? letterTypeLabels[item.letterType] : item.letterType}</td>
       <td>{item.purpose}{item.rejectionReason && <small>{item.rejectionReason}</small>}</td>
-      <td>{item.requestedAt.slice(0, 10)}</td><td><span className="status-pill" data-status={item.status === 'completed' ? 'ready' : item.status}>{requestStatus(item.status)}</span></td><td>
+      <td>{item.requestedAt.slice(0, 10)}</td><td><span className="status-pill" data-status={item.status === 'completed' ? 'ready' : item.status}>{requestStatus(item)}</span></td><td>
         {account.role === 'admin' && item.status === 'pending' && <>
           <button type="button" disabled={busy} onClick={() => decide(item, 'complete')}>Complete</button>
           <button type="button" className="danger" disabled={busy} onClick={() => decide(item, 'reject')}>Reject</button>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { FormDialog } from './PortalUi.jsx'
 
 import { readAllEmployees, readEmployeePortalRole } from './employeeApi.js'
 import {
@@ -26,15 +27,21 @@ function QueueRow({ item, admin, authentication, branchId, onChanged }) {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [audit, setAudit] = useState(null)
+  const [rejecting, setRejecting] = useState(false)
+  const [retry, setRetry] = useState(null)
   const needsOverrideReason = admin && item.request.status === 'Pending'
 
   const decide = async (decision) => {
+    if (!item.canDecide || busy) return
     if ((decision === 'reject' || needsOverrideReason) && !reason.trim()) {
       setMessage(decision === 'reject' ? 'Enter a rejection reason.' : 'Enter an override reason.')
       return
     }
     setBusy(true)
     setMessage('Recording decision...')
+    const payload = JSON.stringify({ decision, reason, version: item.request.updatedAt })
+    const attempt = retry?.payload === payload ? retry : { payload, key: crypto.randomUUID() }
+    setRetry(attempt)
     try {
       await decideLeave(
         authentication,
@@ -43,9 +50,11 @@ function QueueRow({ item, admin, authentication, branchId, onChanged }) {
         decision,
         reason,
         item.request.updatedAt,
+        attempt.key,
       )
       setMessage('Decision recorded.')
-      await onChanged()
+      setRejecting(false); setRetry(null)
+      await onChanged().catch(() => setMessage('Decision recorded. Refresh to see the latest queue.'))
     } catch {
       setMessage('The request changed or you no longer have authority to decide it.')
     } finally {
@@ -69,10 +78,11 @@ function QueueRow({ item, admin, authentication, branchId, onChanged }) {
       <td>{item.leaveType.name}</td>
       <td>{item.request.startDate} to {item.request.endDate}</td>
       <td>{item.request.daysRequested}</td>
+      {!admin && <td>{item.request.reason || 'None'}</td>}
       <td>{item.request.status}</td>
       <td>{item.visibleBecause}</td>
       <td>
-        <label>
+        {admin && <label>
           <span className="sr-only">Decision reason for {item.employee.name}</span>
           <input
             maxLength="2000"
@@ -80,10 +90,10 @@ function QueueRow({ item, admin, authentication, branchId, onChanged }) {
             value={reason}
             onChange={(event) => setReason(event.target.value)}
           />
-        </label>
+        </label>}
         <div className="actions">
-          <button type="button" disabled={busy} onClick={() => decide('approve')}>Approve</button>
-          <button type="button" className="danger" disabled={busy} onClick={() => decide('reject')}>
+          <button type="button" disabled={busy || !item.canDecide} onClick={() => decide('approve')}>Approve</button>
+          <button type="button" className="danger" disabled={busy || !item.canDecide} onClick={() => admin ? decide('reject') : setRejecting(true)}>
             Reject
           </button>
           <button type="button" className="secondary" disabled={busy} onClick={showAudit}>
@@ -91,6 +101,7 @@ function QueueRow({ item, admin, authentication, branchId, onChanged }) {
           </button>
         </div>
         {message && <p role="status">{message}</p>}
+        <FormDialog title="Reject leave request" open={rejecting} onClose={() => { if (!busy) setRejecting(false) }}><form className="restoration-form" onSubmit={(event) => { event.preventDefault(); decide('reject') }}><p>{item.employee.name} · {item.request.startDate} to {item.request.endDate}</p><label>Rejection reason<textarea required maxLength={2000} value={reason} onChange={(event) => setReason(event.target.value)} /></label>{message && <p role="alert">{message}</p>}<button type="submit" className="btn btn-danger" disabled={busy}>{busy ? 'Saving...' : 'Reject request'}</button></form></FormDialog>
         {audit && (
           <ol className="leave-audit-list">
             {audit.map((entry) => (
@@ -113,6 +124,7 @@ function Queue({ items, ...props }) {
         <thead>
           <tr>
             <th>Employee</th><th>Leave type</th><th>Dates</th><th>Days</th>
+            {!props.admin && <th>Reason</th>}
             <th>Status</th><th>Queue source</th><th>Decision</th>
           </tr>
         </thead>
@@ -278,7 +290,7 @@ export default function LeaveApprovals({ account, authentication, branchId, queu
 
   return (
     <section className="leave-approvals" aria-labelledby={delegationsOnly ? 'leave-delegations-title' : 'leave-approvals-title'}>
-      {!delegationsOnly && <h2 id="leave-approvals-title">{admin ? 'Branch leave decisions' : 'Leave approvals'}</h2>}
+      {!delegationsOnly && <header className="employee-section-heading"><div><h2 id="leave-approvals-title">{admin ? 'Branch leave decisions' : 'Leave Queue'}</h2>{!admin && <p>Pending requests from current direct reports and active approval delegations.</p>}</div><button type="button" className="btn btn-outline" onClick={() => refresh().catch(() => setState({ status: 'error', items: [], message: 'The approval queue is unavailable.' }))}>Refresh</button></header>}
       {state.message && <p role="status">{state.message}</p>}
       {!delegationsOnly && (state.status === 'loading' ? <p>Loading approval queue...</p> : (
         <Queue

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import EmployeePicker from './EmployeePicker.jsx'
 import { readAllEmployees } from './employeeApi.js'
 import { FilterTabs, FormDialog, PortalTable, StatusPill, SummaryCards } from './PortalUi.jsx'
@@ -29,6 +29,8 @@ import {
   updateCertification,
   uploadEvidence,
 } from './developmentAssetsApi.js'
+
+const StaffDevelopment = lazy(() => import('./StaffDevelopment.jsx'))
 
 const emptyAsset = {
   name: '', assetCode: '', category: 'other', brand: '', model: '', serialNumber: '',
@@ -196,7 +198,7 @@ function AssetWorkspace({ account, authentication, branchId }) {
   </section>
 }
 
-function EvidenceActions({ authentication, branchId, kind, item, reload, busy, setBusy, setMessage }) {
+export function EvidenceActions({ authentication, branchId, kind, item, reload, busy, setBusy, setMessage }) {
   const choose = async (event) => {
     const file = event.target.files?.[0]
     if (!file) return
@@ -214,7 +216,7 @@ function EvidenceActions({ authentication, branchId, kind, item, reload, busy, s
     finally { setBusy(false) }
   }
   return <div className="expense-actions">
-    <label className="button">Upload evidence<input hidden type="file" disabled={busy} accept="application/pdf,image/png,image/jpeg" onChange={choose} /></label>
+    {!item.hasEvidence && (kind === 'certification' ? ['pending_review', 'verified'].includes(item.status) : ['planned', 'in_progress', 'completed'].includes(item.status)) && <label className="evidence-picker">Upload evidence<input type="file" disabled={busy} accept="application/pdf,image/png,image/jpeg" onChange={choose} /></label>}
     {item.hasEvidence && <button type="button" disabled={busy} onClick={download}>Download</button>}
   </div>
 }
@@ -372,7 +374,7 @@ function DevelopmentWorkspace({ account, authentication, branchId }) {
               cost: record.cost, isCme: record.isCme,
             })
           }}>Edit</button>}
-          {['planned', 'in_progress'].includes(record.status) && (account.role === 'admin' || account.role === 'manager' && targetEmployee && targetEmployee !== account.employeeId) && <button type="button" disabled={busy} onClick={() => { setCompletion({ endDate: new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' }), durationHours: record.durationHours ?? '1.00', score: '', passed: true, isCme: record.isCme }); setDecision({ kind: 'complete', item: record }) }}>Complete</button>}
+          {(['planned', 'in_progress'].includes(record.status) || record.status === 'completed' && record.resultVerified === false) && (account.role === 'admin' || account.role === 'manager' && targetEmployee && targetEmployee !== account.employeeId) && <button type="button" disabled={busy} onClick={() => { setCompletion({ endDate: new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' }), durationHours: record.durationHours ?? '1.00', score: '', passed: true, isCme: record.isCme }); setDecision({ kind: 'complete', item: record }) }}>Complete</button>}
           {record.status === 'planned' && <button type="button" className="danger" disabled={busy} onClick={() => setDecision({ kind: 'removeTraining', item: record })}>Remove</button>}</td></tr>)}{loadState === 'ready' && trainingRecords.length === 0 && <tr><td colSpan={account.role === 'admin' ? 8 : 7}><div className="empty-state">No training records found.</div></td></tr>}</tbody>
     </PortalTable></>}
     {tab === 'certifications' && <><h4>Certifications</h4>
@@ -451,6 +453,6 @@ export default function DevelopmentAssets({ account, assetsOnly = false, authent
   return <section className="records-benefits restoration-group" aria-labelledby="development-assets-title">
     <h2 id="development-assets-title" className="sr-only">{title}</h2>
     {!trainingOnly && <AssetWorkspace account={account} authentication={authentication} branchId={branchId} />}
-    {!assetsOnly && <DevelopmentWorkspace account={account} authentication={authentication} branchId={branchId} />}
+    {!assetsOnly && (account.role === 'admin' ? <DevelopmentWorkspace account={account} authentication={authentication} branchId={branchId} /> : <Suspense fallback={<p role="status">Loading training and certifications...</p>}><StaffDevelopment key={`${account.role}:${account.employeeId}`} account={account} authentication={authentication} /></Suspense>)}
   </section>
 }

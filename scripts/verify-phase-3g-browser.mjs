@@ -907,7 +907,10 @@ async function assertLeaveAttachmentJourney(page) {
   const body = Buffer.from('%PDF-1.7\n% Phase 8D browser proof\n%%EOF\n')
   stage('employee leave attachment upload')
   await page.getByRole('heading', { name: 'My leave' }).waitFor({ timeout: 20_000 })
-  const input = page.getByLabel(`Upload attachment for request ${browserLeaveRequestId}`)
+  const card = page.locator(`.personal-leave-card[data-request-id="${browserLeaveRequestId}"]`)
+  await card.waitFor({ timeout: 20_000 })
+  if (!await card.evaluate((element) => element.open)) await card.locator('summary').click()
+  const input = card.getByLabel('Upload attachment', { exact: true })
   await input.waitFor({ timeout: 20_000 })
   const intentResponsePromise = page.waitForResponse((response) => {
     const request = response.request()
@@ -1059,10 +1062,11 @@ async function submitLeaveThroughForm(page, { admin, date, leaveType, employeeId
 
 async function cancelLeaveThroughTable(page, { admin, requestId, date }) {
   if (admin) await page.getByRole('tab', { name: 'Requests', exact: true }).click()
-  const row = page.locator('.leave-request-table tbody tr').filter({
+  const row = page.locator(admin ? '.leave-request-table tbody tr' : '.personal-leave-card').filter({
     has: page.locator(`time[datetime="${date}"]`),
   })
   await row.waitFor({ timeout: 20_000 })
+  if (!admin && !await row.evaluate((element) => element.open)) await row.locator('summary').click()
   assert.equal(await row.count(), 1)
   assert.deepEqual(await row.locator('time').evaluateAll((elements) => elements.map((element) => element.dateTime)), [date, date])
   const responsePromise = page.waitForResponse((response) => {
@@ -1077,7 +1081,7 @@ async function cancelLeaveThroughTable(page, { admin, requestId, date }) {
     assert.equal(dialog.message(), 'Cancel this pending leave request?')
     await dialog.accept()
   })
-  await row.getByRole('button', { name: 'Cancel' }).click()
+  await row.getByRole('button', { name: admin ? 'Cancel' : 'Cancel Request', exact: true }).click()
   const response = await responsePromise
   assert.equal(response.status(), 200, await response.text())
   assert.equal((await response.json()).data.status, 'Cancelled')
@@ -1209,7 +1213,8 @@ async function assertLeaveApprovalJourney(page, persona) {
   }
   if (admin) await page.getByRole('tab', { name: 'Requests', exact: true }).click()
   await page.getByRole('heading', {
-    name: admin ? 'Branch leave decisions' : 'Leave approvals',
+    name: admin ? 'Branch leave decisions' : 'Leave Queue',
+    level: 2,
   }).waitFor({ timeout: 20_000 })
   if (admin) {
     stage('administrator leave delegation creation')
@@ -2300,8 +2305,6 @@ async function assertPhase12BrowserJourney(page, persona) {
     await page.getByRole('heading', { level: 2, name: 'Clinical dashboard', exact: true }).waitFor()
     await navigatePortal(page, persona, '/admin/reports')
     await page.getByRole('heading', { level: 2, name: 'Reports', exact: true }).waitFor()
-  } else if (persona.role === 'manager') {
-    await page.getByRole('heading', { level: 2, name: 'My dashboard', exact: true }).waitFor()
   } else {
     await page.locator('.employee-home #employee-home-title').waitFor()
   }

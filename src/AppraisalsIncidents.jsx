@@ -40,7 +40,7 @@ function AppraisalRows({ appraisals, account, authentication, branchId, reload, 
   return <><PortalTable label="Appraisal reviews"><thead><tr><th>{account.role === 'employee' ? 'Cycle' : 'Employee'}</th><th>Review period</th><th>Overall rating</th><th>Status</th><th>Actions</th></tr></thead><tbody>{appraisals.map((appraisal) => <tr key={appraisal.id}><td><strong>{account.role === 'employee' ? appraisal.cycleName : appraisal.employeeName}</strong></td><td>{appraisal.reviewFrom} to {appraisal.reviewTo}</td><td>{appraisal.overallRating ? `${appraisal.overallRating} / 5.0` : 'Not rated'}</td><td><StatusPill value={appraisal.status} /></td><td><button type="button" className="btn btn-outline btn-sm" onClick={() => setSelectedId(appraisal.id)}>{account.role === 'employee' ? 'View' : appraisal.status === 'pending' ? 'Review' : 'View review'}</button></td></tr>)}</tbody></PortalTable>
     <FormDialog title={selected ? `Appraisal · ${selected.employeeName}` : 'Appraisal'} open={Boolean(selected)} wide onClose={() => setSelectedId(null)}>{selected && <div className="appraisal-detail">
     <p>{selected.cycleName} · {selected.reviewFrom} to {selected.reviewTo}</p><h4>Section results</h4><ul>{selected.sections.map((section) => <li key={section.id}>
-      <span><strong>{section.sectionName}</strong><small>Weight {section.weight}%</small></span><span>{section.rating ?? 'Not rated'} / 5</span>{section.comments && <p>{section.comments}</p>}
+      <span><strong>{section.sectionName}</strong><small>Weight ×{section.weight}</small></span><span>{section.rating ?? 'Not rated'} / 5</span>{section.comments && <p>{section.comments}</p>}
       {!readOnly && account.role === 'manager' && selected.employeeId !== account.employeeId && selected.status === 'pending' && <button type="button" className="btn btn-outline btn-sm" onClick={() => open('rate', selected, section)}>Rate</button>}
     </li>)}</ul>
     <dl className="appraisal-summary"><div><dt>Reviewer comments</dt><dd>{selected.reviewerComments || 'None'}</dd></div><div><dt>Development plan</dt><dd>{selected.developmentPlan || 'None'}</dd></div><div><dt>Reviewed</dt><dd>{selected.reviewedAt ? new Date(selected.reviewedAt).toLocaleDateString() : 'Not reviewed'}</dd></div></dl>
@@ -61,7 +61,7 @@ function AppraisalAction({ action, values, setValues, onClose, onSave }) {
     {action?.kind !== 'review' && <fieldset className="rating-control"><legend>Rating</legend>{[1, 2, 3, 4, 5].map((rating) => <label key={rating}><input type="radio" name="section-rating" value={`${rating}.0`} checked={values.rating === `${rating}.0`} onChange={(event) => setValues({ ...values, rating: event.target.value })} /><span>{rating}</span></label>)}<label>Numeric rating<input type="number" min="1" max="5" step="0.1" required value={values.rating} onChange={(event) => setValues({ ...values, rating: event.target.value ? Number(event.target.value).toFixed(1) : '' })} /></label></fieldset>}
     {action?.kind === 'rate' && <label>Comments<textarea maxLength={10000} value={values.comments} onChange={(event) => setValues({ ...values, comments: event.target.value })} /></label>}
     {action?.kind === 'review' && <><label>Reviewer summary<textarea maxLength={10000} value={values.reviewerComments} onChange={(event) => setValues({ ...values, reviewerComments: event.target.value })} /></label><label>Development plan<textarea maxLength={10000} value={values.developmentPlan} onChange={(event) => setValues({ ...values, developmentPlan: event.target.value })} /></label></>}
-    <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving...' : 'Save review'}</button><Message>{error}</Message>
+    <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving...' : 'Save review'}</button>{error && <p role="alert">{error}</p>}
   </form></FormDialog>
 }
 
@@ -154,6 +154,35 @@ function Appraisals({ account, authentication, branchId }) {
     </>}
     <ConfirmDialog title={confirmAction?.kind === 'close' ? 'Close cycle' : 'Remove cycle'} open={Boolean(confirmAction)} busy={busy} onClose={() => setConfirmAction(null)} confirmLabel={confirmAction?.kind === 'close' ? 'Close cycle' : 'Remove cycle'} onConfirm={async () => { const saved = await run(() => confirmAction.kind === 'close' ? appraisalCycleCommand(authentication, branchId, confirmAction.cycle, 'close') : deleteAppraisalCycle(authentication, branchId, confirmAction.cycle), confirmAction.kind === 'close' ? 'Appraisal cycle closed.' : 'Appraisal cycle removed.'); if (saved) { setConfirmAction(null); await load() } }}>Confirm this cycle action? Closing locks the completed review.</ConfirmDialog>
   </section>
+}
+
+function StaffAppraisalRecords({ account, authentication, scope }) {
+  const [state, setState] = useState({ status: 'loading', items: [] })
+  const [expanded, setExpanded] = useState(null)
+  const [action, setAction] = useState(null)
+  const [values, setValues] = useState({ rating: '3.0', comments: '' })
+  const [message, setMessage] = useState('')
+  const load = useCallback(async () => {
+    const items = await readAppraisals(authentication, scope === 'team' ? 'manager' : 'employee')
+    setState({ status: 'ready', items })
+  }, [authentication, scope])
+  useEffect(() => { let active = true; readAppraisals(authentication, scope === 'team' ? 'manager' : 'employee').then((items) => { if (active) setState({ status: 'ready', items }) }).catch(() => { if (active) setState({ status: 'error', items: [] }) }); return () => { active = false } }, [authentication, scope])
+  if (state.status !== 'ready') return <p role={state.status === 'error' ? 'alert' : 'status'}>{state.status === 'loading' ? 'Loading appraisals...' : <>Appraisals are unavailable. <button type="button" onClick={() => load().catch(() => setState({ status: 'error', items: [] }))}>Retry</button></>}</p>
+  return <><Message>{message}</Message><div className="staff-records">{state.items.map((appraisal) => <article key={appraisal.id} className="employee-panel staff-record">
+    <button type="button" className="staff-record-toggle" aria-expanded={expanded === appraisal.id} aria-controls={`appraisal-${appraisal.id}`} onClick={() => setExpanded(expanded === appraisal.id ? null : appraisal.id)}><span><strong>{scope === 'team' ? appraisal.employeeName : appraisal.cycleName}</strong><small>{scope === 'team' ? `${appraisal.cycleName} · ` : ''}{appraisal.reviewFrom} to {appraisal.reviewTo}</small></span><span>{appraisal.overallRating ? `${appraisal.overallRating} / 5` : 'Not rated'}</span><StatusPill value={appraisal.status} /><span aria-hidden="true">{expanded === appraisal.id ? '⌃' : '⌄'}</span></button>
+    {expanded === appraisal.id && <div id={`appraisal-${appraisal.id}`} className="appraisal-detail"><PortalTable label="Appraisal sections"><thead><tr><th>Section</th><th>Weight</th><th>Rating</th><th>Comments</th>{scope === 'team' && <th>Actions</th>}</tr></thead><tbody>{appraisal.sections.map((section) => <tr key={section.id}><td>{section.sectionName}</td><td>×{section.weight}</td><td>{section.rating ? `${section.rating} / 5` : 'Not rated'}</td><td>{section.comments || 'None'}</td>{scope === 'team' && <td>{appraisal.status === 'pending' && appraisal.cycleStatus === 'active' && appraisal.employeeId !== account.employeeId && <button type="button" onClick={() => { setValues({ rating: section.rating ?? '3.0', comments: section.comments }); setAction({ kind: 'rate', appraisal, section }) }}>Rate section</button>}</td>}</tr>)}</tbody></PortalTable><dl className="appraisal-summary"><div><dt>Reviewer comments</dt><dd>{appraisal.reviewerComments || 'None'}</dd></div><div><dt>Development plan</dt><dd>{appraisal.developmentPlan || 'None'}</dd></div></dl>{scope === 'my' && <p>Your appraisal is read-only.</p>}</div>}
+  </article>)}</div>{state.items.length === 0 && <div className="empty-state">No appraisals on file yet.</div>}
+    <AppraisalAction key={action ? `${action.appraisal.id}:${action.section.id}` : 'closed'} action={action} values={values} setValues={setValues} onClose={() => setAction(null)} onSave={async () => {
+      try { await rateAppraisalSection(authentication, action.appraisal, action.section, values) }
+      catch { return false }
+      setAction(null); setMessage('Section rating saved.'); await load().catch(() => { setState({ status: 'error', items: [] }); setMessage('Rating saved. Reload to see the latest appraisal.') }); return true
+    }} />
+  </>
+}
+
+function StaffAppraisals({ account, authentication }) {
+  const [scope, setScope] = useState(account.role === 'manager' ? 'team' : 'my')
+  return <section className="restored-module"><header className="restored-module-header"><div><h3>{scope === 'team' ? 'Team Appraisals' : 'My Appraisals'}</h3><p>Performance reviews and development plans.</p></div></header>{account.role === 'manager' && <FilterTabs label="Appraisal scope" value={scope} onChange={setScope} options={[{ value: 'team', label: 'Team Appraisals' }, { value: 'my', label: 'My Appraisal' }]} />}<StaffAppraisalRecords key={scope} account={account} authentication={authentication} scope={scope} /></section>
 }
 
 function Incidents({ authentication, branchId }) {
@@ -262,7 +291,7 @@ export default function AppraisalsIncidents({ account, authentication, branchId,
     : showIncidents ? 'Incidents' : 'Appraisals'
   return <section className="records-benefits restoration-group" aria-labelledby="appraisals-incidents-title">
     <h2 id="appraisals-incidents-title" className="sr-only">{title}</h2>
-    {showAppraisals && <Appraisals account={account} authentication={authentication} branchId={branchId} />}
+    {showAppraisals && (account.role === 'admin' ? <Appraisals account={account} authentication={authentication} branchId={branchId} /> : <StaffAppraisals key={`${account.role}:${account.employeeId}`} account={account} authentication={authentication} />)}
     {showIncidents && <Incidents authentication={authentication} branchId={branchId} />}
   </section>
 }

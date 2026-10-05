@@ -8,10 +8,6 @@ import os
 import uuid
 from datetime import date
 
-from sqlalchemy import create_engine, text
-from sqlalchemy.engine import URL, RowMapping
-from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
-
 from app.auth.access_token import AccessTokenClaims
 from app.auth.application_user import ApplicationUserResolver, AuthorizationPrincipal
 from app.db.authorization_context import AuthorizationTransactionFactory
@@ -23,6 +19,9 @@ from app.schemas.payroll import PayrollVersionRequest
 from app.services.employees import EmployeeCursorCodec
 from app.services.execution import AuthorizedServiceExecutor, ServiceExecutionError
 from app.services.payroll import PayrollService, PayslipListQuery
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import URL, RowMapping
+from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
 COMPANY_ID = seed.COMPANY_ID[seed.HORIZON]
 BRANCH_ID = seed.BRANCH_DXB
@@ -118,7 +117,7 @@ async def main() -> None:
     rows = build_rows()
     with migration_engine.begin() as connection:
         assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
-            "f1a3c5e7b9d2"
+            "e2c4f6a8b0d3"
         )
         clean_phase_9f(connection)
         clean(connection, rows)
@@ -289,11 +288,24 @@ async def main() -> None:
         ready=False,
     )
     assert len(payslips) == 1 and payslips[0].employee_name == "Ravi Test"  # type: ignore[arg-type]
+    manager_payslips, _ = await run(
+        manager,
+        lambda service: service.list_self_payslips(manager, PayslipListQuery()),
+        ready=False,
+    )
+    with migration_engine.connect() as connection:
+        expected_manager_ids = set(
+            connection.scalars(
+                text("SELECT id FROM payslips WHERE employee_id=:employee"),
+                {"employee": manager.employee_id},
+            )
+        )
+    assert {item.id for item in manager_payslips} == expected_manager_ids  # type: ignore[union-attr]
     await expect_code(
-        "operation_not_permitted",
+        "resource_not_found",
         run(
             manager,
-            lambda service: service.list_self_payslips(manager, PayslipListQuery()),
+            lambda service: service.get_self_payslip(manager, payslips[0].id),
             ready=False,
         ),
     )

@@ -44,7 +44,7 @@ test('passes the complete independent repository review', () => {
     errors: [],
     dependencies: 50,
     goldenCases: 42,
-    alembicHeads: ['f1a3c5e7b9d2'],
+    alembicHeads: ['e2c4f6a8b0d3'],
   })
 })
 
@@ -59,7 +59,7 @@ test('keeps the closing proof routed through every required layer', () => {
 })
 
 test('keeps one schema head and the archive-only disposition', () => {
-  assert.deepEqual(alembicHeads(), ['f1a3c5e7b9d2'])
+  assert.deepEqual(alembicHeads(), ['e2c4f6a8b0d3'])
   const target = JSON.parse(read('docs/migration/phase-13/PART_13G_TARGET_MANIFEST.json'))
   const approval = JSON.parse(read('docs/migration/phase-13/PART_13G_APPROVAL_MANIFEST.json'))
   assert.equal(target.retention.status, 'indefinite')

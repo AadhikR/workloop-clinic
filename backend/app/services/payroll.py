@@ -529,7 +529,7 @@ class PayrollService:
         self, principal: AuthorizationPrincipal, query: PayslipListQuery
     ) -> tuple[list[PayslipResponse], str | None]:
         if (
-            principal.role is not AppRole.EMPLOYEE
+            principal.role not in {AppRole.EMPLOYEE, AppRole.MANAGER}
             or principal.employee_id is None
             or principal.branch_id is None
         ):
@@ -567,7 +567,7 @@ class PayrollService:
         self, principal: AuthorizationPrincipal, payslip_id: uuid.UUID
     ) -> PayslipResponse:
         if (
-            principal.role is not AppRole.EMPLOYEE
+            principal.role not in {AppRole.EMPLOYEE, AppRole.MANAGER}
             or principal.employee_id is None
             or principal.branch_id is None
         ):

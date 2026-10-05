@@ -38,6 +38,7 @@ export function EmployeeDocuments({ account, authentication, branchId, employeeI
   const [busy, setBusy] = useState(false)
   const [file, setFile] = useState(null)
   const [form, setForm] = useState({ documentType: 'Passport', documentNumber: '', expiryDate: '', notes: '' })
+  const [loadState, setLoadState] = useState('loading')
 
   const load = useCallback(async () => {
     try {
@@ -45,7 +46,8 @@ export function EmployeeDocuments({ account, authentication, branchId, employeeI
         ? await readEmployeeDocuments(authentication, branchId, employeeId)
         : await readSelfEmployeeDocuments(authentication)
       setItems(result.items)
-    } catch { setItems([]) }
+      setLoadState('ready')
+    } catch { setItems([]); setLoadState('error') }
   }, [account.role, authentication, branchId, employeeId])
 
   useEffect(() => {
@@ -102,22 +104,26 @@ export function EmployeeDocuments({ account, authentication, branchId, employeeI
 
   if (account.role === 'admin' && !employeeId) return <p>Enter an employee ID to manage documents.</p>
   return <section aria-labelledby="employee-documents-title">
-    <h3 id="employee-documents-title">Employee documents</h3>
+    <h3 id="employee-documents-title">{account.role === 'admin' ? 'Employee documents' : 'My Documents'}</h3>
+    {loadState === 'loading' && <p role="status">Loading documents...</p>}
+    {loadState === 'error' && <p role="alert">Documents are unavailable. <button type="button" onClick={load}>Retry</button></p>}
     {message && <p role="status">{message}</p>}
     <form className="expense-form document-drop-zone" onSubmit={submit} aria-busy={busy}>
+      <h4 className="form-section-title">Submit a Document</h4><p>Upload your credentials for HR review. Downloads become available after the security scan passes.</p>
       <label>Document type<select value={form.documentType} onChange={(event) => setForm({ ...form, documentType: event.target.value })}>{documentTypes.map((type) => <option key={type}>{type}</option>)}</select></label>
       <label>Document number<input required maxLength="120" value={form.documentNumber} onChange={(event) => setForm({ ...form, documentNumber: event.target.value })} /></label>
-      <label>Expiry date<input type="date" value={form.expiryDate} onChange={(event) => setForm({ ...form, expiryDate: event.target.value })} /></label>
+      <label>Expiry date<input type="date" min={new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' })} value={form.expiryDate} onChange={(event) => setForm({ ...form, expiryDate: event.target.value })} /></label>
       <label>Notes<textarea maxLength="1000" value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></label>
       <label>File<input required type="file" accept="application/pdf,image/png,image/jpeg" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /><span>PDF, JPG, or PNG up to 10 MB{file ? ` · ${file.name}` : ''}</span></label>
       {busy && <progress aria-label="Uploading document" />}
       <button type="submit" disabled={busy}>{busy ? 'Uploading...' : 'Upload document'}</button>
     </form>
-    <table className="expense-table"><thead><tr><th>Type</th><th>File</th><th>Status</th><th>Expiry</th><th>Actions</th></tr></thead>
+    {loadState === 'ready' && items.length === 0 && <div className="empty-state">No documents on file yet. Submit your credentials using the form above.</div>}
+    <div className="table-wrap"><table className="expense-table"><thead><tr><th>Type</th><th>File</th><th>Status</th><th>Expiry</th><th>Submitted</th><th>Actions</th></tr></thead>
       <tbody>{items.map((document) => <tr key={document.id}>
         <td>{document.documentType}</td><td>{document.fileName}</td>
         <td>{document.status.replaceAll('_', ' ')}{document.rejectionReason && <small>{document.rejectionReason}</small>}</td>
-        <td>{document.expiryDate ?? 'None'}</td><td><div className="expense-actions">
+        <td>{document.expiryDate ?? 'None'}{document.expiryDate && document.expiryDate < new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dubai' }) && <span className="status-pill" data-status="expired">Expired</span>}</td><td>{document.uploadedAt.slice(0, 10)}</td><td><div className="expense-actions">
           <button type="button" disabled={busy} onClick={() => action('download', document)}>Download</button>
           {account.role === 'admin' && document.status === 'pending_verification' && <>
             <button type="button" disabled={busy} onClick={() => action('verify', document)}>Verify</button>
@@ -126,17 +132,25 @@ export function EmployeeDocuments({ account, authentication, branchId, employeeI
           {['pending_verification', 'rejected'].includes(document.status) && <button type="button" className="danger" disabled={busy} onClick={() => action('delete', document)}>Remove</button>}
         </div></td>
       </tr>)}</tbody>
-    </table>
+    </table></div>
   </section>
 }
 
 export function SelfInsurance({ authentication }) {
   const [coverage, setCoverage] = useState(undefined)
-  useEffect(() => {
-    readSelfInsurance(authentication).then(setCoverage).catch(() => setCoverage(null))
+  const [error, setError] = useState(false)
+  const load = useCallback(async () => {
+    setError(false)
+    try { setCoverage(await readSelfInsurance(authentication)) }
+    catch { setError(true) }
   }, [authentication])
+  useEffect(() => {
+    const pending = globalThis.setTimeout(load, 0)
+    return () => globalThis.clearTimeout(pending)
+  }, [load])
   return <section aria-labelledby="self-insurance-title"><h3 id="self-insurance-title">My insurance</h3>
-    {coverage === undefined && <p>Loading insurance coverage...</p>}
+    {error && <p role="alert">Insurance coverage is unavailable. <button type="button" onClick={load}>Retry</button></p>}
+    {!error && coverage === undefined && <p>Loading insurance coverage...</p>}
     {coverage === null && <p>No current insurance coverage is available.</p>}
     {coverage && <dl><div><dt>Insurer</dt><dd>{coverage.insurerName}</dd></div><div><dt>Tier</dt><dd>{coverage.tierName}</dd></div><div><dt>Effective</dt><dd>{coverage.effectiveDate}</dd></div><div><dt>Expiry</dt><dd>{coverage.expiryDate ?? 'None'}</dd></div></dl>}
   </section>

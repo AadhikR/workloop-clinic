@@ -1,0 +1,55 @@
+{
+  "profile": {
+    "name": "phase15f-local-loopback-chromium",
+    "runner": "win32-x64; Node v24.11.1",
+    "browser": "Chromium 148.0.7778.96",
+    "network": "127.0.0.1 loopback, no throttling",
+    "command": "npm run verify:phase15f:performance"
+  },
+  "budgets": {
+    "initialCompressedTransferBytes": 225000,
+    "laterRouteTransferBytes": 1024,
+    "largestRouteBundleCompressedBytes": 210000,
+    "routeChangeP95Ms": 300,
+    "formFeedbackP95Ms": 500,
+    "representativeApiP95Ms": 500
+  },
+  "measurements": {
+    "initialCompressedTransferBytes": {
+      "value": 224375,
+      "sampleCount": 1,
+      "percentile": "total",
+      "cacheState": "cold-build"
+    },
+    "laterRouteTransferBytes": {
+      "value": 0,
+      "sampleCount": 43,
+      "percentile": "total",
+      "cacheState": "warm-route"
+    },
+    "largestRouteBundleCompressedBytes": {
+      "value": 196018,
+      "sampleCount": 10,
+      "percentile": "maximum",
+      "cacheState": "cold-build"
+    },
+    "routeChangeP95Ms": {
+      "value": 118.1,
+      "sampleCount": 86,
+      "percentile": "p95",
+      "cacheState": "warm-application"
+    },
+    "formFeedbackP95Ms": {
+      "value": 65.6,
+      "sampleCount": 10,
+      "percentile": "p95",
+      "cacheState": "warm-application"
+    },
+    "representativeApiP95Ms": {
+      "value": 8.08,
+      "sampleCount": 25,
+      "percentile": "p95",
+      "cacheState": "no-store"
+    }
+  }
+}

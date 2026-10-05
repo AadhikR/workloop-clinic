@@ -158,7 +158,7 @@ async def download_self_payslip_pdf(
     principal: AuthenticatedReadPrincipal,
 ) -> Response:
     branch_id = _branch(request, principal)
-    if principal.role is not AppRole.EMPLOYEE or principal.employee_id is None:
+    if principal.role not in {AppRole.EMPLOYEE, AppRole.MANAGER} or principal.employee_id is None:
         raise ServiceExecutionError("operation_not_permitted")
 
     async def producer(connection: AsyncConnection) -> tuple[RenderedOutput, str, str, uuid.UUID]:

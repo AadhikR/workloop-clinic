@@ -76,13 +76,13 @@ function EmployeeBalanceCards({ balances, leaveTypes }) {
   })}</div>
 }
 
-function LeaveCalendar({ month, onMonthChange, requests }) {
+function LeaveCalendar({ month, onMonthChange, requests, mondayFirst = false }) {
   const [year, monthNumber] = month.split('-').map(Number)
   const firstWeekday = new Date(Date.UTC(year, monthNumber - 1, 1)).getUTCDay()
   const daysInMonth = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate()
   const approved = requests.filter((request) => request.status === 'Approved')
-  const cells = [...Array(firstWeekday).fill(null), ...Array.from({ length: daysInMonth }, (_, index) => index + 1)]
-  return <><div className="month-toolbar"><label>Month<input type="month" value={month} onChange={(event) => onMonthChange(event.target.value)} /></label></div><div className="leave-calendar" role="grid" aria-label={`Approved leave for ${month}`}><div className="calendar-weekdays" role="row">{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => <span role="columnheader" key={day}>{day}</span>)}</div><div className="calendar-days">{cells.map((day, index) => {
+  const cells = [...Array(mondayFirst ? (firstWeekday + 6) % 7 : firstWeekday).fill(null), ...Array.from({ length: daysInMonth }, (_, index) => index + 1)]
+  return <><div className="month-toolbar"><label>Month<input type="month" value={month} onChange={(event) => onMonthChange(event.target.value)} /></label></div><div className="leave-calendar" role="grid" aria-label={`Approved leave for ${month}`}><div className="calendar-weekdays" role="row">{(mondayFirst ? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']).map((day) => <span role="columnheader" key={day}>{day}</span>)}</div><div className="calendar-days">{cells.map((day, index) => {
     if (day === null) return <span aria-hidden="true" className="calendar-day empty" key={`empty-${index}`} />
     const date = `${month}-${String(day).padStart(2, '0')}`
     const entries = approved.filter((request) => request.startDate <= date && request.endDate >= date)
@@ -440,10 +440,16 @@ function LeaveRequestForm({ admin, authentication, branchId, employees, leaveTyp
 }
 
 function RequestTable({
-  admin, requests, employees, onCancel, onDownload, onUpload, uploadState, cancellingId,
+  admin, requests, employees, leaveTypes, onCancel, onDownload, onUpload, uploadState, cancellingId,
 }) {
   const today = new Date().toISOString().slice(0, 10)
   if (requests.length === 0) return <p>No leave requests overlap this leave year.</p>
+  if (!admin) return <div className="staff-records">{requests.map((request) => <details className="employee-panel personal-leave-card" data-request-id={request.id} key={request.id}>
+    <summary><span><strong>{leaveTypes.find((type) => type.id === request.leaveTypeId)?.name ?? 'Leave request'}</strong><small><time dateTime={request.startDate}>{request.startDate}</time> to <time dateTime={request.endDate}>{request.endDate}</time> · {request.daysRequested} days</small></span><span className="status-pill" data-status={request.status.toLowerCase()}>{request.status}</span></summary>
+    <div className="staff-record-detail"><p>Reason: {request.reason || 'None'}</p>{request.rejectionReason && <p role="status">Rejected: {request.rejectionReason}</p>}{request.managerRejectionReason && <p role="status">Manager rejected: {request.managerRejectionReason}</p>}<p>Submitted {request.submittedAt.slice(0, 10)}</p>{request.approvalComment && <p>{request.approvalComment}</p>}
+      {request.attachment ? <button type="button" onClick={() => onDownload(request)}>Download {request.attachment.fileName}</button> : request.status === 'Pending' && <label>Upload attachment<input type="file" accept="application/pdf,image/png,image/jpeg" onChange={(event) => onUpload(request, event.target.files?.[0] ?? null)} /></label>}
+      {uploadState[request.id] && <p role="status">{uploadState[request.id]}</p>}{request.status === 'Pending' && <button type="button" className="danger" disabled={cancellingId === request.id} onClick={() => onCancel(request)}>{cancellingId === request.id ? 'Cancelling...' : 'Cancel Request'}</button>}
+    </div></details>)}</div>
   return (
     <div className="table-wrap leave-history-table">
       <table className="leave-request-table">
@@ -729,6 +735,7 @@ export default function LeaveOverview({
                 admin={admin}
                 requests={state.requests}
                 employees={referenceData.employees}
+                leaveTypes={referenceData.leaveTypes}
                 onCancel={cancel}
                 onDownload={download}
                 onUpload={upload}
@@ -738,7 +745,7 @@ export default function LeaveOverview({
             </section>
           </div>}
           {activeView === 'balances' && <section className="employee-panel leave-tab-panel" role="tabpanel"><div className="panel-heading"><h3>Balances</h3></div>{admin ? <BalanceTable balances={state.balances} employees={referenceData.employees} leaveTypes={referenceData.leaveTypes} /> : <EmployeeBalanceCards balances={state.balances} leaveTypes={referenceData.leaveTypes} />}</section>}
-          {activeView === 'calendar' && <section className="employee-panel leave-tab-panel leave-calendar-panel" role="tabpanel"><div className="panel-heading"><h3>Request calendar</h3></div><LeaveCalendar month={calendarMonth} onMonthChange={setCalendarMonth} requests={state.requests} /></section>}
+          {activeView === 'calendar' && <section className="employee-panel leave-tab-panel leave-calendar-panel" role="tabpanel"><div className="panel-heading"><h3>Request calendar</h3></div><LeaveCalendar mondayFirst={!admin} month={calendarMonth} onMonthChange={setCalendarMonth} requests={state.requests} /></section>}
         </>
       )}
     </section>

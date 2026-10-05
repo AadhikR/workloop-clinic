@@ -26,40 +26,40 @@ from the shared stylesheet.
 | Admin | Leave | C | C restores Overview, Requests, Calendar, Balances, and Settings work areas around the current scoped clients. Request decisions, policy, holidays, balance work, and delegations remain server-authoritative. |
 | Admin | Attendance | C | C restores Dashboard, Manual Entry, Records, Absences, Overtime, Corrections, Periods, and Settings work areas. Biometric mapping and import controls remain excluded. |
 | Admin | Assets | A, F | Old register/history tabs and custody forms replaced by an inline editor with identifier prompts. A restores summaries, register columns, named assign/return dialogs, history, status filters, and confirmations. New server history and dated custody support added. Actor labels and self-history pagination remain in F. |
-| Admin | Training | A, E, F | Old Training/Certifications/CME work areas replaced by simultaneous forms requiring a selected employee. A restores tabs, per-tab summaries, employee selection inside creation dialogs, completion/rejection dialogs, certification edit, and branch CME tracking. Status transitions, complete collection pagination, and contributing CME records remain. |
+| Admin | Training | A, E, F | Old Training/Certifications/CME work areas replaced by simultaneous forms requiring a selected employee. A restores tabs, per-tab summaries, employee selection inside creation dialogs, completion/rejection dialogs, certification edit, and branch CME tracking. E adds protected start/cancel transitions and result provenance. Complete collection pagination and contributing CME records remain in F. |
 | Admin | Appraisals | A, F | Old Cycles/Reviews tables and review dialog replaced by stacked cycles and rating prompts. A restores those views, cycle selection, review summaries, section detail and rating dialogs, calibration, confirmation, and closed-cycle read-only controls. Admin section rating and retained review removal need an authority amendment. Department/job metadata and final dialog layout remain. |
 | Admin | Roster | C | C restores Shift Templates, Monthly Roster, and Swap Requests. The monthly grid keeps validation, exact-version publication, actual-hours, overtime, and swap operations on current clients. |
 | Admin | Incidents | A, F | Old summaries, filters, nine-column register, people/time fields, and report dialog replaced by a permanent form and terse actions. A restores these UI areas and investigation/corrective-action dialogs. Historical deletion has no current audited server operation. Retained removal and final edit layout remain in F. |
 | Admin | Reports | D | D restores family selection, named supported filters, 13 report tables and charts, authoritative totals, pagination, and protected CSV/PDF output with retained failure state. |
 | Admin | Tasks | D | D restores grouped, collapsible server task cards, urgency, manual and timed refresh, and role-correct links. Notifications page the inbox and confirm read writes before updating. |
-| Manager | Home | E | Pending |
-| Manager | Leave queue | E | Pending |
-| Manager | Expense queue | E | Pending |
-| Manager | Appraisals | E | Shared A dialogs changed. Own records cannot show rating controls. Historical manager-specific comparison and populated proof pending. |
-| Manager | Leave | E | Pending |
-| Manager | Schedule | E | Pending |
-| Manager | Attendance | E | Pending |
-| Manager | Payslips | E | Pending |
-| Manager | Advances | E | Pending |
-| Manager | Expenses | E | Pending |
-| Manager | Training | E | Shared A tabs/forms changed. Completion is limited to selected direct reports. Historical team/personal comparison and populated proof pending. |
-| Manager | Documents | B, E | B keeps document and insurance components in selected employee context. E still owns the complete manager-specific historical comparison and direct-report restrictions. |
-| Manager | Requests | B, E | B fixes own completed-letter output for managers and prevents custom requests from entering the standard-letter renderer. E still owns the complete manager workspace comparison. |
-| Manager | Profile | E | A corrected UAE mobile validation in the shared contact editor. Full historical profile comparison remains pending. |
-| Manager | Tasks | D, E | D proves grouped tasks, manager queue links, and notification read/failure behavior. E owns the complete personal workspace comparison. |
-| Employee | Home | E | Pending |
-| Employee | Leave | E | Pending |
-| Employee | Schedule | E | Pending |
-| Employee | Attendance | E | Pending |
-| Employee | Payslips | E | Pending |
-| Employee | Advances | E | Pending |
-| Employee | Expenses | E | Pending |
-| Employee | Training | E | Shared A forms changed. No employee verification or completion authority added. Historical personal workflow and required self-completion contract pending. |
-| Employee | Appraisals | E | Shared A result dialog changed. Remains read-only. Historical personal comparison and populated proof pending. |
-| Employee | Documents | B, E | B preserves the shared protected-file components and selected-record integration. E still owns the personal documents and insurance layout comparison. |
-| Employee | Requests | B, E | B restores the shared letter/custom request split and limits output to completed standard letters. E still owns the complete personal workspace comparison. |
-| Employee | Profile | E | A corrected UAE mobile validation in the contact editor. Full historical profile comparison remains pending. |
-| Employee | Tasks | D, E | D proves personal grouped tasks, links, and notification read/failure behavior. E owns the complete personal workspace comparison. |
+| Manager | Home | E, F | E restores the named welcome, read-only today status, recent personal leave, assigned assets, personal server cards, and quick links. F checks final historical card density. |
+| Manager | Leave queue | E, F | E restores the reason column, refresh, protected decisions, and retained rejection dialog. E-01 requires the shared action-history projection in F. |
+| Manager | Expense queue | E, F | E restores status filters, refresh, current-report decisions, and protected receipt viewing. Existing DELETE restrictions remain. D-02 remains in F. |
+| Manager | Appraisals | E, F | E restores expandable result cards, section weights, reviewer comments, and development plans. Personal results are read-only. Managers rate only pending reviews in active cycles for current reports. A-04 and final metadata/layout remain in F. |
+| Manager | Leave | E | E restores balance cards, expandable request history, reasons, attachments, pending cancellation, and a Monday-first personal calendar on existing server commands. |
+| Manager | Schedule | E, F | E restores published shift cards, period controls, summary, and a named swap dialog. Current publication versions and colleague scope remain authoritative. Failed requests retain inputs and their retry key. |
+| Manager | Attendance | E, F | E restores read-only today status, recent records, correction history, and an inline correction form. Dates use Dubai time. Failed corrections retain inputs and their retry key. |
+| Manager | Payslips | E, F | E restores expandable earnings, deductions, net pay, and protected PDF output. Managers can read and download only their own payslips. Foreign records remain denied. |
+| Manager | Advances | E, F | E reuses the D request dialog and scoped history. E-02 defines the shared repayment projection required in F. Current summary values remain server-provided. |
+| Manager | Expenses | E, F | E reuses the D request dialog and claim history, adds personal protected receipt viewing, and retains the claim after a failed download. D-02 remains in F. |
+| Manager | Training | E, F | E restores separate manager Team/My scopes, all-report selection, simultaneous personal training/certification panels, named record dialogs, evidence, and CME summary. Protected start/cancel and unverified personal result commands close A-01. A-04 and E-03 remain in F. |
+| Manager | Documents | E | E restores the personal document submission form, expiry/status table, protected file controls, and separate insurance panel. Document numbers stay absent from the safe read projection. Report documents remain unavailable to managers. |
+| Manager | Requests | E, F | E restores separate letter/custom forms and history. Only completed standard letters expose source/PDF. Failed submissions retain inputs. Manager own-letter PDF audit now passes PostgreSQL proof. |
+| Manager | Profile | E | E restores the avatar/header, employment, salary, contact, emergency, and UAE areas. Contact editing sends only permitted fields, keeps failed entries, and restores saved values on cancel. |
+| Manager | Tasks | E | E compares the historical personal workspace and reuses D grouped tasks, role-correct links, refresh, and notifications. Populated desktop/mobile checks cover both staff roles. |
+| Employee | Home | E, F | E restores the named welcome, read-only today status, recent personal leave, assigned assets, personal server cards, and quick links. F checks final historical card density. |
+| Employee | Leave | E | E restores balance cards, expandable request history, reasons, attachments, pending cancellation, and a Monday-first personal calendar on existing server commands. |
+| Employee | Schedule | E, F | E restores published shift cards, period controls, summary, and a named swap dialog. Current publication versions and colleague scope remain authoritative. Failed requests retain inputs and their retry key. |
+| Employee | Attendance | E, F | E restores read-only today status, recent records, correction history, and an inline correction form. Dates use Dubai time. Failed corrections retain inputs and their retry key. |
+| Employee | Payslips | E, F | E restores expandable earnings, deductions, net pay, and protected PDF output. Managers can read and download only their own payslips. Foreign records remain denied. |
+| Employee | Advances | E, F | E reuses the D request dialog and scoped history. E-02 defines the shared repayment projection required in F. Current summary values remain server-provided. |
+| Employee | Expenses | E, F | E reuses the D request dialog and claim history, adds personal protected receipt viewing, and retains the claim after a failed download. D-02 remains in F. |
+| Employee | Training | E, F | E restores separate manager Team/My scopes, all-report selection, simultaneous personal training/certification panels, named record dialogs, evidence, and CME summary. Protected start/cancel and unverified personal result commands close A-01. A-04 and E-03 remain in F. |
+| Employee | Appraisals | E, F | E restores expandable result cards, section weights, reviewer comments, and development plans. Personal results are read-only. Managers rate only pending reviews in active cycles for current reports. A-04 and final metadata/layout remain in F. |
+| Employee | Documents | E | E restores the personal document submission form, expiry/status table, protected file controls, and separate insurance panel. Document numbers stay absent from the safe read projection. Report documents remain unavailable to managers. |
+| Employee | Requests | E, F | E restores separate letter/custom forms and history. Only completed standard letters expose source/PDF. Failed submissions retain inputs. Manager own-letter PDF audit now passes PostgreSQL proof. |
+| Employee | Profile | E | E restores the avatar/header, employment, salary, contact, emergency, and UAE areas. Contact editing sends only permitted fields, keeps failed entries, and restores saved values on cancel. |
+| Employee | Tasks | E | E compares the historical personal workspace and reuses D grouped tasks, role-correct links, refresh, and notifications. Populated desktop/mobile checks cover both staff roles. |
 
 ## Backend additions in A
 
@@ -83,7 +83,7 @@ from the shared stylesheet.
 
 | ID | Owner | Dependency and required result |
 | --- | --- | --- |
-| A-01 | E, F | Training currently has creation, planned-record edit, and admin/direct-report completion. Restore start/cancel transitions and historical personal completion with protected server commands. Self-entered results must not grant verified CME credit. Verify ownership, direct-report changes, versions, audit, and failure states. |
+| A-01 | E completed | Revision `e2c4f6a8b0d3` and named start/cancel/self-complete commands restore this workflow. PostgreSQL proves current ownership, reassignment races, versions, audit rollback, replay, and zero verified CME credit from self-entered results. |
 | A-02 | F | Admin section rating conflicts with the manager-only `appraisal_section_rated` audit authority. Add a scoped, versioned admin operation and an append-only authority amendment. Keep closed cycles locked and deny staff outside current direct-report ownership. |
 | A-03 | F | Appraisal and incident removal lacks the required current operation and retained authority. Implement recoverable archival/removal with audit, versions, idempotent replay, and tenant/branch scope. Preserve closed records. Do not revive historical unaudited hard deletion. |
 | A-04 | F | Training, certification, appraisal, incident, and self-asset collections still cap results. Complete server pagination and client traversal across these shared read families before certifying totals or large-population parity. A's new history, inventory, and branch CME readers already page. |
@@ -94,7 +94,7 @@ from the shared stylesheet.
 | B-01 | D, F | Restore the historical routing-code cascade as one idempotent server command, not a branch update followed by client fan-out. Lock the branch and every affected draft payroll run, verify the branch version and each draft source/version, update the branch default and only draft runs in the selected branch, reject approved or paid runs, append allowlisted audit events, and return the changed run identifiers and versions. D integrates it with payroll. D proves concurrency, rollback, audit, replay, and denial behavior against disposable PostgreSQL. F must apply revision `f1a3c5e7b9d2` and publish the backend before final promotion. |
 | B-02 | F | C shows the effective default shift in Job and contract and replaces it through `POST /api/v1/shift-assignments` with the freshly read assignment identifier and version. C did not add unassignment: the current model has no branch default to fall back to, so clearing would leave an ambiguous schedule. F verifies the final editor and roster interaction. |
 | B-03 | F | The restored expiry summary combines fixed employee dates with uploaded document expiry records through current scoped readers. Add a paged or aggregate admin-selected-branch expiry projection before certifying large-branch parity, so the summary does not require one document request per employee. The result must expose employee identity, source type, expiry date, and status without document numbers, storage paths, hashes, or signed URLs. |
-| B-04 | F | Run the composite profile command, custom-request output denial, manager self-letter output, logo update, and selected-employee child readers against the disposable PostgreSQL and object-storage environment. Prove one-transaction rollback, stale versions, manager cycles, audit rows, replay, branch denial, protected output, and browser failure retention. Publish the reviewed backend artifact only in F. |
+| B-04 | F | Run the composite profile command, custom-request output denial, logo update, and selected-employee child readers against the disposable PostgreSQL and object-storage environment. Prove one-transaction rollback, stale versions, manager cycles, audit rows, replay, branch denial, protected output, and browser failure retention. E proves manager own standard-letter and payslip PDFs, foreign-record denial, and custom-request output denial against PostgreSQL. Publish the reviewed backend artifact only in F. |
 | B-05 | F | Final visual comparison must cover populated employer settings, logo states, every employee modal tab, fixed and uploaded expiry warnings, long job histories, empty and populated child tabs, offboarding and settlement states, all request filters, dark mode, mobile scrolling, keyboard focus, and failed saves. |
 
 ## Backend additions in D
@@ -199,3 +199,62 @@ separation, and staff shell layout. Shared route and recovery checks pass all 46
 limits remain unchanged after deferred administrator module loading.
 See `PORTAL_RESTORATION_D_COMPLETION.md` for measurements, environment, and evidence limits.
 D does not certify D-01, D-02, or the other F dependencies, and does not deploy.
+
+
+## Backend additions in E
+
+Revision `e2c4f6a8b0d3` follows `f1a3c5e7b9d2`. It adds
+`training_records.result_verified`, its no-unverified-CME constraint, an invoker guard against
+ordinary personal UPDATE result changes, and migration-owned
+`transition_training_record(uuid,timestamptz,text,date,numeric,text,boolean)`.
+Only the runtime role can execute the protected command. PUBLIC cannot.
+
+The manager All Reports view resolves the existing server-approved direct-report list and reads
+each report through the required employee-scoped development routes. It never falls back to the
+manager's personal endpoint. These collections retain the A-04 pagination dependency in F.
+
+`POST /api/v1/training-records/{id}/start` and `/cancel` require an expected version and
+idempotency key. Staff can act on their own eligible records; managers can also act on current
+direct reports; administrators use their selected branch. The command locks the record and then
+the employee, rechecks the current reporting relationship, and writes an allowlisted audit event
+in the same transaction. Terminal status changes fail.
+
+`POST /api/v1/training-records/{id}/self-complete` accepts only end date, duration, score,
+passed, and expected version from a current human manager or employee acting on their own record.
+It rejects future Dubai dates, dates before the start, malformed decimals, and authority fields.
+It writes a completed unverified result with `is_cme=false`. Existing trusted completion can
+verify that result for an administrator or current manager. CME totals require verified results
+and the existing evidence predicate. Replay rechecks current account and record authority.
+
+E adds a manager-own payslip SELECT policy and extends the protected output audit function for
+manager-own payslip PDF and completed standard-letter PDF only. It preserves the previous function
+under a private name without runtime or PUBLIC execution. Custom requests and foreign records
+remain denied. Appraisal reads now include cycle status so staff cannot rate a closed cycle.
+
+Downgrade to D refuses to proceed while any self-reported result remains unverified. This protects
+its provenance from silent conversion to a trusted result. An otherwise eligible downgrade
+removes E's objects and restores the exact prior output audit function. F must keep compatible
+backend/frontend/schema artifacts together and must never downgrade automatically.
+
+## E dependencies assigned to F
+
+| ID | Owner | Dependency and required result |
+| --- | --- | --- |
+| E-01 | F | The manager leave queue exposes pending decisions but lacks the historical recently-actioned panel. Extend the shared paged approval/audit projection with a bounded actor/action time, sanitized employee and leave identity, decision and reason. Recheck current tenant/branch, direct-report/delegation visibility, and policy for former reports. Keep protected attachment data out. Prove page completeness, reassignment and delegation expiry. Do not derive history from the current queue or invent counts. |
+| E-02 | F | Personal advances currently omit installment schedule and repayment rows while administrator financial readers expose them. Add a paged owner-only repayment projection through the shared financial read work in D-02, with period, scheduled/paid/remaining amounts and status. Preserve payroll and ledger authority, derive scope server-side, and exclude reviewer/private identifiers. Restore the personal active schedule and progress from confirmed values and prove aggregate/detail agreement. |
+| E-03 | F | Complete the final historical presentation audit of personal forms, training inline add/edit placement versus current dialogs, manager status filters, home KPI density, appraisal metadata, empty/loading/denied/conflict states, dark mode and long mobile data. E screenshots prove populated interactions and containment, not exact historical parity in every state. Reuse A-04 pagination before certifying collection summaries. |
+
+## E verification
+
+Focused PostgreSQL proof covers personal result provenance, start/cancel, trusted verification,
+stale and terminal transitions, raw UPDATE denial, account/branch/tenant denial, idempotent replay,
+reassignment while waiting on an employee lock, audit failure rollback, downgrade refusal,
+manager own PDF delivery, custom/foreign output denial, and fixture cleanup.
+The browser verifier exercises both staff roles across every personal route and manager review
+areas, contact/result/swap/correction/rejection failures, scoped payloads, keyboard expansion,
+completed output controls, protected receipt retry, and 390-pixel dark layouts.
+The final local gate passed frontend and backend checks, deep database authority and exact
+predecessor rollback, restart persistence, real three-role journeys, all 46 shared route checks,
+payroll layout checks, unchanged performance limits, and exact synthetic cleanup.
+Evidence is in `evidence/restoration-e`. `PORTAL_RESTORATION_E_COMPLETION.md` records counts,
+measurements, environment, and limits. E does not deploy or certify the required F dependencies.
